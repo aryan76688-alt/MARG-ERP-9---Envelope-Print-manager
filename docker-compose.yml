@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  envelope-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: marg-envelope-app
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./backend/envelope_manager.db:/app/backend/envelope_manager.db
+    restart: unless-stopped

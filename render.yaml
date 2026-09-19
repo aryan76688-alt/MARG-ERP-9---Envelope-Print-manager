@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: marg-envelope-manager
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/settings
+    envVars:
+      - key: PORT
+        value: 8080

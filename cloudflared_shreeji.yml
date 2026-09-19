@@ -1,0 +1,19 @@
+# ========================================================
+# Cloudflare Tunnel Ingress Configuration for shreeji.in
+# MARG ERP 9+ Envelope Print Manager
+# ========================================================
+
+# Replace with your tunnel ID or name once created
+tunnel: shreeji-envelope
+credentials-file: /home/aryan/.cloudflared/shreeji-envelope.json
+
+ingress:
+  - hostname: shreeji.in
+    service: http://localhost:8080
+  - hostname: www.shreeji.in
+    service: http://localhost:8080
+  - hostname: envelope.shreeji.in
+    service: http://localhost:8080
+  - hostname: app.shreeji.in
+    service: http://localhost:8080
+  - service: http_status:404
