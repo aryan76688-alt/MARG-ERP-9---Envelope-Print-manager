@@ -631,7 +631,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, onJo
                   onChange={(e) => setPrintCaseNumber(e.target.checked)}
                   className="w-4 h-4 text-blue-600 rounded border-slate-300"
                 />
-                <span>Print Case Number (e.g. CASE: 1)</span>
+                <span>Print Case Number (e.g. CASE: {totalCases})</span>
               </label>
 
               <div className="text-[11px] font-extrabold text-blue-900 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
