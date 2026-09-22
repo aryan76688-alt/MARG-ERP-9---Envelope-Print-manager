@@ -192,10 +192,10 @@ def build_full_html_document(
     sender_data: Dict[str, Any],
     settings: Dict[str, Any]
 ) -> str:
-    margin_top = float(settings.get("margin_top_mm", 5.0))
-    margin_bottom = float(settings.get("margin_bottom_mm", 5.0))
-    margin_left = float(settings.get("margin_left_mm", 5.0))
-    margin_right = float(settings.get("margin_right_mm", 5.0))
+    margin_top = float(settings.get("margin_top_mm", 15.0))
+    margin_bottom = float(settings.get("margin_bottom_mm", 10.0))
+    margin_left = float(settings.get("margin_left_mm", 3.0))
+    margin_right = float(settings.get("margin_right_mm", 3.0))
     envelopes_per_page = int(settings.get("envelopes_per_page", 2))
 
     pages_html = []
@@ -248,7 +248,7 @@ def build_full_html_document(
 <html>
 <head>
   <meta charset="utf-8">
-  <title>MARG Courier Envelope - {job_data.get('job_number', 'ENVELOPE')}</title>
+  <title>Courier Envelope - {job_data.get('job_number', 'ENVELOPE')}</title>
   <style>
     @page {{
       size: A4 portrait;

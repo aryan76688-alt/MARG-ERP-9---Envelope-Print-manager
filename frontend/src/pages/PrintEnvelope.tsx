@@ -861,7 +861,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, onJo
         @media print {
           @page {
             size: A4 portrait;
-            margin: ${appSettings.margin_top_mm ?? 5}mm ${appSettings.margin_right_mm ?? 5}mm ${appSettings.margin_bottom_mm ?? 5}mm ${appSettings.margin_left_mm ?? 5}mm !important;
+            margin: ${appSettings.margin_top_mm ?? 15}mm ${appSettings.margin_right_mm ?? 3}mm ${appSettings.margin_bottom_mm ?? 10}mm ${appSettings.margin_left_mm ?? 3}mm !important;
           }
           .sheet-page-wrapper {
             page-break-after: always;

@@ -80,13 +80,13 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
         {/* Brand Logo Header */}
         <div className="h-16 flex items-center px-5 gap-3 border-b border-slate-800/80 bg-slate-950/40">
           <div className="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center font-black text-white text-lg shadow-md shadow-blue-500/20">
-            M
+            <Printer className="w-5 h-5 text-white" />
           </div>
           <div className="flex flex-col">
             <span className="font-extrabold text-base tracking-wider text-white flex items-center gap-1">
-              MARG ERP <span className="text-blue-400 font-black text-xs px-1 py-0.2 bg-blue-950/80 rounded border border-blue-800">9+</span>
+              Envelope Print
             </span>
-            <span className="text-[10px] text-slate-400 font-medium tracking-wide">Envelope Manager</span>
+            <span className="text-[10px] text-slate-400 font-medium tracking-wide">Dispatch Manager</span>
           </div>
         </div>
 
@@ -146,8 +146,10 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
           <div className="relative w-72 bg-slate-900 text-white flex flex-col h-full shadow-2xl z-10">
             <div className="h-16 flex items-center justify-between px-5 border-b border-slate-800">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded bg-blue-600 flex items-center justify-center font-bold text-white">M</div>
-                <span className="font-extrabold text-white">MARG ERP 9+</span>
+                <div className="w-8 h-8 rounded bg-blue-600 flex items-center justify-center font-bold text-white">
+                  <Printer className="w-4 h-4 text-white" />
+                </div>
+                <span className="font-extrabold text-white">Envelope Print</span>
               </div>
               <button onClick={() => setMobileMenuOpen(false)} className="p-1.5 text-slate-400 hover:text-white">
                 <X className="w-5 h-5" />
@@ -206,13 +208,11 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-base sm:text-lg font-black text-slate-900 tracking-tight flex items-center gap-1.5">
-                  <span className="text-blue-900">MARG ERP 9+</span>
-                  <span className="text-slate-400 font-normal">|</span>
-                  <span className="text-blue-700 font-bold">Envelope Print</span>
+                  <span className="text-blue-900 font-bold">Envelope Print</span>
                 </h1>
               </div>
               <p className="text-[11px] text-slate-500 font-medium hidden sm:block">
-                Print Envelopes | Professional | Fast | Easy
+                Professional Envelope Dispatch & Print Manager
               </p>
             </div>
           </div>

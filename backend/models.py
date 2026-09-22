@@ -64,10 +64,10 @@ class AppSettings(Base):
     default_orientation = Column(String(20), default="Landscape") # Landscape, Portrait
     default_copies = Column(Integer, default=1)
     default_printer = Column(String(100), default="Microsoft Print to PDF")
-    margin_top_mm = Column(Float, default=5.0)
-    margin_left_mm = Column(Float, default=5.0)
-    margin_right_mm = Column(Float, default=5.0)
-    margin_bottom_mm = Column(Float, default=5.0)
+    margin_top_mm = Column(Float, default=15.0)
+    margin_left_mm = Column(Float, default=3.0)
+    margin_right_mm = Column(Float, default=3.0)
+    margin_bottom_mm = Column(Float, default=10.0)
     scale_percent = Column(Integer, default=100)
     envelopes_per_page = Column(Integer, default=2) # 1, 2, 4
     

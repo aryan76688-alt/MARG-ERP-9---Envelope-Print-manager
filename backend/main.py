@@ -17,8 +17,8 @@ import excel_service
 import pdf_service
 
 app = FastAPI(
-    title="MARG ERP 9+ – Envelope Print Manager API",
-    description="Backend API for MARG ERP 9+ Envelope Print Manager",
+    title="Envelope Print Manager API",
+    description="Backend API for Envelope Print Manager",
     version="1.0.0"
 )
 
@@ -77,10 +77,10 @@ class AppSettingsSchema(BaseModel):
     default_orientation: str = "Landscape"
     default_copies: int = 1
     default_printer: str = "Microsoft Print to PDF"
-    margin_top_mm: float = 5.0
-    margin_left_mm: float = 5.0
-    margin_right_mm: float = 5.0
-    margin_bottom_mm: float = 5.0
+    margin_top_mm: float = 15.0
+    margin_left_mm: float = 3.0
+    margin_right_mm: float = 3.0
+    margin_bottom_mm: float = 10.0
     scale_percent: int = 100
     envelopes_per_page: int = 2
     show_header: bool = True
@@ -1172,10 +1172,10 @@ def generate_pdf(req: GeneratePDFRequest, db: Session = Depends(get_db)):
             })
         job_number = temp_job_number
 
-    margin_top = req.margin_top_mm if req.margin_top_mm is not None else (app_settings.margin_top_mm if app_settings else 5.0)
-    margin_bottom = req.margin_bottom_mm if req.margin_bottom_mm is not None else (app_settings.margin_bottom_mm if app_settings else 5.0)
-    margin_left = req.margin_left_mm if req.margin_left_mm is not None else (app_settings.margin_left_mm if app_settings else 5.0)
-    margin_right = req.margin_right_mm if req.margin_right_mm is not None else (app_settings.margin_right_mm if app_settings else 5.0)
+    margin_top = req.margin_top_mm if req.margin_top_mm is not None else (app_settings.margin_top_mm if app_settings else 15.0)
+    margin_bottom = req.margin_bottom_mm if req.margin_bottom_mm is not None else (app_settings.margin_bottom_mm if app_settings else 10.0)
+    margin_left = req.margin_left_mm if req.margin_left_mm is not None else (app_settings.margin_left_mm if app_settings else 3.0)
+    margin_right = req.margin_right_mm if req.margin_right_mm is not None else (app_settings.margin_right_mm if app_settings else 3.0)
 
     settings_dict = {
         "envelopes_per_page": req.envelopes_per_page or (app_settings.envelopes_per_page if app_settings else 2),
@@ -1244,7 +1244,7 @@ def export_database_backup(db: Session = Depends(get_db)):
 
     backup = {
         "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        "app": "MARG ERP 9+ – Envelope Print Manager",
+        "app": "Envelope Print Manager",
         "parties": [
             {
                 "party_name": p.party_name,
@@ -1276,10 +1276,10 @@ def export_database_backup(db: Session = Depends(get_db)):
             "default_orientation": app_set.default_orientation if app_set else "Landscape",
             "default_copies": app_set.default_copies if app_set else 1,
             "default_printer": app_set.default_printer if app_set else "Microsoft Print to PDF",
-            "margin_top_mm": app_set.margin_top_mm if app_set else 5.0,
-            "margin_left_mm": app_set.margin_left_mm if app_set else 5.0,
-            "margin_right_mm": app_set.margin_right_mm if app_set else 5.0,
-            "margin_bottom_mm": app_set.margin_bottom_mm if app_set else 5.0,
+            "margin_top_mm": app_set.margin_top_mm if app_set else 15.0,
+            "margin_left_mm": app_set.margin_left_mm if app_set else 3.0,
+            "margin_right_mm": app_set.margin_right_mm if app_set else 3.0,
+            "margin_bottom_mm": app_set.margin_bottom_mm if app_set else 10.0,
             "scale_percent": app_set.scale_percent if app_set else 100,
             "envelopes_per_page": app_set.envelopes_per_page if app_set else 2,
             "show_header": app_set.show_header if app_set else True,

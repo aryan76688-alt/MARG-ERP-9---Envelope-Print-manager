@@ -1,5 +1,5 @@
 ---
-title: MARG ERP 9+ Envelope Print Manager
+title: Envelope Print Manager
 emoji: ✉️
 colorFrom: blue
 colorTo: indigo
@@ -8,9 +8,9 @@ app_port: 8080
 pinned: false
 ---
 
-# MARG ERP 9+ – Envelope Print Manager
+# Envelope Print Manager
 
-Complete full-stack envelope print manager for MARG ERP 9+ with authentic 7-column courier grid format, A4 half-size (2 envelopes per paper), Address Line 1/2/3, daily party deduplication, and pre-seeded database of 2,339 parties.
+Complete full-stack envelope print manager with authentic courier grid format, A4 half-size (2 envelopes per paper), Address Line 1/2/3, daily party deduplication, and pre-seeded database of 2,339 parties.
 
 ## 🚀 24/7 Cloud Deployment (No Laptop Required)
 
