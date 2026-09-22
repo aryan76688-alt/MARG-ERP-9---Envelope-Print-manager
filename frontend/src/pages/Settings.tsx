@@ -424,7 +424,7 @@ export const Settings: React.FC = () => {
               {[
                 { key: 'show_header', label: 'Show Header (MARG COURIER Branding Strip)' },
                 { key: 'show_barcode', label: 'Show Code128 Barcode & Case Identifier' },
-                { key: 'show_case_number', label: 'Show Case Number Badge (e.g. CASE 1/3)' },
+                { key: 'show_case_number', label: 'Show Case Number Badge (e.g. CASE: 1, CASE: 2)' },
                 { key: 'show_weight', label: 'Show Case Weight Badge (e.g. WT: 2.50 KG)' },
                 { key: 'show_mobile', label: 'Show Recipient Mobile Number' },
                 { key: 'show_party_code', label: 'Show Recipient Party Code Tag' },

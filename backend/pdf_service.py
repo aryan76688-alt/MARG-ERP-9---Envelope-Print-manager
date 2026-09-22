@@ -47,7 +47,7 @@ def render_single_envelope_html(
         sender_addr_2 = ""
 
     to_header = f"TO - {city}" if city else "TO -"
-    case_badge = f"CASE: {case_num}/{case_total}" if (show_case_number and case_total > 1) else ""
+    case_badge = f"CASE: {case_num}" if show_case_number else ""
 
     # Build multi-line address HTML
     addr_lines = [f"<div>{address}</div>"]

@@ -38,7 +38,7 @@ export const EnvelopeTemplate: React.FC<EnvelopeTemplateProps> = ({
   const senderEmail = (sender.email || 'SHREEJISEVEN@GMAIL.COM').toUpperCase();
 
   const toHeader = city ? `TO - ${city}` : 'TO -';
-  const caseBadge = showCaseNumber && caseItem.case_total > 1 ? `CASE: ${caseItem.case_number}/${caseItem.case_total}` : '';
+  const caseBadge = showCaseNumber ? `CASE: ${caseItem.case_number}` : '';
 
   // Split sender address into 2 rows matching reference envelope
   let senderAddr1 = senderAddr;

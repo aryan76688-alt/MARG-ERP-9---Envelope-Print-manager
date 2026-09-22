@@ -127,7 +127,7 @@ export const JobDetailsModal: React.FC<JobDetailsModalProps> = ({
                   {job.cases?.map((c) => (
                     <tr key={c.id} className="hover:bg-slate-50">
                       <td className="px-3 py-2 font-bold text-blue-900">
-                        Case {c.case_number}/{c.case_total}
+                        Case {c.case_number}
                       </td>
                       <td className="px-3 py-2 font-bold text-emerald-800">
                         {c.weight.toFixed(2)} KG
