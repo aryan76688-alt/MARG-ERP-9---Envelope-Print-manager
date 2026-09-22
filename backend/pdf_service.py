@@ -32,6 +32,20 @@ def render_single_envelope_html(
     sender_mob = (sender_data.get("mobile") or "+91 99245 44283").strip()
     sender_mail = (sender_data.get("email") or "SHREEJISEVEN@GMAIL.COM").strip().upper()
 
+    # Split sender address into 2 rows matching reference envelope
+    # e.g. "SHOP 3&4 GF-NARAYAN COMPLEX, DEHGAM-MODASA ROAD," and "DEHGAM-382305."
+    if "DEHGAM-MODASA ROAD" in sender_addr:
+        sender_addr_1 = "SHOP 3&4 GF-NARAYAN COMPLEX, DEHGAM-MODASA ROAD,"
+        sender_addr_2 = "DEHGAM-382305."
+    elif "," in sender_addr:
+        parts = [p.strip() for p in sender_addr.split(",")]
+        mid = max(1, len(parts) // 2)
+        sender_addr_1 = ", ".join(parts[:mid]) + ","
+        sender_addr_2 = ", ".join(parts[mid:])
+    else:
+        sender_addr_1 = sender_addr
+        sender_addr_2 = ""
+
     to_header = f"TO - {city}" if city else "TO -"
     case_badge = f"CASE: {case_num}/{case_total}" if (show_case_number and case_total > 1) else ""
 
@@ -43,7 +57,7 @@ def render_single_envelope_html(
         addr_lines.append(f"<div>{address_line_3}</div>")
     address_html = "".join(addr_lines)
 
-    # Generate the exact 7-column grid matching MARG Courier Envelope
+    # Generate the exact 7-column grid matching MARG Courier Envelope (EXACTLY 22 ROWS)
     html = f"""
     <div class="marg-envelope-wrapper">
       <table class="marg-grid-table">
@@ -66,7 +80,7 @@ def render_single_envelope_html(
             <td class="cell-case font-bold">{case_badge}</td>
           </tr>
 
-          <!-- Row 2: empty row -->
+          <!-- Row 2: empty row (7 cols) -->
           <tr class="h-row">
             <td></td><td></td><td></td><td></td><td></td><td></td><td></td>
           </tr>
@@ -83,7 +97,7 @@ def render_single_envelope_html(
             <td></td><td></td><td></td><td></td>
           </tr>
 
-          <!-- Row 5: Multi-line Address (Auto-height for any address length) -->
+          <!-- Row 5: Multi-line Address (Double height) -->
           <tr class="h-row-addr">
             <td colspan="3" class="cell-address font-bold">{address_html}</td>
             <td></td><td></td><td></td><td></td>
@@ -95,7 +109,7 @@ def render_single_envelope_html(
             <td></td><td></td><td></td><td></td>
           </tr>
 
-          <!-- Row 7: empty row (merged double height) -->
+          <!-- Row 7: empty row (merged full span double height) -->
           <tr class="h-row-lg">
             <td colspan="7"></td>
           </tr>
@@ -106,12 +120,12 @@ def render_single_envelope_html(
             <td></td><td></td><td></td><td></td>
           </tr>
 
-          <!-- Row 9: empty row (merged double height) -->
+          <!-- Row 9: empty row (merged full span double height) -->
           <tr class="h-row-lg">
             <td colspan="7"></td>
           </tr>
 
-          <!-- Rows 10, 11, 12: empty spacing rows -->
+          <!-- Rows 10, 11, 12: empty spacing rows (7 cols each) -->
           <tr class="h-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
           <tr class="h-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
           <tr class="h-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
@@ -122,7 +136,7 @@ def render_single_envelope_html(
             <td colspan="4" class="cell-from font-bold">FROM,</td>
           </tr>
 
-          <!-- Row 14: empty row -->
+          <!-- Row 14: empty row (7 cols) -->
           <tr class="h-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
 
           <!-- Row 15: Sender Name -->
@@ -132,38 +146,42 @@ def render_single_envelope_html(
             <td></td>
           </tr>
 
-          <!-- Row 16: empty row -->
+          <!-- Row 16: empty row (7 cols) -->
           <tr class="h-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
 
-          <!-- Row 17: Sender Address (Double height) -->
-          <tr class="h-row-lg">
-            <td></td><td></td><td></td>
-            <td colspan="4" class="cell-sender-addr font-bold">{sender_addr}</td>
-          </tr>
-
-          <!-- Row 18: Sender Mobile -->
+          <!-- Row 17: Sender Address Line 1 -->
           <tr class="h-row">
             <td></td><td></td><td></td>
-            <td colspan="3" class="cell-sender-mob font-bold">MOB NO.: {sender_mob}</td>
-            <td></td>
+            <td colspan="4" class="cell-sender-addr font-bold">{sender_addr_1}</td>
           </tr>
 
-          <!-- Row 19: Sender Email -->
+          <!-- Row 18: Sender Address Line 2 (City & PIN) -->
           <tr class="h-row">
             <td></td><td></td><td></td>
-            <td colspan="4" class="cell-sender-mail font-bold">MAIL: {sender_mail}</td>
+            <td colspan="4" class="cell-sender-addr font-bold">{sender_addr_2}</td>
           </tr>
 
-          <!-- Rows 20, 21: empty closing rows -->
+          <!-- Row 19: empty row (7 cols) -->
           <tr class="h-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+
+          <!-- Row 20: Sender Mobile -->
+          <tr class="h-row">
+            <td></td><td></td><td></td>
+            <td colspan="2" class="cell-sender-mob font-bold">MOB NO.: {sender_mob}</td>
+            <td></td><td></td>
+          </tr>
+
+          <!-- Row 21: Sender Email -->
+          <tr class="h-row">
+            <td></td><td></td><td></td>
+            <td colspan="2" class="cell-sender-mail font-bold">MAIL: {sender_mail}</td>
+            <td></td><td></td>
+          </tr>
+
+          <!-- Row 22: empty closing row (all 7 cols with solid bottom border) -->
           <tr class="h-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
         </tbody>
       </table>
-
-      <!-- Bottom centered footer label -->
-      <div class="marg-footer-label">
-        MARG Courier Envelope
-      </div>
     </div>
     """
     return html
@@ -180,10 +198,6 @@ def build_full_html_document(
     margin_right = float(settings.get("margin_right_mm", 5.0))
     envelopes_per_page = int(settings.get("envelopes_per_page", 2))
 
-    # A4 total height is 297mm. Available sheet height inside page margins:
-    avail_height_mm = max(100.0, 297.0 - margin_top - margin_bottom)
-    half_envelope_max_mm = (avail_height_mm - 6.0) / 2.0  # 6mm for cut guide
-
     pages_html = []
     total_cases = len(cases_data)
 
@@ -191,7 +205,7 @@ def build_full_html_document(
         for case in cases_data:
             env_html = render_single_envelope_html(case, job_data, sender_data, settings)
             page_content = f"""
-            <div class="sheet-page" style="height: {avail_height_mm:.1f}mm;">
+            <div class="sheet-page">
               <div class="envelope-half-slot">
                 {env_html}
               </div>
@@ -214,16 +228,14 @@ def build_full_html_document(
             """ if bottom_case else ""
 
             bottom_slot = f"""
-            <div class="envelope-half-slot" style="max-height: {half_envelope_max_mm:.1f}mm;">
+            <div class="envelope-half-slot">
               {bottom_html}
             </div>
-            """ if bottom_case else """
-            <div class="envelope-half-slot-empty"></div>
-            """
+            """ if bottom_case else ""
 
             page_content = f"""
-            <div class="sheet-page" style="height: {avail_height_mm:.1f}mm;">
-              <div class="envelope-half-slot" style="max-height: {half_envelope_max_mm:.1f}mm;">
+            <div class="sheet-page">
+              <div class="envelope-half-slot">
                 {top_html}
               </div>
               {cut_line}
@@ -262,10 +274,9 @@ def build_full_html_document(
       width: 100%;
       display: flex;
       flex-direction: column;
-      justify-content: space-between;
+      justify-content: flex-start;
       position: relative;
       box-sizing: border-box;
-      overflow: hidden;
     }}
 
     .sheet-page:last-child {{
@@ -277,7 +288,8 @@ def build_full_html_document(
       display: flex;
       flex-direction: column;
       justify-content: flex-start;
-      overflow: hidden;
+      box-sizing: border-box;
+      margin-bottom: 1.5mm;
     }}
 
     .envelope-half-slot-empty {{
@@ -291,7 +303,7 @@ def build_full_html_document(
       font-size: 8pt;
       color: #666666;
       border-top: 1px dashed #888888;
-      margin: 1.5mm 0;
+      margin: 2mm 0;
       padding-top: 1mm;
       letter-spacing: 1px;
     }}
@@ -305,7 +317,8 @@ def build_full_html_document(
       display: flex;
       flex-direction: column;
       justify-content: flex-start;
-      padding: 0 1mm;
+      padding: 0;
+      box-sizing: border-box;
     }}
 
     /* The exact MARG Table with gridlines */
@@ -313,32 +326,34 @@ def build_full_html_document(
       width: 100%;
       border-collapse: collapse;
       border: 1.5px solid #000000;
+      box-sizing: border-box;
     }}
 
     .marg-grid-table td {{
       border: 1px solid #000000;
-      padding: 1.5px 4px;
+      padding: 1px 3.5px;
       vertical-align: middle;
       color: #000000;
+      box-sizing: border-box;
     }}
 
     .font-bold {{
       font-weight: 800;
     }}
 
-    /* Row Heights calibrated for 2-per-A4 sheet (A4 half size) */
+    /* Exact calibrated row heights matching reference image (22 rows total) */
     .h-row {{
-      height: 11.5pt;
-      line-height: 11.5pt;
-    }}
-
-    .h-row-lg {{
-      height: 20pt;
+      height: 10.5pt;
       line-height: 10.5pt;
     }}
 
+    .h-row-lg {{
+      height: 18pt;
+      line-height: 18pt;
+    }}
+
     .h-row-addr {{
-      min-height: 22pt;
+      min-height: 18pt;
       line-height: 1.15;
     }}
 

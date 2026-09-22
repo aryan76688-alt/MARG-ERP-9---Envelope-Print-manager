@@ -40,14 +40,25 @@ export const EnvelopeTemplate: React.FC<EnvelopeTemplateProps> = ({
   const toHeader = city ? `TO - ${city}` : 'TO -';
   const caseBadge = showCaseNumber && caseItem.case_total > 1 ? `CASE: ${caseItem.case_number}/${caseItem.case_total}` : '';
 
+  // Split sender address into 2 rows matching reference envelope
+  let senderAddr1 = senderAddr;
+  let senderAddr2 = '';
+  if (senderAddr.includes('DEHGAM-MODASA ROAD')) {
+    senderAddr1 = 'SHOP 3&4 GF-NARAYAN COMPLEX, DEHGAM-MODASA ROAD,';
+    senderAddr2 = 'DEHGAM-382305.';
+  } else if (senderAddr.includes(',')) {
+    const parts = senderAddr.split(',').map((p) => p.trim());
+    const mid = Math.max(1, Math.floor(parts.length / 2));
+    senderAddr1 = parts.slice(0, mid).join(', ') + ',';
+    senderAddr2 = parts.slice(mid).join(', ');
+  }
+
   return (
     <div
-      className={`bg-white text-black select-none flex flex-col justify-between overflow-hidden ${className}`}
+      className={`bg-white text-black select-none flex flex-col justify-start ${className}`}
       style={{
         width: isPrintMode ? '100%' : '720px',
-        minHeight: isPrintMode ? '135mm' : '480px',
-        maxHeight: isPrintMode ? '140mm' : undefined,
-        padding: isPrintMode ? '2mm 4mm' : '16px 20px',
+        padding: isPrintMode ? '0 1mm' : '16px 20px',
         transform: !isPrintMode && scale !== 1 ? `scale(${scale})` : undefined,
         transformOrigin: 'top center',
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Arial, Helvetica, sans-serif',
@@ -78,7 +89,7 @@ export const EnvelopeTemplate: React.FC<EnvelopeTemplateProps> = ({
             </td>
           </tr>
 
-          {/* Row 2: empty row */}
+          {/* Row 2: empty row (7 cols) */}
           <tr className="h-4">
             <td className="border border-black"></td>
             <td className="border border-black"></td>
@@ -90,7 +101,7 @@ export const EnvelopeTemplate: React.FC<EnvelopeTemplateProps> = ({
           </tr>
 
           {/* Row 3: Party Name Line 1 (Double height) */}
-          <tr className="h-8">
+          <tr className="h-7">
             <td colSpan={3} className="border border-black px-2 py-0.5 font-extrabold text-xs tracking-tight">
               {partyName}
             </td>
@@ -101,7 +112,7 @@ export const EnvelopeTemplate: React.FC<EnvelopeTemplateProps> = ({
           </tr>
 
           {/* Row 4: Party Name Line 2 (with comma) */}
-          <tr className="h-6">
+          <tr className="h-5">
             <td colSpan={3} className="border border-black px-2 py-0.5 font-extrabold text-xs tracking-tight">
               {partyName},
             </td>
@@ -111,9 +122,9 @@ export const EnvelopeTemplate: React.FC<EnvelopeTemplateProps> = ({
             <td className="border border-black"></td>
           </tr>
 
-          {/* Row 5: Multi-line Address (Fits any address length) */}
-          <tr className="min-h-8">
-            <td colSpan={3} className="border border-black px-2 py-1 font-extrabold text-[11px] leading-snug">
+          {/* Row 5: Multi-line Address (Double height) */}
+          <tr className="min-h-7">
+            <td colSpan={3} className="border border-black px-2 py-0.5 font-extrabold text-[11px] leading-snug">
               <div>{address}</div>
               {addressLine2 && <div className="font-bold text-[10px] text-slate-900">{addressLine2}</div>}
               {addressLine3 && <div className="font-bold text-[10px] text-slate-800">{addressLine3}</div>}
@@ -125,7 +136,7 @@ export const EnvelopeTemplate: React.FC<EnvelopeTemplateProps> = ({
           </tr>
 
           {/* Row 6: State & Doctor/Notes */}
-          <tr className="h-6">
+          <tr className="h-5">
             <td colSpan={3} className="border border-black px-2 py-0.5 font-extrabold text-xs">
               {state} {notes}
             </td>
@@ -135,14 +146,14 @@ export const EnvelopeTemplate: React.FC<EnvelopeTemplateProps> = ({
             <td className="border border-black"></td>
           </tr>
 
-          {/* Row 7: empty row (merged double height) */}
-          <tr className="h-10">
+          {/* Row 7: empty row (merged full span double height) */}
+          <tr className="h-7">
             <td colSpan={7} className="border border-black"></td>
           </tr>
 
           {/* Row 8: Recipient Mobile */}
-          <tr className="h-7">
-            <td colSpan={3} className="border border-black px-2 py-0.5 font-black text-[13px] underline">
+          <tr className="h-6">
+            <td colSpan={3} className="border border-black px-2 py-0.5 font-black text-xs underline">
               MOB NO:- {mobile}
             </td>
             <td className="border border-black"></td>
@@ -151,26 +162,24 @@ export const EnvelopeTemplate: React.FC<EnvelopeTemplateProps> = ({
             <td className="border border-black"></td>
           </tr>
 
-          {/* Row 9: empty row (merged double height) */}
-          <tr className="h-10">
+          {/* Row 9: empty row (merged full span double height) */}
+          <tr className="h-7">
             <td colSpan={7} className="border border-black"></td>
           </tr>
 
-          {/* Rows 10, 11, 12: empty spacing rows */}
-          <tr className="h-5"><td className="border border-black" colSpan={7}></td></tr>
-          <tr className="h-5"><td className="border border-black" colSpan={7}></td></tr>
-          <tr className="h-5">
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
+          {/* Rows 10, 11, 12: empty spacing rows (7 cols each) */}
+          <tr className="h-4">
+            <td className="border border-black"></td><td className="border border-black"></td><td className="border border-black"></td><td className="border border-black"></td><td className="border border-black"></td><td className="border border-black"></td><td className="border border-black"></td>
+          </tr>
+          <tr className="h-4">
+            <td className="border border-black"></td><td className="border border-black"></td><td className="border border-black"></td><td className="border border-black"></td><td className="border border-black"></td><td className="border border-black"></td><td className="border border-black"></td>
+          </tr>
+          <tr className="h-4">
+            <td className="border border-black"></td><td className="border border-black"></td><td className="border border-black"></td><td className="border border-black"></td><td className="border border-black"></td><td className="border border-black"></td><td className="border border-black"></td>
           </tr>
 
           {/* Row 13: FROM, */}
-          <tr className="h-7">
+          <tr className="h-6">
             <td className="border border-black"></td>
             <td className="border border-black"></td>
             <td className="border border-black"></td>
@@ -179,8 +188,8 @@ export const EnvelopeTemplate: React.FC<EnvelopeTemplateProps> = ({
             </td>
           </tr>
 
-          {/* Row 14: empty row */}
-          <tr className="h-5">
+          {/* Row 14: empty row (7 cols) */}
+          <tr className="h-4">
             <td className="border border-black"></td>
             <td className="border border-black"></td>
             <td className="border border-black"></td>
@@ -191,7 +200,7 @@ export const EnvelopeTemplate: React.FC<EnvelopeTemplateProps> = ({
           </tr>
 
           {/* Row 15: Sender Business Name */}
-          <tr className="h-7">
+          <tr className="h-6">
             <td className="border border-black"></td>
             <td className="border border-black"></td>
             <td className="border border-black"></td>
@@ -201,59 +210,74 @@ export const EnvelopeTemplate: React.FC<EnvelopeTemplateProps> = ({
             <td className="border border-black"></td>
           </tr>
 
-          {/* Row 16: empty row */}
+          {/* Row 16: empty row (7 cols) */}
+          <tr className="h-4">
+            <td className="border border-black"></td>
+            <td className="border border-black"></td>
+            <td className="border border-black"></td>
+            <td className="border border-black"></td>
+            <td className="border border-black"></td>
+            <td className="border border-black"></td>
+            <td className="border border-black"></td>
+          </tr>
+
+          {/* Row 17: Sender Address Line 1 */}
+          <tr className="h-4">
+            <td className="border border-black"></td>
+            <td className="border border-black"></td>
+            <td className="border border-black"></td>
+            <td colSpan={4} className="border border-black px-2 py-0.5 font-bold text-[10.5px] leading-tight">
+              {senderAddr1}
+            </td>
+          </tr>
+
+          {/* Row 18: Sender Address Line 2 (City & PIN) */}
+          <tr className="h-4">
+            <td className="border border-black"></td>
+            <td className="border border-black"></td>
+            <td className="border border-black"></td>
+            <td colSpan={4} className="border border-black px-2 py-0.5 font-bold text-[10.5px] leading-tight">
+              {senderAddr2}
+            </td>
+          </tr>
+
+          {/* Row 19: empty row (7 cols) */}
+          <tr className="h-4">
+            <td className="border border-black"></td>
+            <td className="border border-black"></td>
+            <td className="border border-black"></td>
+            <td className="border border-black"></td>
+            <td className="border border-black"></td>
+            <td className="border border-black"></td>
+            <td className="border border-black"></td>
+          </tr>
+
+          {/* Row 20: Sender Mobile */}
           <tr className="h-5">
             <td className="border border-black"></td>
             <td className="border border-black"></td>
             <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-          </tr>
-
-          {/* Row 17: Sender Address (Double height) */}
-          <tr className="h-10">
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td colSpan={4} className="border border-black px-2 py-1 font-bold text-[11px] leading-tight">
-              {senderAddr}
-            </td>
-          </tr>
-
-          {/* Row 18: Sender Mobile */}
-          <tr className="h-7">
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td colSpan={3} className="border border-black px-2 py-0.5 font-black text-xs underline">
+            <td colSpan={2} className="border border-black px-2 py-0.5 font-black text-xs underline">
               MOB NO.: {senderMobile}
             </td>
             <td className="border border-black"></td>
+            <td className="border border-black"></td>
           </tr>
 
-          {/* Row 19: Sender Email */}
-          <tr className="h-7">
+          {/* Row 21: Sender Email */}
+          <tr className="h-5">
             <td className="border border-black"></td>
             <td className="border border-black"></td>
             <td className="border border-black"></td>
-            <td colSpan={4} className="border border-black px-2 py-0.5 font-black text-xs">
+            <td colSpan={2} className="border border-black px-2 py-0.5 font-black text-xs">
               MAIL: {senderEmail}
             </td>
+            <td className="border border-black"></td>
+            <td className="border border-black"></td>
           </tr>
 
-          {/* Rows 20, 21: empty closing rows */}
-          <tr className="h-5">
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-          </tr>
-          <tr className="h-5">
+          {/* Row 22: empty closing row with all 7 columns & solid bottom border */}
+          <tr className="h-4">
             <td className="border border-black"></td>
             <td className="border border-black"></td>
             <td className="border border-black"></td>
@@ -265,10 +289,12 @@ export const EnvelopeTemplate: React.FC<EnvelopeTemplateProps> = ({
         </tbody>
       </table>
 
-      {/* Footer centered text */}
-      <div className={`text-center text-slate-700 font-normal ${isPrintMode ? 'text-[8px] pt-2 pb-0.5' : 'text-[10px] pt-4 pb-1'}`}>
-        MARG Courier Envelope
-      </div>
+      {/* Footer text (only in screen view, hidden in print) */}
+      {!isPrintMode && (
+        <div className="text-center text-slate-400 font-normal text-[10px] pt-3 pb-1">
+          MARG Courier Envelope
+        </div>
+      )}
     </div>
   );
 };

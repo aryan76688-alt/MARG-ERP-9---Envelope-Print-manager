@@ -866,23 +866,22 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, onJo
           .sheet-page-wrapper {
             page-break-after: always;
             break-after: page;
-            height: ${297 - (appSettings.margin_top_mm ?? 5) - (appSettings.margin_bottom_mm ?? 5)}mm;
             display: flex;
             flex-direction: column;
-            justify-content: space-between;
+            justify-content: flex-start;
             box-sizing: border-box;
-            overflow: hidden;
           }
           .sheet-page-wrapper:last-child {
             page-break-after: avoid;
             break-after: avoid;
           }
           .print-envelope-half {
-            height: ${(297 - (appSettings.margin_top_mm ?? 5) - (appSettings.margin_bottom_mm ?? 5) - 6) / 2}mm;
+            width: 100%;
             display: flex;
             flex-direction: column;
             justify-content: flex-start;
-            overflow: hidden;
+            box-sizing: border-box;
+            margin-bottom: 2mm;
           }
         }
       `}</style>
