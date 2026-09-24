@@ -8,7 +8,9 @@ import {
   ImportValidationResult,
   CaseBreakdownItem,
   UnprintedPartyItem,
-  DispatchSummaryData
+  DispatchSummaryData,
+  TranslatePartyResponse,
+  ParseMargTextResponse
 } from '../types';
 
 const API_BASE = '/api';
@@ -195,6 +197,12 @@ export async function createPrintJob(payload: {
   case_breakdown?: CaseBreakdownItem[];
   delivery_boy_name?: string;
   delivery_route?: string;
+  template_format?: string;
+  language?: string;
+  party_name_gu?: string;
+  address_gu?: string;
+  city_gu?: string;
+  state_gu?: string;
 }): Promise<any> {
   const res = await fetch(`${API_BASE}/print-jobs`, {
     method: 'POST',
@@ -217,6 +225,8 @@ export async function createBulkPrintJobs(payload: {
   envelopes_per_page?: number;
   delivery_boy_name?: string;
   delivery_route?: string;
+  template_format?: string;
+  language?: string;
 }): Promise<{ success: boolean; created_count: number; job_ids: number[] }> {
   const res = await fetch(`${API_BASE}/print-jobs/bulk`, {
     method: 'POST',
@@ -318,6 +328,12 @@ export async function downloadEnvelopePDF(payload: {
   margin_left_mm?: number;
   margin_right_mm?: number;
   scale_percent?: number;
+  template_format?: string;
+  language?: string;
+  party_name_gu?: string;
+  address_gu?: string;
+  city_gu?: string;
+  state_gu?: string;
 }): Promise<void> {
   const res = await fetch(`${API_BASE}/pdf/generate`, {
     method: 'POST',
@@ -342,6 +358,68 @@ export async function downloadEnvelopePDF(payload: {
   a.click();
   window.URL.revokeObjectURL(url);
   document.body.removeChild(a);
+}
+
+// ==========================================
+// GEMINI AI INTEGRATION API CALLS
+// ==========================================
+
+export async function testGeminiAI(): Promise<{ success: boolean; model: string; message: string; output: string }> {
+  const res = await fetch(`${API_BASE}/ai/test`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Gemini AI test failed' }));
+    throw new Error(err.detail || 'Gemini AI test failed');
+  }
+  return res.json();
+}
+
+export async function translatePartyToGujarati(payload: {
+  party_id?: number;
+  party_name: string;
+  address: string;
+  city: string;
+  state: string;
+  save_to_db?: boolean;
+}): Promise<TranslatePartyResponse> {
+  const res = await fetch(`${API_BASE}/ai/translate-party`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Translation to Gujarati failed' }));
+    throw new Error(err.detail || 'Translation to Gujarati failed');
+  }
+  return res.json();
+}
+
+export async function parseMargTextWithAI(text: string): Promise<ParseMargTextResponse> {
+  const res = await fetch(`${API_BASE}/ai/parse-text`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'AI text parsing failed' }));
+    throw new Error(err.detail || 'AI text parsing failed');
+  }
+  return res.json();
+}
+
+export async function batchTranslateParties(party_ids: number[]): Promise<{ success: boolean; updated_count: number }> {
+  const res = await fetch(`${API_BASE}/ai/batch-translate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ party_ids }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Batch translation failed' }));
+    throw new Error(err.detail || 'Batch translation failed');
+  }
+  return res.json();
 }
 
 export async function fetchDispatchSummary(params?: {

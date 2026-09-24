@@ -12,6 +12,10 @@ export interface Party {
   email?: string | null;
   gst_no?: string | null;
   notes?: string | null;
+  party_name_gu?: string | null;
+  address_gu?: string | null;
+  city_gu?: string | null;
+  state_gu?: string | null;
   is_active?: boolean;
   created_at?: string;
 }
@@ -48,6 +52,9 @@ export interface AppSettings {
   show_date: boolean;
   show_gst: boolean;
   show_pan: boolean;
+  gemini_api_key?: string;
+  default_language?: 'en' | 'gu';
+  envelope_template_format?: 'attachment_pdf' | 'marg_grid_22';
 }
 
 export interface CaseItem {
@@ -88,8 +95,38 @@ export interface PrintJob {
   case_breakdown_json?: string | null;
   delivery_boy_name?: string | null;
   delivery_route?: string | null;
+  template_format?: 'attachment_pdf' | 'marg_grid_22';
+  language?: 'en' | 'gu';
+  party_name_gu?: string | null;
+  address_gu?: string | null;
+  city_gu?: string | null;
+  state_gu?: string | null;
   created_at: string;
   cases_count?: number;
+}
+
+export interface TranslatePartyResponse {
+  success: boolean;
+  party_name_gu: string;
+  address_gu: string;
+  city_gu: string;
+  state_gu: string;
+  raw_translation?: Record<string, string>;
+}
+
+export interface ParseMargTextResponse {
+  success: boolean;
+  data: {
+    party_name?: string;
+    party_code?: string;
+    address?: string;
+    city?: string;
+    state?: string;
+    mobile?: string;
+    gst_no?: string;
+    cases_breakdown?: CaseBreakdownItem[];
+    total_cases?: number;
+  };
 }
 
 export interface DispatchSummaryJob {

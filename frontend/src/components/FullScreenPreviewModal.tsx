@@ -14,6 +14,8 @@ interface FullScreenPreviewModalProps {
   settings: Partial<AppSettings>;
   onPrint: () => void;
   onDownloadPdf: () => void;
+  templateFormat?: 'attachment_pdf' | 'marg_grid_22';
+  language?: 'en' | 'gu';
 }
 
 export const FullScreenPreviewModal: React.FC<FullScreenPreviewModalProps> = ({
@@ -27,6 +29,8 @@ export const FullScreenPreviewModal: React.FC<FullScreenPreviewModalProps> = ({
   settings,
   onPrint,
   onDownloadPdf,
+  templateFormat = 'attachment_pdf',
+  language = 'en',
 }) => {
   const [currentCaseIndex, setCurrentCaseIndex] = useState<number>(0);
   const [zoomScale, setZoomScale] = useState<number>(1.15);
@@ -153,6 +157,8 @@ export const FullScreenPreviewModal: React.FC<FullScreenPreviewModalProps> = ({
             parcelType={parcelType}
             settings={settings}
             scale={zoomScale}
+            templateFormat={templateFormat}
+            language={language}
             className="shadow-2xl border-4 border-slate-900 ring-1 ring-slate-700"
           />
         </div>

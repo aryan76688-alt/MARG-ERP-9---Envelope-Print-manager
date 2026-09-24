@@ -32,6 +32,10 @@ class Party(Base):
     email = Column(String(100), nullable=True)
     gst_no = Column(String(50), nullable=True)
     notes = Column(Text, nullable=True)
+    party_name_gu = Column(String(200), nullable=True)
+    address_gu = Column(Text, nullable=True)
+    city_gu = Column(String(100), nullable=True)
+    state_gu = Column(String(100), nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
@@ -82,6 +86,9 @@ class AppSettings(Base):
     show_date = Column(Boolean, default=False)
     show_gst = Column(Boolean, default=False)
     show_pan = Column(Boolean, default=False)
+    gemini_api_key = Column(String(200), default="")
+    default_language = Column(String(10), default="en") # en or gu
+    envelope_template_format = Column(String(50), default="attachment_pdf") # attachment_pdf or marg_grid_22
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 
 
@@ -120,6 +127,8 @@ class PrintJob(Base):
     case_breakdown_json = Column(Text, nullable=True) # JSON list of case items with quantities and volumes
     delivery_boy_name = Column(String(100), nullable=True)
     delivery_route = Column(String(100), nullable=True)
+    language = Column(String(10), default="en") # en or gu
+    template_format = Column(String(50), default="attachment_pdf") # attachment_pdf or marg_grid_22
     created_at = Column(DateTime, default=datetime.datetime.utcnow, index=True)
 
     # Relationships

@@ -34,7 +34,23 @@ def init_db():
                 conn.exec_driver_sql("ALTER TABLE parties ADD COLUMN address_line_2 TEXT")
             if "address_line_3" not in party_cols:
                 conn.exec_driver_sql("ALTER TABLE parties ADD COLUMN address_line_3 TEXT")
+            if "party_name_gu" not in party_cols:
+                conn.exec_driver_sql("ALTER TABLE parties ADD COLUMN party_name_gu TEXT")
+            if "address_gu" not in party_cols:
+                conn.exec_driver_sql("ALTER TABLE parties ADD COLUMN address_gu TEXT")
+            if "city_gu" not in party_cols:
+                conn.exec_driver_sql("ALTER TABLE parties ADD COLUMN city_gu TEXT")
+            if "state_gu" not in party_cols:
+                conn.exec_driver_sql("ALTER TABLE parties ADD COLUMN state_gu TEXT")
             
+            setting_cols = [row[1] for row in conn.exec_driver_sql("PRAGMA table_info(app_settings)").fetchall()]
+            if "gemini_api_key" not in setting_cols:
+                conn.exec_driver_sql("ALTER TABLE app_settings ADD COLUMN gemini_api_key TEXT DEFAULT ''")
+            if "default_language" not in setting_cols:
+                conn.exec_driver_sql("ALTER TABLE app_settings ADD COLUMN default_language TEXT DEFAULT 'en'")
+            if "envelope_template_format" not in setting_cols:
+                conn.exec_driver_sql("ALTER TABLE app_settings ADD COLUMN envelope_template_format TEXT DEFAULT 'attachment_pdf'")
+
             job_cols = [row[1] for row in conn.exec_driver_sql("PRAGMA table_info(print_jobs)").fetchall()]
             if "party_address_line_2_snap" not in job_cols:
                 conn.exec_driver_sql("ALTER TABLE print_jobs ADD COLUMN party_address_line_2_snap TEXT")
@@ -46,6 +62,10 @@ def init_db():
                 conn.exec_driver_sql("ALTER TABLE print_jobs ADD COLUMN delivery_boy_name TEXT")
             if "delivery_route" not in job_cols:
                 conn.exec_driver_sql("ALTER TABLE print_jobs ADD COLUMN delivery_route TEXT")
+            if "language" not in job_cols:
+                conn.exec_driver_sql("ALTER TABLE print_jobs ADD COLUMN language TEXT DEFAULT 'en'")
+            if "template_format" not in job_cols:
+                conn.exec_driver_sql("ALTER TABLE print_jobs ADD COLUMN template_format TEXT DEFAULT 'attachment_pdf'")
             conn.commit()
         except Exception as e:
             print(f"Migration notice: {e}")

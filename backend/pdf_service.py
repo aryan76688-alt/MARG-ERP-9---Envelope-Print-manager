@@ -4,15 +4,40 @@ import tempfile
 import subprocess
 from typing import Dict, List, Any, Optional
 
+try:
+    import ai_service
+except ImportError:
+    from backend import ai_service
+
+
+def translate_case_label_to_gu(label: str) -> str:
+    """Translates case breakdown types and labels into Gujarati."""
+    gu_map = {
+        "PARCEL BAG": "પાર્સલ બેગ",
+        "NS CASE": "એન.એસ. કેસ",
+        "RL CASE": "આર.એલ. કેસ",
+        "DNS CASE": "ડી.એન.એસ. કેસ",
+        "METRO CASE": "મેટ્રો કેસ",
+        "CASE": "કેસ",
+        "BAG": "બેગ"
+    }
+    for k, v in gu_map.items():
+        if label.startswith(k):
+            return label.replace(k, v)
+    return label
+
+
 def get_case_breakdown_lines(
     job_data: Dict[str, Any],
     case_data: Dict[str, Any],
-    settings: Dict[str, Any]
+    settings: Dict[str, Any],
+    language: str = "en"
 ) -> List[str]:
     """
     Extracts non-zero case breakdown items for display on the envelope.
     Items with quantity 0 are strictly excluded.
     Supports multi-volume items (e.g. NS CASE 100ML: 1 and NS CASE 200ML: 1).
+    Supports English and Gujarati language output.
     """
     breakdown = job_data.get("case_breakdown")
     if not breakdown and job_data.get("case_breakdown_json"):
@@ -37,17 +62,25 @@ def get_case_breakdown_lines(
                     continue
                 c_type = str(item.get("type", "CASE")).strip().upper()
                 c_vol = str(item.get("volume", "")).strip().upper()
+                
+                if language == "gu":
+                    c_type = translate_case_label_to_gu(c_type)
+                    
                 if c_vol:
                     lines.append(f"{c_type} {c_vol}: {qty}")
                 else:
                     lines.append(f"{c_type}: {qty}")
             elif isinstance(item, str) and item.strip():
-                lines.append(item.strip().upper())
+                txt = item.strip().upper()
+                if language == "gu":
+                    txt = translate_case_label_to_gu(txt)
+                lines.append(txt)
 
     if not lines and settings.get("show_case_number", True):
         case_total = case_data.get("case_total", job_data.get("total_cases", 1))
         if case_total and int(case_total) > 0:
-            lines.append(f"CASE: {case_total}")
+            prefix = "કેસ" if language == "gu" else "CASE"
+            lines.append(f"{prefix}: {case_total}")
 
     return lines
 
@@ -56,45 +89,93 @@ def render_single_envelope_html(
     case_data: Dict[str, Any],
     job_data: Dict[str, Any],
     sender_data: Dict[str, Any],
-    settings: Dict[str, Any]
+    settings: Dict[str, Any],
+    template_format: str = "attachment_pdf",
+    language: str = "en"
 ) -> str:
     """
-    Renders the exact borderless MARG Courier Envelope format matching the user attachment.
-    Clean typography with larger bold text.
-    Left: Recipient details & City header.
-    Right Top: Dynamic case breakdown (items with qty > 0).
-    Right Bottom: Sender details.
+    Renders a single envelope half.
+    Supports:
+      - template_format: "attachment_pdf" (Borderless modern Attachment PDF 123)
+                         or "marg_grid_22" (Classic MARG 22-row grid table)
+      - language: "en" (English) or "gu" (Gujarati)
     """
-    party_name = (job_data.get("party_name_snap") or "").strip().upper()
-    address = (job_data.get("party_address_snap") or "").strip().upper()
-    address_line_2 = (job_data.get("party_address_line_2_snap") or "").strip().upper()
-    address_line_3 = (job_data.get("party_address_line_3_snap") or "").strip().upper()
-    city = (job_data.get("party_city_snap") or "").strip().upper()
-    state = (job_data.get("party_state_snap") or "").strip().upper()
+    # 1. Determine Party Details based on language
+    party_name = (job_data.get("party_name_snap") or "").strip()
+    address = (job_data.get("party_address_snap") or "").strip()
+    address_line_2 = (job_data.get("party_address_line_2_snap") or "").strip()
+    address_line_3 = (job_data.get("party_address_line_3_snap") or "").strip()
+    city = (job_data.get("party_city_snap") or "").strip()
+    state = (job_data.get("party_state_snap") or "").strip()
     mobile = (job_data.get("party_mobile_snap") or "").strip()
-    notes = (job_data.get("party_notes_snap") or "").strip().upper()
+    notes = (job_data.get("party_notes_snap") or "").strip()
 
-    sender_name = (sender_data.get("business_name") or "SHREEJI HEALTHCARE-HEALTHCARE").strip().upper()
-    sender_addr = (sender_data.get("address") or "SHOP 3&4 GF-NARAYAN COMPLEX, DEHGAM-MODASA ROAD, DEHGAM-382305").strip().upper()
-    sender_mob = (sender_data.get("mobile") or "+91 99245 44283").strip()
-    sender_mail = (sender_data.get("email") or "SHREEJISEVEN@GMAIL.COM").strip().upper()
+    # If Gujarati requested, check for pre-translated fields or call Gemini
+    if language == "gu":
+        party_name_gu = job_data.get("party_name_gu") or job_data.get("party_name_gu_snap")
+        address_gu = job_data.get("address_gu") or job_data.get("address_gu_snap")
+        city_gu = job_data.get("city_gu") or job_data.get("city_gu_snap")
+        state_gu = job_data.get("state_gu") or job_data.get("state_gu_snap")
 
-    # Split sender address into 2 clean rows
-    if "DEHGAM-MODASA ROAD" in sender_addr:
-        sender_addr_1 = "SHOP 3&4 GF-NARAYAN COMPLEX, DEHGAM-MODASA ROAD,"
-        sender_addr_2 = "DEHGAM-382305."
-    elif "," in sender_addr:
-        parts = [p.strip() for p in sender_addr.split(",")]
-        mid = max(1, len(parts) // 2)
-        sender_addr_1 = ", ".join(parts[:mid]) + ","
-        sender_addr_2 = ", ".join(parts[mid:])
+        if not party_name_gu and party_name:
+            try:
+                tr = ai_service.translate_party_to_gujarati(
+                    party_name, address, city, state,
+                    address_line_2=address_line_2, address_line_3=address_line_3
+                )
+                party_name = tr.get("party_name_gu", party_name)
+                address = tr.get("address_gu", address)
+                address_line_2 = tr.get("address_line_2_gu", address_line_2)
+                address_line_3 = tr.get("address_line_3_gu", address_line_3)
+                city = tr.get("city_gu", city)
+                state = tr.get("state_gu", state)
+            except Exception as e:
+                print("Translation error in PDF render:", e)
+        else:
+            if party_name_gu: party_name = party_name_gu
+            if address_gu: address = address_gu
+            if city_gu: city = city_gu
+            if state_gu: state = state_gu
+
+    party_name = party_name.upper() if language == "en" else party_name
+    address = address.upper() if language == "en" else address
+    address_line_2 = address_line_2.upper() if language == "en" else address_line_2
+    address_line_3 = address_line_3.upper() if language == "en" else address_line_3
+    city = city.upper() if language == "en" else city
+    state = state.upper() if language == "en" else state
+
+    # 2. Sender Details
+    if language == "gu":
+        sender_name = "શ્રીજી હેલ્થકેર"
+        sender_addr_1 = "શોપ ૩&૪ જીએફ-નારાયણ કોમ્પ્લેક્ષ, દહેગામ-મોડાસા રોડ,"
+        sender_addr_2 = "દહેગામ-૩૮૨૩૦૫."
+        to_header = f"પ્રતિ - {city}" if city else "પ્રતિ -"
+        from_title = "પ્રેષક,"
+        mob_label = "મો. નં.: "
+        mail_label = "ઈમેલ: "
     else:
-        sender_addr_1 = sender_addr
-        sender_addr_2 = ""
+        sender_name = (sender_data.get("business_name") or "SHREEJI HEALTHCARE-HEALTHCARE").strip().upper()
+        sender_addr = (sender_data.get("address") or "SHOP 3&4 GF-NARAYAN COMPLEX, DEHGAM-MODASA ROAD, DEHGAM-382305").strip().upper()
+        if "DEHGAM-MODASA ROAD" in sender_addr:
+            sender_addr_1 = "SHOP 3&4 GF-NARAYAN COMPLEX, DEHGAM-MODASA ROAD,"
+            sender_addr_2 = "DEHGAM-382305."
+        elif "," in sender_addr:
+            parts = [p.strip() for p in sender_addr.split(",")]
+            mid = max(1, len(parts) // 2)
+            sender_addr_1 = ", ".join(parts[:mid]) + ","
+            sender_addr_2 = ", ".join(parts[mid:])
+        else:
+            sender_addr_1 = sender_addr
+            sender_addr_2 = ""
+        to_header = f"TO - {city}" if city else "TO -"
+        from_title = "FROM,"
+        mob_label = "MOB NO.: "
+        mail_label = "MAIL: "
 
-    to_header = f"TO - {city}" if city else "TO -"
+    sender_mob = (sender_data.get("mobile") or "+91 99245 44283").strip()
+    sender_mail = (sender_data.get("email") or "SHREEJISEVEN@GMAIL.COM").strip()
 
-    # Build multi-line address HTML
+    # Address lines HTML
     addr_lines = [f"<div>{address}</div>"]
     if address_line_2:
         addr_lines.append(f"<div>{address_line_2}</div>")
@@ -102,50 +183,159 @@ def render_single_envelope_html(
         addr_lines.append(f"<div>{address_line_3}</div>")
     address_html = "".join(addr_lines)
 
-    # State & Remarks line
     state_notes = f"{state} {notes}".strip() if (state or notes) else ""
 
     # Dynamic Case Breakdown lines
-    case_lines = get_case_breakdown_lines(job_data, case_data, settings)
-    case_items_html = "".join([f'<div class="case-item">{line}</div>' for line in case_lines])
+    case_lines = get_case_breakdown_lines(job_data, case_data, settings, language=language)
 
-    sender_addr_2_html = f'<div class="sender-addr">{sender_addr_2}</div>' if sender_addr_2 else ""
+    # 3. Format Branching
+    if template_format == "marg_grid_22":
+        # Classic 22-row MARG ERP grid table layout (Previous Function restored)
+        case_badge = case_lines[0] if case_lines else ("CASE: 1" if language == "en" else "કેસ: 1")
+        extra_cases_html = "".join([f'<div style="font-size: 8.5pt;">{c}</div>' for c in case_lines[1:]])
+        sender_addr_2_row = f"""
+        <tr class="h-row">
+          <td></td><td></td><td></td>
+          <td colspan="4" class="cell-sender-addr font-bold">{sender_addr_2}</td>
+        </tr>
+        """ if sender_addr_2 else '<tr class="h-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>'
 
-    html = f"""
-    <div class="envelope-half">
-      <div class="left-col">
-        <div class="to-title">{to_header}</div>
-        <div class="party-name">{party_name}</div>
-        <div class="party-name">{party_name},</div>
-        <div class="address-lines">
-          {address_html}
+        return f"""
+        <div class="marg-envelope-wrapper">
+          <table class="marg-grid-table">
+            <colgroup>
+              <col style="width: 14.2857%;" />
+              <col style="width: 14.2857%;" />
+              <col style="width: 14.2857%;" />
+              <col style="width: 14.2857%;" />
+              <col style="width: 14.2857%;" />
+              <col style="width: 14.2857%;" />
+              <col style="width: 14.2857%;" />
+            </colgroup>
+            <tbody>
+              <!-- Row 1: TO - CITY & Case Number -->
+              <tr class="h-row">
+                <td class="cell-to font-bold" colspan="3">{to_header}</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td class="cell-case font-bold">{case_badge}{extra_cases_html}</td>
+              </tr>
+
+              <!-- Row 2: empty row -->
+              <tr class="h-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+
+              <!-- Row 3: Party Name Line 1 -->
+              <tr class="h-row-lg">
+                <td colspan="3" class="cell-party font-bold">{party_name}</td>
+                <td></td><td></td><td></td><td></td>
+              </tr>
+
+              <!-- Row 4: Party Name Line 2 (with comma) -->
+              <tr class="h-row">
+                <td colspan="3" class="cell-party font-bold">{party_name},</td>
+                <td></td><td></td><td></td><td></td>
+              </tr>
+
+              <!-- Row 5: Multi-line Address -->
+              <tr class="h-row-addr">
+                <td colspan="3" class="cell-address font-bold">{address_html}</td>
+                <td></td><td></td><td></td><td></td>
+              </tr>
+
+              <!-- Row 6: State & Doctor/Notes -->
+              <tr class="h-row">
+                <td colspan="3" class="cell-state font-bold">{state_notes}</td>
+                <td></td><td></td><td></td><td></td>
+              </tr>
+
+              <!-- Row 7: empty row -->
+              <tr class="h-row-lg"><td colspan="7"></td></tr>
+
+              <!-- Row 8: Recipient Mobile -->
+              <tr class="h-row">
+                <td colspan="3" class="cell-mobile font-bold">{mob_label}{mobile}</td>
+                <td></td><td></td><td></td><td></td>
+              </tr>
+
+              <!-- Rows 9-10: empty rows -->
+              <tr class="h-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+              <tr class="h-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+
+              <!-- Rows 11-18: Sender Details -->
+              <tr class="h-row">
+                <td></td><td></td><td></td>
+                <td colspan="4" class="cell-from font-bold">{from_title}</td>
+              </tr>
+              <tr class="h-row-lg">
+                <td></td><td></td><td></td>
+                <td colspan="4" class="cell-sender-title font-bold">{sender_name}</td>
+              </tr>
+              <tr class="h-row">
+                <td></td><td></td><td></td>
+                <td colspan="4" class="cell-sender-addr font-bold">{sender_addr_1}</td>
+              </tr>
+              {sender_addr_2_row}
+              <tr class="h-row">
+                <td></td><td></td><td></td>
+                <td colspan="4" class="cell-sender-mob font-bold">{mob_label}{sender_mob}</td>
+              </tr>
+              <tr class="h-row">
+                <td></td><td></td><td></td>
+                <td colspan="4" class="cell-sender-mail font-bold">{mail_label}{sender_mail}</td>
+              </tr>
+              <tr class="h-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+              <tr class="h-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+
+              <!-- Rows 19-22: bottom empty rows -->
+              <tr class="h-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+              <tr class="h-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+              <tr class="h-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+              <tr class="h-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+            </tbody>
+          </table>
         </div>
-        {f'<div class="state-notes">{state_notes}</div>' if state_notes else ''}
-        {f'<div class="mobile-no">MOB NO:- {mobile}</div>' if mobile else ''}
-      </div>
-      <div class="right-col">
-        <div class="case-block">
-          {case_items_html}
+        """
+    else:
+        # Default: Attachment PDF 123 (Clean borderless format with large bold fonts)
+        case_items_html = "".join([f'<div class="case-item">{line}</div>' for line in case_lines])
+        sender_addr_2_html = f'<div class="sender-addr">{sender_addr_2}</div>' if sender_addr_2 else ""
+        return f"""
+        <div class="envelope-half">
+          <div class="left-col">
+            <div class="to-title">{to_header}</div>
+            <div class="party-name">{party_name}</div>
+            <div class="party-name">{party_name},</div>
+            <div class="address-lines">
+              {address_html}
+            </div>
+            {f'<div class="state-notes">{state_notes}</div>' if state_notes else ''}
+            {f'<div class="mobile-no">{mob_label}{mobile}</div>' if mobile else ''}
+          </div>
+          <div class="right-col">
+            <div class="case-block">
+              {case_items_html}
+            </div>
+            <div class="sender-block">
+              <div class="from-title">{from_title}</div>
+              <div class="sender-name">{sender_name}</div>
+              <div class="sender-addr">{sender_addr_1}</div>
+              {sender_addr_2_html}
+              <div class="sender-mob">{mob_label}{sender_mob}</div>
+              <div class="sender-mail">{mail_label}{sender_mail}</div>
+            </div>
+          </div>
         </div>
-        <div class="sender-block">
-          <div class="from-title">FROM,</div>
-          <div class="sender-name">{sender_name}</div>
-          <div class="sender-addr">{sender_addr_1}</div>
-          {sender_addr_2_html}
-          <div class="sender-mob">MOB NO.: {sender_mob}</div>
-          <div class="sender-mail">MAIL: {sender_mail}</div>
-        </div>
-      </div>
-    </div>
-    """
-    return html
+        """
 
 
 def build_full_html_document(
     job_data: Dict[str, Any],
     cases_data: List[Dict[str, Any]],
     sender_data: Dict[str, Any],
-    settings: Dict[str, Any]
+    settings: Dict[str, Any],
+    template_format: str = "attachment_pdf",
+    language: str = "en"
 ) -> str:
     margin_top = float(settings.get("margin_top_mm", 15.0))
     margin_bottom = float(settings.get("margin_bottom_mm", 10.0))
@@ -164,7 +354,7 @@ def build_full_html_document(
 
     if envelopes_per_page == 1:
         for case in cases_data:
-            env_html = render_single_envelope_html(case, job_data, sender_data, settings)
+            env_html = render_single_envelope_html(case, job_data, sender_data, settings, template_format=template_format, language=language)
             page_content = f"""
             <div class="sheet-page">
               {env_html}
@@ -177,8 +367,8 @@ def build_full_html_document(
             top_case = cases_data[i]
             bottom_case = cases_data[i + 1] if (i + 1 < total_cases) else None
 
-            top_html = render_single_envelope_html(top_case, job_data, sender_data, settings)
-            bottom_html = render_single_envelope_html(bottom_case, job_data, sender_data, settings) if bottom_case else ""
+            top_html = render_single_envelope_html(top_case, job_data, sender_data, settings, template_format=template_format, language=language)
+            bottom_html = render_single_envelope_html(bottom_case, job_data, sender_data, settings, template_format=template_format, language=language) if bottom_case else ""
 
             page_content = f"""
             <div class="sheet-page">
@@ -207,7 +397,7 @@ def build_full_html_document(
     }}
 
     body {{
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, Helvetica, sans-serif;
+      font-family: 'Noto Sans Gujarati', 'Lohit Gujarati', -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, Helvetica, sans-serif;
       color: #000000;
       background-color: #ffffff;
       -webkit-print-color-adjust: exact;
@@ -229,6 +419,7 @@ def build_full_html_document(
       page-break-after: avoid;
     }}
 
+    /* Modern Borderless Attachment PDF Format */
     .envelope-half {{
       width: 100%;
       height: 132mm;
@@ -269,7 +460,6 @@ def build_full_html_document(
       text-align: right;
     }}
 
-    /* Bigger, bolder fonts matching user reference */
     .to-title {{
       font-size: 15.5pt;
       font-weight: 800;
@@ -361,6 +551,122 @@ def build_full_html_document(
       font-size: 10pt;
       font-weight: 700;
     }}
+
+    /* Classic MARG 22-Row Grid Table Format */
+    .marg-envelope-wrapper {{
+      width: 100%;
+      height: 132mm;
+      padding: 1mm 2mm;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+    }}
+
+    .marg-grid-table {{
+      width: 100%;
+      border-collapse: collapse;
+      border: 1.5px solid #000000;
+      box-sizing: border-box;
+    }}
+
+    .marg-grid-table td {{
+      border: 1px solid #000000;
+      padding: 1px 3.5px;
+      vertical-align: middle;
+      color: #000000;
+      box-sizing: border-box;
+    }}
+
+    .font-bold {{
+      font-weight: 800;
+    }}
+
+    .h-row {{
+      height: 10.5pt;
+      line-height: 10.5pt;
+    }}
+
+    .h-row-lg {{
+      height: 18pt;
+      line-height: 18pt;
+    }}
+
+    .h-row-addr {{
+      min-height: 18pt;
+      line-height: 1.15;
+    }}
+
+    .cell-to {{
+      font-size: 11.5pt;
+      font-weight: 800;
+      letter-spacing: 0.3px;
+      text-decoration: underline;
+    }}
+
+    .cell-case {{
+      font-size: 10pt;
+      font-weight: 800;
+      text-align: right;
+      color: #000000;
+    }}
+
+    .cell-party {{
+      font-size: 11pt;
+      font-weight: 800;
+      letter-spacing: 0.2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }}
+
+    .cell-address {{
+      font-size: 9.5pt;
+      font-weight: 700;
+      line-height: 1.15;
+    }}
+
+    .cell-state {{
+      font-size: 9pt;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }}
+
+    .cell-mobile {{
+      font-size: 10pt;
+      font-weight: 800;
+      letter-spacing: 0.2px;
+      text-decoration: underline;
+    }}
+
+    .cell-from {{
+      font-size: 10pt;
+      font-weight: 800;
+      letter-spacing: 0.2px;
+    }}
+
+    .cell-sender-title {{
+      font-size: 10.5pt;
+      font-weight: 800;
+      letter-spacing: 0.2px;
+    }}
+
+    .cell-sender-addr {{
+      font-size: 8.5pt;
+      font-weight: 700;
+      line-height: 1.15;
+    }}
+
+    .cell-sender-mob {{
+      font-size: 9pt;
+      font-weight: 800;
+      text-decoration: underline;
+    }}
+
+    .cell-sender-mail {{
+      font-size: 8.5pt;
+      font-weight: 700;
+    }}
   </style>
 </head>
 <body>
@@ -373,7 +679,9 @@ def build_full_html_document(
 def build_bulk_html_document(
     jobs_cases_list: List[Dict[str, Any]],
     sender_data: Dict[str, Any],
-    settings: Dict[str, Any]
+    settings: Dict[str, Any],
+    template_format: str = "attachment_pdf",
+    language: str = "en"
 ) -> str:
     """
     Renders multiple envelope jobs (2 envelopes per A4 sheet).
@@ -395,8 +703,14 @@ def build_bulk_html_document(
         top_item = jobs_cases_list[i]
         bottom_item = jobs_cases_list[i + 1] if (i + 1 < total_items) else None
 
-        top_html = render_single_envelope_html(top_item.get("case", {}), top_item.get("job", {}), sender_data, settings)
-        bottom_html = render_single_envelope_html(bottom_item.get("case", {}), bottom_item.get("job", {}), sender_data, settings) if bottom_item else ""
+        top_html = render_single_envelope_html(
+            top_item.get("case", {}), top_item.get("job", {}), sender_data, settings,
+            template_format=template_format, language=language
+        )
+        bottom_html = render_single_envelope_html(
+            bottom_item.get("case", {}), bottom_item.get("job", {}), sender_data, settings,
+            template_format=template_format, language=language
+        ) if bottom_item else ""
 
         page_content = f"""
         <div class="sheet-page">
@@ -419,7 +733,7 @@ def build_bulk_html_document(
     }}
     * {{ box-sizing: border-box; margin: 0; padding: 0; }}
     body {{
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, Helvetica, sans-serif;
+      font-family: 'Noto Sans Gujarati', 'Lohit Gujarati', -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, Helvetica, sans-serif;
       color: #000000;
       background-color: #ffffff;
       -webkit-print-color-adjust: exact;
@@ -436,6 +750,8 @@ def build_bulk_html_document(
       box-sizing: border-box;
     }}
     .sheet-page:last-child {{ page-break-after: avoid; }}
+    
+    /* Modern Borderless Attachment PDF Format */
     .envelope-half {{
       width: 100%;
       height: 132mm;
@@ -470,6 +786,45 @@ def build_bulk_html_document(
     .sender-addr {{ font-size: 10pt; font-weight: 700; line-height: 1.25; margin-bottom: 3px; }}
     .sender-mob {{ font-size: 11pt; font-weight: 800; text-decoration: underline; margin-bottom: 2px; }}
     .sender-mail {{ font-size: 10pt; font-weight: 700; }}
+
+    /* Classic MARG 22-Row Grid Table Format */
+    .marg-envelope-wrapper {{
+      width: 100%;
+      height: 132mm;
+      padding: 1mm 2mm;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+    }}
+    .marg-grid-table {{
+      width: 100%;
+      border-collapse: collapse;
+      border: 1.5px solid #000000;
+      box-sizing: border-box;
+    }}
+    .marg-grid-table td {{
+      border: 1px solid #000000;
+      padding: 1px 3.5px;
+      vertical-align: middle;
+      color: #000000;
+      box-sizing: border-box;
+    }}
+    .font-bold {{ font-weight: 800; }}
+    .h-row {{ height: 10.5pt; line-height: 10.5pt; }}
+    .h-row-lg {{ height: 18pt; line-height: 18pt; }}
+    .h-row-addr {{ min-height: 18pt; line-height: 1.15; }}
+    .cell-to {{ font-size: 11.5pt; font-weight: 800; letter-spacing: 0.3px; text-decoration: underline; }}
+    .cell-case {{ font-size: 10pt; font-weight: 800; text-align: right; color: #000000; }}
+    .cell-party {{ font-size: 11pt; font-weight: 800; letter-spacing: 0.2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
+    .cell-address {{ font-size: 9.5pt; font-weight: 700; line-height: 1.15; }}
+    .cell-state {{ font-size: 9pt; font-weight: 700; letter-spacing: 0.2px; }}
+    .cell-mobile {{ font-size: 10pt; font-weight: 800; letter-spacing: 0.2px; text-decoration: underline; }}
+    .cell-from {{ font-size: 10pt; font-weight: 800; letter-spacing: 0.2px; }}
+    .cell-sender-title {{ font-size: 10.5pt; font-weight: 800; letter-spacing: 0.2px; }}
+    .cell-sender-addr {{ font-size: 8.5pt; font-weight: 700; line-height: 1.15; }}
+    .cell-sender-mob {{ font-size: 9pt; font-weight: 800; text-decoration: underline; }}
+    .cell-sender-mail {{ font-size: 8.5pt; font-weight: 700; }}
   </style>
 </head>
 <body>
@@ -483,24 +838,36 @@ def generate_envelopes_pdf(
     job_data: Dict[str, Any],
     cases_data: List[Dict[str, Any]],
     sender_data: Dict[str, Any],
-    settings: Dict[str, Any]
+    settings: Dict[str, Any],
+    template_format: str = "attachment_pdf",
+    language: str = "en"
 ) -> bytes:
     """
     Generates a high-quality vector PDF of envelopes matching the user's MARG Courier Envelope layout.
+    Supports both Attachment PDF and Classic 22-Row Grid templates, in English or Gujarati.
     """
-    html_content = build_full_html_document(job_data, cases_data, sender_data, settings)
+    html_content = build_full_html_document(
+        job_data, cases_data, sender_data, settings,
+        template_format=template_format, language=language
+    )
     return compile_html_to_pdf(html_content)
 
 
 def generate_bulk_envelopes_pdf(
     jobs_cases_list: List[Dict[str, Any]],
     sender_data: Dict[str, Any],
-    settings: Dict[str, Any]
+    settings: Dict[str, Any],
+    template_format: str = "attachment_pdf",
+    language: str = "en"
 ) -> bytes:
     """
     Generates a combined PDF with all selected parties printed together (2 envelopes per A4 sheet).
+    Supports both Attachment PDF and Classic 22-Row Grid templates, in English or Gujarati.
     """
-    html_content = build_bulk_html_document(jobs_cases_list, sender_data, settings)
+    html_content = build_bulk_html_document(
+        jobs_cases_list, sender_data, settings,
+        template_format=template_format, language=language
+    )
     return compile_html_to_pdf(html_content)
 
 

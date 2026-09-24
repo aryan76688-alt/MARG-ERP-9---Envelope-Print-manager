@@ -11,10 +11,11 @@ import {
   Download, 
   Upload, 
   CheckCircle2, 
-  AlertCircle 
+  AlertCircle,
+  Sparkles
 } from 'lucide-react';
 import { SenderSettings, AppSettings } from '../types';
-import { fetchSettings, saveSettings, getBackupExportUrl, getExportPartiesUrl, getExportHistoryUrl } from '../api/client';
+import { fetchSettings, saveSettings, getBackupExportUrl, getExportPartiesUrl, getExportHistoryUrl, testGeminiAI } from '../api/client';
 
 export const Settings: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>('company');
@@ -50,10 +51,16 @@ export const Settings: React.FC = () => {
     show_date: false,
     show_gst: false,
     show_pan: false,
+    default_language: 'en',
+    envelope_template_format: 'attachment_pdf',
+    gemini_api_key: '',
   });
 
   const [saving, setSaving] = useState<boolean>(false);
   const [successMsg, setSuccessMsg] = useState<string>('');
+  const [aiTesting, setAiTesting] = useState<boolean>(false);
+  const [aiTestResult, setAiTestResult] = useState<string | null>(null);
+  const [aiTestSuccess, setAiTestSuccess] = useState<boolean | null>(null);
   const backupFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -296,6 +303,102 @@ export const Settings: React.FC = () => {
                   className="w-full px-3 py-2 rounded-lg border border-slate-300 font-bold"
                 />
               </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-100">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Default Envelope Template Format</label>
+                <select
+                  value={app.envelope_template_format || 'attachment_pdf'}
+                  onChange={(e) => setApp({ ...app, envelope_template_format: e.target.value as any })}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 font-semibold"
+                >
+                  <option value="attachment_pdf">Attachment PDF 123 (Borderless Modern Format)</option>
+                  <option value="marg_grid_22">Classic MARG 22-Row Grid Format (7 Columns × 22 Rows)</option>
+                </select>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Choose between the borderless attachment layout or the classic MARG ERP table layout.
+                </p>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Default Envelope Language</label>
+                <select
+                  value={app.default_language || 'en'}
+                  onChange={(e) => setApp({ ...app, default_language: e.target.value as any })}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 font-semibold"
+                >
+                  <option value="en">English (Original)</option>
+                  <option value="gu">ગુજરાતી (Gujarati with Gemini AI)</option>
+                </select>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Enables printing party details and sender information in Gujarati.
+                </p>
+              </div>
+            </div>
+
+            {/* Gemini AI API Key Configuration */}
+            <div className="pt-3 border-t border-slate-100 space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="block font-bold text-slate-900 text-xs flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-purple-600" />
+                  <span>Google Gemini AI API Key</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setAiTesting(true);
+                    setAiTestResult(null);
+                    setAiTestSuccess(null);
+                    try {
+                      const res = await testGeminiAI();
+                      setAiTestSuccess(true);
+                      setAiTestResult(`Connected successfully to model: ${res.model}! Response: ${res.output}`);
+                    } catch (err: any) {
+                      setAiTestSuccess(false);
+                      setAiTestResult(`Connection failed: ${err.message}`);
+                    } finally {
+                      setAiTesting(false);
+                    }
+                  }}
+                  disabled={aiTesting}
+                  className="px-3 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-lg text-[11px] font-bold transition-colors flex items-center gap-1"
+                >
+                  <Sparkles className="w-3 h-3" />
+                  <span>{aiTesting ? 'Testing API...' : 'Test Gemini Connection'}</span>
+                </button>
+              </div>
+
+              <div className="relative">
+                <input
+                  type="password"
+                  value={app.gemini_api_key || ''}
+                  onChange={(e) => setApp({ ...app, gemini_api_key: e.target.value })}
+                  placeholder="Paste your Google Gemini API Key here..."
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono text-xs focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+
+              <p className="text-[11px] text-slate-500">
+                Used for instant transliteration into Gujarati and intelligent MARG ERP text parsing.
+              </p>
+
+              {aiTestResult && (
+                <div
+                  className={`p-2.5 rounded-lg border text-xs font-semibold flex items-start gap-2 ${
+                    aiTestSuccess
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                      : 'bg-red-50 border-red-200 text-red-800'
+                  }`}
+                >
+                  {aiTestSuccess ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
+                  )}
+                  <span>{aiTestResult}</span>
+                </div>
+              )}
             </div>
           </div>
         )}

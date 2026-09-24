@@ -15,6 +15,17 @@ from models import Party, SenderSettings, AppSettings, PrintJob, PrintCase, Impo
 import barcode_generator
 import excel_service
 import pdf_service
+import ai_service
+from pathlib import Path
+
+# Load .env file
+try:
+    from dotenv import load_dotenv
+    for ep in [Path(__file__).parent / ".env", Path(__file__).parent.parent / ".env"]:
+        if ep.exists():
+            load_dotenv(ep)
+except ImportError:
+    pass
 
 app = FastAPI(
     title="Envelope Print Manager API",
@@ -53,6 +64,10 @@ class PartyBase(BaseModel):
     email: Optional[str] = None
     gst_no: Optional[str] = None
     notes: Optional[str] = None
+    party_name_gu: Optional[str] = None
+    address_gu: Optional[str] = None
+    city_gu: Optional[str] = None
+    state_gu: Optional[str] = None
     is_active: bool = True
 
 class PartyCreate(PartyBase):
@@ -93,6 +108,9 @@ class AppSettingsSchema(BaseModel):
     show_date: bool = False
     show_gst: bool = False
     show_pan: bool = False
+    gemini_api_key: Optional[str] = ""
+    default_language: str = "en"
+    envelope_template_format: str = "attachment_pdf"
 
 class CaseWeightItem(BaseModel):
     case_number: int
@@ -121,6 +139,12 @@ class CreatePrintJobRequest(BaseModel):
     case_breakdown: Optional[List[Dict[str, Any]]] = None
     delivery_boy_name: Optional[str] = None
     delivery_route: Optional[str] = None
+    template_format: Optional[str] = "attachment_pdf"
+    language: Optional[str] = "en"
+    party_name_gu: Optional[str] = None
+    address_gu: Optional[str] = None
+    city_gu: Optional[str] = None
+    state_gu: Optional[str] = None
 
 class BulkPrintJobsRequest(BaseModel):
     party_ids: List[int]
@@ -131,6 +155,8 @@ class BulkPrintJobsRequest(BaseModel):
     envelopes_per_page: int = 2
     delivery_boy_name: Optional[str] = None
     delivery_route: Optional[str] = None
+    template_format: Optional[str] = "attachment_pdf"
+    language: Optional[str] = "en"
 
 class UpdateDispatchJobsRequest(BaseModel):
     job_ids: List[int]
@@ -310,6 +336,10 @@ def list_parties(
             "email": p.email,
             "gst_no": p.gst_no,
             "notes": p.notes,
+            "party_name_gu": p.party_name_gu,
+            "address_gu": p.address_gu,
+            "city_gu": p.city_gu,
+            "state_gu": p.state_gu,
             "is_active": p.is_active,
             "created_at": p.created_at.isoformat() if p.created_at else None
         })
@@ -362,7 +392,11 @@ def autocomplete_parties(
             "landline": p.landline,
             "email": p.email,
             "gst_no": p.gst_no,
-            "notes": p.notes
+            "notes": p.notes,
+            "party_name_gu": p.party_name_gu,
+            "address_gu": p.address_gu,
+            "city_gu": p.city_gu,
+            "state_gu": p.state_gu
         }
         for p in results
     ]
@@ -402,6 +436,10 @@ def get_unprinted_parties_today(
             "mobile_no": p.mobile_no,
             "gst_no": p.gst_no,
             "notes": p.notes,
+            "party_name_gu": p.party_name_gu,
+            "address_gu": p.address_gu,
+            "city_gu": p.city_gu,
+            "state_gu": p.state_gu,
             "printed_today": is_printed
         })
 
@@ -834,10 +872,20 @@ def create_print_job(req: CreatePrintJobRequest, db: Session = Depends(get_db)):
         case_breakdown_json=case_breakdown_json,
         delivery_boy_name=req.delivery_boy_name,
         delivery_route=req.delivery_route,
+        language=req.language or "en",
+        template_format=req.template_format or "attachment_pdf",
         created_at=datetime.datetime.now(datetime.timezone.utc)
     )
     db.add(job)
     db.flush()
+
+    if req.party_id and (req.party_name_gu or req.address_gu):
+        party_rec = db.query(Party).filter(Party.id == req.party_id).first()
+        if party_rec:
+            if req.party_name_gu: party_rec.party_name_gu = req.party_name_gu
+            if req.address_gu: party_rec.address_gu = req.address_gu
+            if req.city_gu: party_rec.city_gu = req.city_gu
+            if req.state_gu: party_rec.state_gu = req.state_gu
 
     cases_resp = []
     for idx, w in enumerate(weights, start=1):
@@ -873,6 +921,8 @@ def create_print_job(req: CreatePrintJobRequest, db: Session = Depends(get_db)):
         "case_breakdown": req.case_breakdown,
         "delivery_boy_name": job.delivery_boy_name,
         "delivery_route": job.delivery_route,
+        "language": job.language,
+        "template_format": job.template_format,
         "created_at": job.created_at.isoformat() if job.created_at else None,
         "cases": cases_resp
     }
@@ -882,6 +932,7 @@ def create_bulk_print_jobs(req: BulkPrintJobsRequest, db: Session = Depends(get_
     """
     Bulk prints envelopes for all selected parties.
     Enables one-click daily printing for all parties.
+    Supports English & Gujarati language and template selection.
     """
     if not req.party_ids:
         raise HTTPException(status_code=400, detail="party_ids list cannot be empty")
@@ -906,9 +957,27 @@ def create_bulk_print_jobs(req: BulkPrintJobsRequest, db: Session = Depends(get_
         if valid_sum > 0:
             cases_count = valid_sum
 
+    app_settings = db.query(AppSettings).first()
+    gemini_key = app_settings.gemini_api_key if app_settings else None
+
     created_jobs = []
     now = datetime.datetime.now(datetime.timezone.utc)
     for p in parties:
+        # If printing in Gujarati and party not yet translated, auto-translate using Gemini
+        if req.language == "gu" and not p.party_name_gu:
+            try:
+                tr = ai_service.translate_party_to_gujarati(
+                    p.party_name, p.address, p.city, p.state,
+                    address_line_2=p.address_line_2, address_line_3=p.address_line_3,
+                    api_key=gemini_key
+                )
+                p.party_name_gu = tr.get("party_name_gu")
+                p.address_gu = tr.get("address_gu")
+                p.city_gu = tr.get("city_gu")
+                p.state_gu = tr.get("state_gu")
+            except Exception as e:
+                print("Bulk auto-translate error for party:", p.party_name, e)
+
         job_number = get_next_job_number(db)
         job = PrintJob(
             job_number=job_number,
@@ -938,6 +1007,8 @@ def create_bulk_print_jobs(req: BulkPrintJobsRequest, db: Session = Depends(get_
             case_breakdown_json=breakdown_json,
             delivery_boy_name=req.delivery_boy_name,
             delivery_route=req.delivery_route,
+            language=req.language or "en",
+            template_format=req.template_format or "attachment_pdf",
             created_at=now
         )
         db.add(job)
@@ -1180,7 +1251,10 @@ def get_settings(db: Session = Depends(get_db)):
             "show_party_code": app_set.show_party_code,
             "show_date": app_set.show_date,
             "show_gst": app_set.show_gst,
-            "show_pan": app_set.show_pan
+            "show_pan": app_set.show_pan,
+            "gemini_api_key": app_set.gemini_api_key or os.environ.get("GEMINI_API_KEY", ""),
+            "default_language": getattr(app_set, "default_language", "en") or "en",
+            "envelope_template_format": getattr(app_set, "envelope_template_format", "attachment_pdf") or "attachment_pdf"
         }
     }
 
@@ -1227,6 +1301,12 @@ def update_settings(payload: Dict[str, Any], db: Session = Depends(get_db)):
         app_set.show_date = bool(a_data.get("show_date", app_set.show_date))
         app_set.show_gst = bool(a_data.get("show_gst", app_set.show_gst))
         app_set.show_pan = bool(a_data.get("show_pan", app_set.show_pan))
+        if "gemini_api_key" in a_data:
+            app_set.gemini_api_key = a_data["gemini_api_key"].strip()
+        if "default_language" in a_data:
+            app_set.default_language = a_data["default_language"].strip()
+        if "envelope_template_format" in a_data:
+            app_set.envelope_template_format = a_data["envelope_template_format"].strip()
 
     db.commit()
     return {"message": "Settings updated successfully"}
@@ -1259,6 +1339,12 @@ class GeneratePDFRequest(BaseModel):
     margin_left_mm: Optional[float] = None
     margin_right_mm: Optional[float] = None
     scale_percent: Optional[int] = None
+    template_format: Optional[str] = "attachment_pdf"
+    language: Optional[str] = "en"
+    party_name_gu: Optional[str] = None
+    address_gu: Optional[str] = None
+    city_gu: Optional[str] = None
+    state_gu: Optional[str] = None
 
 @app.post("/api/pdf/generate")
 def generate_pdf(req: GeneratePDFRequest, db: Session = Depends(get_db)):
@@ -1298,6 +1384,9 @@ def generate_pdf(req: GeneratePDFRequest, db: Session = Depends(get_db)):
         "show_party_code": app_settings.show_party_code if app_settings else True
     }
 
+    active_format = req.template_format or (app_settings.envelope_template_format if app_settings else "attachment_pdf")
+    active_lang = req.language or (app_settings.default_language if app_settings else "en")
+
     # Case 1: Bulk job IDs
     if req.job_ids:
         jobs = db.query(PrintJob).filter(PrintJob.id.in_(req.job_ids)).all()
@@ -1321,6 +1410,10 @@ def generate_pdf(req: GeneratePDFRequest, db: Session = Depends(get_db)):
                 "party_mobile_snap": job.party_mobile_snap,
                 "party_gst_snap": job.party_gst_snap,
                 "party_notes_snap": getattr(job.party, "notes", "") if job.party else "",
+                "party_name_gu": getattr(job.party, "party_name_gu", None) if job.party else None,
+                "address_gu": getattr(job.party, "address_gu", None) if job.party else None,
+                "city_gu": getattr(job.party, "city_gu", None) if job.party else None,
+                "state_gu": getattr(job.party, "state_gu", None) if job.party else None,
                 "parcel_type": job.parcel_type,
                 "total_cases": job.total_cases,
                 "case_breakdown": b_items
@@ -1335,7 +1428,10 @@ def generate_pdf(req: GeneratePDFRequest, db: Session = Depends(get_db)):
                 jobs_cases_list.append({"job": j_data, "case": c_data})
 
         try:
-            pdf_bytes = pdf_service.generate_bulk_envelopes_pdf(jobs_cases_list, sender_dict, settings_dict)
+            pdf_bytes = pdf_service.generate_bulk_envelopes_pdf(
+                jobs_cases_list, sender_dict, settings_dict,
+                template_format=active_format, language=active_lang
+            )
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"PDF generation failed: {str(e)}")
 
@@ -1373,6 +1469,10 @@ def generate_pdf(req: GeneratePDFRequest, db: Session = Depends(get_db)):
             "party_mobile_snap": job.party_mobile_snap,
             "party_gst_snap": job.party_gst_snap,
             "party_notes_snap": getattr(job.party, "notes", "") if job.party else "",
+            "party_name_gu": getattr(job.party, "party_name_gu", None) if job.party else None,
+            "address_gu": getattr(job.party, "address_gu", None) if job.party else None,
+            "city_gu": getattr(job.party, "city_gu", None) if job.party else None,
+            "state_gu": getattr(job.party, "state_gu", None) if job.party else None,
             "parcel_type": job.parcel_type,
             "total_cases": job.total_cases,
             "case_breakdown": b_items
@@ -1387,6 +1487,15 @@ def generate_pdf(req: GeneratePDFRequest, db: Session = Depends(get_db)):
             for c in job.cases
         ]
         job_number = job.job_number
+        j_format = getattr(job, "template_format", None) or active_format
+        j_lang = getattr(job, "language", None) or active_lang
+        try:
+            pdf_bytes = pdf_service.generate_envelopes_pdf(
+                job_data, cases_data, sender_dict, settings_dict,
+                template_format=j_format, language=j_lang
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"PDF generation failed: {str(e)}")
     else:
         # Dynamic preview generation
         temp_job_number = f"MRG-{datetime.datetime.now().year}-PREVIEW"
@@ -1402,6 +1511,10 @@ def generate_pdf(req: GeneratePDFRequest, db: Session = Depends(get_db)):
             "party_mobile_snap": req.mobile_no or "+91 8963003012",
             "party_gst_snap": req.gst_no or "",
             "party_notes_snap": "DR.FIROZ",
+            "party_name_gu": req.party_name_gu,
+            "address_gu": req.address_gu,
+            "city_gu": req.city_gu,
+            "state_gu": req.state_gu,
             "parcel_type": req.parcel_type,
             "total_cases": req.total_cases,
             "case_breakdown": req.case_breakdown
@@ -1423,10 +1536,13 @@ def generate_pdf(req: GeneratePDFRequest, db: Session = Depends(get_db)):
             })
         job_number = temp_job_number
 
-    try:
-        pdf_bytes = pdf_service.generate_envelopes_pdf(job_data, cases_data, sender_dict, settings_dict)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"PDF generation failed: {str(e)}")
+        try:
+            pdf_bytes = pdf_service.generate_envelopes_pdf(
+                job_data, cases_data, sender_dict, settings_dict,
+                template_format=active_format, language=active_lang
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"PDF generation failed: {str(e)}")
 
     filename = f"MARG_Envelope_{job_number}.pdf"
     return Response(
@@ -1744,6 +1860,120 @@ def import_database_backup(backup_data: Dict[str, Any], db: Session = Depends(ge
         sender.email = s_data.get("email")
         sender.gst_no = s_data.get("gst_no")
         db.commit()
+
+# ==========================================
+# 9. GEMINI AI TRANSLATION & SMART PARSER
+# ==========================================
+
+class TranslatePartyRequest(BaseModel):
+    party_id: Optional[int] = None
+    party_name: str
+    address: str
+    address_line_2: Optional[str] = None
+    address_line_3: Optional[str] = None
+    city: str
+    state: str
+    save_to_party: bool = True
+
+class ParseMargTextRequest(BaseModel):
+    raw_text: str
+
+class BatchTranslatePartiesRequest(BaseModel):
+    party_ids: List[int]
+
+@app.post("/api/ai/test")
+def test_gemini_connection(payload: Optional[Dict[str, Any]] = None, db: Session = Depends(get_db)):
+    """Tests connection to Google Gemini API using stored or custom API key."""
+    key = None
+    if payload and payload.get("api_key"):
+        key = payload["api_key"].strip()
+    else:
+        app_set = db.query(AppSettings).first()
+        if app_set and app_set.gemini_api_key:
+            key = app_set.gemini_api_key.strip()
+    return ai_service.test_connection(api_key=key)
+
+@app.post("/api/ai/translate-party")
+def translate_party_to_gujarati(req: TranslatePartyRequest, db: Session = Depends(get_db)):
+    """Translates party name and address details from English to Gujarati using Gemini."""
+    app_set = db.query(AppSettings).first()
+    key = app_set.gemini_api_key if app_set else None
+
+    # Check if party exists and already has translation
+    if req.party_id:
+        p = db.query(Party).filter(Party.id == req.party_id).first()
+        if p and p.party_name_gu and not req.save_to_party:
+            return {
+                "party_name_gu": p.party_name_gu,
+                "address_gu": p.address_gu or "",
+                "address_line_2_gu": "",
+                "address_line_3_gu": "",
+                "city_gu": p.city_gu or "",
+                "state_gu": p.state_gu or ""
+            }
+
+    tr = ai_service.translate_party_to_gujarati(
+        party_name=req.party_name,
+        address=req.address,
+        city=req.city,
+        state=req.state,
+        address_line_2=req.address_line_2,
+        address_line_3=req.address_line_3,
+        api_key=key
+    )
+
+    if req.party_id and req.save_to_party:
+        p = db.query(Party).filter(Party.id == req.party_id).first()
+        if p:
+            p.party_name_gu = tr.get("party_name_gu")
+            p.address_gu = tr.get("address_gu")
+            p.city_gu = tr.get("city_gu")
+            p.state_gu = tr.get("state_gu")
+            db.commit()
+
+    return tr
+
+@app.post("/api/ai/parse-text")
+def parse_unstructured_marg_text(req: ParseMargTextRequest, db: Session = Depends(get_db)):
+    """Intelligently parses unstructured MARG invoice / party clipboard text into structured fields."""
+    if not req.raw_text or not req.raw_text.strip():
+        raise HTTPException(status_code=400, detail="Text cannot be empty")
+    app_set = db.query(AppSettings).first()
+    key = app_set.gemini_api_key if app_set else None
+    try:
+        data = ai_service.parse_unstructured_marg_data(req.raw_text, api_key=key)
+        return {"success": True, "data": data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/ai/batch-translate")
+def batch_translate_parties(req: BatchTranslatePartiesRequest, db: Session = Depends(get_db)):
+    """Batch translates multiple parties to Gujarati for bulk printing."""
+    app_set = db.query(AppSettings).first()
+    key = app_set.gemini_api_key if app_set else None
+    parties = db.query(Party).filter(Party.id.in_(req.party_ids)).all()
+    results = {}
+    for p in parties:
+        if not p.party_name_gu:
+            tr = ai_service.translate_party_to_gujarati(
+                p.party_name, p.address, p.city, p.state,
+                address_line_2=p.address_line_2, address_line_3=p.address_line_3,
+                api_key=key
+            )
+            p.party_name_gu = tr.get("party_name_gu")
+            p.address_gu = tr.get("address_gu")
+            p.city_gu = tr.get("city_gu")
+            p.state_gu = tr.get("state_gu")
+            results[p.id] = tr
+        else:
+            results[p.id] = {
+                "party_name_gu": p.party_name_gu,
+                "address_gu": p.address_gu or "",
+                "city_gu": p.city_gu or "",
+                "state_gu": p.state_gu or ""
+            }
+    db.commit()
+    return {"success": True, "translations": results}
 
 # Mount built React frontend if dist exists
 dist_dir = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")
