@@ -719,7 +719,20 @@ def confirm_import(req: ConfirmImportRequest, db: Session = Depends(get_db)):
 
     for idx, r in enumerate(req.rows, start=1):
         name = (r.get("party_name") or "").strip().upper()
+        if not name:
+            error_count += 1
+            err = ImportErrorLog(
+                import_job_id=import_job.id,
+                row_index=idx,
+                party_name="UNKNOWN",
+                party_code=None,
+                error_reason="Missing Party Name"
+            )
+            db.add(err)
+            continue
+
         code = (r.get("party_code") or "").strip().upper() if r.get("party_code") else None
+        route = (r.get("route") or "").strip().upper() or None
         addr = (r.get("address") or "").strip().upper()
         addr2 = (r.get("address_line_2") or "").strip().upper() or None
         addr3 = (r.get("address_line_3") or "").strip().upper() or None
@@ -731,17 +744,19 @@ def confirm_import(req: ConfirmImportRequest, db: Session = Depends(get_db)):
         gst = (r.get("gst_no") or "").strip().upper() or None
         notes = (r.get("notes") or "").strip() or None
 
-        if not name or not addr:
-            error_count += 1
-            err = ImportErrorLog(
-                import_job_id=import_job.id,
-                row_index=idx,
-                party_name=name,
-                party_code=code,
-                error_reason="Missing required Party Name or Address"
-            )
-            db.add(err)
-            continue
+        # Smart address fallback if addr (line 1) is empty
+        if not addr:
+            if addr2:
+                addr = addr2
+                addr2 = addr3
+                addr3 = None
+            elif addr3:
+                addr = addr3
+                addr3 = None
+            elif city:
+                addr = city
+            else:
+                addr = "DAHEGAM"
 
         # Check duplicate
         is_duplicate = (name in existing_names) or (code is not None and code in existing_codes)
@@ -771,6 +786,7 @@ def confirm_import(req: ConfirmImportRequest, db: Session = Depends(get_db)):
                     existing_party.address_line_3 = addr3
                     existing_party.city = city
                     existing_party.state = state
+                    if route: existing_party.route = route
                     if mob: existing_party.mobile_no = mob
                     if land: existing_party.landline = land
                     if email: existing_party.email = email
@@ -787,6 +803,7 @@ def confirm_import(req: ConfirmImportRequest, db: Session = Depends(get_db)):
         new_party = Party(
             party_name=name,
             party_code=code,
+            route=route,
             address=addr,
             address_line_2=addr2,
             address_line_3=addr3,

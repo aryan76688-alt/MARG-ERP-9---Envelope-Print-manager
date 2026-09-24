@@ -10,48 +10,60 @@ MARG_COLUMN_ALIASES: Dict[str, List[str]] = {
     "party_name": [
         "party name", "party", "account name", "ledger name", "partyname",
         "customer name", "customer", "party_name", "account", "client name",
-        "shree mohangadh", "firm name", "party title"
+        "firm name", "party title", "name", "cust name", "parties",
+        "particulars", "debtor", "sundry debtors", "client", "firm", "ledger",
+        "a/c name", "a/c", "ac name", "ac_name", "party/ledger", "dr name", "dr. name"
     ],
     "party_code": [
         "party code", "code", "account code", "ledger code", "partycode",
-        "cust code", "customer code", "ac code", "pcode", "id"
+        "cust code", "customer code", "ac code", "ac_code", "pcode", "id",
+        "ledger id", "party id", "sr no", "sr.no", "s.no", "sno", "serial no", "ac no", "acc no"
+    ],
+    "route": [
+        "route", "route name", "delivery route", "beat", "area route", "route no", "routeno",
+        "delivery area", "transport route", "zone", "group", "route / area", "station / route"
     ],
     "address": [
         "address", "address 1", "address1", "address_1", "address-1", "party address", "street",
         "address line 1", "address line1", "addressline1", "addr1", "addr 1", "addr_1",
-        "full address", "location", "premises", "street 1", "add1", "add 1", "add_1"
+        "full address", "location", "premises", "street 1", "add1", "add 1", "add_1",
+        "address (line 1)", "line 1", "line1", "street1", "addr. 1", "addr."
     ],
     "address_line_2": [
         "address line 2", "address line2", "addressline2", "address 2", "address2", "address_2", "address-2",
         "address.1", "addr2", "addr 2", "addr_2", "line 2", "line2", "street 2", "street2",
-        "area", "colony", "add2", "add 2", "add_2", "address (line 2)"
+        "area", "colony", "add2", "add 2", "add_2", "address (line 2)", "addr. 2",
+        "locality", "mohalla", "society", "road"
     ],
     "address_line_3": [
         "address line 3", "address line3", "addressline3", "address 3", "address3", "address_3", "address-3",
         "address.2", "addr3", "addr 3", "addr_3", "line 3", "line3", "street 3", "street3",
-        "landmark", "near", "add3", "add 3", "add_3", "address (line 3)"
+        "landmark", "near", "add3", "add 3", "add_3", "address (line 3)", "addr. 3",
+        "opp", "opposite", "behind", "building", "bldg"
     ],
     "city": [
-        "city", "town", "station", "place", "city / town", "district"
+        "city", "town", "station", "place", "city / town", "district", "dist", "taluka", "headquarter"
     ],
     "state": [
-        "state", "state name", "province", "region"
+        "state", "state name", "province", "region", "st"
     ],
     "mobile_no": [
         "mobile no", "mobile", "mobile number", "mobile no.", "contact no",
-        "contact number", "cell", "phone", "phone no", "mo", "mo.", "cell no"
+        "contact number", "cell", "phone", "phone no", "phone no.", "cell no",
+        "ph no", "ph", "contact", "whatsapp", "mobile 1", "phone 1"
     ],
     "landline": [
-        "landline", "landline no", "tel", "telephone", "office phone", "phone (o)"
+        "landline", "landline no", "tel", "telephone", "office phone", "phone (o)",
+        "landline number", "phone 2", "office tel"
     ],
     "email": [
         "email", "e-mail", "email id", "email address", "mail"
     ],
     "gst_no": [
-        "gst no", "gst", "gst number", "gstin", "gstin/uin", "tax id"
+        "gst no", "gst", "gst number", "gstin", "gstin/uin", "tax id", "tin"
     ],
     "notes": [
-        "notes", "remark", "remarks", "dispatch instruction", "comment"
+        "notes", "remark", "remarks", "dispatch instruction", "comment", "description", "narration"
     ]
 }
 
@@ -63,12 +75,13 @@ def clean_header(h: Any) -> str:
 def detect_column_mappings(headers: List[str]) -> Dict[str, Optional[str]]:
     """
     Automatically detects best-matching column headers for MARG ERP party imports.
-    Supports all 3 address lines (address, address_line_2, address_line_3).
+    Supports Route and all 3 address lines (address, address_line_2, address_line_3).
     Strictly ignores and excludes any PIN code / Postal code columns.
     """
     mapping: Dict[str, Optional[str]] = {
         "party_name": None,
         "party_code": None,
+        "route": None,
         "address": None,
         "address_line_2": None,
         "address_line_3": None,
@@ -84,39 +97,62 @@ def detect_column_mappings(headers: List[str]) -> Dict[str, Optional[str]]:
     used_headers = set()
     cleaned = [(orig, clean_header(orig)) for orig in headers if orig]
 
-    # 1. Exact or alias matching
+    def is_pin(text: str) -> bool:
+        return any(k in text for k in ["pin", "zip", "postal", "pincode"])
+
+    # 1. Exact alias matching (normalized)
     for field, aliases in MARG_COLUMN_ALIASES.items():
+        if mapping[field] is not None:
+            continue
         for orig, cl in cleaned:
-            if orig in used_headers:
+            if orig in used_headers or is_pin(cl):
                 continue
-            if "pin" in cl or "zip" in cl or "postal" in cl:
-                continue
-            if cl in aliases:
-                mapping[field] = orig
-                used_headers.add(orig)
+            norm_cl = re.sub(r"[^a-z0-9]", "", cl)
+            for alias in aliases:
+                norm_alias = re.sub(r"[^a-z0-9]", "", alias)
+                if cl == alias or norm_cl == norm_alias:
+                    mapping[field] = orig
+                    used_headers.add(orig)
+                    break
+            if mapping[field] is not None:
                 break
 
-    # 2. Fallback partial matching
+    # 2. Word-boundary / token matching (aliases >= 3 characters)
     for field, aliases in MARG_COLUMN_ALIASES.items():
-        if mapping[field] is None:
-            for orig, cl in cleaned:
-                if orig in used_headers:
-                    continue
-                if "pin" in cl or "zip" in cl or "postal" in cl:
-                    continue
-                for alias in aliases:
-                    if alias in cl or cl in alias:
+        if mapping[field] is not None:
+            continue
+        for orig, cl in cleaned:
+            if orig in used_headers or is_pin(cl):
+                continue
+            for alias in aliases:
+                if len(alias) >= 3:
+                    pattern = r'\b' + re.escape(alias) + r'\b'
+                    if re.search(pattern, cl):
                         mapping[field] = orig
                         used_headers.add(orig)
                         break
-                if mapping[field] is not None:
-                    break
+            if mapping[field] is not None:
+                break
 
-    # 3. Sequential 3-Address Line Fallback:
-    # If file has multiple address columns (e.g. Address, Address, Address or Address 1, Address 2, Address 3)
+    # 3. Substring matching for longer keywords (>= 4 chars)
+    for field, aliases in MARG_COLUMN_ALIASES.items():
+        if mapping[field] is not None:
+            continue
+        for orig, cl in cleaned:
+            if orig in used_headers or is_pin(cl):
+                continue
+            for alias in aliases:
+                if len(alias) >= 4 and (alias in cl or cl in alias):
+                    mapping[field] = orig
+                    used_headers.add(orig)
+                    break
+            if mapping[field] is not None:
+                break
+
+    # 4. Sequential 3-Address Line Fallback:
     unmapped_addr_cols = [
         orig for orig, cl in cleaned 
-        if orig not in used_headers and ("address" in cl or "addr" in cl) and not any(p in cl for p in ["pin", "zip", "postal"])
+        if orig not in used_headers and ("address" in cl or "addr" in cl or "street" in cl or "line" in cl) and not is_pin(cl)
     ]
     if mapping["address"] is None and unmapped_addr_cols:
         mapping["address"] = unmapped_addr_cols.pop(0)
@@ -128,50 +164,192 @@ def detect_column_mappings(headers: List[str]) -> Dict[str, Optional[str]]:
         mapping["address_line_3"] = unmapped_addr_cols.pop(0)
         used_headers.add(mapping["address_line_3"])
 
+    # 5. Last resort fallback for party_name:
+    if mapping["party_name"] is None:
+        for orig, cl in cleaned:
+            if orig not in used_headers and not is_pin(cl):
+                if any(k in cl for k in ["name", "party", "ledger", "account", "customer"]):
+                    mapping["party_name"] = orig
+                    used_headers.add(orig)
+                    break
+
+    # 6. Fallback for route:
+    if mapping["route"] is None:
+        for orig, cl in cleaned:
+            if orig not in used_headers and not is_pin(cl):
+                if "route" in cl or "beat" in cl:
+                    mapping["route"] = orig
+                    used_headers.add(orig)
+                    break
+
     return mapping
+
+def _load_raw_table(file_bytes: bytes) -> Tuple[List[List[Any]], str]:
+    """
+    Safely loads tabular data from diverse formats produced by MARG ERP 9+:
+    1. openpyxl (Modern .xlsx)
+    2. xlrd (Legacy binary .xls BIFF8)
+    3. pandas.read_html (HTML tables exported with .xls extension)
+    4. pandas.read_csv (CSV / TSV text exports)
+    """
+    # 1. Try openpyxl (.xlsx)
+    try:
+        wb = openpyxl.load_workbook(
+            io.BytesIO(file_bytes),
+            data_only=True,
+            read_only=True,
+            keep_vba=False
+        )
+        sheet = wb.active
+        sheet_name = sheet.title or "Sheet1"
+        rows = [list(r) for r in sheet.iter_rows(values_only=True)]
+        wb.close()
+        if rows and any(any(c is not None for c in r) for r in rows):
+            return rows, sheet_name
+    except Exception:
+        pass
+
+    # 2. Try xlrd (binary .xls)
+    try:
+        import xlrd
+        wb = xlrd.open_workbook(file_contents=file_bytes)
+        sheet = wb.sheet_by_index(0)
+        sheet_name = sheet.name or "Sheet1"
+        rows = []
+        for r in range(sheet.nrows):
+            rows.append([sheet.cell_value(r, c) for c in range(sheet.ncols)])
+        if rows and any(any(c not in (None, "") for c in r) for r in rows):
+            return rows, sheet_name
+    except Exception:
+        pass
+
+    # 3. Try pandas read_html (HTML disguised as .xls)
+    try:
+        import pandas as pd
+        dfs = pd.read_html(io.BytesIO(file_bytes))
+        if dfs:
+            df = dfs[0]
+            headers = [str(c) for c in df.columns]
+            rows = [headers] + [[cell if pd.notna(cell) else "" for cell in r] for r in df.values.tolist()]
+            return rows, "HTML_Export"
+    except Exception:
+        pass
+
+    # 4. Try CSV / TSV
+    try:
+        import pandas as pd
+        for sep in [",", "\t", ";"]:
+            try:
+                df = pd.read_csv(io.BytesIO(file_bytes), sep=sep, encoding="utf-8-sig", on_bad_lines="skip")
+                if not df.empty and len(df.columns) >= 2:
+                    headers = [str(c) for c in df.columns]
+                    rows = [headers] + [[cell if pd.notna(cell) else "" for cell in r] for r in df.values.tolist()]
+                    return rows, "CSV_Export"
+            except Exception:
+                continue
+    except Exception:
+        pass
+
+    raise ValueError("Unable to read Excel workbook. Supported formats: .xlsx, .xls, and MARG ERP HTML/CSV exports.")
 
 def read_excel_file(file_bytes: bytes) -> Tuple[List[str], List[Dict[str, Any]], str, int]:
     """
     Safely reads an Excel workbook without executing formulas or macros.
+    Automatically detects the true header row even if title rows precede it.
     Returns (headers, rows, sheet_name, total_rows).
     """
-    wb = openpyxl.load_workbook(
-        io.BytesIO(file_bytes),
-        data_only=True,
-        read_only=True,
-        keep_vba=False
-    )
-    sheet = wb.active
-    sheet_name = sheet.title
+    raw_table, sheet_name = _load_raw_table(file_bytes)
 
+    if not raw_table:
+        return [], [], sheet_name, 0
+
+    # Scan the first 15 rows to find the true column header row
+    HEADER_KEYWORDS = {
+        "party", "name", "ledger", "account", "customer", "code", "address",
+        "addr", "add1", "add2", "add3", "city", "station", "state", "mobile",
+        "phone", "contact", "route", "area", "gst", "gstin", "email", "remarks",
+        "notes", "sno", "s.no", "sr", "particulars", "ac", "dr", "balance"
+    }
+
+    best_header_idx = 0
+    max_score = 0
+
+    scan_limit = min(len(raw_table), 15)
+    for r_idx in range(scan_limit):
+        row = raw_table[r_idx]
+        if not row or not any(row):
+            continue
+        score = 0
+        for cell in row:
+            if cell is None:
+                continue
+            cell_str = str(cell).strip().lower()
+            cell_norm = re.sub(r"[^a-z0-9]", "", cell_str)
+            if any(k in cell_norm for k in HEADER_KEYWORDS):
+                score += 1
+        if score > max_score:
+            max_score = score
+            best_header_idx = r_idx
+
+    # If no row had keyword matches, pick first row with at least 2 non-empty cells
+    if max_score < 2:
+        for r_idx in range(scan_limit):
+            row = raw_table[r_idx]
+            non_empty = [c for c in row if c is not None and str(c).strip()]
+            if len(non_empty) >= 2:
+                best_header_idx = r_idx
+                break
+
+    # Build unique headers
+    raw_headers = raw_table[best_header_idx]
     headers: List[str] = []
-    rows: List[Dict[str, Any]] = []
+    seen_headers = set()
 
-    for row_idx, row in enumerate(sheet.iter_rows(values_only=True)):
-        if row_idx == 0:
-            headers = [str(cell).strip() if cell is not None else f"Column_{i+1}" for i, cell in enumerate(row)]
+    for col_idx, cell in enumerate(raw_headers):
+        if cell is not None and str(cell).strip():
+            h_text = str(cell).strip()
+        else:
+            h_text = f"Column_{col_idx + 1}"
+        
+        # Deduplicate identical header names (e.g. "Address", "Address")
+        base_h = h_text
+        dup_count = 2
+        while h_text in seen_headers:
+            h_text = f"{base_h}_{dup_count}"
+            dup_count += 1
+        seen_headers.add(h_text)
+        headers.append(h_text)
+
+    # Process data rows
+    rows: List[Dict[str, Any]] = []
+    for row in raw_table[best_header_idx + 1:]:
+        if not row or not any(row):
             continue
 
-        # Check if entire row is empty
-        if not any(row):
+        if all(c is None or str(c).strip() == "" for c in row):
             continue
 
         row_dict: Dict[str, Any] = {}
+        has_any_val = False
         for col_idx, cell_value in enumerate(row):
             if col_idx < len(headers):
                 h = headers[col_idx]
-                val = cell_value
-                if val is not None:
-                    val_str = str(val).strip()
-                    # Remove trailing .0 from phone numbers or integers parsed as float
-                    if isinstance(val, float) and val.is_integer():
-                        val_str = str(int(val))
+                if cell_value is not None:
+                    val_str = str(cell_value).strip()
+                    # Remove trailing .0 from float numbers
+                    if isinstance(cell_value, float) and cell_value.is_integer():
+                        val_str = str(int(cell_value))
+                    elif isinstance(cell_value, float) and val_str.endswith(".0"):
+                        val_str = val_str[:-2]
                     row_dict[h] = val_str
+                    if val_str:
+                        has_any_val = True
                 else:
                     row_dict[h] = ""
-        rows.append(row_dict)
+        
+        if has_any_val:
+            rows.append(row_dict)
 
-    wb.close()
     return headers, rows, sheet_name, len(rows)
 
 def validate_imported_rows(
@@ -183,6 +361,8 @@ def validate_imported_rows(
     """
     Validates rows against MARG rules and existing DB records.
     Returns categorized rows: valid_rows, warning_rows, error_rows.
+    Guarantees that rows with a party name are never rejected due to missing address lines;
+    they are intelligently auto-filled with warnings instead of fatal errors.
     """
     valid_rows = []
     warning_rows = []
@@ -200,6 +380,7 @@ def validate_imported_rows(
 
         party_name = get_val("party_name")
         party_code = get_val("party_code")
+        route = get_val("route")
         address = get_val("address")
         address_line_2 = get_val("address_line_2")
         address_line_3 = get_val("address_line_3")
@@ -217,15 +398,30 @@ def validate_imported_rows(
         errors = []
         warnings = []
 
-        # Critical validations
+        # Party name is the only strictly fatal requirement
         if not party_name:
             errors.append("Party Name is required")
+
+        # Intelligent address cascade:
+        # If address (line 1) is empty, pull from line 2 or line 3 or city
         if not address:
-            errors.append("Address is required")
+            if address_line_2:
+                address = address_line_2
+                address_line_2 = address_line_3
+                address_line_3 = ""
+            elif address_line_3:
+                address = address_line_3
+                address_line_3 = ""
+            elif city:
+                address = city
+                warnings.append("Address Line 1 was empty; defaulted to City")
+            else:
+                address = "DAHEGAM"
+                warnings.append("Address Line 1 missing; defaulted to DAHEGAM")
 
         # City / State defaults if missing
         if not city:
-            warnings.append("City is missing (defaults to Dahegam/Local)")
+            warnings.append("City is missing (defaults to DAHEGAM)")
             city = "DAHEGAM"
         if not state:
             warnings.append("State is missing (defaults to GUJARAT)")
@@ -237,7 +433,7 @@ def validate_imported_rows(
         is_already_exists = False
         match_reason = ""
 
-        if norm_name in existing_party_names:
+        if norm_name and norm_name in existing_party_names:
             is_already_exists = True
             match_reason = f"Party name '{party_name}' already exists in ledger"
             warnings.append(match_reason)
@@ -246,9 +442,10 @@ def validate_imported_rows(
             match_reason = f"Party code '{party_code}' already exists in ledger"
             warnings.append(match_reason)
 
-        if norm_name in seen_names_in_file:
-            warnings.append(f"Party name '{party_name}' repeated multiple times in this Excel file")
-        seen_names_in_file.add(norm_name)
+        if norm_name:
+            if norm_name in seen_names_in_file:
+                warnings.append(f"Party name '{party_name}' repeated multiple times in this Excel file")
+            seen_names_in_file.add(norm_name)
 
         if norm_code:
             if norm_code in seen_codes_in_file:
@@ -264,12 +461,13 @@ def validate_imported_rows(
         if email and "@" not in email:
             warnings.append(f"Email '{email}' format invalid")
 
-        row_status = "error" if errors else ("already_exists" if is_already_exists else ("warning" if warnings else "new"))
+        row_status = "error" if errors else ("already_exists" if is_already_exists else ("warning" if warnings else "valid"))
 
         record = {
             "row_index": idx,
             "party_name": party_name,
             "party_code": party_code,
+            "route": route,
             "address": address,
             "address_line_2": address_line_2,
             "address_line_3": address_line_3,
@@ -316,7 +514,7 @@ def validate_imported_rows(
 def generate_sample_excel_template() -> bytes:
     """
     Creates a pre-formatted Excel workbook template for office staff to import MARG ERP party data.
-    Strictly excludes PIN code.
+    Includes Delivery Route and 3 Address lines. Strictly excludes PIN code.
     """
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -336,7 +534,8 @@ def generate_sample_excel_template() -> bytes:
     columns = [
         ("Party Name *", 28),
         ("Party Code", 14),
-        ("Address *", 35),
+        ("Delivery Route", 18),
+        ("Address Line 1 *", 35),
         ("Address Line 2", 30),
         ("Address Line 3", 25),
         ("City *", 18),
@@ -358,14 +557,14 @@ def generate_sample_excel_template() -> bytes:
 
     ws.row_dimensions[1].height = 28
 
-    # Realistic MARG ERP sample data rows
+    # Realistic MARG ERP sample data rows with Delivery Route and 3 Address Lines
     sample_data = [
-        ["JODHPUR MEDICOSE", "P0001", "SHREE MOHANGADH", "NEAR STN ROAD", "OPP CIVIL HOSPITAL", "JODHPUR", "RAJASTHAN", "9829012345", "0291-2645120", "jodhpurmedicose@gmail.com", "08ABCDE1234F1Z2", "Express courier"],
-        ["JAY SHREE TRADERS", "P0002", "SHOP 14, APMC MARKET", "SECTOR 19", "PHARMA WING", "AHMEDABAD", "GUJARAT", "9876543210", "079-25418900", "jayshreetraders@yahoo.com", "24ABCDE5678G2Z1", "Medical consignments"],
-        ["JIGNESH ENTERPRISE", "P0003", "GIDC PHASE 2", "PLOT 45/A", "", "VADODARA", "GUJARAT", "9824098765", "0265-2890123", "jignesh_ent@rediffmail.com", "24XYZAB9876C1Z8", "Priority"],
-        ["J K PHARMA DISTRIBUTOR", "P0004", "MEDICINE COMPLEX", "RING ROAD", "", "SURAT", "GUJARAT", "9898011223", "0261-2478901", "jkpharma@suratpharma.com", "24LMNOP4321D1Z9", ""],
-        ["JALARAM AGENCIES", "P0005", "GRAIN MARKET", "OPP TOWN HALL", "", "RAJKOT", "GUJARAT", "9426033445", "0281-2234567", "jalaram_rajkot@gmail.com", "24PQRSU8765E1Z4", ""],
-        ["JANTA MEDICALS", "P0006", "MAIN HOSPITAL ROAD", "NEAR BUS STAND", "", "JAIPUR", "RAJASTHAN", "9829567890", "0141-2356789", "jantamedicals.jpr@gmail.com", "08JKLMN3456H1Z3", "Cold chain parcel"]
+        ["JODHPUR MEDICOSE", "P0001", "RAJASTHAN ROUTE", "SHREE MOHANGADH", "NEAR STN ROAD", "OPP CIVIL HOSPITAL", "JODHPUR", "RAJASTHAN", "9829012345", "0291-2645120", "jodhpurmedicose@gmail.com", "08ABCDE1234F1Z2", "Express courier"],
+        ["JAY SHREE TRADERS", "P0002", "CITY MAIN ROUTE", "SHOP 14, APMC MARKET", "SECTOR 19", "PHARMA WING", "AHMEDABAD", "GUJARAT", "9876543210", "079-25418900", "jayshreetraders@yahoo.com", "24ABCDE5678G2Z1", "Medical consignments"],
+        ["JIGNESH ENTERPRISE", "P0003", "VADODARA HIGHWAY", "GIDC PHASE 2", "PLOT 45/A", "", "VADODARA", "GUJARAT", "9824098765", "0265-2890123", "jignesh_ent@rediffmail.com", "24XYZAB9876C1Z8", "Priority"],
+        ["J K PHARMA DISTRIBUTOR", "P0004", "SOUTH GUJARAT", "MEDICINE COMPLEX", "RING ROAD", "", "SURAT", "GUJARAT", "9898011223", "0261-2478901", "jkpharma@suratpharma.com", "24LMNOP4321D1Z9", ""],
+        ["JALARAM AGENCIES", "P0005", "SAURASHTRA ROUTE", "GRAIN MARKET", "OPP TOWN HALL", "", "RAJKOT", "GUJARAT", "9426033445", "0281-2234567", "jalaram_rajkot@gmail.com", "24PQRSU8765E1Z4", ""],
+        ["JANTA MEDICALS", "P0006", "NORTH ZONE", "MAIN HOSPITAL ROAD", "NEAR BUS STAND", "", "JAIPUR", "RAJASTHAN", "9829567890", "0141-2356789", "jantamedicals.jpr@gmail.com", "08JKLMN3456H1Z3", "Cold chain parcel"]
     ]
 
     for row_idx, row_values in enumerate(sample_data, start=2):
@@ -374,7 +573,7 @@ def generate_sample_excel_template() -> bytes:
             cell = ws.cell(row=row_idx, column=col_idx, value=val)
             cell.font = data_font
             cell.border = thin_border
-            if col_idx in [2, 8, 9]:
+            if col_idx in [2, 3, 9, 10]:
                 cell.alignment = Alignment(horizontal="center")
 
     output = io.BytesIO()
@@ -401,7 +600,8 @@ def export_parties_to_excel(parties: List[Any]) -> bytes:
     headers = [
         ("Party Name", 28),
         ("Code", 14),
-        ("Address", 35),
+        ("Delivery Route", 18),
+        ("Address Line 1", 35),
         ("Address Line 2", 30),
         ("Address Line 3", 25),
         ("City", 18),
@@ -428,6 +628,7 @@ def export_parties_to_excel(parties: List[Any]) -> bytes:
         row_vals = [
             p.party_name,
             p.party_code or "",
+            getattr(p, "route", "") or "",
             p.address,
             getattr(p, "address_line_2", "") or "",
             getattr(p, "address_line_3", "") or "",

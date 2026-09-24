@@ -57,6 +57,7 @@ export const ImportExcel: React.FC<ImportExcelProps> = ({ onNavigate }) => {
   const TARGET_FIELDS = [
     { key: 'party_name', label: 'Party Name', required: true },
     { key: 'party_code', label: 'Party Code', required: false },
+    { key: 'route', label: 'Delivery Route', required: false },
     { key: 'address', label: 'Address Line 1', required: true },
     { key: 'address_line_2', label: 'Address Line 2', required: false },
     { key: 'address_line_3', label: 'Address Line 3', required: false },
@@ -129,12 +130,22 @@ export const ImportExcel: React.FC<ImportExcelProps> = ({ onNavigate }) => {
     if (!validation) return;
     setImporting(true);
     try {
-      // Gather rows to import: all preview rows or valid+warning rows
-      const rowsToImport = validation.all_preview_rows && validation.all_preview_rows.length > 0
+      // Gather rows to import: all preview rows or valid+warning rows that have a party_name
+      const candidateRows = validation.all_preview_rows && validation.all_preview_rows.length > 0
         ? validation.all_preview_rows
         : skipWarnings
         ? validation.valid_rows
         : [...validation.valid_rows, ...validation.warning_rows];
+
+      const rowsToImport = candidateRows.filter(
+        (r: any) => r.party_name && r.party_name.toString().trim().length > 0
+      );
+
+      if (rowsToImport.length === 0) {
+        alert('No rows with a valid Party Name found to import. Please check your Excel column mapping.');
+        setImporting(false);
+        return;
+      }
 
       const res = await confirmImport({
         rows: rowsToImport,
@@ -531,6 +542,7 @@ export const ImportExcel: React.FC<ImportExcelProps> = ({ onNavigate }) => {
                             <tr>
                               <th className="px-3 py-2 w-10">#</th>
                               <th className="px-4 py-2">Party Name</th>
+                              <th className="px-3 py-2">Route</th>
                               <th className="px-3 py-2">Address (Lines 1, 2, 3)</th>
                               <th className="px-3 py-2">City</th>
                               <th className="px-3 py-2">State</th>
@@ -544,6 +556,7 @@ export const ImportExcel: React.FC<ImportExcelProps> = ({ onNavigate }) => {
                                 <tr key={idx} className="hover:bg-slate-50">
                                   <td className="px-3 py-2 text-slate-400 font-bold">{r.row_index != null ? r.row_index + 1 : idx + 1}</td>
                                   <td className="px-4 py-2 font-bold text-slate-900">{r.party_name || '—'}</td>
+                                  <td className="px-3 py-2 font-semibold text-blue-700">{r.route || '—'}</td>
                                   <td className="px-3 py-2 text-slate-600 max-w-[240px] truncate" title={[r.address, r.address_line_2, r.address_line_3].filter(Boolean).join(', ')}>
                                     {[r.address, r.address_line_2, r.address_line_3].filter(Boolean).join(', ') || '—'}
                                   </td>
@@ -577,7 +590,7 @@ export const ImportExcel: React.FC<ImportExcelProps> = ({ onNavigate }) => {
                               ))
                             ) : (
                               <tr>
-                                <td colSpan={7} className="px-4 py-6 text-center text-slate-400">
+                                <td colSpan={8} className="px-4 py-6 text-center text-slate-400">
                                   No rows to preview.
                                 </td>
                               </tr>
@@ -604,7 +617,7 @@ export const ImportExcel: React.FC<ImportExcelProps> = ({ onNavigate }) => {
 
                       <button
                         onClick={() => handleConfirmImport(false)}
-                        disabled={importing || (validation.valid_count === 0 && validation.warning_count === 0)}
+                        disabled={importing || ((validation.valid_count || 0) + (validation.warning_count || 0) + (validation.already_exists_count || 0) === 0)}
                         className="flex items-center gap-2 px-6 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white shadow-md shadow-blue-600/30 disabled:opacity-50"
                       >
                         <FileCheck className="w-4 h-4" />
@@ -615,7 +628,7 @@ export const ImportExcel: React.FC<ImportExcelProps> = ({ onNavigate }) => {
                             ? `Import Clean Parties (Add ${validation.new_count ?? validation.valid_count}, Skip ${validation.already_exists_count || 0} Duplicates)`
                             : duplicateAction === 'update'
                             ? `Import & Update Parties (${(validation.new_count || 0) + (validation.already_exists_count || 0)})`
-                            : `Import Everything (${validation.valid_count + validation.warning_count})`}
+                            : `Import Everything (${(validation.valid_count || 0) + (validation.warning_count || 0) + (validation.already_exists_count || 0)})`}
                         </span>
                       </button>
                     </div>

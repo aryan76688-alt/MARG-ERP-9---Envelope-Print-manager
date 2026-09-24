@@ -209,6 +209,7 @@ export interface ImportedRow {
   row_index: number;
   party_name: string;
   party_code?: string;
+  route?: string;
   address: string;
   address_line_2?: string;
   address_line_3?: string;
