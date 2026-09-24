@@ -57,7 +57,9 @@ export const ImportExcel: React.FC<ImportExcelProps> = ({ onNavigate }) => {
   const TARGET_FIELDS = [
     { key: 'party_name', label: 'Party Name', required: true },
     { key: 'party_code', label: 'Party Code', required: false },
-    { key: 'address', label: 'Address', required: true },
+    { key: 'address', label: 'Address Line 1', required: true },
+    { key: 'address_line_2', label: 'Address Line 2', required: false },
+    { key: 'address_line_3', label: 'Address Line 3', required: false },
     { key: 'city', label: 'City / Town', required: true },
     { key: 'state', label: 'State', required: true },
     { key: 'mobile_no', label: 'Mobile No.', required: false },
@@ -529,6 +531,7 @@ export const ImportExcel: React.FC<ImportExcelProps> = ({ onNavigate }) => {
                             <tr>
                               <th className="px-3 py-2 w-10">#</th>
                               <th className="px-4 py-2">Party Name</th>
+                              <th className="px-3 py-2">Address (Lines 1, 2, 3)</th>
                               <th className="px-3 py-2">City</th>
                               <th className="px-3 py-2">State</th>
                               <th className="px-3 py-2">Mobile</th>
@@ -541,6 +544,9 @@ export const ImportExcel: React.FC<ImportExcelProps> = ({ onNavigate }) => {
                                 <tr key={idx} className="hover:bg-slate-50">
                                   <td className="px-3 py-2 text-slate-400 font-bold">{r.row_index != null ? r.row_index + 1 : idx + 1}</td>
                                   <td className="px-4 py-2 font-bold text-slate-900">{r.party_name || '—'}</td>
+                                  <td className="px-3 py-2 text-slate-600 max-w-[240px] truncate" title={[r.address, r.address_line_2, r.address_line_3].filter(Boolean).join(', ')}>
+                                    {[r.address, r.address_line_2, r.address_line_3].filter(Boolean).join(', ') || '—'}
+                                  </td>
                                   <td className="px-3 py-2 text-slate-700">{r.city || '—'}</td>
                                   <td className="px-3 py-2 text-slate-600">{r.state || '—'}</td>
                                   <td className="px-3 py-2 font-mono text-slate-600">{r.mobile_no || '—'}</td>
@@ -571,7 +577,7 @@ export const ImportExcel: React.FC<ImportExcelProps> = ({ onNavigate }) => {
                               ))
                             ) : (
                               <tr>
-                                <td colSpan={6} className="px-4 py-6 text-center text-slate-400">
+                                <td colSpan={7} className="px-4 py-6 text-center text-slate-400">
                                   No rows to preview.
                                 </td>
                               </tr>

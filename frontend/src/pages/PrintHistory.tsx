@@ -13,7 +13,8 @@ import {
   Package,
   Calendar,
   AlertTriangle,
-  RefreshCw
+  RefreshCw,
+  Edit3
 } from 'lucide-react';
 import { PrintJob, PrintJobDetails } from '../types';
 import { fetchPrintJobs, fetchPrintJobDetails, deletePrintJob, downloadEnvelopePDF, getExportHistoryUrl } from '../api/client';
@@ -335,13 +336,14 @@ export const PrintHistory: React.FC<PrintHistoryProps> = ({ onNavigate }) => {
                           <Download className="w-4 h-4" />
                         </button>
 
-                        {/* Reprint */}
+                        {/* Edit & Reprint */}
                         <button
                           onClick={() => handleReprint(j)}
-                          className="p-1.5 text-slate-600 hover:text-blue-600 hover:bg-slate-100 rounded-lg transition-colors"
-                          title="Reprint Job"
+                          className="px-2 py-1 text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors flex items-center gap-1 font-extrabold text-[11px]"
+                          title="Edit Envelope & Reprint from History"
                         >
-                          <RotateCcw className="w-4 h-4" />
+                          <Edit3 className="w-3.5 h-3.5 text-blue-600" />
+                          <span>Edit & Reprint</span>
                         </button>
 
                         {/* Delete */}

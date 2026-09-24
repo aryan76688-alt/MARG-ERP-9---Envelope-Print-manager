@@ -17,14 +17,19 @@ MARG_COLUMN_ALIASES: Dict[str, List[str]] = {
         "cust code", "customer code", "ac code", "pcode", "id"
     ],
     "address": [
-        "address", "address 1", "address1", "party address", "street",
-        "address line 1", "full address", "location", "premises"
+        "address", "address 1", "address1", "address_1", "address-1", "party address", "street",
+        "address line 1", "address line1", "addressline1", "addr1", "addr 1", "addr_1",
+        "full address", "location", "premises", "street 1", "add1", "add 1", "add_1"
     ],
     "address_line_2": [
-        "address line 2", "address 2", "address2", "addr2", "line 2", "street 2", "area", "colony"
+        "address line 2", "address line2", "addressline2", "address 2", "address2", "address_2", "address-2",
+        "address.1", "addr2", "addr 2", "addr_2", "line 2", "line2", "street 2", "street2",
+        "area", "colony", "add2", "add 2", "add_2", "address (line 2)"
     ],
     "address_line_3": [
-        "address line 3", "address 3", "address3", "addr3", "line 3", "street 3", "landmark", "near"
+        "address line 3", "address line3", "addressline3", "address 3", "address3", "address_3", "address-3",
+        "address.2", "addr3", "addr 3", "addr_3", "line 3", "line3", "street 3", "street3",
+        "landmark", "near", "add3", "add 3", "add_3", "address (line 3)"
     ],
     "city": [
         "city", "town", "station", "place", "city / town", "district"
@@ -58,6 +63,7 @@ def clean_header(h: Any) -> str:
 def detect_column_mappings(headers: List[str]) -> Dict[str, Optional[str]]:
     """
     Automatically detects best-matching column headers for MARG ERP party imports.
+    Supports all 3 address lines (address, address_line_2, address_line_3).
     Strictly ignores and excludes any PIN code / Postal code columns.
     """
     mapping: Dict[str, Optional[str]] = {
@@ -78,12 +84,11 @@ def detect_column_mappings(headers: List[str]) -> Dict[str, Optional[str]]:
     used_headers = set()
     cleaned = [(orig, clean_header(orig)) for orig in headers if orig]
 
-    # Exact or alias matching
+    # 1. Exact or alias matching
     for field, aliases in MARG_COLUMN_ALIASES.items():
         for orig, cl in cleaned:
             if orig in used_headers:
                 continue
-            # Disallow any pin code column from ever mapping
             if "pin" in cl or "zip" in cl or "postal" in cl:
                 continue
             if cl in aliases:
@@ -91,7 +96,7 @@ def detect_column_mappings(headers: List[str]) -> Dict[str, Optional[str]]:
                 used_headers.add(orig)
                 break
 
-    # Fallback partial matching
+    # 2. Fallback partial matching
     for field, aliases in MARG_COLUMN_ALIASES.items():
         if mapping[field] is None:
             for orig, cl in cleaned:
@@ -106,6 +111,22 @@ def detect_column_mappings(headers: List[str]) -> Dict[str, Optional[str]]:
                         break
                 if mapping[field] is not None:
                     break
+
+    # 3. Sequential 3-Address Line Fallback:
+    # If file has multiple address columns (e.g. Address, Address, Address or Address 1, Address 2, Address 3)
+    unmapped_addr_cols = [
+        orig for orig, cl in cleaned 
+        if orig not in used_headers and ("address" in cl or "addr" in cl) and not any(p in cl for p in ["pin", "zip", "postal"])
+    ]
+    if mapping["address"] is None and unmapped_addr_cols:
+        mapping["address"] = unmapped_addr_cols.pop(0)
+        used_headers.add(mapping["address"])
+    if mapping["address_line_2"] is None and unmapped_addr_cols:
+        mapping["address_line_2"] = unmapped_addr_cols.pop(0)
+        used_headers.add(mapping["address_line_2"])
+    if mapping["address_line_3"] is None and unmapped_addr_cols:
+        mapping["address_line_3"] = unmapped_addr_cols.pop(0)
+        used_headers.add(mapping["address_line_3"])
 
     return mapping
 

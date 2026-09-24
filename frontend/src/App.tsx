@@ -16,13 +16,16 @@ export const App: React.FC = () => {
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
   const [historyStack, setHistoryStack] = useState<string[]>(['dashboard']);
   const [selectedPartyForPrint, setSelectedPartyForPrint] = useState<Party | null>(null);
+  const [reprintJobData, setReprintJobData] = useState<any | null>(null);
   const [openAddPartyModal, setOpenAddPartyModal] = useState<boolean>(false);
 
   const navigateToTab = (tab: string, state?: any) => {
     if (tab === 'print' && state?.selectedParty) {
       setSelectedPartyForPrint(state.selectedParty);
+      setReprintJobData(null);
     } else if (tab === 'print' && state?.reprintJob) {
       const job = state.reprintJob;
+      setReprintJobData(job);
       setSelectedPartyForPrint({
         id: job.party_id,
         party_name: job.party_name || job.party_name_snap,
@@ -108,7 +111,12 @@ export const App: React.FC = () => {
         {currentTab === 'print' && (
           <PrintEnvelope 
             initialParty={selectedPartyForPrint} 
-            onJobCreated={() => queryClient.invalidateQueries({ queryKey: ['dashboard'] })}
+            reprintJob={reprintJobData}
+            onNavigate={navigateToTab}
+            onJobCreated={() => {
+              queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+              setReprintJobData(null);
+            }}
           />
         )}
         {currentTab === 'history' && <PrintHistory onNavigate={navigateToTab} />}

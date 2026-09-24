@@ -30,6 +30,8 @@ import {
   FileText,
   Weight,
   Edit3,
+  Lock,
+  History,
   X
 } from 'lucide-react';
 import { 
@@ -57,12 +59,14 @@ import { FullScreenPreviewModal } from '../components/FullScreenPreviewModal';
 
 interface PrintEnvelopeProps {
   initialParty?: Party | null;
+  reprintJob?: any | null;
+  onNavigate?: (tab: string, state?: any) => void;
   onJobCreated?: (jobId: number) => void;
 }
 
 const FLUID_VOLUMES = ['100ML', '200ML', '250ML', '500ML', '1LTR'] as const;
 
-export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, onJobCreated }) => {
+export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, reprintJob, onNavigate, onJobCreated }) => {
   // Mode: Single Party vs Bulk Daily Select All
   const [printMode, setPrintMode] = useState<'single' | 'bulk'>('single');
 
@@ -164,6 +168,8 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, onJo
   const [isDownloading, setIsDownloading] = useState<boolean>(false);
   const [hasPrintedToday, setHasPrintedToday] = useState<boolean>(false);
   const [printedTodayCount, setPrintedTodayCount] = useState<number>(0);
+  const [isEditReprintMode, setIsEditReprintMode] = useState<boolean>(!!reprintJob);
+  const [editingJobId, setEditingJobId] = useState<number | null>(reprintJob?.id || null);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -257,6 +263,61 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, onJo
       })
       .catch(() => setHasPrintedToday(false));
   }, [selectedParty?.party_name]);
+
+  // Load from reprintJob if navigated from Print History
+  useEffect(() => {
+    if (reprintJob) {
+      setIsEditReprintMode(true);
+      setEditingJobId(reprintJob.id || null);
+      if (reprintJob.template_format) {
+        setSelectedTemplate(reprintJob.template_format);
+      }
+      if (reprintJob.language) {
+        setSelectedLanguage(reprintJob.language);
+      }
+      if (reprintJob.delivery_boy_name) {
+        setDeliveryBoyName(reprintJob.delivery_boy_name);
+      }
+      if (reprintJob.delivery_route) {
+        setDeliveryRoute(reprintJob.delivery_route);
+      }
+      if (reprintJob.total_cases) {
+        setStandardCasesCount(reprintJob.total_cases);
+      }
+      
+      let bList = reprintJob.case_breakdown;
+      if (!bList && reprintJob.case_breakdown_json) {
+        try {
+          bList = typeof reprintJob.case_breakdown_json === 'string' ? JSON.parse(reprintJob.case_breakdown_json) : reprintJob.case_breakdown_json;
+        } catch (e) {
+          bList = [];
+        }
+      }
+
+      if (bList && Array.isArray(bList) && bList.length > 0) {
+        handleResetQuantities();
+        bList.forEach((b: any) => {
+          const qty = Number(b.qty) || 0;
+          const type = (b.type || '').toUpperCase();
+          const vol = (b.volume || '').toUpperCase();
+          if (type.includes('NS')) {
+            setNsCaseVolumes((prev) => ({ ...prev, [vol]: qty }));
+          } else if (type.includes('RL')) {
+            setRlCaseVolumes((prev) => ({ ...prev, [vol]: qty }));
+          } else if (type.includes('DNS')) {
+            setDnsCaseVolumes((prev) => ({ ...prev, [vol]: qty }));
+          } else if (type.includes('METRO')) {
+            setMetroCaseVolumes((prev) => ({ ...prev, [vol]: qty }));
+          } else if (type.includes('BAG') || type.includes('PARCEL')) {
+            setParcelBagQty(qty);
+          } else {
+            setStandardCaseQty((q) => q + qty);
+          }
+        });
+        setCaseMode('fluid');
+      }
+    }
+  }, [reprintJob]);
 
   // Load Settings & Sender
   useEffect(() => {
@@ -493,6 +554,11 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, onJo
       return;
     }
 
+    if (hasPrintedToday && !isEditReprintMode) {
+      alert('This party has already been printed today and is locked to prevent duplicate dispatches. Please use Print History to reprint or edit.');
+      return;
+    }
+
     setIsPrinting(true);
     try {
       const weights = casesList.map((c) => c.weight);
@@ -540,6 +606,11 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, onJo
   const handleDownloadPDF = async () => {
     if (!selectedParty) {
       alert('Please select a party first.');
+      return;
+    }
+
+    if (hasPrintedToday && !isEditReprintMode) {
+      alert('This party has already been printed today and is locked to prevent duplicate dispatches. Please use Print History to reprint or edit.');
       return;
     }
 
@@ -1098,13 +1169,45 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, onJo
                 </div>
               )}
 
-              {/* Already Printed Today Badge */}
-              {hasPrintedToday && (
-                <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 font-extrabold text-[11px] flex items-center gap-1.5">
-                  <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
-                  <span>Already printed {printedTodayCount} time(s) today!</span>
+              {/* Party Lock Status */}
+              {hasPrintedToday && !isEditReprintMode ? (
+                <div className="p-3 bg-amber-50 border-2 border-amber-300 rounded-xl text-amber-950 font-bold space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-xs font-black text-amber-800">
+                    <Lock className="w-4 h-4 text-amber-600" />
+                    <span>PARTY LOCKED — PRINTED TODAY</span>
+                  </div>
+                  <p className="text-[11px] text-amber-800 leading-tight">
+                    This party was printed {printedTodayCount} time(s) today. Further direct printing is locked to avoid duplicate courier dispatches.
+                  </p>
+                  <div className="pt-1">
+                    <button
+                      type="button"
+                      onClick={() => onNavigate && onNavigate('history', { search: selectedParty.party_name })}
+                      className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-black shadow-sm flex items-center gap-1.5 transition-all"
+                    >
+                      <History className="w-3.5 h-3.5" />
+                      <span>Open in History to Edit & Reprint</span>
+                    </button>
+                  </div>
                 </div>
-              )}
+              ) : isEditReprintMode ? (
+                <div className="p-2.5 bg-blue-50 border border-blue-300 rounded-lg text-blue-900 font-extrabold text-[11px] flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Edit3 className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Editing Job #{editingJobId} (Unlocked for Reprint)</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsEditReprintMode(false);
+                      setEditingJobId(null);
+                    }}
+                    className="text-xs text-blue-600 hover:underline font-bold"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : null}
             </div>
           )}
         </div>
@@ -1624,25 +1727,49 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, onJo
           </div>
 
           {/* Primary Action Buttons */}
-          <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-            <button
-              onClick={handlePrintEnvelope}
-              disabled={!isValidToPrint || isPrinting}
-              className="flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-sm shadow-lg shadow-blue-600/30 transition-all hover:scale-102 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Printer className="w-5 h-5" />
-              <span>{isPrinting ? 'Preparing Print...' : 'PRINT ENVELOPE'}</span>
-            </button>
+          {hasPrintedToday && !isEditReprintMode ? (
+            <div className="pt-2 space-y-2">
+              <div className="p-3.5 bg-amber-50 border-2 border-amber-300 rounded-xl text-center space-y-2">
+                <div className="flex items-center justify-center gap-1.5 text-xs font-black text-amber-900">
+                  <Lock className="w-4 h-4 text-amber-600" />
+                  <span>PRINT LOCKED — ALREADY PRINTED TODAY</span>
+                </div>
+                <p className="text-[11px] text-amber-800 font-semibold leading-tight">
+                  This party was already printed today. To prevent accidental duplicates, printing from here is locked.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => onNavigate && onNavigate('history', { search: selectedParty?.party_name })}
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-extrabold text-xs rounded-lg shadow-sm inline-flex items-center gap-1.5 transition-all"
+                >
+                  <History className="w-3.5 h-3.5" />
+                  <span>Go to History to Reprint or Edit</span>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+              <button
+                onClick={handlePrintEnvelope}
+                disabled={!isValidToPrint || isPrinting}
+                className="flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-sm shadow-lg shadow-blue-600/30 transition-all hover:scale-102 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Printer className="w-5 h-5" />
+                <span>
+                  {isPrinting ? 'Preparing Print...' : isEditReprintMode ? 'UPDATE & REPRINT' : 'PRINT ENVELOPE'}
+                </span>
+              </button>
 
-            <button
-              onClick={handleDownloadPDF}
-              disabled={!isValidToPrint || isDownloading}
-              className="flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-sm shadow-lg shadow-emerald-600/30 transition-all hover:scale-102 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Download className="w-5 h-5" />
-              <span>{isDownloading ? 'Generating PDF...' : 'DOWNLOAD PDF'}</span>
-            </button>
-          </div>
+              <button
+                onClick={handleDownloadPDF}
+                disabled={!isValidToPrint || isDownloading}
+                className="flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-sm shadow-lg shadow-emerald-600/30 transition-all hover:scale-102 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Download className="w-5 h-5" />
+                <span>{isDownloading ? 'Generating PDF...' : 'DOWNLOAD PDF'}</span>
+              </button>
+            </div>
+          )}
 
           {/* Status message */}
           <div className="text-center text-[11px] font-semibold text-slate-500">
