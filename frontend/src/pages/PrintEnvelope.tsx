@@ -48,6 +48,7 @@ import {
   createPrintJob, 
   createBulkPrintJobs, 
   downloadEnvelopePDF, 
+  printEnvelopePDF,
   fetchSettings, 
   fetchPrintJobs, 
   fetchUnprintedPartiesToday,
@@ -240,13 +241,19 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
     setMetroCaseVolumes({ '100ML': 0, '200ML': 0, '250ML': 0, '500ML': 0, '1LTR': 0 });
   };
 
-  // Check if selected party was printed today
+  // Check if selected party was printed today and auto-populate party route
   useEffect(() => {
     if (!selectedParty?.party_name) {
       setHasPrintedToday(false);
       setPrintedTodayCount(0);
       return;
     }
+
+    // Auto-populate route from selected party if route is assigned and not in reprint mode
+    if (selectedParty?.route && !isEditReprintMode) {
+      setDeliveryRoute(selectedParty.route);
+    }
+
     const todayStr = new Date().toISOString().slice(0, 10);
     fetchPrintJobs({ search: selectedParty.party_name, limit: 15 })
       .then((res) => {
@@ -263,7 +270,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
         }
       })
       .catch(() => setHasPrintedToday(false));
-  }, [selectedParty?.party_name]);
+  }, [selectedParty?.party_name, selectedParty?.route]);
 
   // Load from reprintJob if navigated from Print History
   useEffect(() => {
@@ -590,28 +597,54 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
         language: selectedLanguage,
         party_name_gu: selectedParty.party_name_gu || undefined,
         address_gu: selectedParty.address_gu || undefined,
+        address_line_2_gu: selectedParty.address_line_2_gu || undefined,
+        address_line_3_gu: selectedParty.address_line_3_gu || undefined,
         city_gu: selectedParty.city_gu || undefined,
         state_gu: selectedParty.state_gu || undefined,
+        allow_duplicate: isEditReprintMode,
       });
 
       if (onJobCreated) onJobCreated(res.id);
 
-      // Trigger browser print with printing-envelope class on body for clean print isolation
-      document.body.classList.add('printing-envelope');
-      setTimeout(() => {
-        window.print();
+      // Trigger high-resolution vector PDF print directly (eliminates blank pages issue completely)
+      try {
+        await printEnvelopePDF({
+          job_id: res.id,
+          party_name: selectedParty.party_name,
+          party_code: selectedParty.party_code || undefined,
+          address: selectedParty.address,
+          address_line_2: selectedParty.address_line_2 || undefined,
+          address_line_3: selectedParty.address_line_3 || undefined,
+          city: selectedParty.city,
+          state: selectedParty.state,
+          mobile_no: selectedParty.mobile_no || undefined,
+          gst_no: selectedParty.gst_no || undefined,
+          parcel_type: caseMode === 'standard' ? parcelType : 'Medicine',
+          total_cases: totalPackagesCount,
+          case_weights: weights,
+          sender: sender,
+          case_breakdown: activeCaseBreakdown,
+          envelopes_per_page: envelopesPerPage,
+          envelope_size: envelopeSize,
+          template_format: selectedTemplate,
+          language: selectedLanguage,
+          party_name_gu: selectedParty.party_name_gu || undefined,
+          address_gu: selectedParty.address_gu || undefined,
+          address_line_2_gu: selectedParty.address_line_2_gu || undefined,
+          address_line_3_gu: selectedParty.address_line_3_gu || undefined,
+          city_gu: selectedParty.city_gu || undefined,
+          state_gu: selectedParty.state_gu || undefined,
+        });
+      } catch (pdfErr) {
+        console.warn('Direct PDF print failed, falling back to browser print:', pdfErr);
+        document.body.classList.add('printing-envelope');
         setTimeout(() => {
-          document.body.classList.remove('printing-envelope');
-        }, 1500);
-      }, 150);
-
-      window.addEventListener(
-        'afterprint',
-        () => {
-          document.body.classList.remove('printing-envelope');
-        },
-        { once: true }
-      );
+          window.print();
+          setTimeout(() => {
+            document.body.classList.remove('printing-envelope');
+          }, 1500);
+        }, 200);
+      }
     } catch (err: any) {
       alert('Failed to process print job: ' + err.message);
     } finally {
@@ -658,6 +691,8 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
         language: selectedLanguage,
         party_name_gu: selectedParty.party_name_gu || undefined,
         address_gu: selectedParty.address_gu || undefined,
+        address_line_2_gu: selectedParty.address_line_2_gu || undefined,
+        address_line_3_gu: selectedParty.address_line_3_gu || undefined,
         city_gu: selectedParty.city_gu || undefined,
         state_gu: selectedParty.state_gu || undefined,
       });

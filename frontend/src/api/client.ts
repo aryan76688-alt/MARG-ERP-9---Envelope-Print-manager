@@ -201,8 +201,11 @@ export async function createPrintJob(payload: {
   language?: string;
   party_name_gu?: string;
   address_gu?: string;
+  address_line_2_gu?: string;
+  address_line_3_gu?: string;
   city_gu?: string;
   state_gu?: string;
+  allow_duplicate?: boolean;
 }): Promise<any> {
   const res = await fetch(`${API_BASE}/print-jobs`, {
     method: 'POST',
@@ -332,6 +335,8 @@ export async function downloadEnvelopePDF(payload: {
   language?: string;
   party_name_gu?: string;
   address_gu?: string;
+  address_line_2_gu?: string;
+  address_line_3_gu?: string;
   city_gu?: string;
   state_gu?: string;
 }): Promise<void> {
@@ -452,15 +457,39 @@ export async function updateDispatchJobs(payload: {
   return res.json();
 }
 
+export async function bulkAssignPartyRoute(partyIds: number[], route: string): Promise<{ success: boolean; updated_count: number; route: string }> {
+  const res = await fetch(`${API_BASE}/parties/bulk-route`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ party_ids: partyIds, route }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to assign route' }));
+    throw new Error(err.detail || 'Failed to assign route');
+  }
+  return res.json();
+}
+
+export async function fetchPartyRoutes(): Promise<string[]> {
+  const res = await fetch(`${API_BASE}/parties/routes`);
+  if (!res.ok) return [];
+  return res.json();
+}
+
 export async function downloadDispatchSummaryPDF(params?: {
   date?: string;
   delivery_boy?: string;
   route?: string;
+  job_ids?: number[] | string;
 }): Promise<void> {
   const query = new URLSearchParams();
   if (params?.date) query.append('date', params.date);
   if (params?.delivery_boy) query.append('delivery_boy', params.delivery_boy);
   if (params?.route) query.append('route', params.route);
+  if (params?.job_ids) {
+    const idsStr = Array.isArray(params.job_ids) ? params.job_ids.join(',') : String(params.job_ids);
+    query.append('job_ids', idsStr);
+  }
 
   const res = await fetch(`${API_BASE}/dispatch-summary/pdf?${query.toString()}`);
   if (!res.ok) throw new Error('Failed to download dispatch summary run-sheet');
@@ -481,6 +510,131 @@ export async function downloadDispatchSummaryPDF(params?: {
   a.click();
   window.URL.revokeObjectURL(url);
   document.body.removeChild(a);
+}
+
+export async function printDispatchSummaryPDF(params?: {
+  date?: string;
+  delivery_boy?: string;
+  route?: string;
+  job_ids?: number[] | string;
+}): Promise<void> {
+  const query = new URLSearchParams();
+  if (params?.date) query.append('date', params.date);
+  if (params?.delivery_boy) query.append('delivery_boy', params.delivery_boy);
+  if (params?.route) query.append('route', params.route);
+  if (params?.job_ids) {
+    const idsStr = Array.isArray(params.job_ids) ? params.job_ids.join(',') : String(params.job_ids);
+    query.append('job_ids', idsStr);
+  }
+
+  const res = await fetch(`${API_BASE}/dispatch-summary/pdf?${query.toString()}`);
+  if (!res.ok) throw new Error('Failed to load dispatch summary run-sheet');
+
+  const blob = await res.blob();
+  const pdfBlob = new Blob([blob], { type: 'application/pdf' });
+  const url = window.URL.createObjectURL(pdfBlob);
+
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = '0';
+  iframe.src = url;
+  document.body.appendChild(iframe);
+
+  let printed = false;
+  iframe.onload = () => {
+    try {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+      printed = true;
+    } catch {
+      window.open(url, '_blank');
+      printed = true;
+    }
+  };
+
+  setTimeout(() => {
+    if (!printed) {
+      window.open(url, '_blank');
+    }
+    setTimeout(() => {
+      try { document.body.removeChild(iframe); } catch {}
+    }, 60000);
+  }, 1000);
+}
+
+export async function printEnvelopePDF(payload: {
+  job_id?: number;
+  job_ids?: number[];
+  case_breakdown?: CaseBreakdownItem[];
+  party_name?: string;
+  party_code?: string;
+  address?: string;
+  address_line_2?: string;
+  address_line_3?: string;
+  city?: string;
+  state?: string;
+  mobile_no?: string;
+  gst_no?: string;
+  parcel_type?: string;
+  total_cases?: number;
+  case_weights?: number[];
+  sender?: SenderSettings;
+  envelopes_per_page?: number;
+  envelope_size?: string;
+  template_format?: string;
+  language?: string;
+  party_name_gu?: string;
+  address_gu?: string;
+  address_line_2_gu?: string;
+  address_line_3_gu?: string;
+  city_gu?: string;
+  state_gu?: string;
+}): Promise<void> {
+  const res = await fetch(`${API_BASE}/pdf/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error('PDF generation failed on server');
+
+  const blob = await res.blob();
+  const pdfBlob = new Blob([blob], { type: 'application/pdf' });
+  const url = window.URL.createObjectURL(pdfBlob);
+
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = '0';
+  iframe.src = url;
+  document.body.appendChild(iframe);
+
+  let printed = false;
+  iframe.onload = () => {
+    try {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+      printed = true;
+    } catch {
+      window.open(url, '_blank');
+      printed = true;
+    }
+  };
+
+  setTimeout(() => {
+    if (!printed) {
+      window.open(url, '_blank');
+    }
+    setTimeout(() => {
+      try { document.body.removeChild(iframe); } catch {}
+    }, 60000);
+  }, 1000);
 }
 
 export function getExportPartiesUrl(): string {

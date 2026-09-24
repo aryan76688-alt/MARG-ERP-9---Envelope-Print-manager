@@ -55,28 +55,27 @@
   }
 
   /* When printing envelope, hide the interactive web UI completely */
-  body.printing-envelope #root,
-  body:has(.print-only-sheet) #root {
+  body.printing-envelope #root {
     display: none !important;
   }
 
-  /* Hide screen dashboard chrome */
+  /* Hide screen dashboard chrome and interactive elements during print */
   aside, header, nav, .no-print, button, input, select {
     display: none !important;
   }
 
-  body * {
+  body.printing-envelope * {
     visibility: hidden;
   }
 
-  .print-only-sheet,
-  .print-only-sheet * {
+  body.printing-envelope .print-only-sheet,
+  body.printing-envelope .print-only-sheet * {
     visibility: visible !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
 
-  .print-only-sheet {
+  body.printing-envelope .print-only-sheet {
     display: block !important;
     position: static !important;
     width: 100% !important;
@@ -88,13 +87,10 @@
   .sheet-page-wrapper {
     page-break-after: always !important;
     break-after: page !important;
-    height: 272mm !important;
-    max-height: 272mm !important;
-    display: flex !important;
-    flex-direction: column !important;
-    justify-content: space-between !important;
+    min-height: 260mm !important;
+    display: block !important;
     box-sizing: border-box !important;
-    overflow: hidden !important;
+    overflow: visible !important;
   }
 
   .sheet-page-wrapper:last-child {
@@ -103,13 +99,11 @@
   }
 
   .print-envelope-half {
-    height: 132mm !important;
-    max-height: 132mm !important;
-    display: flex !important;
-    flex-direction: column !important;
-    justify-content: flex-start !important;
-    overflow: hidden !important;
+    min-height: 125mm !important;
+    display: block !important;
+    overflow: visible !important;
     box-sizing: border-box !important;
+    margin-bottom: 2mm !important;
   }
 
   .cut-guide {

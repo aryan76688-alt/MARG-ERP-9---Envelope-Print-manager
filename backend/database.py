@@ -42,6 +42,12 @@ def init_db():
                 conn.exec_driver_sql("ALTER TABLE parties ADD COLUMN city_gu TEXT")
             if "state_gu" not in party_cols:
                 conn.exec_driver_sql("ALTER TABLE parties ADD COLUMN state_gu TEXT")
+            if "address_line_2_gu" not in party_cols:
+                conn.exec_driver_sql("ALTER TABLE parties ADD COLUMN address_line_2_gu TEXT")
+            if "address_line_3_gu" not in party_cols:
+                conn.exec_driver_sql("ALTER TABLE parties ADD COLUMN address_line_3_gu TEXT")
+            if "route" not in party_cols:
+                conn.exec_driver_sql("ALTER TABLE parties ADD COLUMN route TEXT")
             
             setting_cols = [row[1] for row in conn.exec_driver_sql("PRAGMA table_info(app_settings)").fetchall()]
             if "gemini_api_key" not in setting_cols:

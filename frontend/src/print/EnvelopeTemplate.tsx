@@ -40,11 +40,11 @@ export const EnvelopeTemplate: React.FC<EnvelopeTemplateProps> = ({
     : (party.address || 'SHREE MOHANGADH , JAISALMER').toUpperCase();
 
   const addressLine2 = isGu
-    ? (party.address_line_2 || '')
+    ? (party.address_line_2_gu || party.address_line_2 || '')
     : (party.address_line_2 || '').toUpperCase();
 
   const addressLine3 = isGu
-    ? (party.address_line_3 || '')
+    ? (party.address_line_3_gu || party.address_line_3 || '')
     : (party.address_line_3 || '').toUpperCase();
 
   const city = isGu
@@ -159,9 +159,11 @@ export const EnvelopeTemplate: React.FC<EnvelopeTemplateProps> = ({
               <td className="border-r border-gray-300"></td>
               <td className="border-r border-gray-300"></td>
               <td className="px-2 text-right font-black text-[15px] border-l border-gray-300">
-                <div>{caseBadge}</div>
+                <div className="inline-block border-2 border-black rounded px-2.5 py-0.5 text-[16px] font-black text-black bg-white">
+                  {caseBadge}
+                </div>
                 {extraCases.map((ec, i) => (
-                  <div key={i} className="text-[12px] font-bold">{ec}</div>
+                  <div key={i} className="text-[12px] font-bold mt-0.5">{ec}</div>
                 ))}
               </td>
             </tr>
@@ -171,19 +173,13 @@ export const EnvelopeTemplate: React.FC<EnvelopeTemplateProps> = ({
               <td colSpan={7}></td>
             </tr>
 
-            {/* Row 3: Party Name Line 1 */}
+            {/* Row 3: Party Name (Printed ONCE only) */}
             <tr className="border-b border-gray-300 h-6">
               <td colSpan={3} className="px-2 font-black text-[17px] tracking-tight">{partyName}</td>
               <td colSpan={4}></td>
             </tr>
 
-            {/* Row 4: Party Name Line 2 (with comma) */}
-            <tr className="border-b border-gray-300 h-6">
-              <td colSpan={3} className="px-2 font-black text-[17px] tracking-tight">{partyName},</td>
-              <td colSpan={4}></td>
-            </tr>
-
-            {/* Row 5: Address */}
+            {/* Row 4: Multi-line Address (Lines 1, 2, 3) */}
             <tr className="border-b border-gray-300 h-10">
               <td colSpan={3} className="px-2 font-bold text-[15px] align-top">
                 <div>{address}</div>
@@ -193,24 +189,21 @@ export const EnvelopeTemplate: React.FC<EnvelopeTemplateProps> = ({
               <td colSpan={4}></td>
             </tr>
 
-            {/* Row 6: State & Notes */}
+            {/* Row 5: State (City / State, no dr.name) */}
             <tr className="border-b border-gray-300 h-6">
-              <td colSpan={3} className="px-2 font-bold text-[14px]">{stateNotes}</td>
+              <td colSpan={3} className="px-2 font-bold text-[14px]">{state}</td>
               <td colSpan={4}></td>
             </tr>
 
-            {/* Row 7: Empty row */}
-            <tr className="border-b border-gray-300 h-4">
-              <td colSpan={7}></td>
-            </tr>
-
-            {/* Row 8: Mobile */}
+            {/* Row 6: Recipient Mobile */}
             <tr className="border-b border-gray-300 h-6">
               <td colSpan={3} className="px-2 font-black text-[16px] underline">{mobLabel}{mobile}</td>
               <td colSpan={4}></td>
             </tr>
 
-            {/* Rows 9-10: Spacers */}
+            {/* Rows 7-10: Spacers to maintain exact 22-row grid */}
+            <tr className="border-b border-gray-300 h-4"><td colSpan={7}></td></tr>
+            <tr className="border-b border-gray-300 h-4"><td colSpan={7}></td></tr>
             <tr className="border-b border-gray-300 h-4"><td colSpan={7}></td></tr>
             <tr className="border-b border-gray-300 h-4"><td colSpan={7}></td></tr>
 
@@ -282,20 +275,17 @@ export const EnvelopeTemplate: React.FC<EnvelopeTemplateProps> = ({
           <div className="text-[22px] font-black underline tracking-wide mb-2">
             {toHeader}
           </div>
-          <div className="text-[19px] font-black tracking-tight leading-tight">
-            {partyName}
-          </div>
           <div className="text-[19px] font-black tracking-tight leading-tight mb-2">
-            {partyName},
+            {partyName}
           </div>
           <div className="text-[16px] font-bold leading-snug my-1 space-y-0.5">
             <div>{address}</div>
             {addressLine2 && <div>{addressLine2}</div>}
             {addressLine3 && <div>{addressLine3}</div>}
           </div>
-          {stateNotes && (
+          {state && (
             <div className="text-[16px] font-bold tracking-tight mb-2">
-              {stateNotes}
+              {state}
             </div>
           )}
           {mobile && (
@@ -307,10 +297,13 @@ export const EnvelopeTemplate: React.FC<EnvelopeTemplateProps> = ({
 
         {/* Right Column: Case Breakdown & Sender Info */}
         <div className="w-[40%] flex flex-col justify-between text-right">
-          {/* Top Right: Dynamic Case Breakdown (Strictly non-zero) */}
-          <div className="text-right pt-0.5 space-y-0.5">
+          {/* Top Right: Dynamic Case Breakdown (Strictly non-zero, Highlighted Box & Biggest Font) */}
+          <div className="text-right pt-0.5 flex flex-col items-end">
             {breakdownLines.map((line, idx) => (
-              <div key={idx} className="text-[17px] font-black text-black tracking-tight">
+              <div 
+                key={idx} 
+                className="inline-block border-[2.5px] border-black rounded px-3.5 py-1 text-[22px] font-black text-black tracking-tight shadow-sm bg-white mb-2"
+              >
                 {line}
               </div>
             ))}

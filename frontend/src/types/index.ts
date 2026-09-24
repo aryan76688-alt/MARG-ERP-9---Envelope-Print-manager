@@ -14,8 +14,11 @@ export interface Party {
   notes?: string | null;
   party_name_gu?: string | null;
   address_gu?: string | null;
+  address_line_2_gu?: string | null;
+  address_line_3_gu?: string | null;
   city_gu?: string | null;
   state_gu?: string | null;
+  route?: string | null;
   is_active?: boolean;
   created_at?: string;
 }
@@ -109,6 +112,8 @@ export interface TranslatePartyResponse {
   success: boolean;
   party_name_gu: string;
   address_gu: string;
+  address_line_2_gu?: string;
+  address_line_3_gu?: string;
   city_gu: string;
   state_gu: string;
   raw_translation?: Record<string, string>;

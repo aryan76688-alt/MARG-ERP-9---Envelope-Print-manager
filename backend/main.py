@@ -67,8 +67,11 @@ class PartyBase(BaseModel):
     notes: Optional[str] = None
     party_name_gu: Optional[str] = None
     address_gu: Optional[str] = None
+    address_line_2_gu: Optional[str] = None
+    address_line_3_gu: Optional[str] = None
     city_gu: Optional[str] = None
     state_gu: Optional[str] = None
+    route: Optional[str] = None
     is_active: bool = True
 
 class PartyCreate(PartyBase):
@@ -144,8 +147,15 @@ class CreatePrintJobRequest(BaseModel):
     language: Optional[str] = "en"
     party_name_gu: Optional[str] = None
     address_gu: Optional[str] = None
+    address_line_2_gu: Optional[str] = None
+    address_line_3_gu: Optional[str] = None
     city_gu: Optional[str] = None
     state_gu: Optional[str] = None
+    allow_duplicate: bool = False
+
+class BulkRouteRequest(BaseModel):
+    party_ids: List[int]
+    route: str
 
 class BulkPrintJobsRequest(BaseModel):
     party_ids: List[int]
@@ -330,6 +340,8 @@ def list_parties(
             "party_name": p.party_name,
             "party_code": p.party_code,
             "address": p.address,
+            "address_line_2": p.address_line_2,
+            "address_line_3": p.address_line_3,
             "city": p.city,
             "state": p.state,
             "mobile_no": p.mobile_no,
@@ -339,8 +351,11 @@ def list_parties(
             "notes": p.notes,
             "party_name_gu": p.party_name_gu,
             "address_gu": p.address_gu,
+            "address_line_2_gu": p.address_line_2_gu,
+            "address_line_3_gu": p.address_line_3_gu,
             "city_gu": p.city_gu,
             "state_gu": p.state_gu,
+            "route": p.route,
             "is_active": p.is_active,
             "created_at": p.created_at.isoformat() if p.created_at else None
         })
@@ -387,6 +402,8 @@ def autocomplete_parties(
             "party_name": p.party_name,
             "party_code": p.party_code,
             "address": p.address,
+            "address_line_2": p.address_line_2,
+            "address_line_3": p.address_line_3,
             "city": p.city,
             "state": p.state,
             "mobile_no": p.mobile_no,
@@ -396,8 +413,11 @@ def autocomplete_parties(
             "notes": p.notes,
             "party_name_gu": p.party_name_gu,
             "address_gu": p.address_gu,
+            "address_line_2_gu": p.address_line_2_gu,
+            "address_line_3_gu": p.address_line_3_gu,
             "city_gu": p.city_gu,
-            "state_gu": p.state_gu
+            "state_gu": p.state_gu,
+            "route": p.route
         }
         for p in results
     ]
@@ -439,8 +459,11 @@ def get_unprinted_parties_today(
             "notes": p.notes,
             "party_name_gu": p.party_name_gu,
             "address_gu": p.address_gu,
+            "address_line_2_gu": p.address_line_2_gu,
+            "address_line_3_gu": p.address_line_3_gu,
             "city_gu": p.city_gu,
             "state_gu": p.state_gu,
+            "route": p.route,
             "printed_today": is_printed
         })
 
@@ -481,6 +504,13 @@ def create_party(party_in: PartyCreate, db: Session = Depends(get_db)):
         email=party_in.email.strip() if party_in.email else None,
         gst_no=party_in.gst_no.strip().upper() if party_in.gst_no else None,
         notes=party_in.notes.strip() if party_in.notes else None,
+        party_name_gu=party_in.party_name_gu,
+        address_gu=party_in.address_gu,
+        address_line_2_gu=party_in.address_line_2_gu,
+        address_line_3_gu=party_in.address_line_3_gu,
+        city_gu=party_in.city_gu,
+        state_gu=party_in.state_gu,
+        route=party_in.route.strip().upper() if party_in.route else None,
         is_active=party_in.is_active
     )
     db.add(party)
@@ -488,48 +518,28 @@ def create_party(party_in: PartyCreate, db: Session = Depends(get_db)):
     db.refresh(party)
     return party
 
-@app.get("/api/parties/{party_id}")
-def get_party(party_id: int, db: Session = Depends(get_db)):
-    party = db.query(Party).filter(Party.id == party_id).first()
-    if not party:
-        raise HTTPException(status_code=404, detail="Party not found")
-    return party
+@app.get("/api/parties/routes")
+def get_all_routes(db: Session = Depends(get_db)):
+    """Returns sorted unique routes assigned across parties and print jobs."""
+    party_routes = [r[0].strip() for r in db.query(Party.route).distinct().filter(Party.route != None).all() if r[0] and r[0].strip()]
+    job_routes = [r[0].strip() for r in db.query(PrintJob.delivery_route).distinct().filter(PrintJob.delivery_route != None).all() if r[0] and r[0].strip()]
+    return sorted(list(set(party_routes + job_routes)))
 
-@app.put("/api/parties/{party_id}")
-def update_party(party_id: int, party_in: PartyUpdate, db: Session = Depends(get_db)):
-    party = db.query(Party).filter(Party.id == party_id).first()
-    if not party:
-        raise HTTPException(status_code=404, detail="Party not found")
+@app.post("/api/parties/bulk-route")
+def bulk_assign_party_route(req: BulkRouteRequest, db: Session = Depends(get_db)):
+    """Bulk assigns delivery route to multiple selected parties."""
+    if not req.party_ids:
+        raise HTTPException(status_code=400, detail="party_ids cannot be empty")
+    route_clean = req.route.strip().upper()
+    if not route_clean:
+        raise HTTPException(status_code=400, detail="Route name cannot be empty")
 
-    if not party_in.party_name.strip():
-        raise HTTPException(status_code=400, detail="Party Name is required")
-
-    party.party_name = party_in.party_name.strip().upper()
-    party.party_code = party_in.party_code.strip().upper() if party_in.party_code else None
-    party.address = party_in.address.strip().upper()
-    party.address_line_2 = party_in.address_line_2.strip().upper() if party_in.address_line_2 else None
-    party.address_line_3 = party_in.address_line_3.strip().upper() if party_in.address_line_3 else None
-    party.city = party_in.city.strip().upper()
-    party.state = party_in.state.strip().upper()
-    party.mobile_no = party_in.mobile_no.strip() if party_in.mobile_no else None
-    party.landline = party_in.landline.strip() if party_in.landline else None
-    party.email = party_in.email.strip() if party_in.email else None
-    party.gst_no = party_in.gst_no.strip().upper() if party_in.gst_no else None
-    party.notes = party_in.notes.strip() if party_in.notes else None
-    party.is_active = party_in.is_active
-
+    updated = db.query(Party).filter(Party.id.in_(req.party_ids)).update(
+        {"route": route_clean},
+        synchronize_session=False
+    )
     db.commit()
-    db.refresh(party)
-    return party
-
-@app.delete("/api/parties/{party_id}")
-def delete_party(party_id: int, db: Session = Depends(get_db)):
-    party = db.query(Party).filter(Party.id == party_id).first()
-    if not party:
-        raise HTTPException(status_code=404, detail="Party not found")
-    db.delete(party)
-    db.commit()
-    return {"message": f"Party '{party.party_name}' deleted successfully"}
+    return {"success": True, "updated_count": updated, "route": route_clean}
 
 @app.post("/api/parties/bulk-delete")
 def bulk_delete_parties(req: BulkDeletePartiesRequest, db: Session = Depends(get_db)):
@@ -564,6 +574,56 @@ def export_selected_parties(req: ExportSelectedPartiesRequest, db: Session = Dep
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": 'attachment; filename="Selected_Parties_MARG.xlsx"'}
     )
+
+@app.get("/api/parties/{party_id}")
+def get_party(party_id: int, db: Session = Depends(get_db)):
+    party = db.query(Party).filter(Party.id == party_id).first()
+    if not party:
+        raise HTTPException(status_code=404, detail="Party not found")
+    return party
+
+@app.put("/api/parties/{party_id}")
+def update_party(party_id: int, party_in: PartyUpdate, db: Session = Depends(get_db)):
+    party = db.query(Party).filter(Party.id == party_id).first()
+    if not party:
+        raise HTTPException(status_code=404, detail="Party not found")
+
+    if not party_in.party_name.strip():
+        raise HTTPException(status_code=400, detail="Party Name is required")
+
+    party.party_name = party_in.party_name.strip().upper()
+    party.party_code = party_in.party_code.strip().upper() if party_in.party_code else None
+    party.address = party_in.address.strip().upper()
+    party.address_line_2 = party_in.address_line_2.strip().upper() if party_in.address_line_2 else None
+    party.address_line_3 = party_in.address_line_3.strip().upper() if party_in.address_line_3 else None
+    party.city = party_in.city.strip().upper()
+    party.state = party_in.state.strip().upper()
+    party.mobile_no = party_in.mobile_no.strip() if party_in.mobile_no else None
+    party.landline = party_in.landline.strip() if party_in.landline else None
+    party.email = party_in.email.strip() if party_in.email else None
+    party.gst_no = party_in.gst_no.strip().upper() if party_in.gst_no else None
+    party.notes = party_in.notes.strip() if party_in.notes else None
+    party.party_name_gu = party_in.party_name_gu
+    party.address_gu = party_in.address_gu
+    party.address_line_2_gu = party_in.address_line_2_gu
+    party.address_line_3_gu = party_in.address_line_3_gu
+    party.city_gu = party_in.city_gu
+    party.state_gu = party_in.state_gu
+    party.route = party_in.route.strip().upper() if party_in.route else None
+    party.is_active = party_in.is_active
+
+    db.commit()
+    db.refresh(party)
+    return party
+
+@app.delete("/api/parties/{party_id}")
+def delete_party(party_id: int, db: Session = Depends(get_db)):
+    party = db.query(Party).filter(Party.id == party_id).first()
+    if not party:
+        raise HTTPException(status_code=404, detail="Party not found")
+    db.delete(party)
+    db.commit()
+    return {"message": f"Party '{party.party_name}' deleted successfully"}
 
 # ==========================================
 # 3. EXCEL IMPORT & VALIDATION
@@ -816,6 +876,23 @@ def create_print_job(req: CreatePrintJobRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="State is required")
     if req.total_cases < 1:
         raise HTTPException(status_code=400, detail="Number of cases must be at least 1")
+
+    # 1-Time/Day Lock enforcement on single party print
+    now_utc = datetime.datetime.now(datetime.timezone.utc)
+    today_start = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
+    norm_name = req.party_name.strip().upper()
+
+    if not getattr(req, "allow_duplicate", False):
+        already_printed = db.query(PrintJob).filter(
+            PrintJob.created_at >= today_start,
+            func.upper(PrintJob.party_name_snap) == norm_name,
+            PrintJob.status == "Printed"
+        ).first()
+        if already_printed:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Party '{norm_name}' has already been printed today (#{already_printed.job_number}). 1-Time/Day Lock is active to prevent duplicate dispatches. Please use Print History to reprint or edit."
+            )
 
     # Fetch default sender settings if not provided
     sender_settings = db.query(SenderSettings).first()
@@ -1511,7 +1588,7 @@ def generate_pdf(req: GeneratePDFRequest, db: Session = Depends(get_db)):
             "party_state_snap": req.state or "RAJASTHAN",
             "party_mobile_snap": req.mobile_no or "+91 8963003012",
             "party_gst_snap": req.gst_no or "",
-            "party_notes_snap": "DR.FIROZ",
+            "party_notes_snap": "",
             "party_name_gu": req.party_name_gu,
             "address_gu": req.address_gu,
             "city_gu": req.city_gu,
@@ -1564,6 +1641,7 @@ def get_dispatch_summary(
     date: Optional[str] = Query(None, description="Date in YYYY-MM-DD format"),
     delivery_boy: Optional[str] = Query(None),
     route: Optional[str] = Query(None),
+    job_ids: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
     if not date:
@@ -1581,6 +1659,10 @@ def get_dispatch_summary(
         PrintJob.created_at >= start_dt,
         PrintJob.created_at <= end_dt
     )
+    if job_ids:
+        id_list = [int(x.strip()) for x in job_ids.split(",") if x.strip().isdigit()]
+        if id_list:
+            query = query.filter(PrintJob.id.in_(id_list))
     if delivery_boy:
         query = query.filter(PrintJob.delivery_boy_name == delivery_boy)
     if route:
@@ -1669,6 +1751,7 @@ def get_dispatch_summary_pdf(
     date: Optional[str] = Query(None),
     delivery_boy: Optional[str] = Query(None),
     route: Optional[str] = Query(None),
+    job_ids: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
     if not date:
@@ -1686,6 +1769,10 @@ def get_dispatch_summary_pdf(
         PrintJob.created_at >= start_dt,
         PrintJob.created_at <= end_dt
     )
+    if job_ids:
+        id_list = [int(x.strip()) for x in job_ids.split(",") if x.strip().isdigit()]
+        if id_list:
+            query = query.filter(PrintJob.id.in_(id_list))
     if delivery_boy:
         query = query.filter(PrintJob.delivery_boy_name == delivery_boy)
     if route:

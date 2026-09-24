@@ -48,6 +48,7 @@ export const PartyModal: React.FC<PartyModalProps> = ({
         email: initialParty.email || '',
         gst_no: initialParty.gst_no || '',
         notes: initialParty.notes || '',
+        route: initialParty.route || '',
         is_active: initialParty.is_active ?? true,
       });
     } else {
@@ -64,6 +65,7 @@ export const PartyModal: React.FC<PartyModalProps> = ({
         email: '',
         gst_no: '',
         notes: '',
+        route: '',
         is_active: true,
       });
     }
@@ -299,6 +301,20 @@ export const PartyModal: React.FC<PartyModalProps> = ({
                 } focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs`}
               />
               {errors.email && <p className="text-red-500 text-[11px] mt-1">{errors.email}</p>}
+            </div>
+
+            {/* Delivery Route */}
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">
+                Delivery Route (Optional)
+              </label>
+              <input
+                type="text"
+                value={formData.route || ''}
+                onChange={(e) => setFormData({ ...formData, route: e.target.value })}
+                placeholder="e.g. Route 1, Ring Road, Market"
+                className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs font-bold uppercase"
+              />
             </div>
 
             {/* Active Status */}

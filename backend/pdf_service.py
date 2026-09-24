@@ -96,14 +96,14 @@ def render_single_envelope_html(
       - language: "en" (English) or "gu" (Gujarati)
     """
     # 1. Determine Party Details based on language
-    party_name = (job_data.get("party_name_snap") or "").strip()
-    address = (job_data.get("party_address_snap") or "").strip()
-    address_line_2 = (job_data.get("party_address_line_2_snap") or "").strip()
-    address_line_3 = (job_data.get("party_address_line_3_snap") or "").strip()
-    city = (job_data.get("party_city_snap") or "").strip()
-    state = (job_data.get("party_state_snap") or "").strip()
-    mobile = (job_data.get("party_mobile_snap") or "").strip()
-    notes = (job_data.get("party_notes_snap") or "").strip()
+    party_name = (job_data.get("party_name_snap") or job_data.get("party_name") or "").strip()
+    address = (job_data.get("party_address_snap") or job_data.get("party_address") or job_data.get("address") or "").strip()
+    address_line_2 = (job_data.get("party_address_line_2_snap") or job_data.get("party_address_line_2") or job_data.get("address_line_2") or "").strip()
+    address_line_3 = (job_data.get("party_address_line_3_snap") or job_data.get("party_address_line_3") or job_data.get("address_line_3") or "").strip()
+    city = (job_data.get("party_city_snap") or job_data.get("party_city") or job_data.get("city") or "").strip()
+    state = (job_data.get("party_state_snap") or job_data.get("party_state") or job_data.get("state") or "").strip()
+    mobile = (job_data.get("party_mobile_snap") or job_data.get("party_mobile") or job_data.get("mobile_no") or job_data.get("mobile") or "").strip()
+    notes = (job_data.get("party_notes_snap") or job_data.get("notes") or "").strip()
 
     # If Gujarati requested, check for pre-translated fields or call Gemini
     if language == "gu":
@@ -178,7 +178,7 @@ def render_single_envelope_html(
         addr_lines.append(f"<div>{address_line_3}</div>")
     address_html = "".join(addr_lines)
 
-    state_notes = f"{state} {notes}".strip() if (state or notes) else ""
+    state_line = state
 
     # Dynamic Case Breakdown lines
     case_lines = get_case_breakdown_lines(job_data, case_data, settings, language=language)
@@ -187,7 +187,7 @@ def render_single_envelope_html(
     if template_format == "marg_grid_22":
         # Classic 22-row MARG ERP grid table layout (Previous Function restored)
         case_badge = case_lines[0] if case_lines else ("CASE: 1" if language == "en" else "કેસ: 1")
-        extra_cases_html = "".join([f'<div style="font-size: 8.5pt;">{c}</div>' for c in case_lines[1:]])
+        extra_cases_html = "".join([f'<div style="font-size: 8.5pt; font-weight: 800; margin-top: 1px;">{c}</div>' for c in case_lines[1:]])
         sender_addr_2_row = f"""
         <tr class="h-row">
           <td></td><td></td><td></td>
@@ -208,52 +208,48 @@ def render_single_envelope_html(
               <col style="width: 14.2857%;" />
             </colgroup>
             <tbody>
-              <!-- Row 1: TO - CITY & Case Number -->
+              <!-- Row 1: TO - CITY & Case Number in Highlight Box -->
               <tr class="h-row">
                 <td class="cell-to font-bold" colspan="3">{to_header}</td>
                 <td></td>
                 <td></td>
                 <td></td>
-                <td class="cell-case font-bold">{case_badge}{extra_cases_html}</td>
+                <td class="cell-case font-bold">
+                  <div class="case-highlight-box">{case_badge}</div>
+                  {extra_cases_html}
+                </td>
               </tr>
 
               <!-- Row 2: empty row -->
               <tr class="h-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
 
-              <!-- Row 3: Party Name Line 1 -->
+              <!-- Row 3: Party Name (Printed ONCE only) -->
               <tr class="h-row-lg">
                 <td colspan="3" class="cell-party font-bold">{party_name}</td>
                 <td></td><td></td><td></td><td></td>
               </tr>
 
-              <!-- Row 4: Party Name Line 2 (with comma) -->
-              <tr class="h-row">
-                <td colspan="3" class="cell-party font-bold">{party_name},</td>
-                <td></td><td></td><td></td><td></td>
-              </tr>
-
-              <!-- Row 5: Multi-line Address -->
+              <!-- Row 4: Multi-line Address (Lines 1, 2, 3) -->
               <tr class="h-row-addr">
                 <td colspan="3" class="cell-address font-bold">{address_html}</td>
                 <td></td><td></td><td></td><td></td>
               </tr>
 
-              <!-- Row 6: State & Doctor/Notes -->
+              <!-- Row 5: State (City / State, no dr.name) -->
               <tr class="h-row">
-                <td colspan="3" class="cell-state font-bold">{state_notes}</td>
+                <td colspan="3" class="cell-state font-bold">{state_line}</td>
                 <td></td><td></td><td></td><td></td>
               </tr>
 
-              <!-- Row 7: empty row -->
-              <tr class="h-row-lg"><td colspan="7"></td></tr>
-
-              <!-- Row 8: Recipient Mobile -->
+              <!-- Row 6: Recipient Mobile -->
               <tr class="h-row">
                 <td colspan="3" class="cell-mobile font-bold">{mob_label}{mobile}</td>
                 <td></td><td></td><td></td><td></td>
               </tr>
 
-              <!-- Rows 9-10: empty rows -->
+              <!-- Rows 7-10: Spacers to maintain exact 22-row grid alignment -->
+              <tr class="h-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+              <tr class="h-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
               <tr class="h-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
               <tr class="h-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
 
@@ -300,11 +296,10 @@ def render_single_envelope_html(
           <div class="left-col">
             <div class="to-title">{to_header}</div>
             <div class="party-name">{party_name}</div>
-            <div class="party-name">{party_name},</div>
             <div class="address-lines">
               {address_html}
             </div>
-            {f'<div class="state-notes">{state_notes}</div>' if state_notes else ''}
+            {f'<div class="state-line">{state_line}</div>' if state_line else ''}
             {f'<div class="mobile-no">{mob_label}{mobile}</div>' if mobile else ''}
           </div>
           <div class="right-col">
@@ -481,16 +476,16 @@ def build_full_html_document(
       text-transform: uppercase;
     }}
 
-    .state-notes {{
-      font-size: 13.5pt;
+    .state-notes, .state-line {{
+      font-size: 14pt;
       font-weight: 800;
       line-height: 1.3;
       text-transform: uppercase;
-      margin-bottom: 10px;
+      margin-bottom: 8px;
     }}
 
     .mobile-no {{
-      font-size: 15pt;
+      font-size: 15.5pt;
       font-weight: 900;
       text-decoration: underline;
       letter-spacing: 0.2px;
@@ -499,14 +494,23 @@ def build_full_html_document(
     .case-block {{
       text-align: right;
       padding-top: 2px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
     }}
 
     .case-item {{
-      font-size: 15pt;
+      font-size: 22pt;
       font-weight: 900;
-      line-height: 1.35;
-      letter-spacing: 0.2px;
+      line-height: 1.25;
+      letter-spacing: 0.3px;
       color: #000000;
+      border: 2.5px solid #000000;
+      border-radius: 5px;
+      padding: 3px 12px;
+      margin-bottom: 5px;
+      background: #ffffff;
+      display: inline-block;
     }}
 
     .sender-block {{
@@ -603,6 +607,17 @@ def build_full_html_document(
       font-size: 12pt;
       font-weight: 900;
       text-align: right;
+      color: #000000;
+    }}
+
+    .case-highlight-box {{
+      font-size: 16pt;
+      font-weight: 900;
+      border: 2px solid #000000;
+      border-radius: 4px;
+      padding: 2px 8px;
+      display: inline-block;
+      background: #ffffff;
       color: #000000;
     }}
 

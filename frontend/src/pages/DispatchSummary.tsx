@@ -13,9 +13,10 @@ import {
   Search,
   CheckSquare,
   Square,
-  FileText
+  FileText,
+  X
 } from 'lucide-react';
-import { fetchDispatchSummary, updateDispatchJobs, downloadDispatchSummaryPDF } from '../api/client';
+import { fetchDispatchSummary, updateDispatchJobs, downloadDispatchSummaryPDF, printDispatchSummaryPDF } from '../api/client';
 import { DispatchSummaryData, DispatchSummaryJob } from '../types';
 
 export const DispatchSummary: React.FC = () => {
@@ -85,14 +86,15 @@ export const DispatchSummary: React.FC = () => {
     }
   };
 
-  // Download printable PDF run-sheet
-  const handleDownloadPDF = async () => {
+  // Download printable PDF run-sheet (supports route and selected parties)
+  const handleDownloadPDF = async (onlySelected = false) => {
     setIsDownloading(true);
     try {
       await downloadDispatchSummaryPDF({
         date: selectedDate,
         delivery_boy: selectedDriver || undefined,
         route: selectedRoute || undefined,
+        job_ids: (onlySelected || selectedJobIds.length > 0) ? selectedJobIds : undefined,
       });
     } catch (err: any) {
       alert('Failed to download PDF: ' + err.message);
@@ -101,9 +103,21 @@ export const DispatchSummary: React.FC = () => {
     }
   };
 
-  // Browser print run-sheet
-  const handlePrintRunSheet = () => {
-    window.print();
+  // Direct Vector PDF print run-sheet (never blank, supports route & selected parties)
+  const handlePrintRunSheet = async (onlySelected = false) => {
+    setIsDownloading(true);
+    try {
+      await printDispatchSummaryPDF({
+        date: selectedDate,
+        delivery_boy: selectedDriver || undefined,
+        route: selectedRoute || undefined,
+        job_ids: (onlySelected || selectedJobIds.length > 0) ? selectedJobIds : undefined,
+      });
+    } catch (err: any) {
+      alert('Failed to print run-sheet: ' + err.message);
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   // Filtered dispatches
@@ -153,7 +167,18 @@ export const DispatchSummary: React.FC = () => {
         </div>
 
         {/* Action Buttons: Print Run-Sheet & PDF */}
-        <div className="flex items-center gap-2.5 w-full md:w-auto">
+        <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
+          {selectedJobIds.length > 0 && (
+            <button
+              onClick={() => setSelectedJobIds([])}
+              className="px-2.5 py-2 rounded-xl border border-slate-300 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors flex items-center gap-1"
+              title="Clear Selection"
+            >
+              <X className="w-3.5 h-3.5" />
+              <span>Clear ({selectedJobIds.length})</span>
+            </button>
+          )}
+
           <button
             onClick={loadSummary}
             disabled={isLoading}
@@ -165,27 +190,37 @@ export const DispatchSummary: React.FC = () => {
           </button>
 
           <button
-            onClick={handleDownloadPDF}
+            onClick={() => handleDownloadPDF(false)}
             disabled={isDownloading || !data || data.dispatches.length === 0}
             className="flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs shadow-md transition-all hover:scale-102 disabled:opacity-50"
           >
             <Download className="w-4 h-4" />
-            <span>{isDownloading ? 'Generating...' : 'Download PDF Run-Sheet'}</span>
+            <span>
+              {isDownloading
+                ? 'Generating...'
+                : selectedJobIds.length > 0
+                ? `Download Selected PDF (${selectedJobIds.length})`
+                : 'Download PDF Run-Sheet'}
+            </span>
           </button>
 
           <button
-            onClick={handlePrintRunSheet}
+            onClick={() => handlePrintRunSheet(false)}
             disabled={!data || data.dispatches.length === 0}
             className="flex-1 md:flex-initial flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-xs shadow-md shadow-blue-600/30 transition-all hover:scale-102 disabled:opacity-50"
           >
             <Printer className="w-4 h-4" />
-            <span>PRINT RUN-SHEET</span>
+            <span>
+              {selectedJobIds.length > 0
+                ? `PRINT SELECTED (${selectedJobIds.length})`
+                : 'PRINT RUN-SHEET'}
+            </span>
           </button>
         </div>
       </div>
 
       {/* 2. Filters & KPIs Bar */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
         {/* KPI 1: Total Stops / Parties */}
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3">
           <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center font-black text-xl">
@@ -230,7 +265,7 @@ export const DispatchSummary: React.FC = () => {
           />
         </div>
 
-        {/* Filter: Delivery Boy & Route */}
+        {/* Filter: Delivery Boy */}
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-1">
           <span className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
             <UserCheck className="w-3 h-3 text-emerald-600" />
@@ -244,6 +279,24 @@ export const DispatchSummary: React.FC = () => {
             <option value="">All Delivery Boys</option>
             {(data?.available_delivery_boys || []).map((boy) => (
               <option key={boy} value={boy}>{boy}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Filter: Route Wise */}
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-1">
+          <span className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
+            <MapPin className="w-3 h-3 text-purple-600" />
+            <span>Filter Route</span>
+          </span>
+          <select
+            value={selectedRoute}
+            onChange={(e) => setSelectedRoute(e.target.value)}
+            className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 font-bold text-slate-900 text-xs bg-slate-50 focus:bg-white"
+          >
+            <option value="">All Routes</option>
+            {(data?.available_routes || []).map((r) => (
+              <option key={r} value={r}>{r}</option>
             ))}
           </select>
         </div>
@@ -299,8 +352,32 @@ export const DispatchSummary: React.FC = () => {
           </div>
         </div>
 
-        {/* Quick Assign Form */}
-        <div className="flex items-center gap-2 w-full md:w-auto justify-end">
+        {/* Quick Assign & Actions Form */}
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-end">
+          {selectedJobIds.length > 0 && (
+            <div className="flex items-center gap-1.5 border-r border-slate-300 pr-2 mr-1">
+              <button
+                type="button"
+                onClick={() => handlePrintRunSheet(true)}
+                disabled={isDownloading}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-black text-xs shadow-sm transition-all"
+                title="Print Selected Run-Sheet"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span>Print ({selectedJobIds.length})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDownloadPDF(true)}
+                disabled={isDownloading}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-sm transition-all"
+                title="Download Selected Run-Sheet PDF"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>PDF</span>
+              </button>
+            </div>
+          )}
           <input
             type="text"
             value={assignDriverName}

@@ -30,7 +30,9 @@ import {
   bulkDeleteParties, 
   deleteAllParties, 
   exportSelectedParties, 
-  getExportPartiesUrl 
+  getExportPartiesUrl,
+  bulkAssignPartyRoute,
+  fetchPartyRoutes
 } from '../api/client';
 import { PartyModal } from '../components/PartyModal';
 
@@ -67,6 +69,12 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
   const [deleteAllModalOpen, setDeleteAllModalOpen] = useState<boolean>(false);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
+  // Bulk Route Assignment Modal
+  const [bulkRouteModalOpen, setBulkRouteModalOpen] = useState<boolean>(false);
+  const [bulkRouteName, setBulkRouteName] = useState<string>('');
+  const [existingRoutes, setExistingRoutes] = useState<string[]>([]);
+  const [isAssigningRoute, setIsAssigningRoute] = useState<boolean>(false);
+
   const loadParties = async () => {
     try {
       setLoading(true);
@@ -90,12 +98,47 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
     }
   };
 
+  const loadRoutes = async () => {
+    try {
+      const routes = await fetchPartyRoutes();
+      setExistingRoutes(routes);
+    } catch (err) {
+      console.error('Failed to load routes:', err);
+    }
+  };
+
+  useEffect(() => {
+    loadRoutes();
+  }, []);
+
   useEffect(() => {
     const timer = setTimeout(() => {
       loadParties();
     }, 200);
     return () => clearTimeout(timer);
   }, [search, stateFilter, cityFilter, statusFilter, page, limit]);
+
+  const handleBulkAssignRoute = async () => {
+    if (selectedIds.length === 0) return;
+    const rName = bulkRouteName.trim().toUpperCase();
+    if (!rName) {
+      alert('Please enter or select a route name');
+      return;
+    }
+    try {
+      setIsAssigningRoute(true);
+      await bulkAssignPartyRoute(selectedIds, rName);
+      setBulkRouteModalOpen(false);
+      setBulkRouteName('');
+      setSelectedIds([]);
+      await loadParties();
+      await loadRoutes();
+    } catch (err: any) {
+      alert('Failed to assign route: ' + err.message);
+    } finally {
+      setIsAssigningRoute(false);
+    }
+  };
 
   const handleSelectAll = () => {
     if (selectedIds.length === parties.length) {
@@ -347,6 +390,17 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
 
           <div className="flex items-center gap-2 flex-wrap">
             <button
+              onClick={() => {
+                setBulkRouteName('');
+                setBulkRouteModalOpen(true);
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-sm transition-colors"
+            >
+              <MapPin className="w-3.5 h-3.5" />
+              <span>Assign Route ({selectedIds.length})</span>
+            </button>
+
+            <button
               onClick={handleExportSelected}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-sm transition-colors"
             >
@@ -403,6 +457,7 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
                 <th className="px-3 py-3 w-12">#</th>
                 <th className="px-4 py-3">Party Name</th>
                 <th className="px-3 py-3">Code</th>
+                <th className="px-3 py-3">Route</th>
                 <th className="px-4 py-3">City</th>
                 <th className="px-4 py-3">State</th>
                 <th className="px-4 py-3">Mobile No.</th>
@@ -412,7 +467,7 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
             <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-12 text-center text-slate-500">
+                  <td colSpan={9} className="px-4 py-12 text-center text-slate-500">
                     <div className="inline-flex items-center gap-2">
                       <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
                       <span>Loading parties from database...</span>
@@ -456,6 +511,15 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
                       <td className="px-3 py-3 font-mono font-bold text-blue-900">
                         {p.party_code || '—'}
                       </td>
+                      <td className="px-3 py-3">
+                        {p.route ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                            {p.route}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 font-mono text-xs italic">—</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 font-bold text-slate-800 uppercase">
                         {p.city}
                       </td>
@@ -469,7 +533,7 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
                         <div className="flex items-center justify-end gap-1.5">
                           {/* Print Envelope Directly */}
                           <button
-                            onClick={() => onNavigate('print', { selectedParty: p })}
+                            onClick={() => onNavigate('print', { selectedParty: p, deliveryRoute: p.route })}
                             className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white font-extrabold text-xs transition-colors"
                             title="Generate Envelope for this party"
                           >
@@ -504,7 +568,7 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
                 })
               ) : (
                 <tr>
-                  <td colSpan={8} className="px-4 py-12 text-center text-slate-400">
+                  <td colSpan={9} className="px-4 py-12 text-center text-slate-400">
                     No parties found matching current search/filter.
                   </td>
                 </tr>
@@ -678,6 +742,105 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
                   </>
                 ) : (
                   <span>YES, DELETE ALL ({total})</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Route Assignment Modal */}
+      {bulkRouteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 max-w-md w-full p-6 text-xs">
+            <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center">
+                  <MapPin className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900">
+                    Assign Delivery Route
+                  </h3>
+                  <p className="text-[11px] text-slate-500 font-medium">
+                    Applying to {selectedIds.length} selected parties
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setBulkRouteModalOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3.5 mb-6">
+              <div>
+                <label className="block text-slate-700 font-bold mb-1.5">
+                  Route Name (Type or Select)
+                </label>
+                <input
+                  type="text"
+                  value={bulkRouteName}
+                  onChange={(e) => setBulkRouteName(e.target.value)}
+                  placeholder="e.g. ROUTE 1, RING ROAD, MARKET, MODASA HWY"
+                  className="w-full px-3 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-xs uppercase"
+                  autoFocus
+                />
+              </div>
+
+              {existingRoutes.length > 0 && (
+                <div>
+                  <span className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase tracking-wide">
+                    Existing Routes in System:
+                  </span>
+                  <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto p-1.5 bg-slate-50 rounded-lg border border-slate-200">
+                    {existingRoutes.map((r) => (
+                      <button
+                        key={r}
+                        type="button"
+                        onClick={() => setBulkRouteName(r)}
+                        className={`px-2.5 py-1 rounded text-[11px] font-bold transition-all ${
+                          bulkRouteName.toUpperCase() === r.toUpperCase()
+                            ? 'bg-indigo-600 text-white shadow-sm'
+                            : 'bg-white border border-slate-200 text-slate-700 hover:bg-indigo-50 hover:text-indigo-700'
+                        }`}
+                      >
+                        {r}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <p className="text-[11px] text-slate-500 bg-amber-50 border border-amber-200 p-2.5 rounded-lg">
+                💡 All <strong>{selectedIds.length}</strong> selected parties will have their delivery route updated immediately and pre-filled whenever printing envelopes.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setBulkRouteModalOpen(false)}
+                disabled={isAssigningRoute}
+                className="px-4 py-2 rounded-lg border border-slate-300 font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleBulkAssignRoute}
+                disabled={isAssigningRoute || !bulkRouteName.trim()}
+                className="flex items-center gap-1.5 px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-black shadow-md shadow-indigo-600/30 disabled:opacity-50 transition-all"
+              >
+                {isAssigningRoute ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>Saving Route...</span>
+                  </>
+                ) : (
+                  <span>Assign Route to {selectedIds.length} Parties</span>
                 )}
               </button>
             </div>

@@ -15,11 +15,12 @@ try:
 except ImportError:
     pass
 
-PRIMARY_MODEL = "models/gemini-flash-lite-latest"
+PRIMARY_MODEL = "models/gemini-2.5-flash"
 FALLBACK_MODELS = [
+    "models/gemini-2.5-flash",
+    "models/gemini-2.0-flash",
+    "models/gemini-1.5-flash",
     "models/gemini-flash-lite-latest",
-    "models/gemini-3.5-flash-lite",
-    "models/gemini-3.1-flash-lite",
     "models/gemini-flash-latest"
 ]
 
@@ -85,6 +86,58 @@ def test_connection(api_key: Optional[str] = None) -> Dict[str, Any]:
             "model": PRIMARY_MODEL
         }
 
+# Pre-compiled Gujarati dictionary for high-accuracy pharma courier translations
+GUJARAT_TRANSLATION_DICT = {
+    "NEAR": "પાસે", "NR.": "પાસે", "NR": "પાસે", "N/R": "પાસે",
+    "OPP.": "સામે", "OPP": "સામે", "OPPOSITE": "સામે", "O/S": "સામે", "O/P": "સામે",
+    "BEHIND": "પાછળ", "B/H": "પાછળ", "BH": "પાછળ",
+    "BESIDE": "બાજુમાં", "NEXT TO": "બાજુમાં",
+    "CROSS ROAD": "ચાર રસ્તા", "CROSS ROADS": "ચાર રસ્તા", "CHAR RASTA": "ચાર રસ્તા",
+    "COMPLEX": "કોમ્પ્લેક્ષ", "PLAZA": "પ્લાઝા", "CENTRE": "સેન્ટર", "CENTER": "સેન્ટર",
+    "SHOP NO.": "દુકાન નં.", "SHOP NO": "દુકાન નં.", "SHOP": "શોપ", "SHOPS": "શોપ્સ",
+    "MARKET": "માર્કેટ", "HIGHWAY": "હાઇવે", "ROAD": "રોડ", "STREET": "શેરી",
+    "GROUND FLOOR": "ગ્રાઉન્ડ ફ્લોર", "G.F.": "ગ્રાઉન્ડ ફ્લોર", "GF": "ગ્રાઉન્ડ ફ્લોર",
+    "FIRST FLOOR": "પહેલો માળ", "1ST FLOOR": "પહેલો માળ", "F.F.": "પહેલો માળ",
+    "SECOND FLOOR": "બીજો માળ", "2ND FLOOR": "બીજો માળ", "THIRD FLOOR": "ત્રીજો માળ", "3RD FLOOR": "ત્રીજો માળ",
+    "BASEMENT": "બેઝમેન્ટ", "HOSPITAL": "હોસ્પિટલ", "CLINIC": "ક્લિનિક",
+    "MEDICAL": "મેડિકલ", "MEDICOSE": "મેડિકોઝ", "MEDICOS": "મેડિકોઝ",
+    "PHARMACY": "ફાર્મસી", "CHEMIST": "કેમિસ્ટ", "CHEMISTS": "કેમિસ્ટ્સ",
+    "DRUGGIST": "ડ્રગીસ્ટ", "AGENCY": "એજન્સી", "AGENCIES": "એજન્સીઝ",
+    "HEALTHCARE": "હેલ્થકેર", "PHARMA": "ફાર્મા", "DISTRIBUTOR": "ડિસ્ટ્રીબ્યુટર", "DISTRIBUTORS": "ડિસ્ટ્રીબ્યુટર્સ",
+    "LIFE CARE": "લાઇફ કેર", "LIFECARE": "લાઇફ કેર", "CARE": "કેર", "GENERAL": "જનરલ",
+    "STORE": "સ્ટોર", "STORES": "સ્ટોર્સ", "PROVISION": "પ્રોવિઝન",
+    "BUS STAND": "બસ સ્ટેન્ડ", "BUS STOP": "બસ સ્ટોપ", "STATION": "સ્ટેશન", "STATION ROAD": "સ્ટેશન રોડ",
+    "SOCIETY": "સોસાયટી", "COLONY": "કોલોની", "APARTMENT": "એપાર્ટમેન્ટ", "FLAT": "ફ્લેટ",
+    "CHOWK": "ચોક", "CIRCLE": "સર્કલ", "GIDC": "જી.આઈ.ડી.સી.", "TALUKA": "તા.", "TA.": "તા.", "DIST.": "જી.",
+    "GUJARAT": "ગુજરાત", "RAJASTHAN": "રાજસ્થાન", "MAHARASHTRA": "મહારાષ્ટ્ર",
+    "AHMEDABAD": "અમદાવાદ", "DEHGAM": "દહેગામ", "DAHEGAM": "દહેગામ", "GANDHINAGAR": "ગાંધીનગર",
+    "VADODARA": "વડોદરા", "BARODA": "વડોદરા", "SURAT": "સુરત", "RAJKOT": "રાજકોટ",
+    "BHAVNAGAR": "ભાવનગર", "JAMNAGAR": "જામનગર", "JUNAGADH": "જુનાગઢ", "MODASA": "મોડાસા",
+    "HIMATNAGAR": "હિંમતનગર", "HIMMATNAGAR": "હિંમતનગર", "PALANPUR": "પાલનપુર",
+    "MEHSANA": "મહેસાણા", "PATAN": "પાટણ", "ANAND": "આણંદ", "NADIAD": "નડિયાદ",
+    "BHARUCH": "ભરૂચ", "NAVSARI": "નવસારી", "VALSAD": "વલસાડ", "KUTCH": "કચ્છ",
+    "BHUJ": "ભુજ", "MORBI": "મોરબી", "PORBANDAR": "પોરબંદર", "AMRELI": "અમરેલી",
+    "SURENDRANAGAR": "સુરેન્દ્રનગર", "JAISALMER": "જેસલમેર", "JODHPUR": "જોધપુર",
+    "JAIPUR": "જયપુર", "KADI": "કડી", "KALOL": "કલોલ", "VIJAPUR": "વિજાપુર",
+    "MANSA": "માણસા", "PRANTIJ": "પ્રાંતિજ", "TALOD": "તાલોદ", "BAYAD": "બાયડ",
+    "SHREEJI": "શ્રીજી", "SHREE": "શ્રી", "MAHADEV": "મહાદેવ", "KRISHNA": "ક્રિષ્ના",
+    "JAY": "જય", "JAI": "જય", "OM": "ઓમ", "SHIV": "શિવ", "APEX": "એપેક્સ"
+}
+
+def offline_fallback_translate(text: str) -> str:
+    """Translates known address/pharma phrases into Gujarati even if offline."""
+    if not text:
+        return ""
+    import re
+    res = text
+    # Sort keys by length descending to match multi-word phrases first
+    sorted_keys = sorted(GUJARAT_TRANSLATION_DICT.keys(), key=lambda k: len(k), reverse=True)
+    for k in sorted_keys:
+        val = GUJARAT_TRANSLATION_DICT[k]
+        pattern = r'\b' + re.escape(k) + r'\b'
+        res = re.sub(pattern, val, res, flags=re.IGNORECASE)
+    return res
+
 def translate_party_to_gujarati(
     party_name: str,
     address: str,
@@ -95,21 +148,32 @@ def translate_party_to_gujarati(
     api_key: Optional[str] = None
 ) -> Dict[str, str]:
     """
-    Translates/transliterates party name, address, and city into Gujarati for delivery envelopes.
-    Maintains pharma/medical phonetics (e.g. Pharmacy -> ફાર્મસી, Healthcare -> હેલ્થકેર, Chemist -> કેમિસ્ટ).
+    Translates and transliterates party name, address lines 1, 2, 3, city, and state into Gujarati.
+    Phonetically transliterates brand names (never literal word translations).
+    Strictly keeps labels TO-, FROM-, CASE, BOX in English.
     """
-    cache_key = f"{party_name}|{address}|{city}|{state}".strip().lower()
+    cache_key = f"{party_name}|{address}|{address_line_2 or ''}|{address_line_3 or ''}|{city}|{state}".strip().lower()
     if cache_key in _TRANSLATION_CACHE:
         return _TRANSLATION_CACHE[cache_key]
 
-    prompt = f"""You are a professional translator and transliterator for pharmaceutical delivery envelopes in Gujarat, India.
-Translate and transliterate the following medical store delivery details from English into Gujarati script (ગુજરાતી).
+    prompt = f"""You are a pharmaceutical dispatch transliterator for courier delivery envelopes in Gujarat, India.
+Translate and transliterate the recipient medical store details into authentic, clean Gujarati script (ગુજરાતી).
 
-Rules:
-1. Maintain phonetic accuracy for medical store names (e.g. "Pharmacy" -> "ફાર્મસી", "Medical Store" -> "મેડિકલ સ્ટોર", "Healthcare" -> "હેલ્થકેર", "Chemist" -> "કેમિસ્ટ", "Agency" -> "એજન્સી").
-2. Translate standard city and state names into Gujarati (e.g. "NARODA" -> "નરોડા", "AHMEDABAD" -> "અમદાવાદ", "GUJARAT" -> "ગુજરાત", "DEHGAM" -> "દહેગામ", "VADODARA" -> "વડોદરા", "SURAT" -> "સુરત", "RAJKOT" -> "રાજકોટ").
-3. Transliterate street addresses, complex names, shop numbers so local Gujarati delivery boys can easily read and locate the shop.
-4. Output strictly valid JSON matching this schema:
+CRITICAL TRANSLATION RULES:
+1. NEVER translate proper nouns or brand names literally. Always transliterate them phonetically into Gujarati script.
+   (Examples: "Apple Medical" -> "એપલ મેડિકલ" [NOT સફરજન], "Galaxy Pharma" -> "ગેલેક્સી ફાર્મા", "Shreeji Healthcare" -> "શ્રીજી હેલ્થકેર").
+2. Accurately translate delivery landmarks and prepositions:
+   - "Near" or "Nr." -> "પાસે"
+   - "Opp." or "Opposite" -> "સામે"
+   - "Behind" or "B/H" -> "પાછળ"
+   - "Beside" or "Next to" -> "બાજુમાં"
+   - "Cross Road" or "Char Rasta" -> "ચાર રસ્તા"
+   - "Complex" -> "કોમ્પ્લેક્ષ"
+   - "Road" -> "રોડ"
+   - "Shop" -> "શોપ"
+3. DO NOT translate headers like TO-, FROM-, CASE, BOX, WEIGHT, KG. Only translate the party address details.
+4. Translate all 3 address lines (Line 1, Line 2, Line 3) accurately so courier delivery staff can easily find the premises.
+5. Output strictly valid JSON matching this schema:
 {{
   "party_name_gu": "...",
   "address_gu": "...",
@@ -140,26 +204,27 @@ Input details to translate:
         raw_text = res.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "{}")
         parsed = json.loads(raw_text)
         result = {
-            "party_name_gu": parsed.get("party_name_gu") or party_name,
-            "address_gu": parsed.get("address_gu") or address,
-            "address_line_2_gu": parsed.get("address_line_2_gu") or (address_line_2 or ""),
-            "address_line_3_gu": parsed.get("address_line_3_gu") or (address_line_3 or ""),
-            "city_gu": parsed.get("city_gu") or city,
-            "state_gu": parsed.get("state_gu") or state,
+            "party_name_gu": parsed.get("party_name_gu") or offline_fallback_translate(party_name),
+            "address_gu": parsed.get("address_gu") or offline_fallback_translate(address),
+            "address_line_2_gu": parsed.get("address_line_2_gu") or offline_fallback_translate(address_line_2 or ""),
+            "address_line_3_gu": parsed.get("address_line_3_gu") or offline_fallback_translate(address_line_3 or ""),
+            "city_gu": parsed.get("city_gu") or offline_fallback_translate(city),
+            "state_gu": parsed.get("state_gu") or offline_fallback_translate(state),
         }
         _TRANSLATION_CACHE[cache_key] = result
         return result
     except Exception as e:
-        print("Gemini Gujarati translation error:", e)
-        # Fallback to original text if offline
-        return {
-            "party_name_gu": party_name,
-            "address_gu": address,
-            "address_line_2_gu": address_line_2 or "",
-            "address_line_3_gu": address_line_3 or "",
-            "city_gu": city,
-            "state_gu": state,
+        print("Gemini Gujarati translation note, using dictionary fallback:", e)
+        fallback_res = {
+            "party_name_gu": offline_fallback_translate(party_name),
+            "address_gu": offline_fallback_translate(address),
+            "address_line_2_gu": offline_fallback_translate(address_line_2 or ""),
+            "address_line_3_gu": offline_fallback_translate(address_line_3 or ""),
+            "city_gu": offline_fallback_translate(city),
+            "state_gu": offline_fallback_translate(state),
         }
+        _TRANSLATION_CACHE[cache_key] = fallback_res
+        return fallback_res
 
 def parse_unstructured_marg_data(raw_text: str, api_key: Optional[str] = None) -> Dict[str, Any]:
     """
