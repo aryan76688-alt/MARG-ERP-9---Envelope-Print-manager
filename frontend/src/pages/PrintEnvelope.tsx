@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Search, 
   Printer, 
@@ -594,7 +595,23 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
       });
 
       if (onJobCreated) onJobCreated(res.id);
-      window.print();
+
+      // Trigger browser print with printing-envelope class on body for clean print isolation
+      document.body.classList.add('printing-envelope');
+      setTimeout(() => {
+        window.print();
+        setTimeout(() => {
+          document.body.classList.remove('printing-envelope');
+        }, 1500);
+      }, 150);
+
+      window.addEventListener(
+        'afterprint',
+        () => {
+          document.body.classList.remove('printing-envelope');
+        },
+        { once: true }
+      );
     } catch (err: any) {
       alert('Failed to process print job: ' + err.message);
     } finally {
@@ -1891,6 +1908,60 @@ CASE: 3 NS: 2 (500ML)"
             </div>
           </div>
         </div>
+      )}
+
+      {/* Hidden print sheet container for window.print() rendered directly to body */}
+      {selectedParty && createPortal(
+        <div className="print-only-sheet">
+          {Array.from({ length: Math.ceil(totalPackagesCount / envelopesPerPage) }, (_, pageIndex) => {
+            const firstCase = casesList[pageIndex * envelopesPerPage] || casesList[0];
+            const secondCase = casesList[pageIndex * envelopesPerPage + 1];
+            return (
+              <div key={pageIndex} className="sheet-page-wrapper">
+                {firstCase && (
+                  <div className="print-envelope-half">
+                    <EnvelopeTemplate
+                      party={selectedParty}
+                      sender={sender}
+                      caseItem={firstCase}
+                      caseBreakdown={activeCaseBreakdown}
+                      parcelType={caseMode === 'standard' ? parcelType : 'Medicine'}
+                      settings={appSettings}
+                      templateFormat={selectedTemplate}
+                      language={selectedLanguage}
+                      isPrintMode={true}
+                    />
+                  </div>
+                )}
+                {envelopesPerPage === 2 && (
+                  <>
+                    <div className="cut-guide">
+                      ✂ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - ✂
+                    </div>
+                    {secondCase ? (
+                      <div className="print-envelope-half">
+                        <EnvelopeTemplate
+                          party={selectedParty}
+                          sender={sender}
+                          caseItem={secondCase}
+                          caseBreakdown={activeCaseBreakdown}
+                          parcelType={caseMode === 'standard' ? parcelType : 'Medicine'}
+                          settings={appSettings}
+                          templateFormat={selectedTemplate}
+                          language={selectedLanguage}
+                          isPrintMode={true}
+                        />
+                      </div>
+                    ) : (
+                      <div className="print-envelope-half" style={{ visibility: 'hidden' }}></div>
+                    )}
+                  </>
+                )}
+              </div>
+            );
+          })}
+        </div>,
+        document.body
       )}
     </div>
   );

@@ -28,29 +28,95 @@
   background: #94a3b8;
 }
 
+/* Screen Mode: Always hide the print-only sheet from the regular screen UI */
+@media screen {
+  .print-only-sheet {
+    display: none !important;
+  }
+}
+
 /* Print Specific Styles */
 @media print {
-  /* Hide all dashboard chrome */
+  @page {
+    size: A4 portrait;
+    margin: 15mm 3mm 10mm 3mm !important;
+  }
+
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    height: auto !important;
+    min-height: auto !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* When printing envelope, hide the interactive web UI completely */
+  body.printing-envelope #root,
+  body:has(.print-only-sheet) #root {
+    display: none !important;
+  }
+
+  /* Hide screen dashboard chrome */
+  aside, header, nav, .no-print, button, input, select {
+    display: none !important;
+  }
+
   body * {
     visibility: hidden;
   }
 
-  .print-only-sheet, .print-only-sheet * {
-    visibility: visible;
+  .print-only-sheet,
+  .print-only-sheet * {
+    visibility: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
   .print-only-sheet {
     display: block !important;
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
+    position: static !important;
+    width: 100% !important;
     margin: 0 !important;
     padding: 0 !important;
-    background: white !important;
+    background: #ffffff !important;
   }
 
-  .no-print {
-    display: none !important;
+  .sheet-page-wrapper {
+    page-break-after: always !important;
+    break-after: page !important;
+    height: 272mm !important;
+    max-height: 272mm !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+  }
+
+  .sheet-page-wrapper:last-child {
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+  }
+
+  .print-envelope-half {
+    height: 132mm !important;
+    max-height: 132mm !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: flex-start !important;
+    overflow: hidden !important;
+    box-sizing: border-box !important;
+  }
+
+  .cut-guide {
+    margin: 2mm 0 !important;
+    border-top: 1px dashed #64748b !important;
+    text-align: center !important;
+    font-size: 9px !important;
+    color: #475569 !important;
   }
 }
