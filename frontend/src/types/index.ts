@@ -57,6 +57,16 @@ export interface CaseItem {
   barcode_value?: string;
 }
 
+export interface CaseBreakdownItem {
+  type: string; // 'CASE' | 'NS CASE' | 'RL CASE' | 'DNS CASE' | 'METRO CASE' | 'PARCEL BAG'
+  volume?: string; // '100ML' | '200ML' | '250ML' | '500ML' | '1LTR'
+  qty: number;
+}
+
+export interface UnprintedPartyItem extends Party {
+  printed_today: boolean;
+}
+
 export interface PrintJob {
   id: number;
   job_number: string;
@@ -75,8 +85,38 @@ export interface PrintJob {
   envelope_size: string;
   printer_name: string;
   status: string;
+  case_breakdown_json?: string | null;
+  delivery_boy_name?: string | null;
+  delivery_route?: string | null;
   created_at: string;
   cases_count?: number;
+}
+
+export interface DispatchSummaryJob {
+  id: number;
+  job_number: string;
+  party_id?: number | null;
+  party_name: string;
+  party_code?: string | null;
+  city: string;
+  state: string;
+  mobile?: string | null;
+  total_cases: number;
+  case_breakdown?: CaseBreakdownItem[];
+  delivery_boy_name?: string | null;
+  delivery_route?: string | null;
+  status: string;
+  created_at?: string;
+}
+
+export interface DispatchSummaryData {
+  date: string;
+  total_parties: number;
+  total_packages: number;
+  breakdown_totals: Record<string, number>;
+  available_delivery_boys: string[];
+  available_routes: string[];
+  dispatches: DispatchSummaryJob[];
 }
 
 export interface PrintJobDetails extends PrintJob {

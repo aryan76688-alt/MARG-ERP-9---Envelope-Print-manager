@@ -5,7 +5,10 @@ import {
   DashboardData, 
   PrintJob, 
   PrintJobDetails, 
-  ImportValidationResult 
+  ImportValidationResult,
+  CaseBreakdownItem,
+  UnprintedPartyItem,
+  DispatchSummaryData
 } from '../types';
 
 const API_BASE = '/api';
@@ -189,6 +192,9 @@ export async function createPrintJob(payload: {
   envelopes_per_page: number;
   status: string;
   sender?: SenderSettings;
+  case_breakdown?: CaseBreakdownItem[];
+  delivery_boy_name?: string;
+  delivery_route?: string;
 }): Promise<any> {
   const res = await fetch(`${API_BASE}/print-jobs`, {
     method: 'POST',
@@ -199,6 +205,39 @@ export async function createPrintJob(payload: {
     const err = await res.json().catch(() => ({ detail: 'Failed to create print job' }));
     throw new Error(err.detail || 'Failed to create print job');
   }
+  return res.json();
+}
+
+export async function createBulkPrintJobs(payload: {
+  party_ids: number[];
+  case_breakdown?: CaseBreakdownItem[];
+  total_cases?: number;
+  parcel_type?: string;
+  envelope_size?: string;
+  envelopes_per_page?: number;
+  delivery_boy_name?: string;
+  delivery_route?: string;
+}): Promise<{ success: boolean; created_count: number; job_ids: number[] }> {
+  const res = await fetch(`${API_BASE}/print-jobs/bulk`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to process bulk print jobs' }));
+    throw new Error(err.detail || 'Failed to process bulk print jobs');
+  }
+  return res.json();
+}
+
+export async function fetchUnprintedPartiesToday(unprintedOnly: boolean = true): Promise<{
+  items: UnprintedPartyItem[];
+  total: number;
+  total_unprinted: number;
+  total_printed_today: number;
+}> {
+  const res = await fetch(`${API_BASE}/parties/unprinted-today?unprinted_only=${unprintedOnly}`);
+  if (!res.ok) throw new Error('Failed to load unprinted parties');
   return res.json();
 }
 
@@ -257,6 +296,8 @@ export async function saveSettings(payload: { sender?: SenderSettings; app?: Par
 
 export async function downloadEnvelopePDF(payload: {
   job_id?: number;
+  job_ids?: number[];
+  case_breakdown?: CaseBreakdownItem[];
   party_name?: string;
   party_code?: string;
   address?: string;
@@ -288,6 +329,67 @@ export async function downloadEnvelopePDF(payload: {
   const blob = await res.blob();
   const disposition = res.headers.get('Content-Disposition');
   let filename = 'MARG_Envelope.pdf';
+  if (disposition && disposition.includes('filename=')) {
+    const match = disposition.match(/filename="?([^"]+)"?/);
+    if (match && match[1]) filename = match[1];
+  }
+
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  window.URL.revokeObjectURL(url);
+  document.body.removeChild(a);
+}
+
+export async function fetchDispatchSummary(params?: {
+  date?: string;
+  delivery_boy?: string;
+  route?: string;
+}): Promise<DispatchSummaryData> {
+  const query = new URLSearchParams();
+  if (params?.date) query.append('date', params.date);
+  if (params?.delivery_boy) query.append('delivery_boy', params.delivery_boy);
+  if (params?.route) query.append('route', params.route);
+
+  const res = await fetch(`${API_BASE}/dispatch-summary?${query.toString()}`);
+  if (!res.ok) throw new Error('Failed to load dispatch summary');
+  return res.json();
+}
+
+export async function updateDispatchJobs(payload: {
+  job_ids: number[];
+  delivery_boy_name?: string;
+  delivery_route?: string;
+  status?: string;
+}): Promise<{ success: boolean; updated_count: number }> {
+  const res = await fetch(`${API_BASE}/dispatch-summary/update-job`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error('Failed to update dispatch jobs');
+  return res.json();
+}
+
+export async function downloadDispatchSummaryPDF(params?: {
+  date?: string;
+  delivery_boy?: string;
+  route?: string;
+}): Promise<void> {
+  const query = new URLSearchParams();
+  if (params?.date) query.append('date', params.date);
+  if (params?.delivery_boy) query.append('delivery_boy', params.delivery_boy);
+  if (params?.route) query.append('route', params.route);
+
+  const res = await fetch(`${API_BASE}/dispatch-summary/pdf?${query.toString()}`);
+  if (!res.ok) throw new Error('Failed to download dispatch summary run-sheet');
+
+  const blob = await res.blob();
+  const disposition = res.headers.get('Content-Disposition');
+  let filename = 'Dispatch_Run_Sheet.pdf';
   if (disposition && disposition.includes('filename=')) {
     const match = disposition.match(/filename="?([^"]+)"?/);
     if (match && match[1]) filename = match[1];

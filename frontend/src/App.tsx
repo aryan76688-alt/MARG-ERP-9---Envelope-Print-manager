@@ -5,6 +5,7 @@ import { Dashboard } from './pages/Dashboard';
 import { Parties } from './pages/Parties';
 import { ImportExcel } from './pages/ImportExcel';
 import { PrintEnvelope } from './pages/PrintEnvelope';
+import { DispatchSummary } from './pages/DispatchSummary';
 import { PrintHistory } from './pages/PrintHistory';
 import { Settings } from './pages/Settings';
 import { Party } from './types';
@@ -111,6 +112,7 @@ export const App: React.FC = () => {
           />
         )}
         {currentTab === 'history' && <PrintHistory onNavigate={navigateToTab} />}
+        {currentTab === 'dispatch' && <DispatchSummary />}
         {currentTab === 'settings' && <Settings />}
       </MainLayout>
     </QueryClientProvider>

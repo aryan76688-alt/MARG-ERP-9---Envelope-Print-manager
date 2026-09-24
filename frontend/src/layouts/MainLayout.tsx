@@ -14,7 +14,8 @@ import {
   Calendar,
   Clock,
   ChevronRight,
-  ArrowLeft
+  ArrowLeft,
+  Truck
 } from 'lucide-react';
 
 interface MainLayoutProps {
@@ -69,6 +70,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
     { id: 'parties', label: 'Parties', icon: Users },
     { id: 'import', label: 'Import Excel', icon: FileSpreadsheet },
     { id: 'print', label: 'Print Envelope', icon: Printer, badge: 'Main' },
+    { id: 'dispatch', label: 'Dispatch Summary', icon: Truck, badge: 'New' },
     { id: 'history', label: 'Print History', icon: History },
     { id: 'settings', label: 'Settings', icon: SettingsIcon },
   ];

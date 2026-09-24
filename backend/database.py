@@ -40,6 +40,12 @@ def init_db():
                 conn.exec_driver_sql("ALTER TABLE print_jobs ADD COLUMN party_address_line_2_snap TEXT")
             if "party_address_line_3_snap" not in job_cols:
                 conn.exec_driver_sql("ALTER TABLE print_jobs ADD COLUMN party_address_line_3_snap TEXT")
+            if "case_breakdown_json" not in job_cols:
+                conn.exec_driver_sql("ALTER TABLE print_jobs ADD COLUMN case_breakdown_json TEXT")
+            if "delivery_boy_name" not in job_cols:
+                conn.exec_driver_sql("ALTER TABLE print_jobs ADD COLUMN delivery_boy_name TEXT")
+            if "delivery_route" not in job_cols:
+                conn.exec_driver_sql("ALTER TABLE print_jobs ADD COLUMN delivery_route TEXT")
             conn.commit()
         except Exception as e:
             print(f"Migration notice: {e}")

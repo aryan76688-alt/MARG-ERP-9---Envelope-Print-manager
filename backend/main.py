@@ -118,6 +118,25 @@ class CreatePrintJobRequest(BaseModel):
     envelopes_per_page: int = 2
     status: str = "Printed"
     sender: Optional[Dict[str, Any]] = None
+    case_breakdown: Optional[List[Dict[str, Any]]] = None
+    delivery_boy_name: Optional[str] = None
+    delivery_route: Optional[str] = None
+
+class BulkPrintJobsRequest(BaseModel):
+    party_ids: List[int]
+    case_breakdown: Optional[List[Dict[str, Any]]] = None
+    total_cases: int = 1
+    parcel_type: str = "Medicine"
+    envelope_size: str = "A4"
+    envelopes_per_page: int = 2
+    delivery_boy_name: Optional[str] = None
+    delivery_route: Optional[str] = None
+
+class UpdateDispatchJobsRequest(BaseModel):
+    job_ids: List[int]
+    delivery_boy_name: Optional[str] = None
+    delivery_route: Optional[str] = None
+    status: Optional[str] = None
 
 class BulkDeletePartiesRequest(BaseModel):
     party_ids: List[int]
@@ -347,6 +366,51 @@ def autocomplete_parties(
         }
         for p in results
     ]
+
+@app.get("/api/parties/unprinted-today")
+def get_unprinted_parties_today(
+    unprinted_only: bool = Query(True),
+    db: Session = Depends(get_db)
+):
+    now = datetime.datetime.now(datetime.timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    # All party names printed today
+    printed_today_parties = set(
+        name for (name,) in db.query(PrintJob.party_name_snap).filter(
+            PrintJob.created_at >= today_start
+        ).all()
+    )
+
+    query = db.query(Party).filter(Party.is_active == True).order_by(Party.party_name.asc())
+    all_parties = query.all()
+
+    results = []
+    for p in all_parties:
+        is_printed = (p.party_name or "").strip().upper() in printed_today_parties
+        if unprinted_only and is_printed:
+            continue
+        results.append({
+            "id": p.id,
+            "party_name": p.party_name,
+            "party_code": p.party_code,
+            "address": p.address,
+            "address_line_2": p.address_line_2,
+            "address_line_3": p.address_line_3,
+            "city": p.city,
+            "state": p.state,
+            "mobile_no": p.mobile_no,
+            "gst_no": p.gst_no,
+            "notes": p.notes,
+            "printed_today": is_printed
+        })
+
+    return {
+        "items": results,
+        "total": len(results),
+        "total_unprinted": len([r for r in results if not r["printed_today"]]),
+        "total_printed_today": len(printed_today_parties)
+    }
 
 @app.post("/api/parties", status_code=status.HTTP_201_CREATED)
 def create_party(party_in: PartyCreate, db: Session = Depends(get_db)):
@@ -734,6 +798,14 @@ def create_print_job(req: CreatePrintJobRequest, db: Session = Depends(get_db)):
 
     total_weight = sum(weights)
 
+    # Check if case_breakdown was provided
+    case_breakdown_json = None
+    if req.case_breakdown:
+        case_breakdown_json = json.dumps(req.case_breakdown)
+        valid_sum = sum(int(item.get("qty", 0)) for item in req.case_breakdown if int(item.get("qty", 0)) > 0)
+        if valid_sum > 0:
+            req.total_cases = valid_sum
+
     job = PrintJob(
         job_number=job_number,
         party_id=req.party_id,
@@ -759,6 +831,9 @@ def create_print_job(req: CreatePrintJobRequest, db: Session = Depends(get_db)):
         printer_name=req.printer_name,
         envelopes_per_page=req.envelopes_per_page,
         status=req.status,
+        case_breakdown_json=case_breakdown_json,
+        delivery_boy_name=req.delivery_boy_name,
+        delivery_route=req.delivery_route,
         created_at=datetime.datetime.now(datetime.timezone.utc)
     )
     db.add(job)
@@ -795,8 +870,97 @@ def create_print_job(req: CreatePrintJobRequest, db: Session = Depends(get_db)):
         "envelope_size": job.envelope_size,
         "printer_name": job.printer_name,
         "status": job.status,
+        "case_breakdown": req.case_breakdown,
+        "delivery_boy_name": job.delivery_boy_name,
+        "delivery_route": job.delivery_route,
         "created_at": job.created_at.isoformat() if job.created_at else None,
         "cases": cases_resp
+    }
+
+@app.post("/api/print-jobs/bulk", status_code=status.HTTP_201_CREATED)
+def create_bulk_print_jobs(req: BulkPrintJobsRequest, db: Session = Depends(get_db)):
+    """
+    Bulk prints envelopes for all selected parties.
+    Enables one-click daily printing for all parties.
+    """
+    if not req.party_ids:
+        raise HTTPException(status_code=400, detail="party_ids list cannot be empty")
+
+    parties = db.query(Party).filter(Party.id.in_(req.party_ids), Party.is_active == True).all()
+    if not parties:
+        raise HTTPException(status_code=404, detail="No active parties found for provided IDs")
+
+    sender_settings = db.query(SenderSettings).first()
+    s_name = sender_settings.business_name if sender_settings else "SHREEJI 7"
+    s_addr = sender_settings.address if sender_settings else "DAHEGAM"
+    s_city = sender_settings.city if sender_settings else "DAHEGAM"
+    s_state = sender_settings.state if sender_settings else "GUJARAT"
+    s_mobile = sender_settings.mobile if sender_settings else "9924544283"
+
+    breakdown_json = json.dumps(req.case_breakdown) if req.case_breakdown else None
+
+    # Calculate cases count
+    cases_count = req.total_cases
+    if req.case_breakdown:
+        valid_sum = sum(int(b.get("qty", 0)) for b in req.case_breakdown if int(b.get("qty", 0)) > 0)
+        if valid_sum > 0:
+            cases_count = valid_sum
+
+    created_jobs = []
+    now = datetime.datetime.now(datetime.timezone.utc)
+    for p in parties:
+        job_number = get_next_job_number(db)
+        job = PrintJob(
+            job_number=job_number,
+            party_id=p.id,
+            party_name_snap=p.party_name.strip().upper(),
+            party_code_snap=p.party_code.strip().upper() if p.party_code else None,
+            party_address_snap=p.address.strip().upper(),
+            party_address_line_2_snap=p.address_line_2.strip().upper() if p.address_line_2 else None,
+            party_address_line_3_snap=p.address_line_3.strip().upper() if p.address_line_3 else None,
+            party_city_snap=p.city.strip().upper(),
+            party_state_snap=p.state.strip().upper(),
+            party_mobile_snap=p.mobile_no.strip() if p.mobile_no else None,
+            party_gst_snap=p.gst_no.strip().upper() if p.gst_no else None,
+            sender_name_snap=s_name.strip().upper(),
+            sender_address_snap=s_addr.strip().upper(),
+            sender_city_snap=s_city.strip().upper(),
+            sender_state_snap=s_state.strip().upper(),
+            sender_mobile_snap=s_mobile.strip(),
+            parcel_type=req.parcel_type,
+            total_cases=cases_count,
+            total_weight=float(cases_count),
+            envelope_size=req.envelope_size,
+            orientation="Landscape",
+            printer_name="Microsoft Print to PDF",
+            envelopes_per_page=req.envelopes_per_page,
+            status="Printed",
+            case_breakdown_json=breakdown_json,
+            delivery_boy_name=req.delivery_boy_name,
+            delivery_route=req.delivery_route,
+            created_at=now
+        )
+        db.add(job)
+        db.flush()
+
+        for idx in range(1, cases_count + 1):
+            pcase = PrintCase(
+                print_job_id=job.id,
+                case_number=idx,
+                case_total=cases_count,
+                weight=1.0,
+                barcode_value=f"{job_number}-C{idx}",
+                status="Printed"
+            )
+            db.add(pcase)
+
+        created_jobs.append(job.id)
+
+    db.commit()
+    return {
+        "success": True,
+        "created_count": len(created_jobs),
+        "job_ids": created_jobs
     }
 
 @app.get("/api/print-jobs")
@@ -1073,6 +1237,8 @@ def update_settings(payload: Dict[str, Any], db: Session = Depends(get_db)):
 
 class GeneratePDFRequest(BaseModel):
     job_id: Optional[int] = None
+    job_ids: Optional[List[int]] = None
+    case_breakdown: Optional[List[Dict[str, Any]]] = None
     party_name: Optional[str] = None
     party_code: Optional[str] = None
     address: Optional[str] = None
@@ -1098,7 +1264,7 @@ class GeneratePDFRequest(BaseModel):
 def generate_pdf(req: GeneratePDFRequest, db: Session = Depends(get_db)):
     """
     Generates high-precision vector PDF matching the exact MARG Courier Envelope layout.
-    Supports either existing job_id or dynamic live envelope parameters.
+    Supports either existing job_id, bulk job_ids, or dynamic live envelope parameters.
     """
     sender_settings = db.query(SenderSettings).first()
     app_settings = db.query(AppSettings).first()
@@ -1111,66 +1277,6 @@ def generate_pdf(req: GeneratePDFRequest, db: Session = Depends(get_db)):
         "mobile": (req.sender.get("mobile") if req.sender else None) or (sender_settings.mobile if sender_settings else "+91 99245 44283"),
         "email": (req.sender.get("email") if req.sender else None) or (sender_settings.email if sender_settings else "SHREEJISEVEN@GMAIL.COM")
     }
-
-    if req.job_id:
-        job = db.query(PrintJob).filter(PrintJob.id == req.job_id).first()
-        if not job:
-            raise HTTPException(status_code=404, detail="Job not found")
-        job_data = {
-            "job_number": job.job_number,
-            "party_name_snap": job.party_name_snap,
-            "party_code_snap": job.party_code_snap,
-            "party_address_snap": job.party_address_snap,
-            "party_address_line_2_snap": getattr(job, "party_address_line_2_snap", "") or "",
-            "party_address_line_3_snap": getattr(job, "party_address_line_3_snap", "") or "",
-            "party_city_snap": job.party_city_snap,
-            "party_state_snap": job.party_state_snap,
-            "party_mobile_snap": job.party_mobile_snap,
-            "party_gst_snap": job.party_gst_snap,
-            "parcel_type": job.parcel_type
-        }
-        cases_data = [
-            {
-                "case_number": c.case_number,
-                "case_total": c.case_total,
-                "weight": c.weight,
-                "barcode_value": c.barcode_value
-            }
-            for c in job.cases
-        ]
-        job_number = job.job_number
-    else:
-        # Dynamic preview generation
-        temp_job_number = f"MRG-{datetime.datetime.now().year}-PREVIEW"
-        job_data = {
-            "job_number": temp_job_number,
-            "party_name_snap": req.party_name or "JODHPUR MEDICOSE",
-            "party_code_snap": req.party_code or "P0001",
-            "party_address_snap": req.address or "SHREE MOHANGADH, NEAR STN ROAD",
-            "party_address_line_2_snap": req.address_line_2 or "",
-            "party_address_line_3_snap": req.address_line_3 or "",
-            "party_city_snap": req.city or "JODHPUR",
-            "party_state_snap": req.state or "RAJASTHAN",
-            "party_mobile_snap": req.mobile_no or "9829012345",
-            "party_gst_snap": req.gst_no or "",
-            "parcel_type": req.parcel_type
-        }
-        cases_data = []
-        weights = req.case_weights
-        if len(weights) < req.total_cases:
-            last_w = weights[-1] if weights else 1.0
-            weights.extend([last_w] * (req.total_cases - len(weights)))
-        elif len(weights) > req.total_cases:
-            weights = weights[:req.total_cases]
-
-        for idx, w in enumerate(weights, start=1):
-            cases_data.append({
-                "case_number": idx,
-                "case_total": req.total_cases,
-                "weight": w,
-                "barcode_value": f"{temp_job_number}-C{idx}"
-            })
-        job_number = temp_job_number
 
     margin_top = req.margin_top_mm if req.margin_top_mm is not None else (app_settings.margin_top_mm if app_settings else 15.0)
     margin_bottom = req.margin_bottom_mm if req.margin_bottom_mm is not None else (app_settings.margin_bottom_mm if app_settings else 10.0)
@@ -1192,12 +1298,312 @@ def generate_pdf(req: GeneratePDFRequest, db: Session = Depends(get_db)):
         "show_party_code": app_settings.show_party_code if app_settings else True
     }
 
+    # Case 1: Bulk job IDs
+    if req.job_ids:
+        jobs = db.query(PrintJob).filter(PrintJob.id.in_(req.job_ids)).all()
+        jobs_cases_list = []
+        for job in jobs:
+            b_items = None
+            if job.case_breakdown_json:
+                try:
+                    b_items = json.loads(job.case_breakdown_json)
+                except Exception:
+                    b_items = None
+            j_data = {
+                "job_number": job.job_number,
+                "party_name_snap": job.party_name_snap,
+                "party_code_snap": job.party_code_snap,
+                "party_address_snap": job.party_address_snap,
+                "party_address_line_2_snap": getattr(job, "party_address_line_2_snap", "") or "",
+                "party_address_line_3_snap": getattr(job, "party_address_line_3_snap", "") or "",
+                "party_city_snap": job.party_city_snap,
+                "party_state_snap": job.party_state_snap,
+                "party_mobile_snap": job.party_mobile_snap,
+                "party_gst_snap": job.party_gst_snap,
+                "party_notes_snap": getattr(job.party, "notes", "") if job.party else "",
+                "parcel_type": job.parcel_type,
+                "total_cases": job.total_cases,
+                "case_breakdown": b_items
+            }
+            for c in job.cases:
+                c_data = {
+                    "case_number": c.case_number,
+                    "case_total": c.case_total,
+                    "weight": c.weight,
+                    "barcode_value": c.barcode_value
+                }
+                jobs_cases_list.append({"job": j_data, "case": c_data})
+
+        try:
+            pdf_bytes = pdf_service.generate_bulk_envelopes_pdf(jobs_cases_list, sender_dict, settings_dict)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"PDF generation failed: {str(e)}")
+
+        filename = f"MARG_Envelopes_Bulk_{len(req.job_ids)}.pdf"
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Access-Control-Expose-Headers": "Content-Disposition"
+            }
+        )
+
+    # Case 2: Single existing job ID
+    if req.job_id:
+        job = db.query(PrintJob).filter(PrintJob.id == req.job_id).first()
+        if not job:
+            raise HTTPException(status_code=404, detail="Job not found")
+        b_items = None
+        if job.case_breakdown_json:
+            try:
+                b_items = json.loads(job.case_breakdown_json)
+            except Exception:
+                b_items = None
+
+        job_data = {
+            "job_number": job.job_number,
+            "party_name_snap": job.party_name_snap,
+            "party_code_snap": job.party_code_snap,
+            "party_address_snap": job.party_address_snap,
+            "party_address_line_2_snap": getattr(job, "party_address_line_2_snap", "") or "",
+            "party_address_line_3_snap": getattr(job, "party_address_line_3_snap", "") or "",
+            "party_city_snap": job.party_city_snap,
+            "party_state_snap": job.party_state_snap,
+            "party_mobile_snap": job.party_mobile_snap,
+            "party_gst_snap": job.party_gst_snap,
+            "party_notes_snap": getattr(job.party, "notes", "") if job.party else "",
+            "parcel_type": job.parcel_type,
+            "total_cases": job.total_cases,
+            "case_breakdown": b_items
+        }
+        cases_data = [
+            {
+                "case_number": c.case_number,
+                "case_total": c.case_total,
+                "weight": c.weight,
+                "barcode_value": c.barcode_value
+            }
+            for c in job.cases
+        ]
+        job_number = job.job_number
+    else:
+        # Dynamic preview generation
+        temp_job_number = f"MRG-{datetime.datetime.now().year}-PREVIEW"
+        job_data = {
+            "job_number": temp_job_number,
+            "party_name_snap": req.party_name or "JODHPUR MEDICOSE",
+            "party_code_snap": req.party_code or "P0001",
+            "party_address_snap": req.address or "SHREE MOHANGADH , JAISALMER",
+            "party_address_line_2_snap": req.address_line_2 or "",
+            "party_address_line_3_snap": req.address_line_3 or "",
+            "party_city_snap": req.city or "JAISALMER",
+            "party_state_snap": req.state or "RAJASTHAN",
+            "party_mobile_snap": req.mobile_no or "+91 8963003012",
+            "party_gst_snap": req.gst_no or "",
+            "party_notes_snap": "DR.FIROZ",
+            "parcel_type": req.parcel_type,
+            "total_cases": req.total_cases,
+            "case_breakdown": req.case_breakdown
+        }
+        cases_data = []
+        weights = req.case_weights
+        if len(weights) < req.total_cases:
+            last_w = weights[-1] if weights else 1.0
+            weights.extend([last_w] * (req.total_cases - len(weights)))
+        elif len(weights) > req.total_cases:
+            weights = weights[:req.total_cases]
+
+        for idx, w in enumerate(weights, start=1):
+            cases_data.append({
+                "case_number": idx,
+                "case_total": req.total_cases,
+                "weight": w,
+                "barcode_value": f"{temp_job_number}-C{idx}"
+            })
+        job_number = temp_job_number
+
     try:
         pdf_bytes = pdf_service.generate_envelopes_pdf(job_data, cases_data, sender_dict, settings_dict)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"PDF generation failed: {str(e)}")
 
     filename = f"MARG_Envelope_{job_number}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Access-Control-Expose-Headers": "Content-Disposition"
+        }
+    )
+
+# ==========================================
+# 6B. DISPATCH SUMMARY FOR DELIVERY BOY
+# ==========================================
+
+@app.get("/api/dispatch-summary")
+def get_dispatch_summary(
+    date: Optional[str] = Query(None, description="Date in YYYY-MM-DD format"),
+    delivery_boy: Optional[str] = Query(None),
+    route: Optional[str] = Query(None),
+    db: Session = Depends(get_db)
+):
+    if not date:
+        date_obj = datetime.datetime.now(datetime.timezone.utc).date()
+    else:
+        try:
+            date_obj = datetime.datetime.strptime(date, "%Y-%m-%d").date()
+        except ValueError:
+            date_obj = datetime.datetime.now(datetime.timezone.utc).date()
+
+    start_dt = datetime.datetime.combine(date_obj, datetime.time.min)
+    end_dt = datetime.datetime.combine(date_obj, datetime.time.max)
+
+    query = db.query(PrintJob).filter(
+        PrintJob.created_at >= start_dt,
+        PrintJob.created_at <= end_dt
+    )
+    if delivery_boy:
+        query = query.filter(PrintJob.delivery_boy_name == delivery_boy)
+    if route:
+        query = query.filter(PrintJob.delivery_route == route)
+
+    jobs = query.order_by(PrintJob.created_at.asc()).all()
+
+    total_packages = 0
+    breakdown_totals: Dict[str, int] = {}
+    distinct_drivers = set()
+    distinct_routes = set()
+
+    dispatches = []
+    for j in jobs:
+        total_packages += (j.total_cases or 1)
+        if j.delivery_boy_name:
+            distinct_drivers.add(j.delivery_boy_name)
+        if j.delivery_route:
+            distinct_routes.add(j.delivery_route)
+
+        b_items = []
+        if j.case_breakdown_json:
+            try:
+                b_items = json.loads(j.case_breakdown_json)
+            except Exception:
+                b_items = []
+
+        if b_items and isinstance(b_items, list):
+            for item in b_items:
+                if isinstance(item, dict):
+                    qty = int(item.get("qty", 0))
+                    if qty <= 0:
+                        continue
+                    label = f"{item.get('type', 'CASE')} {item.get('volume', '')}".strip()
+                    breakdown_totals[label] = breakdown_totals.get(label, 0) + qty
+        else:
+            label = "Standard Case"
+            breakdown_totals[label] = breakdown_totals.get(label, 0) + (j.total_cases or 1)
+
+        dispatches.append({
+            "id": j.id,
+            "job_number": j.job_number,
+            "party_id": j.party_id,
+            "party_name": j.party_name_snap,
+            "party_code": j.party_code_snap,
+            "city": j.party_city_snap,
+            "state": j.party_state_snap,
+            "mobile": j.party_mobile_snap,
+            "total_cases": j.total_cases,
+            "case_breakdown": b_items,
+            "delivery_boy_name": j.delivery_boy_name,
+            "delivery_route": j.delivery_route,
+            "status": j.status,
+            "created_at": j.created_at.isoformat() if j.created_at else None
+        })
+
+    return {
+        "date": date_obj.isoformat(),
+        "total_parties": len(dispatches),
+        "total_packages": total_packages,
+        "breakdown_totals": breakdown_totals,
+        "available_delivery_boys": sorted(list(distinct_drivers)),
+        "available_routes": sorted(list(distinct_routes)),
+        "dispatches": dispatches
+    }
+
+@app.post("/api/dispatch-summary/update-job")
+def update_dispatch_jobs(req: UpdateDispatchJobsRequest, db: Session = Depends(get_db)):
+    if not req.job_ids:
+        raise HTTPException(status_code=400, detail="job_ids cannot be empty")
+
+    jobs = db.query(PrintJob).filter(PrintJob.id.in_(req.job_ids)).all()
+    for j in jobs:
+        if req.delivery_boy_name is not None:
+            j.delivery_boy_name = req.delivery_boy_name
+        if req.delivery_route is not None:
+            j.delivery_route = req.delivery_route
+        if req.status is not None:
+            j.status = req.status
+
+    db.commit()
+    return {"success": True, "updated_count": len(jobs)}
+
+@app.get("/api/dispatch-summary/pdf")
+def get_dispatch_summary_pdf(
+    date: Optional[str] = Query(None),
+    delivery_boy: Optional[str] = Query(None),
+    route: Optional[str] = Query(None),
+    db: Session = Depends(get_db)
+):
+    if not date:
+        date_obj = datetime.datetime.now(datetime.timezone.utc).date()
+    else:
+        try:
+            date_obj = datetime.datetime.strptime(date, "%Y-%m-%d").date()
+        except ValueError:
+            date_obj = datetime.datetime.now(datetime.timezone.utc).date()
+
+    start_dt = datetime.datetime.combine(date_obj, datetime.time.min)
+    end_dt = datetime.datetime.combine(date_obj, datetime.time.max)
+
+    query = db.query(PrintJob).filter(
+        PrintJob.created_at >= start_dt,
+        PrintJob.created_at <= end_dt
+    )
+    if delivery_boy:
+        query = query.filter(PrintJob.delivery_boy_name == delivery_boy)
+    if route:
+        query = query.filter(PrintJob.delivery_route == route)
+
+    jobs = query.order_by(PrintJob.created_at.asc()).all()
+
+    dispatches = [
+        {
+            "party_name": j.party_name_snap,
+            "city": j.party_city_snap,
+            "mobile": j.party_mobile_snap,
+            "total_cases": j.total_cases,
+            "case_breakdown": j.case_breakdown_json
+        }
+        for j in jobs
+    ]
+
+    sender_settings = db.query(SenderSettings).first()
+    sender_dict = {
+        "business_name": sender_settings.business_name if sender_settings else "SHREEJI 7",
+        "address": sender_settings.address if sender_settings else "SHOP 3&4 GF-NARAYAN COMPLEX, DEHGAM-MODASA ROAD, DEHGAM-382305",
+        "mobile": sender_settings.mobile if sender_settings else "+91 99245 44283"
+    }
+
+    date_formatted = date_obj.strftime("%d-%m-%Y")
+    pdf_bytes = pdf_service.generate_dispatch_summary_pdf(
+        date_str=date_formatted,
+        delivery_boy=delivery_boy or "",
+        route=route or "",
+        dispatches=dispatches,
+        sender_data=sender_dict
+    )
+
+    filename = f"Dispatch_Summary_{date_formatted}.pdf"
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",

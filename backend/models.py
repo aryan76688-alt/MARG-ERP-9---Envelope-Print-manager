@@ -117,6 +117,9 @@ class PrintJob(Base):
     printer_name = Column(String(100), default="Default System Printer")
     envelopes_per_page = Column(Integer, default=2)
     status = Column(String(30), default="Printed") # Printed, Pending, Failed
+    case_breakdown_json = Column(Text, nullable=True) # JSON list of case items with quantities and volumes
+    delivery_boy_name = Column(String(100), nullable=True)
+    delivery_route = Column(String(100), nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow, index=True)
 
     # Relationships

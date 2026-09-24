@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ArrowLeft, ZoomIn, ZoomOut, Maximize2, ChevronLeft, ChevronRight, Printer, Download, X } from 'lucide-react';
-import { Party, SenderSettings, AppSettings, CaseItem } from '../types';
+import { Party, SenderSettings, AppSettings, CaseItem, CaseBreakdownItem } from '../types';
 import { EnvelopeTemplate } from '../print/EnvelopeTemplate';
 
 interface FullScreenPreviewModalProps {
@@ -9,6 +9,7 @@ interface FullScreenPreviewModalProps {
   party: Partial<Party>;
   sender: SenderSettings;
   cases: CaseItem[];
+  caseBreakdown?: CaseBreakdownItem[];
   parcelType: string;
   settings: Partial<AppSettings>;
   onPrint: () => void;
@@ -21,6 +22,7 @@ export const FullScreenPreviewModal: React.FC<FullScreenPreviewModalProps> = ({
   party,
   sender,
   cases,
+  caseBreakdown,
   parcelType,
   settings,
   onPrint,
@@ -147,6 +149,7 @@ export const FullScreenPreviewModal: React.FC<FullScreenPreviewModalProps> = ({
             party={party}
             sender={sender}
             caseItem={currentCase}
+            caseBreakdown={caseBreakdown}
             parcelType={parcelType}
             settings={settings}
             scale={zoomScale}

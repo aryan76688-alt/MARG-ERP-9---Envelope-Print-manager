@@ -1,10 +1,11 @@
 import React from 'react';
-import { Party, SenderSettings, AppSettings, CaseItem } from '../types';
+import { Party, SenderSettings, AppSettings, CaseItem, CaseBreakdownItem } from '../types';
 
 interface EnvelopeTemplateProps {
   party: Partial<Party>;
   sender: SenderSettings;
   caseItem: CaseItem;
+  caseBreakdown?: CaseBreakdownItem[];
   parcelType?: string;
   settings?: Partial<AppSettings>;
   scale?: number;
@@ -16,6 +17,7 @@ export const EnvelopeTemplate: React.FC<EnvelopeTemplateProps> = ({
   party,
   sender,
   caseItem,
+  caseBreakdown,
   settings,
   scale = 1,
   className = '',
@@ -38,7 +40,6 @@ export const EnvelopeTemplate: React.FC<EnvelopeTemplateProps> = ({
   const senderEmail = (sender.email || 'SHREEJISEVEN@GMAIL.COM').toUpperCase();
 
   const toHeader = city ? `TO - ${city}` : 'TO -';
-  const caseBadge = showCaseNumber ? `CASE: ${caseItem.case_total}` : '';
 
   // Split sender address into 2 rows matching reference envelope
   let senderAddr1 = senderAddr;
@@ -53,248 +54,106 @@ export const EnvelopeTemplate: React.FC<EnvelopeTemplateProps> = ({
     senderAddr2 = parts.slice(mid).join(', ');
   }
 
+  const stateNotes = [state, notes].filter(Boolean).join(' ');
+
+  // Extract non-zero case breakdown items
+  // Items with quantity 0 are strictly excluded (per user requirement)
+  const breakdownLines: string[] = [];
+  if (caseBreakdown && caseBreakdown.length > 0) {
+    caseBreakdown.forEach((b) => {
+      const qty = Number(b.qty) || 0;
+      if (qty > 0) {
+        const typeStr = (b.type || 'CASE').trim().toUpperCase();
+        const volStr = (b.volume || '').trim().toUpperCase();
+        if (volStr) {
+          breakdownLines.push(`${typeStr} ${volStr}: ${qty}`);
+        } else {
+          breakdownLines.push(`${typeStr}: ${qty}`);
+        }
+      }
+    });
+  }
+
+  // Fallback to CASE: N if no items with qty > 0 were specified
+  if (breakdownLines.length === 0 && showCaseNumber && caseItem.case_total > 0) {
+    breakdownLines.push(`CASE: ${caseItem.case_total}`);
+  }
+
   return (
     <div
-      className={`bg-white text-black select-none flex flex-col justify-start ${className}`}
+      className={`bg-white text-black select-none flex flex-col justify-start relative ${className}`}
       style={{
-        width: isPrintMode ? '100%' : '720px',
-        padding: isPrintMode ? '0 1mm' : '16px 20px',
+        width: isPrintMode ? '100%' : '740px',
+        minHeight: isPrintMode ? '132mm' : '430px',
+        padding: isPrintMode ? '2mm 6mm' : '22px 26px',
         transform: !isPrintMode && scale !== 1 ? `scale(${scale})` : undefined,
         transformOrigin: 'top center',
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Arial, Helvetica, sans-serif',
       }}
     >
-      {/* Exact MARG Courier Grid Table */}
-      <table className="w-full border-collapse border-[1.5px] border-black text-black">
-        <colgroup>
-          <col style={{ width: '14.2857%' }} />
-          <col style={{ width: '14.2857%' }} />
-          <col style={{ width: '14.2857%' }} />
-          <col style={{ width: '14.2857%' }} />
-          <col style={{ width: '14.2857%' }} />
-          <col style={{ width: '14.2857%' }} />
-          <col style={{ width: '14.2857%' }} />
-        </colgroup>
-        <tbody>
-          {/* Row 1: TO - CITY & Case Number */}
-          <tr className="h-6">
-            <td colSpan={3} className="border border-black px-2 py-0.5 font-black text-sm tracking-wide underline">
-              {toHeader}
-            </td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black px-2 py-0.5 font-black text-xs text-right">
-              {caseBadge}
-            </td>
-          </tr>
-
-          {/* Row 2: empty row (7 cols) */}
-          <tr className="h-4">
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-          </tr>
-
-          {/* Row 3: Party Name Line 1 (Double height) */}
-          <tr className="h-7">
-            <td colSpan={3} className="border border-black px-2 py-0.5 font-extrabold text-xs tracking-tight">
-              {partyName}
-            </td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-          </tr>
-
-          {/* Row 4: Party Name Line 2 (with comma) */}
-          <tr className="h-5">
-            <td colSpan={3} className="border border-black px-2 py-0.5 font-extrabold text-xs tracking-tight">
-              {partyName},
-            </td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-          </tr>
-
-          {/* Row 5: Multi-line Address (Double height) */}
-          <tr className="min-h-7">
-            <td colSpan={3} className="border border-black px-2 py-0.5 font-extrabold text-[11px] leading-snug">
-              <div>{address}</div>
-              {addressLine2 && <div className="font-bold text-[10px] text-slate-900">{addressLine2}</div>}
-              {addressLine3 && <div className="font-bold text-[10px] text-slate-800">{addressLine3}</div>}
-            </td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-          </tr>
-
-          {/* Row 6: State & Doctor/Notes */}
-          <tr className="h-5">
-            <td colSpan={3} className="border border-black px-2 py-0.5 font-extrabold text-xs">
-              {state} {notes}
-            </td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-          </tr>
-
-          {/* Row 7: empty row (merged full span double height) */}
-          <tr className="h-7">
-            <td colSpan={7} className="border border-black"></td>
-          </tr>
-
-          {/* Row 8: Recipient Mobile */}
-          <tr className="h-6">
-            <td colSpan={3} className="border border-black px-2 py-0.5 font-black text-xs underline">
+      <div className="flex justify-between w-full h-full">
+        {/* Left Column: Recipient Info (Larger & Bolder) */}
+        <div className="w-[58%] flex flex-col justify-start text-left">
+          <div className="text-[20px] font-black underline tracking-wide uppercase mb-2">
+            {toHeader}
+          </div>
+          <div className="text-[17px] font-black uppercase tracking-tight leading-tight">
+            {partyName}
+          </div>
+          <div className="text-[17px] font-black uppercase tracking-tight leading-tight mb-2">
+            {partyName},
+          </div>
+          <div className="text-[14.5px] font-bold uppercase leading-snug my-1 space-y-0.5">
+            <div>{address}</div>
+            {addressLine2 && <div>{addressLine2}</div>}
+            {addressLine3 && <div>{addressLine3}</div>}
+          </div>
+          {stateNotes && (
+            <div className="text-[14.5px] font-bold uppercase tracking-tight mb-2">
+              {stateNotes}
+            </div>
+          )}
+          {mobile && (
+            <div className="text-[16px] font-black underline tracking-wide mt-1">
               MOB NO:- {mobile}
-            </td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-          </tr>
-
-          {/* Row 9: empty row (merged full span double height) */}
-          <tr className="h-7">
-            <td colSpan={7} className="border border-black"></td>
-          </tr>
-
-          {/* Rows 10, 11, 12: empty spacing rows (7 cols each) */}
-          <tr className="h-4">
-            <td className="border border-black"></td><td className="border border-black"></td><td className="border border-black"></td><td className="border border-black"></td><td className="border border-black"></td><td className="border border-black"></td><td className="border border-black"></td>
-          </tr>
-          <tr className="h-4">
-            <td className="border border-black"></td><td className="border border-black"></td><td className="border border-black"></td><td className="border border-black"></td><td className="border border-black"></td><td className="border border-black"></td><td className="border border-black"></td>
-          </tr>
-          <tr className="h-4">
-            <td className="border border-black"></td><td className="border border-black"></td><td className="border border-black"></td><td className="border border-black"></td><td className="border border-black"></td><td className="border border-black"></td><td className="border border-black"></td>
-          </tr>
-
-          {/* Row 13: FROM, */}
-          <tr className="h-6">
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td colSpan={4} className="border border-black px-2 py-0.5 font-black text-sm">
-              FROM,
-            </td>
-          </tr>
-
-          {/* Row 14: empty row (7 cols) */}
-          <tr className="h-4">
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-          </tr>
-
-          {/* Row 15: Sender Business Name */}
-          <tr className="h-6">
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td colSpan={3} className="border border-black px-2 py-0.5 font-extrabold text-xs">
-              {senderName}
-            </td>
-            <td className="border border-black"></td>
-          </tr>
-
-          {/* Row 16: empty row (7 cols) */}
-          <tr className="h-4">
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-          </tr>
-
-          {/* Row 17: Sender Address Line 1 */}
-          <tr className="h-4">
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td colSpan={4} className="border border-black px-2 py-0.5 font-bold text-[10.5px] leading-tight">
-              {senderAddr1}
-            </td>
-          </tr>
-
-          {/* Row 18: Sender Address Line 2 (City & PIN) */}
-          <tr className="h-4">
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td colSpan={4} className="border border-black px-2 py-0.5 font-bold text-[10.5px] leading-tight">
-              {senderAddr2}
-            </td>
-          </tr>
-
-          {/* Row 19: empty row (7 cols) */}
-          <tr className="h-4">
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-          </tr>
-
-          {/* Row 20: Sender Mobile */}
-          <tr className="h-5">
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td colSpan={2} className="border border-black px-2 py-0.5 font-black text-xs underline">
-              MOB NO.: {senderMobile}
-            </td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-          </tr>
-
-          {/* Row 21: Sender Email */}
-          <tr className="h-5">
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td colSpan={2} className="border border-black px-2 py-0.5 font-black text-xs">
-              MAIL: {senderEmail}
-            </td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-          </tr>
-
-          {/* Row 22: empty closing row with all 7 columns & solid bottom border */}
-          <tr className="h-4">
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-            <td className="border border-black"></td>
-          </tr>
-        </tbody>
-      </table>
-
-      {/* Footer text (only in screen view, hidden in print) */}
-      {!isPrintMode && (
-        <div className="text-center text-slate-400 font-normal text-[10px] pt-3 pb-1">
-          MARG Courier Envelope
+            </div>
+          )}
         </div>
-      )}
+
+        {/* Right Column: Case Breakdown & Sender Info */}
+        <div className="w-[40%] flex flex-col justify-between text-right">
+          {/* Top Right: Dynamic Case Breakdown (Strictly non-zero) */}
+          <div className="text-right pt-0.5 space-y-0.5">
+            {breakdownLines.map((line, idx) => (
+              <div key={idx} className="text-[15.5px] font-black text-black tracking-tight">
+                {line}
+              </div>
+            ))}
+          </div>
+
+          {/* Bottom Right: Sender Info */}
+          <div className="text-left mt-auto pl-3 space-y-0.5">
+            <div className="text-[16px] font-black tracking-tight mb-0.5">FROM,</div>
+            <div className="text-[15px] font-black uppercase tracking-tight leading-tight">
+              {senderName}
+            </div>
+            <div className="text-[13px] font-bold uppercase leading-tight">
+              {senderAddr1}
+            </div>
+            {senderAddr2 && (
+              <div className="text-[13px] font-bold uppercase leading-tight">
+                {senderAddr2}
+              </div>
+            )}
+            <div className="text-[14px] font-black underline tracking-tight mt-1">
+              MOB NO.: {senderMobile}
+            </div>
+            <div className="text-[13px] font-bold tracking-tight">
+              MAIL: {senderEmail}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

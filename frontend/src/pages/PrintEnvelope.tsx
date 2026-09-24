@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Search, 
   Printer, 
@@ -12,16 +12,36 @@ import {
   Check, 
   AlertCircle, 
   CheckCircle2, 
-  Scale, 
   Layers,
   ZoomIn,
   ZoomOut,
-  ChevronDown,
-  ChevronUp,
-  AlertTriangle
+  Users,
+  CheckSquare,
+  Square,
+  Plus,
+  Minus,
+  Info,
+  Truck,
+  RotateCcw,
+  Sparkles
 } from 'lucide-react';
-import { Party, SenderSettings, AppSettings, CaseItem } from '../types';
-import { autocompleteParties, createPrintJob, downloadEnvelopePDF, fetchSettings, fetchPrintJobs } from '../api/client';
+import { 
+  Party, 
+  SenderSettings, 
+  AppSettings, 
+  CaseItem, 
+  CaseBreakdownItem, 
+  UnprintedPartyItem 
+} from '../types';
+import { 
+  autocompleteParties, 
+  createPrintJob, 
+  createBulkPrintJobs, 
+  downloadEnvelopePDF, 
+  fetchSettings, 
+  fetchPrintJobs, 
+  fetchUnprintedPartiesToday 
+} from '../api/client';
 import { EnvelopeTemplate } from '../print/EnvelopeTemplate';
 import { FullScreenPreviewModal } from '../components/FullScreenPreviewModal';
 
@@ -30,7 +50,12 @@ interface PrintEnvelopeProps {
   onJobCreated?: (jobId: number) => void;
 }
 
+const FLUID_VOLUMES = ['100ML', '200ML', '250ML', '500ML', '1LTR'] as const;
+
 export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, onJobCreated }) => {
+  // Mode: Single Party vs Bulk Daily Select All
+  const [printMode, setPrintMode] = useState<'single' | 'bulk'>('single');
+
   // Party selection state
   const [partySearch, setPartySearch] = useState<string>('');
   const [matchingParties, setMatchingParties] = useState<Party[]>([]);
@@ -38,6 +63,14 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, onJo
   const [searchMode, setSearchMode] = useState<'starts_with' | 'contains'>('contains');
   const [activeSearchIndex, setActiveSearchIndex] = useState<number>(0);
   const [isSearching, setIsSearching] = useState<boolean>(false);
+
+  // Bulk Daily Print state
+  const [unprintedParties, setUnprintedParties] = useState<UnprintedPartyItem[]>([]);
+  const [unprintedOnlyFilter, setUnprintedOnlyFilter] = useState<boolean>(true);
+  const [bulkSelectedIds, setBulkSelectedIds] = useState<number[]>([]);
+  const [bulkSearch, setBulkSearch] = useState<string>('');
+  const [isBulkLoading, setIsBulkLoading] = useState<boolean>(false);
+  const [isBulkPrinting, setIsBulkPrinting] = useState<boolean>(false);
 
   // Settings & Sender state
   const [sender, setSender] = useState<SenderSettings>({
@@ -52,22 +85,38 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, onJo
     default_envelope_size: 'A4',
     default_orientation: 'Landscape',
     envelopes_per_page: 2,
-    show_barcode: true,
+    margin_top_mm: 15.0,
+    margin_left_mm: 3.0,
+    margin_right_mm: 3.0,
+    margin_bottom_mm: 10.0,
     show_case_number: true,
-    show_weight: true,
-    show_mobile: true,
-    show_party_code: true,
-    show_date: false,
   });
 
-  // Parcel & Case state
-  const [totalCases, setTotalCases] = useState<number>(3);
-  const [weightMode, setWeightMode] = useState<'uniform' | 'individual'>('uniform');
-  const [uniformWeight, setUniformWeight] = useState<number>(2.5);
-  const [individualWeights, setIndividualWeights] = useState<number[]>([2.5, 2.5, 2.5]);
-  const [parcelType, setParcelType] = useState<string>('Medicine');
-  const [printCaseNumber, setPrintCaseNumber] = useState<boolean>(true);
-  const [showCaseBreakdown, setShowCaseBreakdown] = useState<boolean>(false);
+  // ==========================================================
+  // CASE BREAKDOWN STATE (All default to 0; 0 will NOT print!)
+  // ==========================================================
+  const [standardCaseQty, setStandardCaseQty] = useState<number>(0);
+  const [parcelBagQty, setParcelBagQty] = useState<number>(0);
+
+  const [nsCaseVolumes, setNsCaseVolumes] = useState<Record<string, number>>({
+    '100ML': 0, '200ML': 0, '250ML': 0, '500ML': 0, '1LTR': 0,
+  });
+  const [rlCaseVolumes, setRlCaseVolumes] = useState<Record<string, number>>({
+    '100ML': 0, '200ML': 0, '250ML': 0, '500ML': 0, '1LTR': 0,
+  });
+  const [dnsCaseVolumes, setDnsCaseVolumes] = useState<Record<string, number>>({
+    '100ML': 0, '200ML': 0, '250ML': 0, '500ML': 0, '1LTR': 0,
+  });
+  const [metroCaseVolumes, setMetroCaseVolumes] = useState<Record<string, number>>({
+    '100ML': 0, '200ML': 0, '250ML': 0, '500ML': 0, '1LTR': 0,
+  });
+
+  // Active IV Fluid Tab in Case Builder
+  const [activeFluidTab, setActiveFluidTab] = useState<'NS' | 'RL' | 'DNS' | 'METRO'>('NS');
+
+  // Delivery Boy & Route Assignment (Optional)
+  const [deliveryBoyName, setDeliveryBoyName] = useState<string>('');
+  const [deliveryRoute, setDeliveryRoute] = useState<string>('');
 
   // Print settings
   const [envelopeSize, setEnvelopeSize] = useState<string>('A4');
@@ -85,7 +134,57 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, onJo
 
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Check if selected party was already printed today
+  // Compute Active Non-Zero Breakdown Items (0 quantities excluded)
+  const activeCaseBreakdown = useMemo<CaseBreakdownItem[]>(() => {
+    const list: CaseBreakdownItem[] = [];
+    if (standardCaseQty > 0) list.push({ type: 'CASE', qty: standardCaseQty });
+    if (parcelBagQty > 0) list.push({ type: 'PARCEL BAG', qty: parcelBagQty });
+
+    FLUID_VOLUMES.forEach((vol) => {
+      const q = nsCaseVolumes[vol] || 0;
+      if (q > 0) list.push({ type: 'NS CASE', volume: vol, qty: q });
+    });
+    FLUID_VOLUMES.forEach((vol) => {
+      const q = rlCaseVolumes[vol] || 0;
+      if (q > 0) list.push({ type: 'RL CASE', volume: vol, qty: q });
+    });
+    FLUID_VOLUMES.forEach((vol) => {
+      const q = dnsCaseVolumes[vol] || 0;
+      if (q > 0) list.push({ type: 'DNS CASE', volume: vol, qty: q });
+    });
+    FLUID_VOLUMES.forEach((vol) => {
+      const q = metroCaseVolumes[vol] || 0;
+      if (q > 0) list.push({ type: 'METRO CASE', volume: vol, qty: q });
+    });
+
+    return list;
+  }, [standardCaseQty, parcelBagQty, nsCaseVolumes, rlCaseVolumes, dnsCaseVolumes, metroCaseVolumes]);
+
+  // Total Packages Count
+  const totalPackagesCount = useMemo<number>(() => {
+    const sum = activeCaseBreakdown.reduce((acc, curr) => acc + curr.qty, 0);
+    return sum > 0 ? sum : 1;
+  }, [activeCaseBreakdown]);
+
+  // Generated Cases Array for preview
+  const casesList: CaseItem[] = Array.from({ length: totalPackagesCount }, (_, i) => ({
+    case_number: i + 1,
+    case_total: totalPackagesCount,
+    weight: 1.0,
+    barcode_value: `MRG-2026-000001-C${i + 1}`,
+  }));
+
+  // Reset all quantities to 0
+  const handleResetQuantities = () => {
+    setStandardCaseQty(0);
+    setParcelBagQty(0);
+    setNsCaseVolumes({ '100ML': 0, '200ML': 0, '250ML': 0, '500ML': 0, '1LTR': 0 });
+    setRlCaseVolumes({ '100ML': 0, '200ML': 0, '250ML': 0, '500ML': 0, '1LTR': 0 });
+    setDnsCaseVolumes({ '100ML': 0, '200ML': 0, '250ML': 0, '500ML': 0, '1LTR': 0 });
+    setMetroCaseVolumes({ '100ML': 0, '200ML': 0, '250ML': 0, '500ML': 0, '1LTR': 0 });
+  };
+
+  // Check if selected party was printed today
   useEffect(() => {
     if (!selectedParty?.party_name) {
       setHasPrintedToday(false);
@@ -107,12 +206,10 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, onJo
           setPrintedTodayCount(0);
         }
       })
-      .catch(() => {
-        setHasPrintedToday(false);
-      });
+      .catch(() => setHasPrintedToday(false));
   }, [selectedParty?.party_name]);
 
-  // Load Settings & Sender on mount
+  // Load Settings & Sender
   useEffect(() => {
     fetchSettings()
       .then((data) => {
@@ -126,7 +223,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, onJo
       .catch(console.error);
   }, []);
 
-  // Set default demo party if none selected
+  // Load default party
   useEffect(() => {
     if (!selectedParty) {
       autocompleteParties('JODHPUR', 'contains').then((results) => {
@@ -137,10 +234,9 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, onJo
     }
   }, []);
 
-  // Instant Autocomplete Search (triggers even on 1 character, e.g. 'J')
+  // Instant Autocomplete Search for Single Party
   useEffect(() => {
     if (!partySearch.trim()) {
-      // Show default top list
       autocompleteParties('J', 'contains').then(setMatchingParties);
       return;
     }
@@ -158,37 +254,51 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, onJo
     return () => clearTimeout(timer);
   }, [partySearch, searchMode]);
 
-  // Adjust individualWeights array when totalCases changes
+  // Load Unprinted Parties for Bulk Mode
+  const loadUnprintedParties = () => {
+    setIsBulkLoading(true);
+    fetchUnprintedPartiesToday(unprintedOnlyFilter)
+      .then((res) => {
+        setUnprintedParties(res.items || []);
+        // Automatically select all unprinted parties
+        const unprintedIds = (res.items || []).filter((p) => !p.printed_today).map((p) => p.id as number);
+        setBulkSelectedIds(unprintedIds);
+      })
+      .catch(console.error)
+      .finally(() => setIsBulkLoading(false));
+  };
+
   useEffect(() => {
-    setIndividualWeights((prev) => {
-      const updated = [...prev];
-      if (totalCases > updated.length) {
-        while (updated.length < totalCases) {
-          updated.push(uniformWeight);
-        }
-      } else if (totalCases < updated.length) {
-        return updated.slice(0, totalCases);
-      }
-      return updated;
-    });
-    if (currentPreviewCase >= totalCases) {
-      setCurrentPreviewCase(0);
+    if (printMode === 'bulk') {
+      loadUnprintedParties();
     }
-  }, [totalCases, uniformWeight]);
+  }, [printMode, unprintedOnlyFilter]);
 
-  // Calculate Total Weight dynamically
-  const totalWeight =
-    weightMode === 'uniform'
-      ? totalCases * uniformWeight
-      : individualWeights.slice(0, totalCases).reduce((acc, w) => acc + (w || 0), 0);
+  // Filtered Bulk Parties
+  const filteredBulkParties = useMemo(() => {
+    if (!bulkSearch.trim()) return unprintedParties;
+    const q = bulkSearch.toLowerCase();
+    return unprintedParties.filter(
+      (p) =>
+        p.party_name.toLowerCase().includes(q) ||
+        p.city.toLowerCase().includes(q) ||
+        (p.party_code || '').toLowerCase().includes(q)
+    );
+  }, [unprintedParties, bulkSearch]);
 
-  // Generated Cases Array
-  const casesList: CaseItem[] = Array.from({ length: totalCases }, (_, i) => ({
-    case_number: i + 1,
-    case_total: totalCases,
-    weight: weightMode === 'uniform' ? uniformWeight : individualWeights[i] || uniformWeight,
-    barcode_value: `MRG-2026-000001-C${i + 1}`,
-  }));
+  const toggleSelectAllBulk = () => {
+    if (bulkSelectedIds.length === filteredBulkParties.length) {
+      setBulkSelectedIds([]);
+    } else {
+      setBulkSelectedIds(filteredBulkParties.map((p) => p.id as number));
+    }
+  };
+
+  const togglePartyInBulk = (id: number) => {
+    setBulkSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
+  };
 
   // Keyboard navigation for party search dropdown
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -209,10 +319,10 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, onJo
     }
   };
 
-  // Validation
-  const isValidToPrint = selectedParty && selectedParty.party_name && selectedParty.address && totalCases >= 1;
+  // Validation for single print
+  const isValidToPrint = selectedParty && selectedParty.party_name && selectedParty.address;
 
-  // Print Envelope (Creates real database transaction & triggers browser print)
+  // Single Envelope Print
   const handlePrintEnvelope = async () => {
     if (!isValidToPrint || !selectedParty) {
       alert('Please select a party with valid address before printing.');
@@ -233,8 +343,8 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, onJo
         state: selectedParty.state,
         mobile_no: selectedParty.mobile_no,
         gst_no: selectedParty.gst_no,
-        parcel_type: parcelType,
-        total_cases: totalCases,
+        parcel_type: 'Medicine',
+        total_cases: totalPackagesCount,
         case_weights: weights,
         envelope_size: envelopeSize,
         orientation: 'Landscape',
@@ -242,11 +352,12 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, onJo
         envelopes_per_page: envelopesPerPage,
         status: 'Printed',
         sender: sender,
+        case_breakdown: activeCaseBreakdown,
+        delivery_boy_name: deliveryBoyName.trim() || undefined,
+        delivery_route: deliveryRoute.trim() || undefined,
       });
 
       if (onJobCreated) onJobCreated(res.id);
-
-      // Trigger browser print
       window.print();
     } catch (err: any) {
       alert('Failed to process print job: ' + err.message);
@@ -255,7 +366,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, onJo
     }
   };
 
-  // Download PDF
+  // Single Envelope PDF Download
   const handleDownloadPDF = async () => {
     if (!selectedParty) {
       alert('Please select a party first.');
@@ -274,17 +385,17 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, onJo
         state: selectedParty.state,
         mobile_no: selectedParty.mobile_no || undefined,
         gst_no: selectedParty.gst_no || undefined,
-        parcel_type: parcelType,
-        total_cases: totalCases,
+        parcel_type: 'Medicine',
+        total_cases: totalPackagesCount,
         case_weights: casesList.map((c) => c.weight),
         sender: sender,
+        case_breakdown: activeCaseBreakdown,
         envelopes_per_page: envelopesPerPage,
         envelope_size: envelopeSize,
         margin_top_mm: appSettings.margin_top_mm,
         margin_bottom_mm: appSettings.margin_bottom_mm,
         margin_left_mm: appSettings.margin_left_mm,
         margin_right_mm: appSettings.margin_right_mm,
-        scale_percent: appSettings.scale_percent,
       });
     } catch (err: any) {
       alert('Failed to download PDF: ' + err.message);
@@ -293,9 +404,245 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, onJo
     }
   };
 
+  // Bulk Daily Print (One-time on day)
+  const handleBulkPrint = async () => {
+    if (bulkSelectedIds.length === 0) {
+      alert('Please select at least one party to print.');
+      return;
+    }
+
+    const confirmMsg = `Are you sure you want to print envelopes for ${bulkSelectedIds.length} parties?\n\nThis will mark them as printed for today so they are not printed twice.`;
+    if (!window.confirm(confirmMsg)) return;
+
+    setIsBulkPrinting(true);
+    try {
+      const res = await createBulkPrintJobs({
+        party_ids: bulkSelectedIds,
+        case_breakdown: activeCaseBreakdown,
+        total_cases: totalPackagesCount,
+        delivery_boy_name: deliveryBoyName.trim() || undefined,
+        delivery_route: deliveryRoute.trim() || undefined,
+        envelopes_per_page: envelopesPerPage,
+        envelope_size: envelopeSize,
+      });
+
+      alert(`Successfully generated print jobs for ${res.created_count} parties! Downloading combined PDF...`);
+
+      // Download combined PDF of all bulk envelopes
+      await downloadEnvelopePDF({
+        job_ids: res.job_ids,
+        sender: sender,
+        envelopes_per_page: envelopesPerPage,
+        envelope_size: envelopeSize,
+      });
+
+      // Refresh list
+      loadUnprintedParties();
+      if (onJobCreated && res.job_ids[0]) onJobCreated(res.job_ids[0]);
+    } catch (err: any) {
+      alert('Failed to execute bulk print: ' + err.message);
+    } finally {
+      setIsBulkPrinting(false);
+    }
+  };
+
   return (
-    <div className="space-y-6 max-w-[1500px] mx-auto">
-      {/* 3-Column Layout: LEFT (Search/Parties) | CENTER (Controls/Forms) | RIGHT (Live Preview) */}
+    <div className="space-y-6 max-w-[1500px] mx-auto pb-10">
+      {/* Top Banner: Mode Selector */}
+      <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-black text-slate-900 uppercase tracking-wider px-2">
+            Print Mode:
+          </span>
+          <div className="bg-slate-100 p-1 rounded-xl flex items-center gap-1">
+            <button
+              onClick={() => setPrintMode('single')}
+              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-extrabold transition-all ${
+                printMode === 'single'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <span>Single Party Print</span>
+            </button>
+            <button
+              onClick={() => setPrintMode('bulk')}
+              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-extrabold transition-all ${
+                printMode === 'bulk'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span>Bulk Daily Print (Select All)</span>
+              <span className="bg-amber-400 text-slate-900 text-[10px] px-1.5 py-0.2 rounded font-black">
+                1-Time/Day
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {/* Right Info: 0-Quantity Rule Guarantee */}
+        <div className="text-[11px] font-bold text-slate-500 flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+          <span>Items with 0 Quantity will NOT print on envelope</span>
+        </div>
+      </div>
+
+      {/* ========================================================== */}
+      {/* BULK DAILY PRINT VIEW (All Parties Select & Print 1x/Day)  */}
+      {/* ========================================================== */}
+      {printMode === 'bulk' && (
+        <div className="bg-white p-5 rounded-2xl border border-blue-200 shadow-sm space-y-5">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+            <div>
+              <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                <Users className="w-5 h-5 text-blue-600" />
+                <span>Daily Bulk Party Selection</span>
+              </h2>
+              <p className="text-xs text-slate-500 font-semibold mt-0.5">
+                Select all parties or choose unprinted parties to generate dispatches once per day.
+              </p>
+            </div>
+
+            {/* Bulk Action Button */}
+            <div className="flex items-center gap-3 w-full md:w-auto">
+              <button
+                onClick={handleBulkPrint}
+                disabled={isBulkPrinting || bulkSelectedIds.length === 0}
+                className="flex-1 md:flex-initial flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-sm shadow-lg shadow-blue-600/30 transition-all hover:scale-102 disabled:opacity-50"
+              >
+                <Printer className="w-5 h-5" />
+                <span>
+                  {isBulkPrinting
+                    ? 'Processing Bulk Print...'
+                    : `PRINT ALL SELECTED (${bulkSelectedIds.length} PARTIES)`}
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {/* Bulk Controls & Filter */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="relative">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+              <input
+                type="text"
+                value={bulkSearch}
+                onChange={(e) => setBulkSearch(e.target.value)}
+                placeholder="Search parties in list..."
+                className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold"
+              />
+            </div>
+
+            <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 text-xs">
+              <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={unprintedOnlyFilter}
+                  onChange={(e) => setUnprintedOnlyFilter(e.target.checked)}
+                  className="w-4 h-4 text-blue-600 rounded"
+                />
+                <span>Show Unprinted Today Only</span>
+              </label>
+            </div>
+
+            <div className="flex items-center justify-between bg-blue-50/70 px-4 py-2 rounded-xl border border-blue-100 text-xs font-bold text-blue-900">
+              <span>Selected Parties:</span>
+              <span className="font-black text-base text-blue-950">
+                {bulkSelectedIds.length} / {filteredBulkParties.length}
+              </span>
+            </div>
+          </div>
+
+          {/* Optional Delivery Boy Assignment */}
+          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div>
+              <span className="font-bold text-slate-600 block mb-1">Assign Delivery Boy (Optional):</span>
+              <input
+                type="text"
+                value={deliveryBoyName}
+                onChange={(e) => setDeliveryBoyName(e.target.value)}
+                placeholder="e.g. Ramesh Bhai"
+                className="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-white font-bold"
+              />
+            </div>
+            <div>
+              <span className="font-bold text-slate-600 block mb-1">Assign Route (Optional):</span>
+              <input
+                type="text"
+                value={deliveryRoute}
+                onChange={(e) => setDeliveryRoute(e.target.value)}
+                placeholder="e.g. Dehgam City Route"
+                className="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-white font-bold"
+              />
+            </div>
+          </div>
+
+          {/* Table of Parties for Bulk Printing */}
+          <div className="border border-slate-200 rounded-xl overflow-hidden max-h-96 overflow-y-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead className="sticky top-0 bg-slate-900 text-white font-black uppercase text-[10px] tracking-wider z-10">
+                <tr>
+                  <th className="p-3 w-10 text-center">
+                    <input
+                      type="checkbox"
+                      checked={bulkSelectedIds.length === filteredBulkParties.length && filteredBulkParties.length > 0}
+                      onChange={toggleSelectAllBulk}
+                      className="w-3.5 h-3.5 text-blue-600 rounded"
+                    />
+                  </th>
+                  <th className="p-3">Party Name</th>
+                  <th className="p-3">Station / City</th>
+                  <th className="p-3">Mobile No.</th>
+                  <th className="p-3 text-center">Today's Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-slate-800">
+                {filteredBulkParties.map((p) => {
+                  const isChecked = bulkSelectedIds.includes(p.id as number);
+                  return (
+                    <tr
+                      key={p.id}
+                      onClick={() => togglePartyInBulk(p.id as number)}
+                      className={`cursor-pointer hover:bg-slate-50 transition-colors ${
+                        isChecked ? 'bg-blue-50/60 font-semibold' : ''
+                      }`}
+                    >
+                      <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => togglePartyInBulk(p.id as number)}
+                          className="w-3.5 h-3.5 text-blue-600 rounded"
+                        />
+                      </td>
+                      <td className="p-3 font-extrabold text-slate-900">{p.party_name}</td>
+                      <td className="p-3 font-bold text-slate-700">{p.city}</td>
+                      <td className="p-3 font-mono text-slate-600">{p.mobile_no || '-'}</td>
+                      <td className="p-3 text-center">
+                        {p.printed_today ? (
+                          <span className="text-[10px] font-black bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded">
+                            Printed Today
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded">
+                            Not Printed
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================== */}
+      {/* 3-COLUMN MAIN LAYOUT (Search | Case Breakdown | Preview)   */}
+      {/* ========================================================== */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
         
         {/* ========================================== */}
@@ -306,15 +653,15 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, onJo
             <h3 className="font-extrabold text-slate-900 text-sm flex items-center justify-between">
               <span>Select Party</span>
               <span className="text-[10px] font-bold bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-200">
-                1-Letter Search
+                1-Letter Instant
               </span>
             </h3>
             <p className="text-[11px] text-slate-500 mt-0.5">
-              Type any letter to search MARG party ledger
+              Instant search from 2,339 parties
             </p>
           </div>
 
-          {/* Search Input & Mode Selector */}
+          {/* Search Input */}
           <div className="space-y-2">
             <div className="relative">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
@@ -324,389 +671,337 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, onJo
                 value={partySearch}
                 onChange={(e) => setPartySearch(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Search name, code, mobile..."
-                className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs font-semibold uppercase"
+                placeholder="Type party name or city..."
+                className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-900 uppercase focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
               />
             </div>
+          </div>
 
-            <div className="flex items-center justify-between text-[11px] text-slate-600 font-semibold px-1">
-              <span>Mode:</span>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setSearchMode('contains')}
-                  className={`px-2 py-0.5 rounded ${
-                    searchMode === 'contains'
-                      ? 'bg-blue-600 text-white font-bold'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  Contains
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSearchMode('starts_with')}
-                  className={`px-2 py-0.5 rounded ${
-                    searchMode === 'starts_with'
-                      ? 'bg-blue-600 text-white font-bold'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  Starts With
-                </button>
+          {/* Search Results Dropdown List */}
+          <div className="space-y-1 max-h-[300px] overflow-y-auto divide-y divide-slate-100 border border-slate-100 rounded-lg">
+            {matchingParties.map((p, idx) => (
+              <div
+                key={p.id || idx}
+                onClick={() => setSelectedParty(p)}
+                className={`p-2 cursor-pointer transition-colors text-xs ${
+                  selectedParty?.id === p.id
+                    ? 'bg-blue-600 text-white font-bold'
+                    : idx === activeSearchIndex
+                    ? 'bg-blue-50 text-blue-900'
+                    : 'hover:bg-slate-50 text-slate-800'
+                }`}
+              >
+                <div className="font-extrabold uppercase">{p.party_name}</div>
+                <div className="text-[10px] opacity-80 flex items-center justify-between">
+                  <span>{p.city}</span>
+                  {p.mobile_no && <span>{p.mobile_no}</span>}
+                </div>
               </div>
+            ))}
+          </div>
+
+          {/* Selected Party Summary Card */}
+          {selectedParty && (
+            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2 text-xs">
+              <div className="font-black text-slate-900 text-sm uppercase">
+                {selectedParty.party_name}
+              </div>
+              <div className="text-slate-600 font-semibold uppercase leading-snug">
+                {selectedParty.address}
+              </div>
+              <div className="text-slate-700 font-bold uppercase">
+                {selectedParty.city}, {selectedParty.state}
+              </div>
+              {selectedParty.mobile_no && (
+                <div className="text-blue-900 font-extrabold">
+                  MOB: {selectedParty.mobile_no}
+                </div>
+              )}
+
+              {/* Already Printed Today Badge */}
+              {hasPrintedToday && (
+                <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 font-extrabold text-[11px] flex items-center gap-1.5">
+                  <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Already printed {printedTodayCount} time(s) today!</span>
+                </div>
+              )}
             </div>
-          </div>
-
-          {/* Matching Parties List */}
-          <div className="space-y-2 max-h-[520px] overflow-y-auto pr-1">
-            {matchingParties.length > 0 ? (
-              matchingParties.map((p, idx) => {
-                const isSelected = selectedParty?.id === p.id || selectedParty?.party_name === p.party_name;
-                return (
-                  <div
-                    key={p.id || idx}
-                    onClick={() => setSelectedParty(p)}
-                    className={`p-3 rounded-lg border text-xs cursor-pointer transition-all duration-150 ${
-                      isSelected
-                        ? 'bg-blue-600 border-blue-700 text-white shadow-md shadow-blue-600/20'
-                        : idx === activeSearchIndex
-                        ? 'bg-blue-50 border-blue-300 text-slate-900'
-                        : 'bg-white border-slate-200 hover:border-blue-300 text-slate-800'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-1">
-                      <div className="font-black text-[13px] leading-tight">
-                        {p.party_name}
-                      </div>
-                      {p.party_code && (
-                        <span
-                          className={`text-[10px] font-mono px-1.5 py-0.2 rounded font-bold ${
-                            isSelected
-                              ? 'bg-blue-800 text-blue-100'
-                              : 'bg-slate-100 text-slate-600 border border-slate-200'
-                          }`}
-                        >
-                          {p.party_code}
-                        </span>
-                      )}
-                    </div>
-                    <div className={`text-[11px] mt-1 truncate ${isSelected ? 'text-blue-100' : 'text-slate-500'}`}>
-                      {p.address}
-                    </div>
-                    <div className="flex items-center justify-between mt-1.5 text-[10px] font-bold">
-                      <span className={isSelected ? 'text-blue-200' : 'text-blue-700'}>
-                        {p.city}, {p.state}
-                      </span>
-                      {p.mobile_no && (
-                        <span className={isSelected ? 'text-blue-200' : 'text-slate-600 font-mono'}>
-                          Mo: {p.mobile_no}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })
-            ) : (
-              <div className="p-4 text-center text-slate-400 text-xs">
-                No matching parties found.
-              </div>
-            )}
-          </div>
+          )}
         </div>
 
-        {/* ========================================== */}
-        {/* 2. CENTER COLUMN: DETAILS & CONTROLS (4 COLS) */}
-        {/* ========================================== */}
+        {/* ========================================================== */}
+        {/* 2. CENTER COLUMN: CASE BREAKDOWN BUILDER (4 COLS)          */}
+        {/* ========================================================== */}
         <div className="lg:col-span-4 space-y-4">
           
-          {/* Card A: Selected Party Details */}
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+          {/* Card: Case Breakdown Builder (0 Default Guarantee) */}
+          <div className="bg-white p-4 rounded-xl border-2 border-blue-600 shadow-sm space-y-4">
             <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-              <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-1.5">
-                <Building className="w-4 h-4 text-blue-600" />
-                <span>Recipient (Party Details)</span>
-              </h3>
-              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                NO PIN CODE
-              </span>
+              <div>
+                <h3 className="font-black text-slate-900 text-sm flex items-center gap-1.5">
+                  <Package className="w-4 h-4 text-blue-600" />
+                  <span>Case & Fluid Breakdown</span>
+                </h3>
+                <p className="text-[10px] text-slate-500 font-bold">
+                  0-quantity items are NOT printed on envelope
+                </p>
+              </div>
+
+              <button
+                onClick={handleResetQuantities}
+                className="text-[10px] font-bold text-slate-500 hover:text-red-600 flex items-center gap-1"
+                title="Reset all to 0"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>Reset</span>
+              </button>
             </div>
 
-            {selectedParty ? (
-              <div className="space-y-2 text-xs">
-                {/* Same-day deduplication warning notice */}
-                {hasPrintedToday && (
-                  <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-center justify-between font-bold">
-                    <div className="flex items-center gap-1.5">
-                      <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
-                      <span>Already printed today ({printedTodayCount} job{printedTodayCount > 1 ? 's' : ''}).</span>
-                    </div>
-                    <span className="text-[10px] bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded uppercase font-extrabold">
-                      PRINTED TODAY
-                    </span>
-                  </div>
-                )}
+            {/* Section A: Standard Case & Parcel Bag (Counters) */}
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              {/* CASE (Standard) */}
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1.5">
+                <div className="font-extrabold text-slate-800 text-[11px] uppercase">
+                  Standard Case
+                </div>
+                <div className="flex items-center justify-between gap-1">
+                  <button
+                    onClick={() => setStandardCaseQty((q) => Math.max(0, q - 1))}
+                    className="w-8 h-8 rounded-lg bg-white border border-slate-300 font-black text-slate-700 hover:bg-slate-100 flex items-center justify-center text-sm"
+                  >
+                    -
+                  </button>
+                  <input
+                    type="number"
+                    min={0}
+                    value={standardCaseQty}
+                    onChange={(e) => setStandardCaseQty(Math.max(0, parseInt(e.target.value || '0', 10)))}
+                    className="w-14 text-center font-black text-base text-blue-950 py-1 bg-white border border-slate-300 rounded-lg"
+                  />
+                  <button
+                    onClick={() => setStandardCaseQty((q) => q + 1)}
+                    className="w-8 h-8 rounded-lg bg-white border border-slate-300 font-black text-slate-700 hover:bg-slate-100 flex items-center justify-center text-sm"
+                  >
+                    +
+                  </button>
+                </div>
+                <div className="text-[10px] font-bold text-slate-500 text-center">
+                  Prints: {standardCaseQty > 0 ? `CASE: ${standardCaseQty}` : 'None'}
+                </div>
+              </div>
 
-                <div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase">Party Name *</span>
+              {/* PARCEL BAG */}
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1.5">
+                <div className="font-extrabold text-slate-800 text-[11px] uppercase">
+                  Parcel Bag
+                </div>
+                <div className="flex items-center justify-between gap-1">
+                  <button
+                    onClick={() => setParcelBagQty((q) => Math.max(0, q - 1))}
+                    className="w-8 h-8 rounded-lg bg-white border border-slate-300 font-black text-slate-700 hover:bg-slate-100 flex items-center justify-center text-sm"
+                  >
+                    -
+                  </button>
                   <input
-                    type="text"
-                    value={selectedParty.party_name}
-                    onChange={(e) => setSelectedParty({ ...selectedParty, party_name: e.target.value })}
-                    className="w-full px-2.5 py-1.5 bg-slate-50 rounded border border-slate-200 font-extrabold text-slate-950 uppercase"
+                    type="number"
+                    min={0}
+                    value={parcelBagQty}
+                    onChange={(e) => setParcelBagQty(Math.max(0, parseInt(e.target.value || '0', 10)))}
+                    className="w-14 text-center font-black text-base text-blue-950 py-1 bg-white border border-slate-300 rounded-lg"
                   />
+                  <button
+                    onClick={() => setParcelBagQty((q) => q + 1)}
+                    className="w-8 h-8 rounded-lg bg-white border border-slate-300 font-black text-slate-700 hover:bg-slate-100 flex items-center justify-center text-sm"
+                  >
+                    +
+                  </button>
                 </div>
-                <div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase">Address Line 1 *</span>
-                  <input
-                    type="text"
-                    value={selectedParty.address}
-                    onChange={(e) => setSelectedParty({ ...selectedParty, address: e.target.value })}
-                    placeholder="Shop / Building / Premises"
-                    className="w-full px-2.5 py-1.5 bg-slate-50 rounded border border-slate-200 font-semibold text-slate-800 uppercase"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">Address Line 2</span>
-                    <input
-                      type="text"
-                      value={selectedParty.address_line_2 || ''}
-                      onChange={(e) => setSelectedParty({ ...selectedParty, address_line_2: e.target.value })}
-                      placeholder="Street / Area / Colony"
-                      className="w-full px-2.5 py-1.5 bg-slate-50 rounded border border-slate-200 font-semibold text-slate-800 uppercase"
-                    />
-                  </div>
-                  <div>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">Address Line 3</span>
-                    <input
-                      type="text"
-                      value={selectedParty.address_line_3 || ''}
-                      onChange={(e) => setSelectedParty({ ...selectedParty, address_line_3: e.target.value })}
-                      placeholder="Landmark / Station Road"
-                      className="w-full px-2.5 py-1.5 bg-slate-50 rounded border border-slate-200 font-semibold text-slate-800 uppercase"
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">City *</span>
-                    <input
-                      type="text"
-                      value={selectedParty.city}
-                      onChange={(e) => setSelectedParty({ ...selectedParty, city: e.target.value })}
-                      className="w-full px-2.5 py-1.5 bg-slate-50 rounded border border-slate-200 font-bold text-slate-800 uppercase"
-                    />
-                  </div>
-                  <div>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">State *</span>
-                    <input
-                      type="text"
-                      value={selectedParty.state}
-                      onChange={(e) => setSelectedParty({ ...selectedParty, state: e.target.value })}
-                      className="w-full px-2.5 py-1.5 bg-slate-50 rounded border border-slate-200 font-bold text-slate-800 uppercase"
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">Mobile No.</span>
-                    <input
-                      type="text"
-                      value={selectedParty.mobile_no || ''}
-                      onChange={(e) => setSelectedParty({ ...selectedParty, mobile_no: e.target.value })}
-                      className="w-full px-2.5 py-1.5 bg-slate-50 rounded border border-slate-200 font-mono font-bold text-slate-800"
-                    />
-                  </div>
-                  <div>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">GST No.</span>
-                    <input
-                      type="text"
-                      value={selectedParty.gst_no || ''}
-                      onChange={(e) => setSelectedParty({ ...selectedParty, gst_no: e.target.value })}
-                      className="w-full px-2.5 py-1.5 bg-slate-50 rounded border border-slate-200 font-mono text-slate-700 uppercase"
-                    />
-                  </div>
+                <div className="text-[10px] font-bold text-slate-500 text-center">
+                  Prints: {parcelBagQty > 0 ? `PARCEL BAG: ${parcelBagQty}` : 'None'}
                 </div>
               </div>
-            ) : (
-              <div className="p-4 text-center text-slate-400 text-xs">
-                Select a party from the left list to populate details.
+            </div>
+
+            {/* Section B: IV Fluid Case Types (NS, RL, DNS, METRO) */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black text-slate-900 uppercase tracking-tight">
+                  IV Fluids (NS, RL, DNS, METRO)
+                </span>
+                <span className="text-[10px] font-extrabold text-blue-700">
+                  Select Multiple Volumes
+                </span>
               </div>
-            )}
+
+              {/* Tabs for Fluid Types */}
+              <div className="grid grid-cols-4 gap-1 p-1 bg-slate-100 rounded-xl">
+                {(['NS', 'RL', 'DNS', 'METRO'] as const).map((tab) => {
+                  const count =
+                    tab === 'NS'
+                      ? Object.values(nsCaseVolumes).reduce((a, b) => a + b, 0)
+                      : tab === 'RL'
+                      ? Object.values(rlCaseVolumes).reduce((a, b) => a + b, 0)
+                      : tab === 'DNS'
+                      ? Object.values(dnsCaseVolumes).reduce((a, b) => a + b, 0)
+                      : Object.values(metroCaseVolumes).reduce((a, b) => a + b, 0);
+
+                  return (
+                    <button
+                      key={tab}
+                      onClick={() => setActiveFluidTab(tab)}
+                      className={`py-1.5 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1 ${
+                        activeFluidTab === tab
+                          ? 'bg-blue-600 text-white shadow'
+                          : 'text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      <span>{tab}</span>
+                      {count > 0 && (
+                        <span className="bg-amber-400 text-slate-950 text-[10px] px-1 py-0.2 rounded-full font-black">
+                          {count}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Volume Options Matrix for Selected Tab (100ML, 200ML, 250ML, 500ML, 1LTR) */}
+              <div className="bg-blue-50/50 p-3 rounded-xl border border-blue-100 space-y-2">
+                <div className="text-[11px] font-extrabold text-blue-900 flex items-center justify-between">
+                  <span>{activeFluidTab} CASE Volumes:</span>
+                  <span className="text-[10px] text-blue-700 font-bold">
+                    Multi-Volume Selection
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-5 gap-1.5 text-center">
+                  {FLUID_VOLUMES.map((vol) => {
+                    const currentMap =
+                      activeFluidTab === 'NS'
+                        ? nsCaseVolumes
+                        : activeFluidTab === 'RL'
+                        ? rlCaseVolumes
+                        : activeFluidTab === 'DNS'
+                        ? dnsCaseVolumes
+                        : metroCaseVolumes;
+
+                    const setMap =
+                      activeFluidTab === 'NS'
+                        ? setNsCaseVolumes
+                        : activeFluidTab === 'RL'
+                        ? setRlCaseVolumes
+                        : activeFluidTab === 'DNS'
+                        ? setDnsCaseVolumes
+                        : setMetroCaseVolumes;
+
+                    const val = currentMap[vol] || 0;
+
+                    return (
+                      <div
+                        key={vol}
+                        className={`p-1.5 rounded-lg border transition-all ${
+                          val > 0
+                            ? 'bg-white border-blue-500 shadow-sm'
+                            : 'bg-white/80 border-slate-200'
+                        }`}
+                      >
+                        <div className="text-[10px] font-black text-slate-700">{vol}</div>
+                        <input
+                          type="number"
+                          min={0}
+                          max={50}
+                          value={val}
+                          onChange={(e) => {
+                            const newQ = Math.max(0, parseInt(e.target.value || '0', 10));
+                            setMap({ ...currentMap, [vol]: newQ });
+                          }}
+                          className="w-full text-center font-black text-xs text-blue-950 py-1 bg-transparent border-none focus:outline-none"
+                        />
+                        <div className="flex items-center justify-center gap-1 pt-1">
+                          <button
+                            onClick={() => setMap({ ...currentMap, [vol]: Math.max(0, val - 1) })}
+                            className="w-4 h-4 rounded bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-[10px] flex items-center justify-center"
+                          >
+                            -
+                          </button>
+                          <button
+                            onClick={() => setMap({ ...currentMap, [vol]: val + 1 })}
+                            className="w-4 h-4 rounded bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-[10px] flex items-center justify-center"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Active Items to Print Preview Banner */}
+            <div className="bg-slate-900 text-white p-3 rounded-xl space-y-1.5 text-xs">
+              <div className="flex items-center justify-between text-[11px] font-extrabold text-blue-300">
+                <span>ACTIVE ITEMS TO PRINT ON ENVELOPE:</span>
+                <span className="text-amber-400 font-black">
+                  Total: {totalPackagesCount} Cases
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {activeCaseBreakdown.length > 0 ? (
+                  activeCaseBreakdown.map((item, idx) => (
+                    <span
+                      key={idx}
+                      className="bg-white/10 px-2 py-0.5 rounded border border-white/20 font-black text-[11px] text-white"
+                    >
+                      {item.type} {item.volume ? item.volume : ''}: {item.qty}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-slate-400 italic text-[11px]">
+                    No cases selected yet (will fallback to CASE: 1)
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
 
-          {/* Card B: From Address (Sender) */}
+          {/* Delivery Boy & Route Assignment */}
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-2 text-xs">
             <div className="flex items-center justify-between border-b border-slate-200 pb-2">
               <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-1.5">
-                <Building className="w-4 h-4 text-slate-600" />
-                <span>FROM (Sender Configuration)</span>
+                <Truck className="w-4 h-4 text-emerald-600" />
+                <span>Delivery Boy & Route (Optional)</span>
               </h3>
-              <span className="text-[10px] font-bold text-slate-500">Default Company</span>
             </div>
-            <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200 leading-snug">
-              <div className="font-black text-slate-900">{sender.business_name}</div>
-              <div className="text-slate-600 font-semibold">{sender.address}</div>
-              <div className="text-blue-900 font-bold mt-1">Mobile: {sender.mobile}</div>
-            </div>
-          </div>
-
-          {/* Card C: Parcel / Case Details (Most Important Feature) */}
-          <div className="bg-white p-4 rounded-xl border border-blue-200 shadow-sm space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-              <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-1.5">
-                <Package className="w-4 h-4 text-blue-600" />
-                <span>Parcel / Case Details</span>
-              </h3>
-              <span className="text-[10px] font-extrabold text-blue-700 bg-blue-50 px-2 py-0.5 rounded">
-                Multi-Case Engine
-              </span>
-            </div>
-
-            {/* Inputs: Number of Cases & Parcel Type */}
-            <div className="grid grid-cols-2 gap-3 text-xs">
+            <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  No. of Cases (Parcel) *
-                </label>
+                <span className="text-[10px] font-bold text-slate-500 uppercase">Delivery Boy</span>
                 <input
-                  type="number"
-                  min={1}
-                  max={50}
-                  value={totalCases}
-                  onChange={(e) => setTotalCases(Math.max(1, parseInt(e.target.value || '1', 10)))}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 font-black text-blue-950 text-base focus:ring-2 focus:ring-blue-500"
+                  type="text"
+                  value={deliveryBoyName}
+                  onChange={(e) => setDeliveryBoyName(e.target.value)}
+                  placeholder="e.g. Ramesh"
+                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 font-bold text-slate-900"
                 />
               </div>
-
               <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  Parcel Type
-                </label>
-                <select
-                  value={parcelType}
-                  onChange={(e) => setParcelType(e.target.value)}
-                  className="w-full px-2.5 py-2 rounded-lg border border-slate-300 font-bold text-slate-800 bg-white focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="Medicine">Medicine</option>
-                  <option value="Documents">Documents</option>
-                  <option value="Parcel">Parcel</option>
-                  <option value="Box">Box</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Remarks / Doctor Notes (As shown in MARG envelope, e.g. DR.FIROZ) */}
-            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-2 text-xs">
-              <label className="block font-bold text-slate-700">
-                Doctor / Remarks / Attention Notes (Optional)
-              </label>
-              <input
-                type="text"
-                value={selectedParty?.notes || ''}
-                onChange={(e) => {
-                  if (selectedParty) {
-                    setSelectedParty({ ...selectedParty, notes: e.target.value.toUpperCase() });
-                  }
-                }}
-                placeholder="e.g. DR.FIROZ"
-                className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded font-bold text-slate-900 uppercase focus:ring-2 focus:ring-blue-500"
-              />
-              <div className="text-[10px] text-slate-500 flex items-center justify-between">
-                <span>Appears beside state in envelope (e.g. RAJASTHAN DR.FIROZ)</span>
-                <span className="font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                  NO BARCODE • NO WEIGHT
-                </span>
-              </div>
-            </div>
-
-            {/* Print Case Number Checkbox */}
-            <div className="flex items-center justify-between pt-1 text-xs">
-              <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-800">
+                <span className="text-[10px] font-bold text-slate-500 uppercase">Route / Area</span>
                 <input
-                  type="checkbox"
-                  checked={printCaseNumber}
-                  onChange={(e) => setPrintCaseNumber(e.target.checked)}
-                  className="w-4 h-4 text-blue-600 rounded border-slate-300"
+                  type="text"
+                  value={deliveryRoute}
+                  onChange={(e) => setDeliveryRoute(e.target.value)}
+                  placeholder="e.g. Modasa Road"
+                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 font-bold text-slate-900"
                 />
-                <span>Print Case Number (e.g. CASE: {totalCases})</span>
-              </label>
-
-              <div className="text-[11px] font-extrabold text-blue-900 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-                📦 {totalCases} Envelopes will generate
               </div>
-            </div>
-          </div>
-
-          {/* Card D: Print & Layout Settings */}
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3 text-xs">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-              <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-1.5">
-                <Sliders className="w-4 h-4 text-slate-600" />
-                <span>Envelope & Page Setup</span>
-              </h3>
-              <span className="text-[10px] font-bold text-slate-400">Sheet Config</span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <span className="text-[10px] font-bold text-slate-500 uppercase">Paper / Envelope Size</span>
-                <select
-                  value={envelopeSize}
-                  onChange={(e) => setEnvelopeSize(e.target.value)}
-                  className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded font-semibold text-slate-800"
-                >
-                  <option value="A4">A4 (Portrait / MARG Standard)</option>
-                  <option value="A5">A5 Sheet</option>
-                  <option value="DL">DL (220 × 110 mm)</option>
-                  <option value="DL Long">DL Long</option>
-                  <option value="Custom">Custom Size</option>
-                </select>
-              </div>
-
-              <div>
-                <span className="text-[10px] font-bold text-slate-500 uppercase">Envelopes Per Page</span>
-                <select
-                  value={envelopesPerPage}
-                  onChange={(e) => setEnvelopesPerPage(parseInt(e.target.value, 10))}
-                  className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded font-semibold text-slate-800"
-                >
-                  <option value={1}>1 Envelope / Page</option>
-                  <option value={2}>2 Envelopes / Page (A4)</option>
-                  <option value={4}>4 Envelopes / Page</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Print Options Toggles */}
-            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 text-[11px] text-slate-700">
-              <label className="flex items-center gap-1.5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={appSettings.show_mobile}
-                  onChange={(e) => setAppSettings({ ...appSettings, show_mobile: e.target.checked })}
-                  className="w-3.5 h-3.5 text-blue-600 rounded"
-                />
-                <span>Show Mobile No.</span>
-              </label>
-              <label className="flex items-center gap-1.5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={appSettings.show_party_code}
-                  onChange={(e) => setAppSettings({ ...appSettings, show_party_code: e.target.checked })}
-                  className="w-3.5 h-3.5 text-blue-600 rounded"
-                />
-                <span>Show Party Code</span>
-              </label>
             </div>
           </div>
         </div>
 
-        {/* ========================================== */}
-        {/* 3. RIGHT COLUMN: LIVE ENVELOPE PREVIEW (5 COLS) */}
-        {/* ========================================== */}
+        {/* ========================================================== */}
+        {/* 3. RIGHT COLUMN: LIVE ENVELOPE PREVIEW (5 COLS)            */}
+        {/* ========================================================== */}
         <div className="lg:col-span-5 bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-4">
           
           {/* Header & Controls */}
@@ -751,36 +1046,6 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, onJo
             </div>
           </div>
 
-          {/* Case Navigation Bar */}
-          <div className="flex items-center justify-between bg-slate-50 px-3 py-2 rounded-lg border border-slate-200 text-xs">
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-slate-600">Previewing:</span>
-              <span className="px-2 py-0.5 rounded bg-blue-900 text-white font-extrabold text-[11px]">
-                CASE {currentPreviewCase + 1} / {totalCases}
-              </span>
-              <span className="font-extrabold text-emerald-800">
-                ({(casesList[currentPreviewCase]?.weight || uniformWeight).toFixed(2)} KG)
-              </span>
-            </div>
-
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => setCurrentPreviewCase((prev) => (prev > 0 ? prev - 1 : totalCases - 1))}
-                className="p-1 rounded bg-white border border-slate-200 hover:bg-slate-100 text-slate-700"
-                title="Previous Case"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => setCurrentPreviewCase((prev) => (prev < totalCases - 1 ? prev + 1 : 0))}
-                className="p-1 rounded bg-white border border-slate-200 hover:bg-slate-100 text-slate-700"
-                title="Next Case"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-
           {/* Envelope Preview Canvas */}
           <div className="bg-slate-100 p-4 rounded-xl border border-slate-200 overflow-hidden flex items-center justify-center min-h-[380px] shadow-inner relative">
             {selectedParty ? (
@@ -789,13 +1054,10 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, onJo
                   party={selectedParty}
                   sender={sender}
                   caseItem={casesList[currentPreviewCase] || casesList[0]}
-                  parcelType={parcelType}
-                  settings={{
-                    ...appSettings,
-                    show_case_number: printCaseNumber,
-                  }}
+                  caseBreakdown={activeCaseBreakdown}
+                  settings={appSettings}
                   scale={previewZoom}
-                  className="shadow-lg border-2 border-blue-900"
+                  className="shadow-xl border border-slate-300"
                 />
               </div>
             ) : (
@@ -810,11 +1072,11 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, onJo
             <div className="flex items-center gap-2">
               <Layers className="w-4 h-4 text-blue-600" />
               <span>
-                Sheet Layout: <strong>{envelopesPerPage} Envelopes per {envelopeSize} Sheet</strong>
+                Sheet Layout: <strong>2 Envelopes per A4 Sheet (Clean Borderless)</strong>
               </span>
             </div>
             <span className="font-extrabold text-blue-950">
-              Total Pages: {Math.ceil(totalCases / envelopesPerPage)} Page(s)
+              Total Pages: {Math.ceil(totalPackagesCount / 2)} Page(s)
             </span>
           </div>
 
@@ -844,105 +1106,33 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, onJo
             {isValidToPrint ? (
               <span className="text-emerald-600 font-bold flex items-center justify-center gap-1">
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                Ready to Print ({totalCases} Envelopes)
+                Ready to Print ({totalPackagesCount} Cases)
               </span>
             ) : (
               <span className="text-red-500 font-bold flex items-center justify-center gap-1">
                 <AlertCircle className="w-3.5 h-3.5" />
-                Missing required information: Please select a party.
+                Please select a valid party with address
               </span>
             )}
           </div>
         </div>
       </div>
 
-      {/* Dynamic Page Margin & Layout Injection for window.print() */}
-      <style>{`
-        @media print {
-          @page {
-            size: A4 portrait;
-            margin: ${appSettings.margin_top_mm ?? 15}mm ${appSettings.margin_right_mm ?? 3}mm ${appSettings.margin_bottom_mm ?? 10}mm ${appSettings.margin_left_mm ?? 3}mm !important;
-          }
-          .sheet-page-wrapper {
-            page-break-after: always;
-            break-after: page;
-            display: flex;
-            flex-direction: column;
-            justify-content: flex-start;
-            box-sizing: border-box;
-          }
-          .sheet-page-wrapper:last-child {
-            page-break-after: avoid;
-            break-after: avoid;
-          }
-          .print-envelope-half {
-            width: 100%;
-            display: flex;
-            flex-direction: column;
-            justify-content: flex-start;
-            box-sizing: border-box;
-            margin-bottom: 2mm;
-          }
-        }
-      `}</style>
-
-      {/* Hidden print sheet container for window.print() */}
-      <div className="print-only-sheet hidden">
-        {Array.from({ length: Math.ceil(totalCases / envelopesPerPage) }, (_, pageIndex) => {
-          const firstCase = casesList[pageIndex * envelopesPerPage];
-          const secondCase = casesList[pageIndex * envelopesPerPage + 1];
-          return (
-            <div key={pageIndex} className="sheet-page-wrapper">
-              {firstCase && (
-                <div className="print-envelope-half">
-                  <EnvelopeTemplate
-                    party={selectedParty || {}}
-                    sender={sender}
-                    caseItem={firstCase}
-                    parcelType={parcelType}
-                    settings={appSettings}
-                    isPrintMode={true}
-                  />
-                </div>
-              )}
-              {envelopesPerPage === 2 && (
-                <>
-                  <div className="cut-guide my-1 border-t border-dashed border-slate-500 text-center text-[9px] py-0.5 text-slate-600">
-                    ✂ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - ✂
-                  </div>
-                  {secondCase ? (
-                    <div className="print-envelope-half">
-                      <EnvelopeTemplate
-                        party={selectedParty || {}}
-                        sender={sender}
-                        caseItem={secondCase}
-                        parcelType={parcelType}
-                        settings={appSettings}
-                        isPrintMode={true}
-                      />
-                    </div>
-                  ) : (
-                    <div className="print-envelope-half opacity-0"></div>
-                  )}
-                </>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Full Screen Preview Modal */}
-      <FullScreenPreviewModal
-        isOpen={isFullScreen}
-        onClose={() => setIsFullScreen(false)}
-        party={selectedParty || {}}
-        sender={sender}
-        cases={casesList}
-        parcelType={parcelType}
-        settings={appSettings}
-        onPrint={handlePrintEnvelope}
-        onDownloadPdf={handleDownloadPDF}
-      />
+      {/* Full Screen Modal */}
+      {selectedParty && (
+        <FullScreenPreviewModal
+          isOpen={isFullScreen}
+          onClose={() => setIsFullScreen(false)}
+          party={selectedParty}
+          sender={sender}
+          cases={casesList}
+          caseBreakdown={activeCaseBreakdown}
+          parcelType="Medicine"
+          settings={appSettings}
+          onPrint={handlePrintEnvelope}
+          onDownloadPdf={handleDownloadPDF}
+        />
+      )}
     </div>
   );
 };
