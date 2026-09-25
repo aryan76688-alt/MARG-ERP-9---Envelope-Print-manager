@@ -203,7 +203,45 @@ GUJARAT_TRANSLATION_DICT = {
     "CHOWK": "ચોક", "CIRCLE": "સર્કલ", "DARWAJA": "દરવાજા", "GATE": "ગેટ",
     "GIDC": "જી.આઈ.ડી.સી.", "TALUKA": "તા.", "TA.": "તા.", "DIST.": "જી.", "DIST": "જી.",
     "VILLAGE": "ગામ", "POST": "પોસ્ટ", "AT & PO": "મુ. પો.", "AT & POST": "મુ. પો.",
-    "AT": "મુ.", "PO": "પો."
+    "AT": "મુ.", "PO": "પો.",
+
+    # Medical Titles, Degrees & Veterinary Terms
+    "VET": "વેટ", "V.E.T.": "વેટ", "BHMS": "બી.એચ.એમ.એસ.", "M.B.B.S.": "એમ.બી.બી.એસ.", "MBBS": "એમ.બી.બી.એસ.",
+    "M.D.": "એમ.ડી.", "MD": "એમ.ડી.", "M.S.": "એમ.એસ.", "MS": "એમ.એસ.", "BAMS": "બી.એ.એમ.એસ.",
+    "DMD": "ડી.એમ.ડી.", "PHC": "પી.એચ.સી.", "FDCA": "એફ.ડી.સી.એ.",
+
+    # Courier, Office & Address Abbreviations
+    "C/O": "મારફત", "C/O.": "મારફત", "CO": "કં.",
+    "OPPP": "સામે", "OOP": "સામે", "OP": "સામે",
+    "GR": "ગ્રાઉન્ડ", "GR.": "ગ્રાઉન્ડ", "FF": "પહેલો માળ", "SF": "બીજો માળ", "TF": "ત્રીજો માળ",
+    "CELLR": "ભોંયરું", "CELLAR": "ભોંયરું",
+    "AT-": "મુ.-", "TA-": "તા.-", "DIST-": "જી.-",
+    "NO.": "નં.", "NO": "નં.", "NUMBER": "નંબર", "SHO": "દુકાન",
+    "COMP": "કોમ્પ્લેક્સ", "COPMLEX": "કોમ્પ્લેક્સ",
+    "IND": "ઇન્ડ.", "IND.": "ઇન્ડ.", "INDUSTRIAL": "ઔદ્યોગિક", "ESTATE": "એસ્ટેટ", "ZONE": "ઝોન",
+    "BIDC": "બી.આઈ.ડી.સી.", "GEB": "જી.ઈ.બી.", "UGVCL": "યુ.જી.વી.સી.એલ.", "DGVCL": "ડી.જી.વી.સી.એલ.",
+    "MGVCL": "એમ.જી.વી.સી.એલ.", "PGVCL": "પી.જી.વી.સી.એલ.",
+    "SBI": "એસ.બી.આઈ.", "PNB": "પી.એન.બી.", "BOB": "બી.ઓ.બી.", "LIC": "એલ.આઈ.સી.", "AMC": "એ.એમ.સી.",
+    "BRTS": "બી.આર.ટી.એસ.", "AMTS": "એ.એમ.ટી.એસ.", "ST": "એસ.ટી.", "GPO": "જી.પી.ઓ.",
+    "SRP": "એસ.આર.પી.", "SRPF": "એસ.આર.પી.એફ.", "ITI": "આઈ.ટી.આઈ.",
+    "IOC": "આઈ.ઓ.સી.", "IOCL": "આઈ.ઓ.સી.એલ.", "HP": "એચ.પી.", "BPCL": "બી.પી.સી.એલ.", "CNG": "સી.એન.જી.",
+    "PETROL": "પેટ્રોલ", "PUMP": "પંપ", "PETROL PUMP": "પેટ્રોલ પંપ",
+    "NH": "નેશનલ હાઈવે", "NHNO": "નેશનલ હાઈવે નં.", "NH NO": "નેશનલ હાઈવે નં.", "ROA": "રોડ",
+    "SEC": "સેક્ટર", "SECTOR": "સેક્ટર", "SCECTOR": "સેક્ટર", "BLOCK": "બ્લોક",
+    "BLDNG": "બિલ્ડિંગ", "BUILDING": "બિલ્ડિંગ",
+    "PHASE": "ફેઝ", "FHASE": "ફેઝ", "PHASE-I": "ફેઝ-૧", "PHASE-II": "ફેઝ-૨", "PHASE-III": "ફેઝ-૩", "PHASE-IV": "ફેઝ-૪",
+    "IV": "૪", "III": "૩", "II": "૨", "I": "૧",
+    "ONE": "વન", "TWO": "ટૂ", "THREE": "થ્રી", "FOUR": "ફોર",
+    "CFA": "સી.એન્ડ.એફ.", "CNF": "સી.એન્ડ.એફ.", "LLP": "એલ.એલ.પી.", "COY": "કંપની",
+    "BUSINESS": "બિઝનેસ", "PARK": "પાર્ક", "BUSINESS PARK": "બિઝનેસ પાર્ક",
+    "GLOBAL": "ગ્લોબલ", "SUNRISE": "સનરાઇઝ", "MEDIWORLD": "મેડીવર્લ્ડ",
+    "GEN": "જનરલ", "UNISON": "યુનિસન", "INFINITY": "ઇન્ફિનિટી", "NEST": "નેસ્ટ",
+    "ARIANE": "એરિયન", "CASA": "કાસા", "ARIANE CASA": "એરિયન કાસા",
+    "CADILA": "કેડિલા", "ZYDUS": "ઝાયડસ", "AIMIL": "આઇમિલ", "ARISTO": "એરિસ્ટો",
+    "PANACEAA": "પેનાસિયા", "ISCON": "ઇસ્કોન", "SUMEL": "સુમેલ",
+    "ERHADT": "એરહાર્ટ", "ERHARDT": "એરહાર્ટ", "LEIMER": "લાઈમર", "MEDITEK": "મેડીટેક",
+    "SAMAY": "સમય", "TASKAR": "તસ્કર", "XETRAPAL": "ક્ષેત્રપાલ", "XPERIA": "એક્સપીરિયા",
+    "BY": "બાય", "TO": "ટુ"
 }
 
 # Phonetic character mapping for unlisted proper nouns
@@ -237,13 +275,23 @@ _VOWEL_KEYS = sorted(_INITIAL_VOWELS.keys(), key=len, reverse=True)
 _CONS_KEYS = [k for k, v in _CONSONANTS]
 _CONS_DICT = dict(_CONSONANTS)
 
+SINGLE_LETTERS_GUJARATI = {
+    'A': 'એ', 'B': 'બી', 'C': 'સી', 'D': 'ડી', 'E': 'ઈ', 'F': 'એફ',
+    'G': 'જી', 'H': 'એચ', 'I': 'આઈ', 'J': 'જે', 'K': 'કે', 'L': 'એલ',
+    'M': 'એમ', 'N': 'એન', 'O': 'ઓ', 'P': 'પી', 'Q': 'ક્યૂ', 'R': 'આર',
+    'S': 'એસ', 'T': 'ટી', 'U': 'યુ', 'V': 'વી', 'W': 'ડબલ્યુ', 'X': 'એક્સ',
+    'Y': 'વાય', 'Z': 'ઝેડ'
+}
+
 def transliterate_word_to_gujarati(word: str) -> str:
-    """Accurately transliterates an English word into Gujarati script phonetically."""
+    """Accurately transliterates an English word into Gujarati script phonetically without leaving any Latin characters."""
     clean_w = word.strip().upper()
     if not clean_w:
         return ""
     if clean_w in GUJARAT_TRANSLATION_DICT:
         return GUJARAT_TRANSLATION_DICT[clean_w]
+    if clean_w in SINGLE_LETTERS_GUJARATI:
+        return SINGLE_LETTERS_GUJARATI[clean_w]
 
     prefix_punct = ""
     suffix_punct = ""
@@ -258,32 +306,37 @@ def transliterate_word_to_gujarati(word: str) -> str:
         return prefix_punct + suffix_punct
     if clean_w in GUJARAT_TRANSLATION_DICT:
         return prefix_punct + GUJARAT_TRANSLATION_DICT[clean_w] + suffix_punct
+    if clean_w in SINGLE_LETTERS_GUJARATI:
+        return prefix_punct + SINGLE_LETTERS_GUJARATI[clean_w] + suffix_punct
 
     out = []
     i = 0
     n = len(clean_w)
-    at_start = True
+    prev_was_cons = False
 
     while i < n:
-        if at_start:
-            matched_v = False
-            for vk in _VOWEL_KEYS:
-                if clean_w.startswith(vk, i):
+        # Check vowel
+        matched_v = False
+        for vk in _VOWEL_KEYS:
+            if clean_w.startswith(vk, i):
+                if prev_was_cons:
+                    out.append(_MATRAS[vk])
+                else:
                     out.append(_INITIAL_VOWELS[vk])
-                    i += len(vk)
-                    at_start = False
-                    matched_v = True
-                    break
-            if matched_v:
-                continue
+                i += len(vk)
+                matched_v = True
+                prev_was_cons = False
+                break
+        if matched_v:
+            continue
 
+        # Check consonant
         matched_c = False
         for ck in _CONS_KEYS:
             if clean_w.startswith(ck, i):
                 c_char = _CONS_DICT[ck]
                 i += len(ck)
                 matched_c = True
-                at_start = False
                 matched_next_v = False
                 for vk in _VOWEL_KEYS:
                     if clean_w.startswith(vk, i):
@@ -291,20 +344,70 @@ def transliterate_word_to_gujarati(word: str) -> str:
                         out.append(c_char + matra)
                         i += len(vk)
                         matched_next_v = True
+                        prev_was_cons = False
                         break
                 if not matched_next_v:
                     if i < n and clean_w[i].isalpha():
                         out.append(c_char + '્')
+                        prev_was_cons = False
                     else:
                         out.append(c_char)
+                        prev_was_cons = True
                 break
 
         if not matched_c:
-            out.append(clean_w[i])
+            char = clean_w[i]
+            if char in SINGLE_LETTERS_GUJARATI:
+                out.append(SINGLE_LETTERS_GUJARATI[char])
+            else:
+                out.append(char)
             i += 1
-            at_start = False
+            prev_was_cons = False
 
     return prefix_punct + ''.join(out) + suffix_punct
+
+def clean_gujarati_text(text: str) -> str:
+    """
+    Sanitizes translated text to ensure NO English/Latin letters remain.
+    Replaces remaining English words, acronyms, or standalone letters
+    with authentic Gujarati equivalents or phonetic transliteration.
+    """
+    if not text or not str(text).strip():
+        return ""
+    cleaned = str(text).strip()
+
+    # Pre-replace known multi-char courier / medical patterns
+    symbol_subs = [
+        (r'\bC/O\b', 'મારફત'),
+        (r'\bB/H\b', 'પાછળ'),
+        (r'\bN/R\b', 'પાસે'),
+        (r'\bO/S\b', 'સામે'),
+        (r'\bO/P\b', 'સામે'),
+        (r'\bM/S\b', 'મે.'),
+        (r'\bAT-\b', 'મુ.-'),
+        (r'\bTA-\b', 'તા.-'),
+        (r'\bDIST-\b', 'જી.-'),
+    ]
+    for pat, rep in symbol_subs:
+        cleaned = re.sub(pat, rep, cleaned, flags=re.IGNORECASE)
+
+    # Replace any multi-word phrases from dictionary
+    sorted_phrases = sorted([k for k in GUJARAT_TRANSLATION_DICT.keys() if ' ' in k or '.' in k], key=len, reverse=True)
+    for p in sorted_phrases:
+        pattern = r'\b' + re.escape(p) + r'\b'
+        cleaned = re.sub(pattern, GUJARAT_TRANSLATION_DICT[p], cleaned, flags=re.IGNORECASE)
+
+    def _replace_match(m):
+        w = m.group(0)
+        up = w.upper()
+        if up in GUJARAT_TRANSLATION_DICT:
+            return GUJARAT_TRANSLATION_DICT[up]
+        if up in SINGLE_LETTERS_GUJARATI:
+            return SINGLE_LETTERS_GUJARATI[up]
+        return transliterate_word_to_gujarati(w)
+
+    cleaned = re.sub(r'[A-Za-z]+', _replace_match, cleaned)
+    return re.sub(r'\s+', ' ', cleaned).strip()
 
 def fast_translate_phrase(text: str) -> str:
     """Translates/transliterates an entire text line using dictionary and phonetic rules."""
@@ -468,6 +571,143 @@ def google_translate_batch_free(texts: List[str], target_lang: str = "gu", chunk
 
     return results
 
+def clean_all_party_fields(
+    party_name_gu: Optional[str],
+    address_gu: Optional[str],
+    address_line_2_gu: Optional[str] = None,
+    address_line_3_gu: Optional[str] = None,
+    city_gu: Optional[str] = None,
+    state_gu: Optional[str] = None
+) -> Dict[str, str]:
+    """Helper to ensure every field has zero Latin characters."""
+    return {
+        "party_name_gu": clean_gujarati_text(party_name_gu or ""),
+        "address_gu": clean_gujarati_text(address_gu or ""),
+        "address_line_2_gu": clean_gujarati_text(address_line_2_gu or ""),
+        "address_line_3_gu": clean_gujarati_text(address_line_3_gu or ""),
+        "city_gu": clean_gujarati_text(city_gu or "દહેગામ"),
+        "state_gu": clean_gujarati_text(state_gu or "ગુજરાત"),
+    }
+
+def translate_parties_gemini_batch(
+    parties: List[Dict[str, Any]],
+    api_key: Optional[str] = None
+) -> List[Dict[str, Any]]:
+    """
+    Translates/transliterates a batch of party records into 100% Gujarati script using Gemini API.
+    Guarantees no Latin characters remain by passing every field through clean_gujarati_text.
+    """
+    if not parties:
+        return []
+
+    results = []
+    chunk_size = 25  # Optimal batch size for Gemini Flash Lite
+
+    for i in range(0, len(parties), chunk_size):
+        chunk = parties[i:i + chunk_size]
+        items_payload = [
+            {
+                "id": p.get("id"),
+                "party_name": p.get("party_name", ""),
+                "address": p.get("address", ""),
+                "address_line_2": p.get("address_line_2") or "",
+                "address_line_3": p.get("address_line_3") or "",
+                "city": p.get("city") or "DAHEGAM",
+                "state": p.get("state") or "GUJARAT"
+            }
+            for p in chunk
+        ]
+
+        prompt = f"""You are a professional Gujarati translator and transliterator for Indian courier & pharmaceutical envelope dispatch in Gujarat.
+Translate and transliterate each party record into 100% authentic Gujarati script.
+
+CRITICAL RULES:
+1. NO English/Latin letters (A-Z, a-z) must remain anywhere in any Gujarati output field.
+2. Translate or phonetically transliterate every single word, abbreviation, initials, doctor degree, and address code into Gujarati:
+   - 'VET' -> 'વેટ'
+   - 'DR.' / 'DR' -> 'ડૉ.'
+   - 'GF' / 'G.F.' -> 'ગ્રાઉન્ડ ફ્લોર' or 'જી.એફ.'
+   - 'FF' / 'F.F.' -> 'પહેલો માળ' or 'એફ.એફ.'
+   - 'C/O' -> 'મારફત' or 'સી/ઓ'
+   - 'B/H' -> 'પાછળ'
+   - 'OPP' / 'OPP.' -> 'સામે'
+   - 'NR' / 'NR.' -> 'પાસે'
+   - 'AT-' / 'AT' -> 'મુ.'
+   - 'TA-' / 'TA' -> 'તા.'
+   - 'DIST' -> 'જી.'
+   - 'GIDC' -> 'જી.આઈ.ડી.સી.'
+   - 'SBI' -> 'એસ.બી.આઈ.'
+   - 'GEB' -> 'જી.ઈ.બી.'
+   - 'IOC' / 'IOCL' -> 'આઈ.ઓ.સી.'
+   - 'NH' -> 'નેશનલ હાઈવે'
+   - 'LTD' / 'PVT LTD' -> 'લિ.' / 'પ્રા. લિ.'
+   - Alphanumeric codes like '8A', 'B-12', 'Phase-IV' -> '૮-એ', 'બી-૧૨', 'ફેઝ-૪'.
+3. Output strictly a JSON array with objects containing: id, party_name_gu, address_gu, address_line_2_gu, address_line_3_gu, city_gu, state_gu.
+
+Input JSON:
+{json.dumps(items_payload, ensure_ascii=False)}
+"""
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"responseMimeType": "application/json"}
+        }
+
+        chunk_success = False
+        try:
+            res = _call_gemini_api(payload, api_key=api_key, timeout=25.0)
+            raw = res.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "[]")
+            parsed = json.loads(raw)
+            if isinstance(parsed, list) and len(parsed) > 0:
+                id_map = {item.get("id"): item for item in parsed if isinstance(item, dict)}
+                for p in chunk:
+                    pid = p.get("id")
+                    m = id_map.get(pid, {})
+                    p_name_gu = clean_gujarati_text(m.get("party_name_gu") or fast_translate_phrase(p.get("party_name", "")))
+                    addr_gu = clean_gujarati_text(m.get("address_gu") or fast_translate_phrase(p.get("address", "")))
+                    addr2_gu = clean_gujarati_text(m.get("address_line_2_gu") or (fast_translate_phrase(p.get("address_line_2", "")) if p.get("address_line_2") else ""))
+                    addr3_gu = clean_gujarati_text(m.get("address_line_3_gu") or (fast_translate_phrase(p.get("address_line_3", "")) if p.get("address_line_3") else ""))
+                    city_gu = clean_gujarati_text(m.get("city_gu") or fast_translate_phrase(p.get("city", "DAHEGAM")))
+                    state_gu = clean_gujarati_text(m.get("state_gu") or fast_translate_phrase(p.get("state", "GUJARAT")))
+
+                    results.append({
+                        "id": pid,
+                        "party_name_gu": p_name_gu,
+                        "address_gu": addr_gu,
+                        "address_line_2_gu": addr2_gu,
+                        "address_line_3_gu": addr3_gu,
+                        "city_gu": city_gu,
+                        "state_gu": state_gu
+                    })
+                chunk_success = True
+        except Exception as e:
+            print(f"Gemini batch translation error on chunk: {e}")
+
+        if not chunk_success:
+            # Robust fallback to Google Translate + clean_gujarati_text
+            flat = []
+            for p in chunk:
+                flat.append(p.get("party_name") or "")
+                flat.append(p.get("address") or "")
+                flat.append(p.get("address_line_2") or "")
+                flat.append(p.get("address_line_3") or "")
+                flat.append(p.get("city") or "")
+                flat.append(p.get("state") or "")
+            trans_flat = google_translate_batch_free(flat, target_lang="gu")
+            idx = 0
+            for p in chunk:
+                results.append({
+                    "id": p.get("id"),
+                    "party_name_gu": clean_gujarati_text(trans_flat[idx] or fast_translate_phrase(p.get("party_name", ""))),
+                    "address_gu": clean_gujarati_text(trans_flat[idx + 1] or fast_translate_phrase(p.get("address", ""))),
+                    "address_line_2_gu": clean_gujarati_text(trans_flat[idx + 2] or (fast_translate_phrase(p.get("address_line_2", "")) if p.get("address_line_2") else "")),
+                    "address_line_3_gu": clean_gujarati_text(trans_flat[idx + 3] or (fast_translate_phrase(p.get("address_line_3", "")) if p.get("address_line_3") else "")),
+                    "city_gu": clean_gujarati_text(trans_flat[idx + 4] or fast_translate_phrase(p.get("city", "DAHEGAM"))),
+                    "state_gu": clean_gujarati_text(trans_flat[idx + 5] or fast_translate_phrase(p.get("state", "GUJARAT")))
+                })
+                idx += 6
+
+    return results
+
 def translate_party_to_gujarati(
     party_name: str,
     address: str,
@@ -478,7 +718,7 @@ def translate_party_to_gujarati(
     api_key: Optional[str] = None
 ) -> Dict[str, str]:
     """
-    Translates party details into authentic Gujarati using Google Translator (no API key required).
+    Translates party details into authentic 100% Gujarati without leaving any English characters.
     """
     cache_key = f"{party_name}|{address}|{address_line_2 or ''}|{address_line_3 or ''}|{city}|{state}".strip().lower()
     if cache_key in _TRANSLATION_CACHE and isinstance(_TRANSLATION_CACHE[cache_key], dict):
@@ -495,12 +735,12 @@ def translate_party_to_gujarati(
     translated = google_translate_batch_free(raw_items, target_lang="gu")
 
     res = {
-        "party_name_gu": translated[0] or fast_translate_phrase(party_name),
-        "address_gu": translated[1] or fast_translate_phrase(address),
-        "address_line_2_gu": translated[2] or (fast_translate_phrase(address_line_2) if address_line_2 else ""),
-        "address_line_3_gu": translated[3] or (fast_translate_phrase(address_line_3) if address_line_3 else ""),
-        "city_gu": translated[4] or fast_translate_phrase(city),
-        "state_gu": translated[5] or fast_translate_phrase(state),
+        "party_name_gu": clean_gujarati_text(translated[0] or fast_translate_phrase(party_name)),
+        "address_gu": clean_gujarati_text(translated[1] or fast_translate_phrase(address)),
+        "address_line_2_gu": clean_gujarati_text(translated[2] or (fast_translate_phrase(address_line_2) if address_line_2 else "")),
+        "address_line_3_gu": clean_gujarati_text(translated[3] or (fast_translate_phrase(address_line_3) if address_line_3 else "")),
+        "city_gu": clean_gujarati_text(translated[4] or fast_translate_phrase(city)),
+        "state_gu": clean_gujarati_text(translated[5] or fast_translate_phrase(state)),
     }
     _TRANSLATION_CACHE[cache_key] = res
     return res
@@ -510,17 +750,21 @@ def batch_translate_parties_fast(
     api_key: Optional[str] = None
 ) -> Dict[int, Dict[str, str]]:
     """
-    Translates multiple parties into Gujarati reliably using delimiter-preserving Google Translator.
+    Translates multiple parties into 100% authentic Gujarati script.
+    Uses Gemini batch translation with seamless Google Translate + sanitizer fallback.
     """
     results: Dict[int, Dict[str, str]] = {}
     to_translate = []
 
     for p in parties:
         pid = p.get("id")
-        if p.get("party_name_gu") and p.get("address_gu"):
+        p_name_gu = p.get("party_name_gu")
+        addr_gu = p.get("address_gu")
+        # Check if already 100% Gujarati (no Latin characters)
+        if p_name_gu and addr_gu and not re.search(r'[A-Za-z]', p_name_gu) and not re.search(r'[A-Za-z]', addr_gu):
             results[pid] = {
-                "party_name_gu": p.get("party_name_gu"),
-                "address_gu": p.get("address_gu") or "",
+                "party_name_gu": p_name_gu,
+                "address_gu": addr_gu,
                 "address_line_2_gu": p.get("address_line_2_gu") or "",
                 "address_line_3_gu": p.get("address_line_3_gu") or "",
                 "city_gu": p.get("city_gu") or "",
@@ -529,39 +773,26 @@ def batch_translate_parties_fast(
         else:
             to_translate.append(p)
 
-    chunk_size = 5
-    for i in range(0, len(to_translate), chunk_size):
-        chunk = to_translate[i:i + chunk_size]
-        flat_texts = []
-        for p in chunk:
-            flat_texts.append(p.get("party_name") or "")
-            flat_texts.append(p.get("address") or "")
-            flat_texts.append(p.get("address_line_2") or "")
-            flat_texts.append(p.get("address_line_3") or "")
-            flat_texts.append(p.get("city") or "")
-            flat_texts.append(p.get("state") or "")
-
-        translated_flat = google_translate_batch_free(flat_texts, target_lang="gu")
-        idx = 0
-        for p in chunk:
-            pid = p.get("id")
+    if to_translate:
+        batch_res = translate_parties_gemini_batch(to_translate, api_key=api_key)
+        for item in batch_res:
+            pid = item["id"]
             results[pid] = {
-                "party_name_gu": translated_flat[idx] or fast_translate_phrase(p.get("party_name", "")),
-                "address_gu": translated_flat[idx + 1] or fast_translate_phrase(p.get("address", "")),
-                "address_line_2_gu": translated_flat[idx + 2],
-                "address_line_3_gu": translated_flat[idx + 3],
-                "city_gu": translated_flat[idx + 4] or fast_translate_phrase(p.get("city", "")),
-                "state_gu": translated_flat[idx + 5] or fast_translate_phrase(p.get("state", ""))
+                "party_name_gu": item["party_name_gu"],
+                "address_gu": item["address_gu"],
+                "address_line_2_gu": item["address_line_2_gu"],
+                "address_line_3_gu": item["address_line_3_gu"],
+                "city_gu": item["city_gu"],
+                "state_gu": item["state_gu"]
             }
-            idx += 6
 
     return results
 
 def start_background_translation_worker(get_db_session_fn, force: bool = False) -> bool:
     """
     Spawns a background thread to translate any parties in SQLite
-    that don't have Gujarati translation yet (or all parties if force=True),
-    using Google Translator without API.
+    that don't have complete Gujarati translation (or contain Latin characters if force=True).
+    Uses Gemini API key pool for 100% authentic Gujarati, falling back to Google Translate.
     """
     global _BG_WORKER_RUNNING, _BG_STATS
     with _BG_WORKER_LOCK:
@@ -577,44 +808,59 @@ def start_background_translation_worker(get_db_session_fn, force: bool = False) 
             try:
                 from models import Party
                 query = db.query(Party)
-                if not force:
-                    query = query.filter(
-                        (Party.party_name_gu == None) | (Party.party_name_gu == "") |
-                        (Party.address_gu == None) | (Party.address_gu == "")
-                    )
-                parties_to_process = query.all()
+                all_parties = query.all()
+
+                if force:
+                    parties_to_process = all_parties
+                else:
+                    # Target parties missing translations OR containing remaining English letters
+                    parties_to_process = [
+                        p for p in all_parties
+                        if not p.party_name_gu or not p.address_gu or
+                        any(
+                            (field and re.search(r'[A-Za-z]', field))
+                            for field in [p.party_name_gu, p.address_gu, p.address_line_2_gu, p.address_line_3_gu, p.city_gu]
+                        )
+                    ]
 
                 _BG_STATS["total"] = len(parties_to_process)
                 if not parties_to_process:
                     _BG_STATS["status"] = "completed"
                     return
 
-                batch_size = 5  # 5 parties * 6 fields = 30 fields, chunked in batches of 12
+                batch_size = 25
                 for i in range(0, len(parties_to_process), batch_size):
                     chunk = parties_to_process[i:i + batch_size]
-                    flat_texts = []
-                    for p in chunk:
-                        flat_texts.append(p.party_name or "")
-                        flat_texts.append(p.address or "")
-                        flat_texts.append(p.address_line_2 or "")
-                        flat_texts.append(p.address_line_3 or "")
-                        flat_texts.append(p.city or "")
-                        flat_texts.append(p.state or "")
+                    chunk_payload = [
+                        {
+                            "id": p.id,
+                            "party_name": p.party_name,
+                            "address": p.address,
+                            "address_line_2": p.address_line_2 or "",
+                            "address_line_3": p.address_line_3 or "",
+                            "city": p.city or "DAHEGAM",
+                            "state": p.state or "GUJARAT"
+                        }
+                        for p in chunk
+                    ]
 
-                    translated_flat = google_translate_batch_free(flat_texts, target_lang="gu")
-                    idx = 0
+                    translated = translate_parties_gemini_batch(chunk_payload)
+                    trans_map = {t["id"]: t for t in translated}
+
                     for p in chunk:
-                        p.party_name_gu = translated_flat[idx] or fast_translate_phrase(p.party_name)
-                        p.address_gu = translated_flat[idx + 1] or fast_translate_phrase(p.address)
-                        p.address_line_2_gu = translated_flat[idx + 2]
-                        p.address_line_3_gu = translated_flat[idx + 3]
-                        p.city_gu = translated_flat[idx + 4] or fast_translate_phrase(p.city)
-                        p.state_gu = translated_flat[idx + 5] or fast_translate_phrase(p.state)
-                        idx += 6
+                        t_item = trans_map.get(p.id)
+                        if t_item:
+                            p.party_name_gu = t_item["party_name_gu"]
+                            p.address_gu = t_item["address_gu"]
+                            p.address_line_2_gu = t_item["address_line_2_gu"]
+                            p.address_line_3_gu = t_item["address_line_3_gu"]
+                            p.city_gu = t_item["city_gu"]
+                            p.state_gu = t_item["state_gu"]
 
                     db.commit()
                     _BG_STATS["processed"] += len(chunk)
-                    time.sleep(0.15)
+                    time.sleep(0.1)
+
                 _BG_STATS["status"] = "completed"
             finally:
                 db.close()
