@@ -47,6 +47,10 @@ app.add_middleware(
 @app.on_event("startup")
 def startup_event():
     init_db()
+    try:
+        ai_service.start_background_translation_worker(SessionLocal)
+    except Exception as e:
+        print("Startup background translation notice:", e)
 
 # ==========================================
 # PYDANTIC SCHEMAS
@@ -2166,6 +2170,23 @@ def batch_translate_parties(req: BatchTranslatePartiesRequest, db: Session = Dep
 
     db.commit()
     return {"success": True, "translations": translations}
+
+@app.post("/api/ai/translate-background")
+@app.post("/api/parties-translate/start")
+def trigger_background_translation():
+    """Starts background Google translation for untranslated parties without requiring an API key."""
+    started = ai_service.start_background_translation_worker(SessionLocal)
+    return {
+        "success": True,
+        "started": started,
+        "message": "Background translation started with Google Translator (no API required)" if started else "Background translation is already active"
+    }
+
+@app.get("/api/ai/translate-status")
+@app.get("/api/parties-translate/status")
+def get_translation_status():
+    """Gets current status of background Google translation."""
+    return ai_service.get_background_translation_status()
 
 # Mount built React frontend if dist exists
 dist_dir = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")

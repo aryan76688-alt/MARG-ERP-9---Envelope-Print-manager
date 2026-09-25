@@ -1,7 +1,10 @@
 import os
 import re
 import json
+import time
+import threading
 import urllib.request
+import urllib.parse
 import urllib.error
 from typing import Dict, List, Any, Optional
 from pathlib import Path
@@ -302,6 +305,87 @@ def fast_translate_phrase(text: str) -> str:
 def offline_fallback_translate(text: str) -> str:
     return fast_translate_phrase(text)
 
+_BG_WORKER_RUNNING = False
+_BG_WORKER_LOCK = threading.Lock()
+_BG_STATS = {"total": 0, "processed": 0, "status": "idle"}
+
+def google_translate_free(text: str, target_lang: str = "gu") -> str:
+    """
+    Translates text into Gujarati using Google Translate public gateway without API key.
+    Uses in-memory caching and falls back gracefully to phonetic dictionary if offline.
+    """
+    if not text or not text.strip():
+        return ""
+    text = text.strip()
+    cache_key = f"gt:{text.lower()}"
+    if cache_key in _TRANSLATION_CACHE and isinstance(_TRANSLATION_CACHE[cache_key], str):
+        return _TRANSLATION_CACHE[cache_key]
+
+    try:
+        url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl={target_lang}&dt=t&q=" + urllib.parse.quote(text)
+        req = urllib.request.Request(
+            url,
+            headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+                "Accept": "*/*"
+            }
+        )
+        with urllib.request.urlopen(req, timeout=4) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            if data and data[0]:
+                translated = "".join([c[0] for c in data[0] if c and c[0]]).strip()
+                if translated:
+                    _TRANSLATION_CACHE[cache_key] = translated
+                    return translated
+    except Exception:
+        pass
+
+    fallback = fast_translate_phrase(text)
+    _TRANSLATION_CACHE[cache_key] = fallback
+    return fallback
+
+def google_translate_batch_free(texts: List[str], target_lang: str = "gu") -> List[str]:
+    """
+    Translates a list of strings efficiently in a single batch request using Google Translate.
+    """
+    if not texts:
+        return []
+
+    cleaned = [t.strip() if t else "" for t in texts]
+    if not any(cleaned):
+        return ["" for _ in texts]
+
+    placeholder = "___EMPTY_LINE___"
+    combined = "\n".join([t if t else placeholder for t in cleaned])
+
+    try:
+        url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl={target_lang}&dt=t&q=" + urllib.parse.quote(combined)
+        req = urllib.request.Request(
+            url,
+            headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+                "Accept": "*/*"
+            }
+        )
+        with urllib.request.urlopen(req, timeout=6) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            if data and data[0]:
+                full_translated = "".join([c[0] for c in data[0] if c and c[0]])
+                split_lines = full_translated.split("\n")
+                if len(split_lines) == len(texts):
+                    results = []
+                    for orig, tr in zip(cleaned, split_lines):
+                        if not orig or placeholder in tr:
+                            results.append("")
+                        else:
+                            clean_tr = tr.replace(placeholder, "").strip()
+                            results.append(clean_tr if clean_tr else fast_translate_phrase(orig))
+                    return results
+    except Exception:
+        pass
+
+    return [google_translate_free(t, target_lang) if t else "" for t in texts]
+
 def translate_party_to_gujarati(
     party_name: str,
     address: str,
@@ -312,154 +396,160 @@ def translate_party_to_gujarati(
     api_key: Optional[str] = None
 ) -> Dict[str, str]:
     """
-    Translates party details into authentic Gujarati.
-    First checks in-memory cache. If Gemini key is available and active, uses Gemini.
-    Otherwise instantly translates using the phonetic engine in < 1 millisecond.
+    Translates party details into authentic Gujarati using Google Translator (no API key required).
+    Falls back gracefully to instant local phonetics + dictionary if offline.
     """
     cache_key = f"{party_name}|{address}|{address_line_2 or ''}|{address_line_3 or ''}|{city}|{state}".strip().lower()
-    if cache_key in _TRANSLATION_CACHE:
+    if cache_key in _TRANSLATION_CACHE and isinstance(_TRANSLATION_CACHE[cache_key], dict):
         return _TRANSLATION_CACHE[cache_key]
 
-    key = api_key or get_api_key()
-    if key and key.startswith("AIzaSy") and _API_KEY_STATUS.get(key) is not False:
-        prompt = f"""You are a pharmaceutical dispatch transliterator for courier delivery envelopes in Gujarat, India.
-Transliterate recipient details phonetically into authentic Gujarati script (ગુજરાતી).
-NEVER translate brand names literally (e.g. "Apple Medical" -> "એપલ મેડિકલ").
-Translate landmarks: Near -> પાસે, Opp. -> સામે, Behind -> પાછળ, Road -> રોડ, Complex -> કોમ્પ્લેક્ષ.
-Output strictly valid JSON:
-{{
-  "party_name_gu": "...",
-  "address_gu": "...",
-  "address_line_2_gu": "...",
-  "address_line_3_gu": "...",
-  "city_gu": "...",
-  "state_gu": "..."
-}}
+    raw_items = [
+        party_name or "",
+        address or "",
+        address_line_2 or "",
+        address_line_3 or "",
+        city or "",
+        state or ""
+    ]
+    translated = google_translate_batch_free(raw_items, target_lang="gu")
 
-Input:
-- Party: {party_name}
-- Address: {address}
-- Line 2: {address_line_2 or ''}
-- Line 3: {address_line_3 or ''}
-- City: {city}
-- State: {state}"""
-
-        payload = {
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"responseMimeType": "application/json"}
-        }
-        try:
-            res = _call_gemini_api(payload, api_key=key, timeout=3.0)
-            raw_text = res.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "{}")
-            parsed = json.loads(raw_text)
-            result = {
-                "party_name_gu": parsed.get("party_name_gu") or fast_translate_phrase(party_name),
-                "address_gu": parsed.get("address_gu") or fast_translate_phrase(address),
-                "address_line_2_gu": parsed.get("address_line_2_gu") or fast_translate_phrase(address_line_2 or ""),
-                "address_line_3_gu": parsed.get("address_line_3_gu") or fast_translate_phrase(address_line_3 or ""),
-                "city_gu": parsed.get("city_gu") or fast_translate_phrase(city),
-                "state_gu": parsed.get("state_gu") or fast_translate_phrase(state),
-            }
-            _TRANSLATION_CACHE[cache_key] = result
-            return result
-        except Exception:
-            pass
-
-    result = {
-        "party_name_gu": fast_translate_phrase(party_name),
-        "address_gu": fast_translate_phrase(address),
-        "address_line_2_gu": fast_translate_phrase(address_line_2 or ""),
-        "address_line_3_gu": fast_translate_phrase(address_line_3 or ""),
-        "city_gu": fast_translate_phrase(city),
-        "state_gu": fast_translate_phrase(state),
+    res = {
+        "party_name_gu": translated[0] or fast_translate_phrase(party_name),
+        "address_gu": translated[1] or fast_translate_phrase(address),
+        "address_line_2_gu": translated[2] or (fast_translate_phrase(address_line_2) if address_line_2 else ""),
+        "address_line_3_gu": translated[3] or (fast_translate_phrase(address_line_3) if address_line_3 else ""),
+        "city_gu": translated[4] or fast_translate_phrase(city),
+        "state_gu": translated[5] or fast_translate_phrase(state),
     }
-    _TRANSLATION_CACHE[cache_key] = result
-    return result
+    _TRANSLATION_CACHE[cache_key] = res
+    return res
 
 def batch_translate_parties_fast(
     parties: List[Dict[str, Any]],
     api_key: Optional[str] = None
 ) -> Dict[int, Dict[str, str]]:
     """
-    Translates multiple parties into Gujarati rapidly.
-    If Gemini API is active, translates up to 20 parties in a single request.
-    Otherwise translates all parties using the instant phonetic engine in < 10ms.
+    Translates multiple parties into Gujarati rapidly using Google Translator (no API required).
+    Batches up to 10 parties at a time for high speed and natural accuracy.
     """
     results: Dict[int, Dict[str, str]] = {}
-    key = api_key or get_api_key()
-
-    if key and key.startswith("AIzaSy") and _API_KEY_STATUS.get(key) is not False and len(parties) > 0:
-        untranslated = [p for p in parties if not p.get("party_name_gu")]
-        if untranslated:
-            items_input = []
-            for p in untranslated[:20]:
-                items_input.append({
-                    "id": p.get("id"),
-                    "name": p.get("party_name", ""),
-                    "addr1": p.get("address", ""),
-                    "addr2": p.get("address_line_2", ""),
-                    "addr3": p.get("address_line_3", ""),
-                    "city": p.get("city", ""),
-                    "state": p.get("state", "")
-                })
-
-            prompt = f"""You are a Gujarati transliterator for pharma parcel dispatches.
-Transliterate recipient details phonetically into Gujarati script. Output strictly a JSON object mapping each ID to its translated fields:
-{{
-  "<id>": {{
-    "party_name_gu": "...",
-    "address_gu": "...",
-    "address_line_2_gu": "...",
-    "address_line_3_gu": "...",
-    "city_gu": "...",
-    "state_gu": "..."
-  }}
-}}
-
-Items to transliterate:
-{json.dumps(items_input, ensure_ascii=False)}"""
-
-            payload = {
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {"responseMimeType": "application/json"}
-            }
-            try:
-                res = _call_gemini_api(payload, api_key=key, timeout=5.0)
-                raw_text = res.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "{}")
-                parsed = json.loads(raw_text)
-                for pid_str, tr_vals in parsed.items():
-                    try:
-                        pid = int(pid_str)
-                        results[pid] = tr_vals
-                    except ValueError:
-                        pass
-            except Exception:
-                pass
-
+    
+    to_translate = []
     for p in parties:
         pid = p.get("id")
-        if pid not in results:
-            if p.get("party_name_gu"):
-                results[pid] = {
-                    "party_name_gu": p.get("party_name_gu"),
-                    "address_gu": p.get("address_gu") or "",
-                    "address_line_2_gu": p.get("address_line_2_gu") or "",
-                    "address_line_3_gu": p.get("address_line_3_gu") or "",
-                    "city_gu": p.get("city_gu") or "",
-                    "state_gu": p.get("state_gu") or ""
-                }
-            else:
-                results[pid] = translate_party_to_gujarati(
-                    party_name=p.get("party_name", ""),
-                    address=p.get("address", ""),
-                    city=p.get("city", ""),
-                    state=p.get("state", ""),
-                    address_line_2=p.get("address_line_2"),
-                    address_line_3=p.get("address_line_3"),
-                    api_key=key
-                )
+        if p.get("party_name_gu"):
+            results[pid] = {
+                "party_name_gu": p.get("party_name_gu"),
+                "address_gu": p.get("address_gu") or "",
+                "address_line_2_gu": p.get("address_line_2_gu") or "",
+                "address_line_3_gu": p.get("address_line_3_gu") or "",
+                "city_gu": p.get("city_gu") or "",
+                "state_gu": p.get("state_gu") or ""
+            }
+        else:
+            to_translate.append(p)
+
+    chunk_size = 10
+    for i in range(0, len(to_translate), chunk_size):
+        chunk = to_translate[i:i + chunk_size]
+        flat_texts = []
+        for p in chunk:
+            flat_texts.append(p.get("party_name") or "")
+            flat_texts.append(p.get("address") or "")
+            flat_texts.append(p.get("address_line_2") or "")
+            flat_texts.append(p.get("address_line_3") or "")
+            flat_texts.append(p.get("city") or "")
+            flat_texts.append(p.get("state") or "")
+
+        translated_flat = google_translate_batch_free(flat_texts, target_lang="gu")
+        idx = 0
+        for p in chunk:
+            pid = p.get("id")
+            results[pid] = {
+                "party_name_gu": translated_flat[idx] or fast_translate_phrase(p.get("party_name", "")),
+                "address_gu": translated_flat[idx + 1] or fast_translate_phrase(p.get("address", "")),
+                "address_line_2_gu": translated_flat[idx + 2],
+                "address_line_3_gu": translated_flat[idx + 3],
+                "city_gu": translated_flat[idx + 4] or fast_translate_phrase(p.get("city", "")),
+                "state_gu": translated_flat[idx + 5] or fast_translate_phrase(p.get("state", ""))
+            }
+            idx += 6
 
     return results
+
+def start_background_translation_worker(get_db_session_fn):
+    """
+    Spawns a background thread to translate any parties in SQLite
+    that don't have Gujarati translation yet, using Google Translator without API.
+    """
+    global _BG_WORKER_RUNNING, _BG_STATS
+    with _BG_WORKER_LOCK:
+        if _BG_WORKER_RUNNING:
+            return False
+        _BG_WORKER_RUNNING = True
+        _BG_STATS = {"total": 0, "processed": 0, "status": "running"}
+
+    def _worker():
+        global _BG_WORKER_RUNNING, _BG_STATS
+        try:
+            db = get_db_session_fn()
+            try:
+                from models import Party
+                untranslated = db.query(Party).filter(
+                    (Party.party_name_gu == None) | (Party.party_name_gu == "")
+                ).all()
+
+                _BG_STATS["total"] = len(untranslated)
+                if not untranslated:
+                    _BG_STATS["status"] = "idle"
+                    return
+
+                batch_size = 10
+                for i in range(0, len(untranslated), batch_size):
+                    chunk = untranslated[i:i + batch_size]
+                    flat_texts = []
+                    for p in chunk:
+                        flat_texts.append(p.party_name or "")
+                        flat_texts.append(p.address or "")
+                        flat_texts.append(p.address_line_2 or "")
+                        flat_texts.append(p.address_line_3 or "")
+                        flat_texts.append(p.city or "")
+                        flat_texts.append(p.state or "")
+
+                    translated_flat = google_translate_batch_free(flat_texts, target_lang="gu")
+                    idx = 0
+                    for p in chunk:
+                        p.party_name_gu = translated_flat[idx] or fast_translate_phrase(p.party_name)
+                        p.address_gu = translated_flat[idx + 1] or fast_translate_phrase(p.address)
+                        p.address_line_2_gu = translated_flat[idx + 2]
+                        p.address_line_3_gu = translated_flat[idx + 3]
+                        p.city_gu = translated_flat[idx + 4] or fast_translate_phrase(p.city)
+                        p.state_gu = translated_flat[idx + 5] or fast_translate_phrase(p.state)
+                        idx += 6
+
+                    db.commit()
+                    _BG_STATS["processed"] += len(chunk)
+                    time.sleep(0.3)
+                _BG_STATS["status"] = "completed"
+            finally:
+                db.close()
+        except Exception as e:
+            print("Background translation worker error:", e)
+            _BG_STATS["status"] = f"error: {str(e)}"
+        finally:
+            with _BG_WORKER_LOCK:
+                _BG_WORKER_RUNNING = False
+
+    t = threading.Thread(target=_worker, daemon=True)
+    t.start()
+    return True
+
+def get_background_translation_status() -> Dict[str, Any]:
+    global _BG_WORKER_RUNNING, _BG_STATS
+    return {
+        "is_running": _BG_WORKER_RUNNING,
+        **_BG_STATS
+    }
 
 def parse_unstructured_marg_data(raw_text: str, api_key: Optional[str] = None) -> Dict[str, Any]:
     """Intelligently extracts party, invoice, and dispatch details from unstructured text."""

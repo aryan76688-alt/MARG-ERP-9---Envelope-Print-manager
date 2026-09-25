@@ -427,6 +427,18 @@ export async function batchTranslateParties(party_ids: number[]): Promise<{ succ
   return res.json();
 }
 
+export async function triggerBackgroundTranslation(): Promise<{ success: boolean; started: boolean; message: string }> {
+  const res = await fetch(`${API_BASE}/ai/translate-background`, { method: 'POST' });
+  if (!res.ok) throw new Error('Failed to trigger background translation');
+  return res.json();
+}
+
+export async function fetchTranslationStatus(): Promise<{ is_running: boolean; total: number; processed: number; status: string }> {
+  const res = await fetch(`${API_BASE}/ai/translate-status`);
+  if (!res.ok) throw new Error('Failed to fetch translation status');
+  return res.json();
+}
+
 export async function fetchDispatchSummary(params?: {
   date?: string;
   delivery_boy?: string;
