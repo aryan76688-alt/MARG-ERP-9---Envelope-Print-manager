@@ -139,8 +139,11 @@ export interface DispatchSummaryJob {
   job_number: string;
   party_id?: number | null;
   party_name: string;
+  party_name_gu?: string | null;
   party_code?: string | null;
   city: string;
+  city_gu?: string | null;
+  address_gu?: string | null;
   state: string;
   mobile?: string | null;
   total_cases: number;

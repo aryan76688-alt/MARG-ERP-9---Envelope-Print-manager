@@ -979,7 +979,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
           {/* Optional Delivery Boy Assignment */}
           <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
             <div>
-              <span className="font-bold text-slate-600 block mb-1">Assign Delivery Boy (Optional):</span>
+              <span className="font-bold text-slate-600 block mb-1">Assign Driver Name (Optional):</span>
               <input
                 type="text"
                 value={deliveryBoyName}
@@ -1698,12 +1698,12 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
             <div className="flex items-center justify-between border-b border-slate-200 pb-2">
               <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-1.5">
                 <Truck className="w-4 h-4 text-emerald-600" />
-                <span>Delivery Boy & Route (Optional)</span>
+                <span>Driver & Route (Optional)</span>
               </h3>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <span className="text-[10px] font-bold text-slate-500 uppercase">Delivery Boy</span>
+                <span className="text-[10px] font-bold text-slate-500 uppercase">Driver Name</span>
                 <input
                   type="text"
                   value={deliveryBoyName}

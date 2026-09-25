@@ -1701,6 +1701,7 @@ def get_dispatch_summary(
     delivery_boy: Optional[str] = Query(None),
     route: Optional[str] = Query(None),
     job_ids: Optional[str] = Query(None),
+    language: Optional[str] = Query("en"),
     db: Session = Depends(get_db)
 ):
     if not date:
@@ -1761,13 +1762,28 @@ def get_dispatch_summary(
             label = "Standard Case"
             breakdown_totals[label] = breakdown_totals.get(label, 0) + (j.total_cases or 1)
 
+        party_name_gu = None
+        city_gu = None
+        address_gu = None
+        if j.party:
+            party_name_gu = j.party.party_name_gu
+            city_gu = j.party.city_gu
+            address_gu = j.party.address_gu
+        if not party_name_gu and j.party_name_snap:
+            party_name_gu = ai_service.fast_translate_phrase(j.party_name_snap)
+        if not city_gu and j.party_city_snap:
+            city_gu = ai_service.fast_translate_phrase(j.party_city_snap)
+
         dispatches.append({
             "id": j.id,
             "job_number": j.job_number,
             "party_id": j.party_id,
             "party_name": j.party_name_snap,
+            "party_name_gu": party_name_gu,
             "party_code": j.party_code_snap,
             "city": j.party_city_snap,
+            "city_gu": city_gu,
+            "address_gu": address_gu,
             "state": j.party_state_snap,
             "mobile": j.party_mobile_snap,
             "total_cases": j.total_cases,
@@ -1812,6 +1828,7 @@ def get_dispatch_summary_pdf(
     route: Optional[str] = Query(None),
     job_ids: Optional[str] = Query(None),
     auto_print: bool = Query(False),
+    language: Optional[str] = Query("en"),
     db: Session = Depends(get_db)
 ):
     if not date:
@@ -1840,16 +1857,27 @@ def get_dispatch_summary_pdf(
 
     jobs = query.order_by(PrintJob.created_at.asc()).all()
 
-    dispatches = [
-        {
+    dispatches = []
+    for j in jobs:
+        party_name_gu = None
+        city_gu = None
+        if j.party:
+            party_name_gu = j.party.party_name_gu
+            city_gu = j.party.city_gu
+        if not party_name_gu and j.party_name_snap:
+            party_name_gu = ai_service.fast_translate_phrase(j.party_name_snap)
+        if not city_gu and j.party_city_snap:
+            city_gu = ai_service.fast_translate_phrase(j.party_city_snap)
+
+        dispatches.append({
             "party_name": j.party_name_snap,
+            "party_name_gu": party_name_gu,
             "city": j.party_city_snap,
+            "city_gu": city_gu,
             "mobile": j.party_mobile_snap,
             "total_cases": j.total_cases,
             "case_breakdown": j.case_breakdown_json
-        }
-        for j in jobs
-    ]
+        })
 
     sender_settings = db.query(SenderSettings).first()
     sender_dict = {
@@ -1865,7 +1893,8 @@ def get_dispatch_summary_pdf(
         route=route or "",
         dispatches=dispatches,
         sender_data=sender_dict,
-        auto_print=auto_print
+        auto_print=auto_print,
+        language=language or "en"
     )
 
     filename = f"Dispatch_Summary_{date_formatted}.pdf"
@@ -2097,32 +2126,46 @@ def parse_unstructured_marg_text(req: ParseMargTextRequest, db: Session = Depend
 
 @app.post("/api/ai/batch-translate")
 def batch_translate_parties(req: BatchTranslatePartiesRequest, db: Session = Depends(get_db)):
-    """Batch translates multiple parties to Gujarati for bulk printing."""
+    """Batch translates multiple parties to Gujarati for bulk printing rapidly."""
     app_set = db.query(AppSettings).first()
     key = app_set.gemini_api_key if app_set else None
     parties = db.query(Party).filter(Party.id.in_(req.party_ids)).all()
-    results = {}
+
+    parties_dicts = [
+        {
+            "id": p.id,
+            "party_name": p.party_name,
+            "address": p.address,
+            "address_line_2": p.address_line_2,
+            "address_line_3": p.address_line_3,
+            "city": p.city,
+            "state": p.state,
+            "party_name_gu": p.party_name_gu,
+            "address_gu": p.address_gu
+        }
+        for p in parties
+    ]
+
+    translations = ai_service.batch_translate_parties_fast(parties_dicts, api_key=key)
+
     for p in parties:
-        if not p.party_name_gu:
-            tr = ai_service.translate_party_to_gujarati(
-                p.party_name, p.address, p.city, p.state,
-                address_line_2=p.address_line_2, address_line_3=p.address_line_3,
-                api_key=key
-            )
-            p.party_name_gu = tr.get("party_name_gu")
-            p.address_gu = tr.get("address_gu")
-            p.city_gu = tr.get("city_gu")
-            p.state_gu = tr.get("state_gu")
-            results[p.id] = tr
-        else:
-            results[p.id] = {
-                "party_name_gu": p.party_name_gu,
-                "address_gu": p.address_gu or "",
-                "city_gu": p.city_gu or "",
-                "state_gu": p.state_gu or ""
-            }
+        tr = translations.get(p.id)
+        if tr:
+            if not p.party_name_gu and tr.get("party_name_gu"):
+                p.party_name_gu = tr.get("party_name_gu")
+            if not p.address_gu and tr.get("address_gu"):
+                p.address_gu = tr.get("address_gu")
+            if tr.get("address_line_2_gu"):
+                p.address_line_2_gu = tr.get("address_line_2_gu")
+            if tr.get("address_line_3_gu"):
+                p.address_line_3_gu = tr.get("address_line_3_gu")
+            if not p.city_gu and tr.get("city_gu"):
+                p.city_gu = tr.get("city_gu")
+            if not p.state_gu and tr.get("state_gu"):
+                p.state_gu = tr.get("state_gu")
+
     db.commit()
-    return {"success": True, "translations": results}
+    return {"success": True, "translations": translations}
 
 # Mount built React frontend if dist exists
 dist_dir = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")

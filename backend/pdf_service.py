@@ -12,19 +12,27 @@ except ImportError:
 
 def translate_case_label_to_gu(label: str) -> str:
     """Translates case breakdown types and labels into Gujarati."""
-    gu_map = {
-        "PARCEL BAG": "પાર્સલ બેગ",
-        "NS CASE": "એન.એસ. કેસ",
-        "RL CASE": "આર.એલ. કેસ",
-        "DNS CASE": "ડી.એન.એસ. કેસ",
-        "METRO CASE": "મેટ્રો કેસ",
-        "CASE": "કેસ",
-        "BAG": "બેગ"
-    }
-    for k, v in gu_map.items():
-        if label.startswith(k):
-            return label.replace(k, v)
-    return label
+    if not label:
+        return ""
+    up = str(label).strip()
+    gu_map = [
+        ("STANDARD CASE", "સ્ટાન્ડર્ડ કેસ"),
+        ("PARCEL BAG", "પાર્સલ બેગ"),
+        ("NS CASE", "એન.એસ. કેસ"),
+        ("RL CASE", "આર.એલ. કેસ"),
+        ("DNS CASE", "ડી.એન.એસ. કેસ"),
+        ("METRO CASE", "મેટ્રો કેસ"),
+        ("CASE", "કેસ"),
+        ("BAG", "બેગ"),
+        ("BOX", "બોક્સ")
+    ]
+    res = up
+    for k, v in gu_map:
+        if k in res.upper():
+            # case insensitive replace
+            idx = res.upper().find(k)
+            res = res[:idx] + v + res[idx + len(k):]
+    return res
 
 
 def get_case_breakdown_lines(
@@ -960,15 +968,85 @@ def generate_dispatch_summary_pdf(
     route: str,
     dispatches: List[Dict[str, Any]],
     sender_data: Dict[str, Any],
-    auto_print: bool = False
+    auto_print: bool = False,
+    language: str = "en"
 ) -> bytes:
     """
-    Generates a delivery boy dispatch run sheet / summary manifest PDF.
-    Contains: Header, Route, Driver, Dispatches table, Totals, and Signatures.
+    Generates a driver dispatch run sheet / summary manifest PDF.
+    Contains: Header, Route, Driver Name, Dispatches table, Totals, and Signatures.
+    Supports English ('en') and Gujarati ('gu') languages.
     """
-    business_name = (sender_data.get("business_name") or "SHREEJI HEALTHCARE-HEALTHCARE").strip().upper()
-    sender_addr = (sender_data.get("address") or "SHOP 3&4 GF-NARAYAN COMPLEX, DEHGAM-MODASA ROAD, DEHGAM-382305").strip().upper()
-    sender_mob = (sender_data.get("mobile") or "+91 99245 44283").strip()
+    is_gu = (language == "gu")
+    business_name = (sender_data.get("business_name") or "SHREEJI HEALTHCARE").strip()
+
+    if is_gu:
+        company_name_display = "શ્રીજી હેલ્થકેર" if ("SHREEJI" in business_name.upper() or not business_name) else ai_service.fast_translate_phrase(business_name)
+        company_sub_display = "શોપ ૩&૪ જીએફ-નારાયણ કોમ્પ્લેક્ષ, દહેગામ-મોડાસા રોડ, દહેગામ-૩૮૨૩૦૫ • ફોન: +૯૧ ૯૯૨૪૫ ૪૪૨૮૩"
+        sheet_title_main = "ડ્રાઈવર ડિસ્પેચ રન શીટ"
+        sheet_title_sub = "ડિસ્પેચ સારાંશ (DISPATCH SUMMARY MANIFEST)"
+
+        lbl_date = "તારીખ (DATE)"
+        lbl_driver = "ડ્રાઈવરનું નામ (DRIVER NAME)"
+        lbl_route = "રૂટ (ROUTE)"
+        lbl_stops = "કુલ સ્ટોપ (TOTAL STOPS)"
+
+        driver_display = delivery_boy.strip() if delivery_boy else "બધા ડ્રાઈવર (ALL DRIVERS)"
+        route_display = route.strip() if route else "બધા રૂટ (ALL ROUTES)"
+
+        th_sr = "ક્રમ (SR)"
+        th_party = "પાર્ટીનું નામ (PARTY NAME)"
+        th_city = "મુકામ / શહેર (DESTINATION)"
+        th_mobile = "મોબાઈલ નં. (MOBILE NO.)"
+        th_breakdown = "કેસ અને વિગત (CASES & BREAKDOWN)"
+        th_pkgs = "પાર્સલ (PKGS)"
+        th_sign = "ગ્રાહક સહી (RECEIVER SIGN)"
+
+        kpi_parties_label = "કુલ પાર્ટી (Parties)"
+        kpi_pkgs_label = "કુલ પાર્સલ (Packages)"
+        kpi_standard_label = "સ્ટાન્ડર્ડ કેસ"
+        kpi_fluid_label = "IV ફ્લુઈડ કેસ"
+        kpi_bag_label = "પાર્સલ બેગ"
+
+        breakdown_box_header = "કેસ વાઇઝ વિગતવાર ગણતરી (CASE BREAKDOWN COUNT):"
+
+        sign_driver = "ડ્રાઈવરની સહી (Driver Signature)"
+        sign_manager = "ડિસ્પેચ મેનેજર સહી (Dispatch Manager)"
+        sign_security = "સિક્યોરિટી ગેટ પાસ સહી (Gate Pass)"
+    else:
+        company_name_display = business_name.upper()
+        sender_addr = (sender_data.get("address") or "SHOP 3&4 GF-NARAYAN COMPLEX, DEHGAM-MODASA ROAD, DEHGAM-382305").strip().upper()
+        sender_mob = (sender_data.get("mobile") or "+91 99245 44283").strip()
+        company_sub_display = f"{sender_addr} • Phone: {sender_mob}"
+        sheet_title_main = "DRIVER DISPATCH RUN SHEET"
+        sheet_title_sub = "DISPATCH SUMMARY MANIFEST"
+
+        lbl_date = "DATE"
+        lbl_driver = "DRIVER NAME"
+        lbl_route = "ROUTE"
+        lbl_stops = "TOTAL STOPS"
+
+        driver_display = delivery_boy.strip().upper() if delivery_boy else "ALL DRIVERS"
+        route_display = route.strip().upper() if route else "ALL ROUTES"
+
+        th_sr = "SR"
+        th_party = "PARTY NAME"
+        th_city = "DESTINATION"
+        th_mobile = "MOBILE NO."
+        th_breakdown = "CASES & BREAKDOWN"
+        th_pkgs = "PKGS"
+        th_sign = "RECEIVER SIGN"
+
+        kpi_parties_label = "Total Parties"
+        kpi_pkgs_label = "Total Packages"
+        kpi_standard_label = "Standard Cases"
+        kpi_fluid_label = "IV Fluid Cases"
+        kpi_bag_label = "Parcel Bags"
+
+        breakdown_box_header = "FULL CASE BREAKDOWN COUNT (NS CASE, RL CASE, DNS, METRO, BAGS):"
+
+        sign_driver = "Driver Signature"
+        sign_manager = "Dispatch Manager Signature"
+        sign_security = "Security / Gate Pass Sign"
 
     total_parties = len(dispatches)
     total_pkgs = 0
@@ -979,8 +1057,16 @@ def generate_dispatch_summary_pdf(
 
     rows_html = []
     for idx, d in enumerate(dispatches, start=1):
-        party_name = (d.get("party_name") or "").strip().upper()
-        city = (d.get("city") or "").strip().upper()
+        party_name_en = (d.get("party_name") or "").strip().upper()
+        party_name_gu = (d.get("party_name_gu") or "").strip()
+        if not party_name_gu and party_name_en:
+            party_name_gu = ai_service.fast_translate_phrase(party_name_en)
+
+        city_en = (d.get("city") or "").strip().upper()
+        city_gu = (d.get("city_gu") or "").strip()
+        if not city_gu and city_en:
+            city_gu = ai_service.fast_translate_phrase(city_en)
+
         mobile = (d.get("mobile") or "").strip()
         pkg_count = int(d.get("total_cases") or 1)
         total_pkgs += pkg_count
@@ -1024,15 +1110,27 @@ def generate_dispatch_summary_pdf(
             total_standard_cases += pkg_count
             full_breakdown_counts["CASE"] = full_breakdown_counts.get("CASE", 0) + pkg_count
 
-        breakdown_str = ", ".join(breakdown_text_parts) if breakdown_text_parts else f"CASE: {pkg_count}"
+        if is_gu:
+            translated_parts = [translate_case_label_to_gu(p) for p in breakdown_text_parts]
+            breakdown_str = ", ".join(translated_parts) if translated_parts else f"કેસ: {pkg_count}"
+            party_cell_html = f"""
+            <div style="font-weight: 800; font-size: 10pt; color: #000000; line-height: 1.2;">{party_name_gu}</div>
+            <div style="font-size: 7.5pt; font-weight: 700; color: #475569; margin-top: 1px;">{party_name_en}</div>
+            """
+            city_cell_html = f"""
+            <div style="font-weight: 800; font-size: 9.5pt; color: #0f172a;">{city_gu}</div>
+            {f'<div style="font-size: 7pt; font-weight: 600; color: #64748b;">{city_en}</div>' if city_gu != city_en else ''}
+            """
+        else:
+            breakdown_str = ", ".join(breakdown_text_parts) if breakdown_text_parts else f"CASE: {pkg_count}"
+            party_cell_html = f'<div style="font-weight: 800; font-size: 10pt;">{party_name_en}</div>'
+            city_cell_html = f'<div style="font-weight: 700;">{city_en}</div>'
 
         rows_html.append(f"""
         <tr>
           <td style="text-align: center; font-weight: bold;">{idx}</td>
-          <td>
-            <div style="font-weight: 800; font-size: 10pt;">{party_name}</div>
-          </td>
-          <td style="font-weight: 700;">{city}</td>
+          <td>{party_cell_html}</td>
+          <td>{city_cell_html}</td>
           <td style="font-family: monospace; font-size: 9pt;">{mobile}</td>
           <td style="font-size: 9pt; font-weight: 700; color: #1e3a8a;">{breakdown_str}</td>
           <td style="text-align: center; font-weight: 800; font-size: 11pt;">{pkg_count}</td>
@@ -1040,13 +1138,14 @@ def generate_dispatch_summary_pdf(
         </tr>
         """)
 
-    driver_display = delivery_boy if delivery_boy else "ALL DELIVERY BOYS"
-    route_display = route if route else "ALL ROUTES"
+    breakdown_total_label = f"કુલ: {total_pkgs} પાર્સલ" if is_gu else f"TOTAL: {total_pkgs} PKGS"
 
     breakdown_badges_html = "".join([
         f"""
         <div style="background: #ffffff; border: 1.5px solid #1e3a8a; border-radius: 6px; padding: 4px 6px; text-align: center;">
-          <div style="font-size: 7.5pt; font-weight: 800; color: #1e3a8a; text-transform: uppercase;">{k}</div>
+          <div style="font-size: 7.5pt; font-weight: 800; color: #1e3a8a; text-transform: uppercase;">
+            {translate_case_label_to_gu(k) if is_gu else k}
+          </div>
           <div style="font-size: 13pt; font-weight: 900; color: #000000; margin-top: 1px;">{v}</div>
         </div>
         """
@@ -1056,8 +1155,8 @@ def generate_dispatch_summary_pdf(
     detailed_breakdown_box = f"""
     <div style="margin-top: 10px; border: 1.5px solid #000000; border-radius: 6px; padding: 8px 12px; background: #f8fafc;">
       <div style="font-size: 9pt; font-weight: 900; color: #0f172a; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #cbd5e1; padding-bottom: 3px; display: flex; justify-content: space-between;">
-        <span>FULL CASE BREAKDOWN COUNT (NS CASE, RL CASE, DNS, METRO, BAGS):</span>
-        <span style="color: #1e3a8a;">TOTAL: {total_pkgs} PKGS</span>
+        <span>{breakdown_box_header}</span>
+        <span style="color: #1e3a8a;">{breakdown_total_label}</span>
       </div>
       <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 6px;">
         {breakdown_badges_html}
@@ -1069,7 +1168,7 @@ def generate_dispatch_summary_pdf(
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Dispatch Run Sheet - {date_str}</title>
+  <title>{sheet_title_main} - {date_str}</title>
   <style>
     @page {{
       size: A4 portrait;
@@ -1077,7 +1176,7 @@ def generate_dispatch_summary_pdf(
     }}
     * {{ box-sizing: border-box; margin: 0; padding: 0; }}
     body {{
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, Helvetica, sans-serif;
+      font-family: 'Noto Sans Gujarati', 'Lohit Gujarati', 'Shruti', -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, Helvetica, sans-serif;
       color: #000000;
       background: #ffffff;
       padding: 0;
@@ -1116,21 +1215,21 @@ def generate_dispatch_summary_pdf(
       padding: 8px 12px;
       display: flex;
       justify-content: space-between;
-      font-size: 10pt;
+      font-size: 9.5pt;
       font-weight: 700;
       margin-bottom: 12px;
     }}
     table {{
       width: 100%;
       border-collapse: collapse;
-      font-size: 9.5pt;
+      font-size: 9pt;
     }}
     th {{
       background: #1e293b;
       color: #ffffff;
       padding: 6px 8px;
       text-align: left;
-      font-size: 9pt;
+      font-size: 8.5pt;
       text-transform: uppercase;
       letter-spacing: 0.5px;
     }}
@@ -1173,10 +1272,10 @@ def generate_dispatch_summary_pdf(
     }}
     .sign-col {{
       text-align: center;
-      width: 28%;
+      width: 30%;
       border-top: 1.5px solid #000000;
       padding-top: 6px;
-      font-size: 9pt;
+      font-size: 8.5pt;
       font-weight: 800;
     }}
   </style>
@@ -1184,32 +1283,32 @@ def generate_dispatch_summary_pdf(
 <body>
   <div class="header-box">
     <div>
-      <div class="company-title">{business_name}</div>
-      <div class="company-sub">{sender_addr} • Phone: {sender_mob}</div>
+      <div class="company-title">{company_name_display}</div>
+      <div class="company-sub">{company_sub_display}</div>
     </div>
     <div class="sheet-title">
-      <h2>DELIVERY RUN SHEET</h2>
-      <div style="font-size: 9pt; font-weight: 700; color: #475569;">DISPATCH SUMMARY MANIFEST</div>
+      <h2>{sheet_title_main}</h2>
+      <div style="font-size: 8.5pt; font-weight: 700; color: #475569;">{sheet_title_sub}</div>
     </div>
   </div>
 
   <div class="meta-bar">
-    <div>DATE: <span style="color: #0284c7;">{date_str}</span></div>
-    <div>DELIVERY BOY: <span style="color: #0284c7;">{driver_display}</span></div>
-    <div>ROUTE: <span style="color: #0284c7;">{route_display}</span></div>
-    <div>TOTAL STOPS: <span style="color: #0284c7;">{total_parties}</span></div>
+    <div>{lbl_date}: <span style="color: #0284c7;">{date_str}</span></div>
+    <div>{lbl_driver}: <span style="color: #0284c7;">{driver_display}</span></div>
+    <div>{lbl_route}: <span style="color: #0284c7;">{route_display}</span></div>
+    <div>{lbl_stops}: <span style="color: #0284c7;">{total_parties}</span></div>
   </div>
 
   <table>
     <thead>
       <tr>
-        <th style="width: 5%; text-align: center;">SR</th>
-        <th style="width: 32%;">PARTY NAME</th>
-        <th style="width: 14%;">DESTINATION</th>
-        <th style="width: 15%;">MOBILE NO.</th>
-        <th style="width: 18%;">CASES & BREAKDOWN</th>
-        <th style="width: 6%; text-align: center;">PKGS</th>
-        <th style="width: 10%; text-align: center;">RECEIVER SIGN</th>
+        <th style="width: 5%; text-align: center;">{th_sr}</th>
+        <th style="width: 31%;">{th_party}</th>
+        <th style="width: 14%;">{th_city}</th>
+        <th style="width: 14%;">{th_mobile}</th>
+        <th style="width: 18%;">{th_breakdown}</th>
+        <th style="width: 6%; text-align: center;">{th_pkgs}</th>
+        <th style="width: 12%; text-align: center;">{th_sign}</th>
       </tr>
     </thead>
     <tbody>
@@ -1220,32 +1319,32 @@ def generate_dispatch_summary_pdf(
   <div class="summary-box">
     <div class="kpi-item">
       <div class="kpi-num">{total_parties}</div>
-      <div class="kpi-label">Total Parties</div>
+      <div class="kpi-label">{kpi_parties_label}</div>
     </div>
     <div class="kpi-item">
       <div class="kpi-num">{total_pkgs}</div>
-      <div class="kpi-label">Total Packages</div>
+      <div class="kpi-label">{kpi_pkgs_label}</div>
     </div>
     <div class="kpi-item">
       <div class="kpi-num">{total_standard_cases}</div>
-      <div class="kpi-label">Standard Cases</div>
+      <div class="kpi-label">{kpi_standard_label}</div>
     </div>
     <div class="kpi-item">
       <div class="kpi-num">{total_fluid_cases}</div>
-      <div class="kpi-label">IV Fluid Cases</div>
+      <div class="kpi-label">{kpi_fluid_label}</div>
     </div>
     <div class="kpi-item">
       <div class="kpi-num">{total_bags}</div>
-      <div class="kpi-label">Parcel Bags</div>
+      <div class="kpi-label">{kpi_bag_label}</div>
     </div>
   </div>
 
   {detailed_breakdown_box}
 
   <div class="signatures">
-    <div class="sign-col">Delivery Boy Signature</div>
-    <div class="sign-col">Dispatch Manager Signature</div>
-    <div class="sign-col">Security / Gate Pass Sign</div>
+    <div class="sign-col">{sign_driver}</div>
+    <div class="sign-col">{sign_manager}</div>
+    <div class="sign-col">{sign_security}</div>
   </div>
 </body>
 </html>

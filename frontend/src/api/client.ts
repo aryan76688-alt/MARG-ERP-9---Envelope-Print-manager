@@ -431,11 +431,13 @@ export async function fetchDispatchSummary(params?: {
   date?: string;
   delivery_boy?: string;
   route?: string;
+  language?: string;
 }): Promise<DispatchSummaryData> {
   const query = new URLSearchParams();
   if (params?.date) query.append('date', params.date);
   if (params?.delivery_boy) query.append('delivery_boy', params.delivery_boy);
   if (params?.route) query.append('route', params.route);
+  if (params?.language) query.append('language', params.language);
 
   const res = await fetch(`${API_BASE}/dispatch-summary?${query.toString()}`);
   if (!res.ok) throw new Error('Failed to load dispatch summary');
@@ -481,11 +483,13 @@ export async function downloadDispatchSummaryPDF(params?: {
   delivery_boy?: string;
   route?: string;
   job_ids?: number[] | string;
+  language?: string;
 }): Promise<void> {
   const query = new URLSearchParams();
   if (params?.date) query.append('date', params.date);
   if (params?.delivery_boy) query.append('delivery_boy', params.delivery_boy);
   if (params?.route) query.append('route', params.route);
+  if (params?.language) query.append('language', params.language);
   if (params?.job_ids) {
     const idsStr = Array.isArray(params.job_ids) ? params.job_ids.join(',') : String(params.job_ids);
     query.append('job_ids', idsStr);
@@ -517,11 +521,13 @@ export async function printDispatchSummaryPDF(params?: {
   delivery_boy?: string;
   route?: string;
   job_ids?: number[] | string;
+  language?: string;
 }): Promise<void> {
   const query = new URLSearchParams();
   if (params?.date) query.append('date', params.date);
   if (params?.delivery_boy) query.append('delivery_boy', params.delivery_boy);
   if (params?.route) query.append('route', params.route);
+  if (params?.language) query.append('language', params.language);
   if (params?.job_ids) {
     const idsStr = Array.isArray(params.job_ids) ? params.job_ids.join(',') : String(params.job_ids);
     query.append('job_ids', idsStr);
