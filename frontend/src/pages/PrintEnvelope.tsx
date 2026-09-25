@@ -32,6 +32,7 @@ import {
   Weight,
   Edit3,
   Lock,
+  Unlock,
   History,
   X
 } from 'lucide-react';
@@ -254,12 +255,32 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
       setDeliveryRoute(selectedParty.route);
     }
 
-    const todayStr = new Date().toISOString().slice(0, 10);
-    fetchPrintJobs({ search: selectedParty.party_name, limit: 15 })
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const todayLocalStr = `${year}-${month}-${day}`;
+    const todayUtcStr = now.toISOString().slice(0, 10);
+
+    fetchPrintJobs({ search: selectedParty.party_name, limit: 20 })
       .then((res) => {
-        const todayJobs = (res.items || []).filter((j) => {
-          const jobDate = (j.created_at || '').slice(0, 10);
-          return jobDate === todayStr && j.party_name.toUpperCase() === selectedParty.party_name.toUpperCase();
+        const todayJobs = (res.items || []).filter((j: any) => {
+          let datePart = '';
+          if (j.created_at_iso) {
+            datePart = j.created_at_iso.slice(0, 10);
+          } else if (j.created_at) {
+            const raw = j.created_at.slice(0, 10);
+            if (raw.includes('-') && raw.split('-')[0].length === 2) {
+              const [d, m, y] = raw.split('-');
+              datePart = `${y}-${m}-${d}`;
+            } else {
+              datePart = raw;
+            }
+          }
+          const normParty = (j.party_name || '').toUpperCase().trim();
+          const targetParty = (selectedParty.party_name || '').toUpperCase().trim();
+          const matchesDate = datePart === todayLocalStr || datePart === todayUtcStr;
+          return matchesDate && normParty === targetParty;
         });
         if (todayJobs.length > 0) {
           setHasPrintedToday(true);
@@ -1231,14 +1252,25 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                   <p className="text-[11px] text-amber-800 leading-tight">
                     This party was printed {printedTodayCount} time(s) today. Further direct printing is locked to avoid duplicate courier dispatches.
                   </p>
-                  <div className="pt-1">
+                  <div className="pt-1 flex flex-wrap items-center gap-2">
                     <button
                       type="button"
                       onClick={() => onNavigate && onNavigate('history', { search: selectedParty.party_name })}
                       className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-black shadow-sm flex items-center gap-1.5 transition-all"
                     >
                       <History className="w-3.5 h-3.5" />
-                      <span>Open in History to Edit & Reprint</span>
+                      <span>Open in History</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsEditReprintMode(true);
+                        setHasPrintedToday(false);
+                      }}
+                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-black shadow-sm flex items-center gap-1.5 transition-all"
+                    >
+                      <Unlock className="w-3.5 h-3.5" />
+                      <span>Unlock & Print Another Dispatch</span>
                     </button>
                   </div>
                 </div>
@@ -1789,14 +1821,27 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                 <p className="text-[11px] text-amber-800 font-semibold leading-tight">
                   This party was already printed today. To prevent accidental duplicates, printing from here is locked.
                 </p>
-                <button
-                  type="button"
-                  onClick={() => onNavigate && onNavigate('history', { search: selectedParty?.party_name })}
-                  className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-extrabold text-xs rounded-lg shadow-sm inline-flex items-center gap-1.5 transition-all"
-                >
-                  <History className="w-3.5 h-3.5" />
-                  <span>Go to History to Reprint or Edit</span>
-                </button>
+                <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => onNavigate && onNavigate('history', { search: selectedParty?.party_name })}
+                    className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-extrabold text-xs rounded-lg shadow-sm inline-flex items-center gap-1.5 transition-all"
+                  >
+                    <History className="w-3.5 h-3.5" />
+                    <span>Go to History to Reprint</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsEditReprintMode(true);
+                      setHasPrintedToday(false);
+                    }}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-xs rounded-lg shadow-sm inline-flex items-center gap-1.5 transition-all"
+                  >
+                    <Unlock className="w-3.5 h-3.5" />
+                    <span>Unlock & Print Another Dispatch</span>
+                  </button>
+                </div>
               </div>
             </div>
           ) : (

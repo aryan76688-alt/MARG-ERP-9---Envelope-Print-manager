@@ -850,7 +850,8 @@ def generate_envelopes_pdf(
     sender_data: Dict[str, Any],
     settings: Dict[str, Any],
     template_format: str = "attachment_pdf",
-    language: str = "en"
+    language: str = "en",
+    auto_print: bool = False
 ) -> bytes:
     """
     Generates a high-quality vector PDF of envelopes matching the user's MARG Courier Envelope layout.
@@ -860,7 +861,7 @@ def generate_envelopes_pdf(
         job_data, cases_data, sender_data, settings,
         template_format=template_format, language=language
     )
-    return compile_html_to_pdf(html_content)
+    return compile_html_to_pdf(html_content, auto_print=auto_print)
 
 
 def generate_bulk_envelopes_pdf(
@@ -868,7 +869,8 @@ def generate_bulk_envelopes_pdf(
     sender_data: Dict[str, Any],
     settings: Dict[str, Any],
     template_format: str = "attachment_pdf",
-    language: str = "en"
+    language: str = "en",
+    auto_print: bool = False
 ) -> bytes:
     """
     Generates a combined PDF with all selected parties printed together (2 envelopes per A4 sheet).
@@ -878,10 +880,27 @@ def generate_bulk_envelopes_pdf(
         jobs_cases_list, sender_data, settings,
         template_format=template_format, language=language
     )
-    return compile_html_to_pdf(html_content)
+    return compile_html_to_pdf(html_content, auto_print=auto_print)
 
 
-def compile_html_to_pdf(html_content: str) -> bytes:
+def add_autoprint_js_to_pdf(pdf_bytes: bytes) -> bytes:
+    """Injects Acrobat / browser PDF JavaScript to automatically open the print dialog."""
+    try:
+        import io
+        from pypdf import PdfReader, PdfWriter
+        reader = PdfReader(io.BytesIO(pdf_bytes))
+        writer = PdfWriter()
+        writer.append(reader)
+        writer.add_js("this.print({bUI: true, bSilent: false, bShrinkToFit: true});")
+        out_stream = io.BytesIO()
+        writer.write(out_stream)
+        return out_stream.getvalue()
+    except Exception as e:
+        print("Could not add auto-print JS:", e)
+        return pdf_bytes
+
+
+def compile_html_to_pdf(html_content: str, auto_print: bool = False) -> bytes:
     temp_dir = tempfile.mkdtemp()
     html_path = os.path.join(temp_dir, "document.html")
     pdf_path = os.path.join(temp_dir, "document.pdf")
@@ -889,6 +908,7 @@ def compile_html_to_pdf(html_content: str) -> bytes:
     with open(html_path, "w", encoding="utf-8") as f:
         f.write(html_content)
 
+    raw_pdf = None
     try:
         cmd = [
             "chromium",
@@ -903,17 +923,25 @@ def compile_html_to_pdf(html_content: str) -> bytes:
         subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30)
         if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
             with open(pdf_path, "rb") as pf:
-                return pf.read()
+                raw_pdf = pf.read()
     except Exception as e:
         print("Chromium PDF error:", e)
 
-    # Fallback to WeasyPrint
-    try:
-        import weasyprint
-        return weasyprint.HTML(string=html_content).write_pdf()
-    except Exception as we:
-        raise RuntimeError(f"Could not generate PDF: {we}")
-    finally:
+    # Fallback to WeasyPrint if Chromium did not produce PDF
+    if not raw_pdf:
+        try:
+            import weasyprint
+            raw_pdf = weasyprint.HTML(string=html_content).write_pdf()
+        except Exception as we:
+            raise RuntimeError(f"Could not generate PDF: {we}")
+        finally:
+            try:
+                if os.path.exists(html_path): os.remove(html_path)
+                if os.path.exists(pdf_path): os.remove(pdf_path)
+                os.rmdir(temp_dir)
+            except Exception:
+                pass
+    else:
         try:
             if os.path.exists(html_path): os.remove(html_path)
             if os.path.exists(pdf_path): os.remove(pdf_path)
@@ -921,13 +949,18 @@ def compile_html_to_pdf(html_content: str) -> bytes:
         except Exception:
             pass
 
+    if auto_print and raw_pdf:
+        return add_autoprint_js_to_pdf(raw_pdf)
+    return raw_pdf
+
 
 def generate_dispatch_summary_pdf(
     date_str: str,
     delivery_boy: str,
     route: str,
     dispatches: List[Dict[str, Any]],
-    sender_data: Dict[str, Any]
+    sender_data: Dict[str, Any],
+    auto_print: bool = False
 ) -> bytes:
     """
     Generates a delivery boy dispatch run sheet / summary manifest PDF.
@@ -1217,4 +1250,4 @@ def generate_dispatch_summary_pdf(
 </body>
 </html>
 """
-    return compile_html_to_pdf(html)
+    return compile_html_to_pdf(html, auto_print=auto_print)

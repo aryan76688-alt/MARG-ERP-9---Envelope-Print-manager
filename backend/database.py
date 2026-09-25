@@ -259,8 +259,9 @@ def init_db():
                 db.add(Party(**p))
             db.commit()
 
-            # Seed an initial print job history for demo metrics
-            p1 = db.query(Party).filter_by(party_name="JODHPUR MEDICOSE").first()
+            # Seed an initial print job history for demo metrics only if empty
+            if db.query(PrintJob).count() == 0:
+                p1 = db.query(Party).filter_by(party_name="JODHPUR MEDICOSE").first()
             if p1:
                 job1 = PrintJob(
                     job_number="MRG-2026-000001",

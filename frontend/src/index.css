@@ -64,24 +64,19 @@
     display: none !important;
   }
 
-  body.printing-envelope * {
-    visibility: hidden;
-  }
-
-  body.printing-envelope .print-only-sheet,
-  body.printing-envelope .print-only-sheet * {
-    visibility: visible !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-  }
-
-  body.printing-envelope .print-only-sheet {
+  .print-only-sheet {
     display: block !important;
-    position: static !important;
+    visibility: visible !important;
     width: 100% !important;
     margin: 0 !important;
     padding: 0 !important;
     background: #ffffff !important;
+  }
+
+  .print-only-sheet * {
+    visibility: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
   .sheet-page-wrapper {

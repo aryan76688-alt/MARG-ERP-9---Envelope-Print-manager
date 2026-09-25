@@ -526,9 +526,13 @@ export async function printDispatchSummaryPDF(params?: {
     const idsStr = Array.isArray(params.job_ids) ? params.job_ids.join(',') : String(params.job_ids);
     query.append('job_ids', idsStr);
   }
+  query.append('auto_print', 'true');
 
   const res = await fetch(`${API_BASE}/dispatch-summary/pdf?${query.toString()}`);
-  if (!res.ok) throw new Error('Failed to load dispatch summary run-sheet');
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.detail || 'Failed to load dispatch summary run-sheet');
+  }
 
   const blob = await res.blob();
   const pdfBlob = new Blob([blob], { type: 'application/pdf' });
@@ -536,34 +540,50 @@ export async function printDispatchSummaryPDF(params?: {
 
   const iframe = document.createElement('iframe');
   iframe.style.position = 'fixed';
-  iframe.style.right = '0';
-  iframe.style.bottom = '0';
-  iframe.style.width = '0';
-  iframe.style.height = '0';
-  iframe.style.border = '0';
+  iframe.style.left = '-10000px';
+  iframe.style.top = '-10000px';
+  iframe.style.width = '1024px';
+  iframe.style.height = '1024px';
+  iframe.style.opacity = '0.01';
+  iframe.style.pointerEvents = 'none';
+  iframe.style.border = 'none';
   iframe.src = url;
   document.body.appendChild(iframe);
 
   let printed = false;
-  iframe.onload = () => {
+  const doPrint = () => {
+    if (printed) return;
     try {
-      iframe.contentWindow?.focus();
-      iframe.contentWindow?.print();
-      printed = true;
+      if (iframe.contentWindow) {
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+        printed = true;
+      }
     } catch {
       window.open(url, '_blank');
       printed = true;
     }
   };
 
+  iframe.onload = () => {
+    setTimeout(doPrint, 500);
+  };
+
   setTimeout(() => {
     if (!printed) {
-      window.open(url, '_blank');
+      doPrint();
+      if (!printed) {
+        window.open(url, '_blank');
+        printed = true;
+      }
     }
     setTimeout(() => {
-      try { document.body.removeChild(iframe); } catch {}
+      try {
+        document.body.removeChild(iframe);
+        window.URL.revokeObjectURL(url);
+      } catch {}
     }, 60000);
-  }, 1000);
+  }, 1200);
 }
 
 export async function printEnvelopePDF(payload: {
@@ -593,13 +613,17 @@ export async function printEnvelopePDF(payload: {
   address_line_3_gu?: string;
   city_gu?: string;
   state_gu?: string;
+  auto_print?: boolean;
 }): Promise<void> {
   const res = await fetch(`${API_BASE}/pdf/generate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ ...payload, auto_print: true }),
   });
-  if (!res.ok) throw new Error('PDF generation failed on server');
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.detail || 'PDF generation failed on server');
+  }
 
   const blob = await res.blob();
   const pdfBlob = new Blob([blob], { type: 'application/pdf' });
@@ -607,34 +631,50 @@ export async function printEnvelopePDF(payload: {
 
   const iframe = document.createElement('iframe');
   iframe.style.position = 'fixed';
-  iframe.style.right = '0';
-  iframe.style.bottom = '0';
-  iframe.style.width = '0';
-  iframe.style.height = '0';
-  iframe.style.border = '0';
+  iframe.style.left = '-10000px';
+  iframe.style.top = '-10000px';
+  iframe.style.width = '1024px';
+  iframe.style.height = '1024px';
+  iframe.style.opacity = '0.01';
+  iframe.style.pointerEvents = 'none';
+  iframe.style.border = 'none';
   iframe.src = url;
   document.body.appendChild(iframe);
 
   let printed = false;
-  iframe.onload = () => {
+  const doPrint = () => {
+    if (printed) return;
     try {
-      iframe.contentWindow?.focus();
-      iframe.contentWindow?.print();
-      printed = true;
+      if (iframe.contentWindow) {
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+        printed = true;
+      }
     } catch {
       window.open(url, '_blank');
       printed = true;
     }
   };
 
+  iframe.onload = () => {
+    setTimeout(doPrint, 500);
+  };
+
   setTimeout(() => {
     if (!printed) {
-      window.open(url, '_blank');
+      doPrint();
+      if (!printed) {
+        window.open(url, '_blank');
+        printed = true;
+      }
     }
     setTimeout(() => {
-      try { document.body.removeChild(iframe); } catch {}
+      try {
+        document.body.removeChild(iframe);
+        window.URL.revokeObjectURL(url);
+      } catch {}
     }, 60000);
-  }, 1000);
+  }, 1200);
 }
 
 export function getExportPartiesUrl(): string {

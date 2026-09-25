@@ -863,18 +863,39 @@ def get_import_history(db: Session = Depends(get_db)):
 # ==========================================
 
 def get_next_job_number(db: Session) -> str:
+    """
+    Returns the next strictly unique, non-colliding job number formatted as MRG-{year}-{seq:06d}.
+    Guarantees zero collision by inspecting all existing jobs, session objects, and checking uniqueness.
+    """
     current_year = datetime.datetime.now().year
     prefix = f"MRG-{current_year}-"
-    last_job = db.query(PrintJob).filter(PrintJob.job_number.like(f"{prefix}%")).order_by(desc(PrintJob.id)).first()
-    if last_job and last_job.job_number:
-        try:
-            last_seq = int(last_job.job_number.split("-")[-1])
-            new_seq = last_seq + 1
-        except Exception:
-            new_seq = db.query(PrintJob).count() + 1
-    else:
-        new_seq = 1
-    return f"{prefix}{new_seq:06d}"
+
+    existing_jobs = db.query(PrintJob.job_number).filter(PrintJob.job_number.like(f"{prefix}%")).all()
+    max_seq = 0
+    for (j_num,) in existing_jobs:
+        if j_num and j_num.startswith(prefix):
+            suffix = j_num[len(prefix):]
+            if suffix.isdigit():
+                val = int(suffix)
+                if val > max_seq:
+                    max_seq = val
+
+    for obj in db.new:
+        if isinstance(obj, PrintJob) and obj.job_number and obj.job_number.startswith(prefix):
+            suffix = obj.job_number[len(prefix):]
+            if suffix.isdigit():
+                val = int(suffix)
+                if val > max_seq:
+                    max_seq = val
+
+    candidate_seq = max_seq + 1
+    while True:
+        candidate_num = f"{prefix}{candidate_seq:06d}"
+        exists_in_db = db.query(PrintJob.id).filter(PrintJob.job_number == candidate_num).first() is not None
+        exists_in_session = any(isinstance(obj, PrintJob) and obj.job_number == candidate_num for obj in db.new)
+        if not exists_in_db and not exists_in_session:
+            return candidate_num
+        candidate_seq += 1
 
 @app.post("/api/print-jobs", status_code=status.HTTP_201_CREATED)
 def create_print_job(req: CreatePrintJobRequest, db: Session = Depends(get_db)):
@@ -939,70 +960,77 @@ def create_print_job(req: CreatePrintJobRequest, db: Session = Depends(get_db)):
         if valid_sum > 0:
             req.total_cases = valid_sum
 
-    job = PrintJob(
-        job_number=job_number,
-        party_id=req.party_id,
-        party_name_snap=req.party_name.strip().upper(),
-        party_code_snap=req.party_code.strip().upper() if req.party_code else None,
-        party_address_snap=req.address.strip().upper(),
-        party_address_line_2_snap=req.address_line_2.strip().upper() if req.address_line_2 else None,
-        party_address_line_3_snap=req.address_line_3.strip().upper() if req.address_line_3 else None,
-        party_city_snap=req.city.strip().upper(),
-        party_state_snap=req.state.strip().upper(),
-        party_mobile_snap=req.mobile_no.strip() if req.mobile_no else None,
-        party_gst_snap=req.gst_no.strip().upper() if req.gst_no else None,
-        sender_name_snap=s_name.strip().upper(),
-        sender_address_snap=s_addr.strip().upper(),
-        sender_city_snap=s_city.strip().upper(),
-        sender_state_snap=s_state.strip().upper(),
-        sender_mobile_snap=s_mobile.strip(),
-        parcel_type=req.parcel_type,
-        total_cases=req.total_cases,
-        total_weight=total_weight,
-        envelope_size=req.envelope_size,
-        orientation=req.orientation,
-        printer_name=req.printer_name,
-        envelopes_per_page=req.envelopes_per_page,
-        status=req.status,
-        case_breakdown_json=case_breakdown_json,
-        delivery_boy_name=req.delivery_boy_name,
-        delivery_route=req.delivery_route,
-        language=req.language or "en",
-        template_format=req.template_format or "attachment_pdf",
-        created_at=datetime.datetime.now(datetime.timezone.utc)
-    )
-    db.add(job)
-    db.flush()
-
-    if req.party_id and (req.party_name_gu or req.address_gu):
-        party_rec = db.query(Party).filter(Party.id == req.party_id).first()
-        if party_rec:
-            if req.party_name_gu: party_rec.party_name_gu = req.party_name_gu
-            if req.address_gu: party_rec.address_gu = req.address_gu
-            if req.city_gu: party_rec.city_gu = req.city_gu
-            if req.state_gu: party_rec.state_gu = req.state_gu
-
-    cases_resp = []
-    for idx, w in enumerate(weights, start=1):
-        barcode_val = f"{job_number}-C{idx}"
-        pcase = PrintCase(
-            print_job_id=job.id,
-            case_number=idx,
-            case_total=req.total_cases,
-            weight=w,
-            barcode_value=barcode_val,
-            status="Printed"
+    try:
+        job = PrintJob(
+            job_number=job_number,
+            party_id=req.party_id,
+            party_name_snap=req.party_name.strip().upper(),
+            party_code_snap=req.party_code.strip().upper() if req.party_code else None,
+            party_address_snap=req.address.strip().upper(),
+            party_address_line_2_snap=req.address_line_2.strip().upper() if req.address_line_2 else None,
+            party_address_line_3_snap=req.address_line_3.strip().upper() if req.address_line_3 else None,
+            party_city_snap=req.city.strip().upper(),
+            party_state_snap=req.state.strip().upper(),
+            party_mobile_snap=req.mobile_no.strip() if req.mobile_no else None,
+            party_gst_snap=req.gst_no.strip().upper() if req.gst_no else None,
+            sender_name_snap=s_name.strip().upper(),
+            sender_address_snap=s_addr.strip().upper(),
+            sender_city_snap=s_city.strip().upper(),
+            sender_state_snap=s_state.strip().upper(),
+            sender_mobile_snap=s_mobile.strip(),
+            parcel_type=req.parcel_type,
+            total_cases=req.total_cases,
+            total_weight=total_weight,
+            envelope_size=req.envelope_size,
+            orientation=req.orientation,
+            printer_name=req.printer_name,
+            envelopes_per_page=req.envelopes_per_page,
+            status=req.status,
+            case_breakdown_json=case_breakdown_json,
+            delivery_boy_name=req.delivery_boy_name,
+            delivery_route=req.delivery_route,
+            language=req.language or "en",
+            template_format=req.template_format or "attachment_pdf",
+            created_at=datetime.datetime.now(datetime.timezone.utc)
         )
-        db.add(pcase)
-        cases_resp.append({
-            "case_number": idx,
-            "case_total": req.total_cases,
-            "weight": w,
-            "barcode_value": barcode_val
-        })
+        db.add(job)
+        db.flush()
 
-    db.commit()
-    db.refresh(job)
+        if req.party_id and (req.party_name_gu or req.address_gu):
+            party_rec = db.query(Party).filter(Party.id == req.party_id).first()
+            if party_rec:
+                if req.party_name_gu: party_rec.party_name_gu = req.party_name_gu
+                if req.address_gu: party_rec.address_gu = req.address_gu
+                if req.city_gu: party_rec.city_gu = req.city_gu
+                if req.state_gu: party_rec.state_gu = req.state_gu
+
+        cases_resp = []
+        for idx, w in enumerate(weights, start=1):
+            barcode_val = f"{job_number}-C{idx}"
+            pcase = PrintCase(
+                print_job_id=job.id,
+                case_number=idx,
+                case_total=req.total_cases,
+                weight=w,
+                barcode_value=barcode_val,
+                status="Printed"
+            )
+            db.add(pcase)
+            cases_resp.append({
+                "case_number": idx,
+                "case_total": req.total_cases,
+                "weight": w,
+                "barcode_value": barcode_val
+            })
+
+        db.commit()
+        db.refresh(job)
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to create print job: {str(e)}")
 
     return {
         "id": job.id,
@@ -1057,72 +1085,79 @@ def create_bulk_print_jobs(req: BulkPrintJobsRequest, db: Session = Depends(get_
 
     created_jobs = []
     now = datetime.datetime.now(datetime.timezone.utc)
-    for p in parties:
-        # If printing in Gujarati and party not yet translated, auto-translate using Gemini
-        if req.language == "gu" and not p.party_name_gu:
-            try:
-                tr = ai_service.translate_party_to_gujarati(
-                    p.party_name, p.address, p.city, p.state,
-                    address_line_2=p.address_line_2, address_line_3=p.address_line_3,
-                    api_key=gemini_key
-                )
-                p.party_name_gu = tr.get("party_name_gu")
-                p.address_gu = tr.get("address_gu")
-                p.city_gu = tr.get("city_gu")
-                p.state_gu = tr.get("state_gu")
-            except Exception as e:
-                print("Bulk auto-translate error for party:", p.party_name, e)
+    try:
+        for p in parties:
+            # If printing in Gujarati and party not yet translated, auto-translate using Gemini
+            if req.language == "gu" and not p.party_name_gu:
+                try:
+                    tr = ai_service.translate_party_to_gujarati(
+                        p.party_name, p.address, p.city, p.state,
+                        address_line_2=p.address_line_2, address_line_3=p.address_line_3,
+                        api_key=gemini_key
+                    )
+                    p.party_name_gu = tr.get("party_name_gu")
+                    p.address_gu = tr.get("address_gu")
+                    p.city_gu = tr.get("city_gu")
+                    p.state_gu = tr.get("state_gu")
+                except Exception as e:
+                    print("Bulk auto-translate error for party:", p.party_name, e)
 
-        job_number = get_next_job_number(db)
-        job = PrintJob(
-            job_number=job_number,
-            party_id=p.id,
-            party_name_snap=p.party_name.strip().upper(),
-            party_code_snap=p.party_code.strip().upper() if p.party_code else None,
-            party_address_snap=p.address.strip().upper(),
-            party_address_line_2_snap=p.address_line_2.strip().upper() if p.address_line_2 else None,
-            party_address_line_3_snap=p.address_line_3.strip().upper() if p.address_line_3 else None,
-            party_city_snap=p.city.strip().upper(),
-            party_state_snap=p.state.strip().upper(),
-            party_mobile_snap=p.mobile_no.strip() if p.mobile_no else None,
-            party_gst_snap=p.gst_no.strip().upper() if p.gst_no else None,
-            sender_name_snap=s_name.strip().upper(),
-            sender_address_snap=s_addr.strip().upper(),
-            sender_city_snap=s_city.strip().upper(),
-            sender_state_snap=s_state.strip().upper(),
-            sender_mobile_snap=s_mobile.strip(),
-            parcel_type=req.parcel_type,
-            total_cases=cases_count,
-            total_weight=float(cases_count),
-            envelope_size=req.envelope_size,
-            orientation="Landscape",
-            printer_name="Microsoft Print to PDF",
-            envelopes_per_page=req.envelopes_per_page,
-            status="Printed",
-            case_breakdown_json=breakdown_json,
-            delivery_boy_name=req.delivery_boy_name,
-            delivery_route=req.delivery_route,
-            language=req.language or "en",
-            template_format=req.template_format or "attachment_pdf",
-            created_at=now
-        )
-        db.add(job)
-        db.flush()
-
-        for idx in range(1, cases_count + 1):
-            pcase = PrintCase(
-                print_job_id=job.id,
-                case_number=idx,
-                case_total=cases_count,
-                weight=1.0,
-                barcode_value=f"{job_number}-C{idx}",
-                status="Printed"
+            job_number = get_next_job_number(db)
+            job = PrintJob(
+                job_number=job_number,
+                party_id=p.id,
+                party_name_snap=p.party_name.strip().upper(),
+                party_code_snap=p.party_code.strip().upper() if p.party_code else None,
+                party_address_snap=p.address.strip().upper(),
+                party_address_line_2_snap=p.address_line_2.strip().upper() if p.address_line_2 else None,
+                party_address_line_3_snap=p.address_line_3.strip().upper() if p.address_line_3 else None,
+                party_city_snap=p.city.strip().upper(),
+                party_state_snap=p.state.strip().upper(),
+                party_mobile_snap=p.mobile_no.strip() if p.mobile_no else None,
+                party_gst_snap=p.gst_no.strip().upper() if p.gst_no else None,
+                sender_name_snap=s_name.strip().upper(),
+                sender_address_snap=s_addr.strip().upper(),
+                sender_city_snap=s_city.strip().upper(),
+                sender_state_snap=s_state.strip().upper(),
+                sender_mobile_snap=s_mobile.strip(),
+                parcel_type=req.parcel_type,
+                total_cases=cases_count,
+                total_weight=float(cases_count),
+                envelope_size=req.envelope_size,
+                orientation="Landscape",
+                printer_name="Microsoft Print to PDF",
+                envelopes_per_page=req.envelopes_per_page,
+                status="Printed",
+                case_breakdown_json=breakdown_json,
+                delivery_boy_name=req.delivery_boy_name,
+                delivery_route=req.delivery_route,
+                language=req.language or "en",
+                template_format=req.template_format or "attachment_pdf",
+                created_at=now
             )
-            db.add(pcase)
+            db.add(job)
+            db.flush()
 
-        created_jobs.append(job.id)
+            for idx in range(1, cases_count + 1):
+                pcase = PrintCase(
+                    print_job_id=job.id,
+                    case_number=idx,
+                    case_total=cases_count,
+                    weight=1.0,
+                    barcode_value=f"{job_number}-C{idx}",
+                    status="Printed"
+                )
+                db.add(pcase)
 
-    db.commit()
+            created_jobs.append(job.id)
+
+        db.commit()
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to create bulk print jobs: {str(e)}")
     return {
         "success": True,
         "created_count": len(created_jobs),
@@ -1222,6 +1257,7 @@ def list_print_jobs(
             "printer_name": j.printer_name,
             "status": j.status,
             "created_at": j.created_at.strftime("%d-%m-%Y %I:%M %p") if j.created_at else "",
+            "created_at_iso": j.created_at.isoformat() if j.created_at else "",
             "cases_count": len(j.cases)
         })
 
@@ -1438,8 +1474,11 @@ class GeneratePDFRequest(BaseModel):
     language: Optional[str] = "en"
     party_name_gu: Optional[str] = None
     address_gu: Optional[str] = None
+    address_line_2_gu: Optional[str] = None
+    address_line_3_gu: Optional[str] = None
     city_gu: Optional[str] = None
     state_gu: Optional[str] = None
+    auto_print: Optional[bool] = False
 
 @app.post("/api/pdf/generate")
 def generate_pdf(req: GeneratePDFRequest, db: Session = Depends(get_db)):
@@ -1525,7 +1564,8 @@ def generate_pdf(req: GeneratePDFRequest, db: Session = Depends(get_db)):
         try:
             pdf_bytes = pdf_service.generate_bulk_envelopes_pdf(
                 jobs_cases_list, sender_dict, settings_dict,
-                template_format=active_format, language=active_lang
+                template_format=active_format, language=active_lang,
+                auto_print=bool(req.auto_print)
             )
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"PDF generation failed: {str(e)}")
@@ -1587,7 +1627,8 @@ def generate_pdf(req: GeneratePDFRequest, db: Session = Depends(get_db)):
         try:
             pdf_bytes = pdf_service.generate_envelopes_pdf(
                 job_data, cases_data, sender_dict, settings_dict,
-                template_format=j_format, language=j_lang
+                template_format=j_format, language=j_lang,
+                auto_print=bool(req.auto_print)
             )
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"PDF generation failed: {str(e)}")
@@ -1634,7 +1675,8 @@ def generate_pdf(req: GeneratePDFRequest, db: Session = Depends(get_db)):
         try:
             pdf_bytes = pdf_service.generate_envelopes_pdf(
                 job_data, cases_data, sender_dict, settings_dict,
-                template_format=active_format, language=active_lang
+                template_format=active_format, language=active_lang,
+                auto_print=bool(req.auto_print)
             )
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"PDF generation failed: {str(e)}")
@@ -1769,6 +1811,7 @@ def get_dispatch_summary_pdf(
     delivery_boy: Optional[str] = Query(None),
     route: Optional[str] = Query(None),
     job_ids: Optional[str] = Query(None),
+    auto_print: bool = Query(False),
     db: Session = Depends(get_db)
 ):
     if not date:
@@ -1821,7 +1864,8 @@ def get_dispatch_summary_pdf(
         delivery_boy=delivery_boy or "",
         route=route or "",
         dispatches=dispatches,
-        sender_data=sender_dict
+        sender_data=sender_dict,
+        auto_print=auto_print
     )
 
     filename = f"Dispatch_Summary_{date_formatted}.pdf"
