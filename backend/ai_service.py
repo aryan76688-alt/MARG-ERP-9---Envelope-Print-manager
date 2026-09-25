@@ -229,8 +229,8 @@ GUJARAT_TRANSLATION_DICT = {
     "NH": "નેશનલ હાઈવે", "NHNO": "નેશનલ હાઈવે નં.", "NH NO": "નેશનલ હાઈવે નં.", "ROA": "રોડ",
     "SEC": "સેક્ટર", "SECTOR": "સેક્ટર", "SCECTOR": "સેક્ટર", "BLOCK": "બ્લોક",
     "BLDNG": "બિલ્ડિંગ", "BUILDING": "બિલ્ડિંગ",
-    "PHASE": "ફેઝ", "FHASE": "ફેઝ", "PHASE-I": "ફેઝ-૧", "PHASE-II": "ફેઝ-૨", "PHASE-III": "ફેઝ-૩", "PHASE-IV": "ફેઝ-૪",
-    "IV": "૪", "III": "૩", "II": "૨", "I": "૧",
+    "PHASE": "ફેઝ", "FHASE": "ફેઝ", "PHASE-I": "ફેઝ-1", "PHASE-II": "ફેઝ-2", "PHASE-III": "ફેઝ-3", "PHASE-IV": "ફેઝ-4",
+    "IV": "4", "III": "3", "II": "2", "I": "1",
     "ONE": "વન", "TWO": "ટૂ", "THREE": "થ્રી", "FOUR": "ફોર",
     "CFA": "સી.એન્ડ.એફ.", "CNF": "સી.એન્ડ.એફ.", "LLP": "એલ.એલ.પી.", "COY": "કંપની",
     "BUSINESS": "બિઝનેસ", "PARK": "પાર્ક", "BUSINESS PARK": "બિઝનેસ પાર્ક",
@@ -407,6 +407,8 @@ def clean_gujarati_text(text: str) -> str:
         return transliterate_word_to_gujarati(w)
 
     cleaned = re.sub(r'[A-Za-z]+', _replace_match, cleaned)
+    # Ensure all numbers/digits remain strictly in standard Arabic digits (0-9) - NEVER translate numbers
+    cleaned = cleaned.translate(str.maketrans("૦૧૨૩૪૫૬૭૮૯", "0123456789"))
     return re.sub(r'\s+', ' ', cleaned).strip()
 
 def fast_translate_phrase(text: str) -> str:
@@ -434,7 +436,7 @@ def fast_translate_phrase(text: str) -> str:
         else:
             res_parts.append(w)
 
-    return "".join(res_parts)
+    return "".join(res_parts).translate(str.maketrans("૦૧૨૩૪૫૬૭૮૯", "0123456789"))
 
 def offline_fallback_translate(text: str) -> str:
     return fast_translate_phrase(text)
@@ -641,8 +643,8 @@ CRITICAL RULES:
    - 'IOC' / 'IOCL' -> 'આઈ.ઓ.સી.'
    - 'NH' -> 'નેશનલ હાઈવે'
    - 'LTD' / 'PVT LTD' -> 'લિ.' / 'પ્રા. લિ.'
-   - Alphanumeric codes like '8A', 'B-12', 'Phase-IV' -> '૮-એ', 'બી-૧૨', 'ફેઝ-૪'.
-3. Output strictly a JSON array with objects containing: id, party_name_gu, address_gu, address_line_2_gu, address_line_3_gu, city_gu, state_gu.
+3. CRITICAL: DO NOT TRANSLATE NUMBERS into Gujarati numerals. Keep all digits strictly in standard 0-9 digits (e.g. '8A' -> '8-એ', 'B-12' -> 'બી-12', 'Shop 50' -> 'દુકાન 50', 'Phase 4' -> 'ફેઝ 4', 'Plot 1, 2' -> 'પ્લોટ 1, 2', '9924544283' -> '9924544283').
+4. Output strictly a JSON array with objects containing: id, party_name_gu, address_gu, address_line_2_gu, address_line_3_gu, city_gu, state_gu.
 
 Input JSON:
 {json.dumps(items_payload, ensure_ascii=False)}

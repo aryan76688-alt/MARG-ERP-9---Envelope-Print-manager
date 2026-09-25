@@ -15,6 +15,12 @@ interface EnvelopeTemplateProps {
   language?: 'en' | 'gu';
 }
 
+const normalizeDigits = (str?: string | null): string => {
+  if (!str) return '';
+  const gujaratiDigits = '૦૧૨૩૪૫૬૭૮૯';
+  return str.replace(/[૦-૯]/g, (ch) => String(gujaratiDigits.indexOf(ch)));
+};
+
 export const EnvelopeTemplate: React.FC<EnvelopeTemplateProps> = ({
   party,
   sender,
@@ -30,39 +36,51 @@ export const EnvelopeTemplate: React.FC<EnvelopeTemplateProps> = ({
   const showCaseNumber = settings?.show_case_number ?? true;
   const isGu = language === 'gu';
 
-  // Recipient details based on language
-  const partyName = isGu
-    ? party.party_name_gu || party.party_name || 'જોધપુર મેડિકોઝ'
-    : (party.party_name || 'JODHPUR MEDICOSE').toUpperCase();
+  // Recipient details based on language (Strictly keep numbers in 0-9 digits)
+  const partyName = normalizeDigits(
+    isGu
+      ? party.party_name_gu || party.party_name || 'જોધપુર મેડિકોઝ'
+      : (party.party_name || 'JODHPUR MEDICOSE').toUpperCase()
+  );
 
-  const address = isGu
-    ? party.address_gu || party.address || 'શ્રી મોહનગઢ, જેસલમેર'
-    : (party.address || 'SHREE MOHANGADH , JAISALMER').toUpperCase();
+  const address = normalizeDigits(
+    isGu
+      ? party.address_gu || party.address || 'શ્રી મોહનગઢ, જેસલમેર'
+      : (party.address || 'SHREE MOHANGADH , JAISALMER').toUpperCase()
+  );
 
-  const addressLine2 = isGu
-    ? (party.address_line_2_gu || party.address_line_2 || '')
-    : (party.address_line_2 || '').toUpperCase();
+  const addressLine2 = normalizeDigits(
+    isGu
+      ? (party.address_line_2_gu || party.address_line_2 || '')
+      : (party.address_line_2 || '').toUpperCase()
+  );
 
-  const addressLine3 = isGu
-    ? (party.address_line_3_gu || party.address_line_3 || '')
-    : (party.address_line_3 || '').toUpperCase();
+  const addressLine3 = normalizeDigits(
+    isGu
+      ? (party.address_line_3_gu || party.address_line_3 || '')
+      : (party.address_line_3 || '').toUpperCase()
+  );
 
-  const city = isGu
-    ? party.city_gu || party.city || 'જેસલમેર'
-    : (party.city || 'JAISALMER').toUpperCase();
+  const city = normalizeDigits(
+    isGu
+      ? party.city_gu || party.city || 'જેસલમેર'
+      : (party.city || 'JAISALMER').toUpperCase()
+  );
 
-  const state = isGu
-    ? party.state_gu || party.state || 'ગુજરાત'
-    : (party.state || 'RAJASTHAN').toUpperCase();
+  const state = normalizeDigits(
+    isGu
+      ? party.state_gu || party.state || 'ગુજરાત'
+      : (party.state || 'RAJASTHAN').toUpperCase()
+  );
 
-  const mobile = party.mobile_no || '+91 8963003012';
-  const notes = (party.notes || '').toUpperCase();
+  const mobile = normalizeDigits(party.mobile_no || '+91 8963003012');
+  const notes = normalizeDigits((party.notes || '').toUpperCase());
 
-  // Sender details based on language
+  // Sender details based on language (Strictly keep numbers in 0-9 digits)
   let senderName = '';
   let senderAddr1 = '';
   let senderAddr2 = '';
-  let senderMobile = sender.mobile || '+91 99245 44283';
+  let senderMobile = normalizeDigits(sender.mobile || '+91 99245 44283');
   let senderEmail = (sender.email || 'SHREEJISEVEN@GMAIL.COM').toUpperCase();
   let toHeader = '';
   let fromTitle = '';
@@ -71,8 +89,8 @@ export const EnvelopeTemplate: React.FC<EnvelopeTemplateProps> = ({
 
   if (isGu) {
     senderName = 'શ્રીજી હેલ્થકેર';
-    senderAddr1 = 'શોપ ૩&૪ જીએફ-નારાયણ કોમ્પ્લેક્ષ, દહેગામ-મોડાસા રોડ,';
-    senderAddr2 = 'દહેગામ-૩૮૨૩૦૫.';
+    senderAddr1 = 'શોપ 3&4 જીએફ-નારાયણ કોમ્પ્લેક્ષ, દહેગામ-મોડાસા રોડ,';
+    senderAddr2 = 'દહેગામ-382305.';
     toHeader = city ? `TO - ${city}` : 'TO -';
     fromTitle = 'FROM,';
     mobLabel = 'મો. નં.: ';

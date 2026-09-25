@@ -293,6 +293,13 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
       .catch(() => setHasPrintedToday(false));
   }, [selectedParty?.party_name, selectedParty?.route]);
 
+  // Synchronize initialParty when changed
+  useEffect(() => {
+    if (initialParty) {
+      setSelectedParty(initialParty);
+    }
+  }, [initialParty]);
+
   // Load from reprintJob if navigated from Print History
   useEffect(() => {
     if (reprintJob) {
@@ -304,6 +311,24 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
       if (reprintJob.language) {
         setSelectedLanguage(reprintJob.language);
       }
+      setSelectedParty((prev) => ({
+        id: reprintJob.party_id ?? prev?.id,
+        party_name: reprintJob.party_name || reprintJob.party_name_snap || prev?.party_name || '',
+        party_name_gu: reprintJob.party_name_gu || prev?.party_name_gu || null,
+        party_code: reprintJob.party_code || reprintJob.party_code_snap || prev?.party_code || null,
+        address: reprintJob.address || reprintJob.party_address_snap || prev?.address || '',
+        address_gu: reprintJob.address_gu || prev?.address_gu || null,
+        address_line_2: reprintJob.address_line_2 || reprintJob.party_address_line_2_snap || prev?.address_line_2 || null,
+        address_line_2_gu: reprintJob.address_line_2_gu || prev?.address_line_2_gu || null,
+        address_line_3: reprintJob.address_line_3 || reprintJob.party_address_line_3_snap || prev?.address_line_3 || null,
+        address_line_3_gu: reprintJob.address_line_3_gu || prev?.address_line_3_gu || null,
+        city: reprintJob.city || reprintJob.party_city_snap || prev?.city || '',
+        city_gu: reprintJob.city_gu || prev?.city_gu || null,
+        state: reprintJob.state || reprintJob.party_state_snap || prev?.state || '',
+        state_gu: reprintJob.state_gu || prev?.state_gu || null,
+        mobile_no: reprintJob.mobile || reprintJob.party_mobile_snap || prev?.mobile_no || null,
+        gst_no: reprintJob.gst_no || reprintJob.party_gst_snap || prev?.gst_no || null,
+      }));
       if (reprintJob.delivery_boy_name) {
         setDeliveryBoyName(reprintJob.delivery_boy_name);
       }
@@ -377,6 +402,8 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
         party_id: selectedParty.id,
         party_name: selectedParty.party_name,
         address: selectedParty.address,
+        address_line_2: selectedParty.address_line_2,
+        address_line_3: selectedParty.address_line_3,
         city: selectedParty.city,
         state: selectedParty.state,
         save_to_db: true,
@@ -386,6 +413,8 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
         ...selectedParty,
         party_name_gu: res.party_name_gu,
         address_gu: res.address_gu,
+        address_line_2_gu: res.address_line_2_gu,
+        address_line_3_gu: res.address_line_3_gu,
         city_gu: res.city_gu,
         state_gu: res.state_gu,
       });
@@ -1202,12 +1231,32 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                         />
                       </div>
                       <div>
-                        <span className="text-[10px] text-purple-700 font-bold block">સરનામું:</span>
+                        <span className="text-[10px] text-purple-700 font-bold block">સરનામું લાઇન 1:</span>
                         <input
                           type="text"
                           value={selectedParty.address_gu || ''}
                           onChange={(e) => setSelectedParty({ ...selectedParty, address_gu: e.target.value })}
                           className="w-full px-2 py-1 rounded border border-purple-300 font-bold bg-white"
+                        />
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-purple-700 font-bold block">સરનામું લાઇન 2:</span>
+                        <input
+                          type="text"
+                          value={selectedParty.address_line_2_gu || ''}
+                          onChange={(e) => setSelectedParty({ ...selectedParty, address_line_2_gu: e.target.value })}
+                          className="w-full px-2 py-1 rounded border border-purple-300 font-bold bg-white"
+                          placeholder="વૈકલ્પિક લાઇન 2"
+                        />
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-purple-700 font-bold block">સરનામું લાઇન 3:</span>
+                        <input
+                          type="text"
+                          value={selectedParty.address_line_3_gu || ''}
+                          onChange={(e) => setSelectedParty({ ...selectedParty, address_line_3_gu: e.target.value })}
+                          className="w-full px-2 py-1 rounded border border-purple-300 font-bold bg-white"
+                          placeholder="વૈકલ્પિક લાઇન 3"
                         />
                       </div>
                       <div className="grid grid-cols-2 gap-1">
@@ -1237,6 +1286,12 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                         {selectedParty.party_name_gu || selectedParty.party_name}
                       </div>
                       <div>{selectedParty.address_gu || selectedParty.address}</div>
+                      {(selectedParty.address_line_2_gu || selectedParty.address_line_2) && (
+                        <div>{selectedParty.address_line_2_gu || selectedParty.address_line_2}</div>
+                      )}
+                      {(selectedParty.address_line_3_gu || selectedParty.address_line_3) && (
+                        <div>{selectedParty.address_line_3_gu || selectedParty.address_line_3}</div>
+                      )}
                       <div>
                         {selectedParty.city_gu || selectedParty.city},{' '}
                         {selectedParty.state_gu || selectedParty.state}

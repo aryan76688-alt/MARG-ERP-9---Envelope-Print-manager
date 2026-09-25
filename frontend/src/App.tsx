@@ -29,12 +29,18 @@ export const App: React.FC = () => {
       setSelectedPartyForPrint({
         id: job.party_id,
         party_name: job.party_name || job.party_name_snap,
+        party_name_gu: job.party_name_gu || job.party?.party_name_gu || null,
         party_code: job.party_code || job.party_code_snap,
         address: job.address || job.party_address_snap,
+        address_gu: job.address_gu || job.party?.address_gu || null,
         address_line_2: job.address_line_2 || job.party_address_line_2_snap || null,
+        address_line_2_gu: job.address_line_2_gu || job.party?.address_line_2_gu || null,
         address_line_3: job.address_line_3 || job.party_address_line_3_snap || null,
+        address_line_3_gu: job.address_line_3_gu || job.party?.address_line_3_gu || null,
         city: job.city || job.party_city_snap,
+        city_gu: job.city_gu || job.party?.city_gu || null,
         state: job.state || job.party_state_snap,
+        state_gu: job.state_gu || job.party?.state_gu || null,
         mobile_no: job.mobile || job.party_mobile_snap,
         gst_no: job.gst_no || job.party_gst_snap,
       });

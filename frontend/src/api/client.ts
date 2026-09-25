@@ -405,6 +405,8 @@ export async function translatePartyToGujarati(payload: {
   party_id?: number;
   party_name: string;
   address: string;
+  address_line_2?: string | null;
+  address_line_3?: string | null;
   city: string;
   state: string;
   save_to_db?: boolean;

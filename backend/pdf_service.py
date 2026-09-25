@@ -118,6 +118,8 @@ def render_single_envelope_html(
     if language == "gu":
         party_name_gu = job_data.get("party_name_gu") or job_data.get("party_name_gu_snap")
         address_gu = job_data.get("address_gu") or job_data.get("address_gu_snap")
+        address_line_2_gu = job_data.get("address_line_2_gu") or job_data.get("address_line_2_gu_snap") or job_data.get("party_address_line_2_gu_snap")
+        address_line_3_gu = job_data.get("address_line_3_gu") or job_data.get("address_line_3_gu_snap") or job_data.get("party_address_line_3_gu_snap")
         city_gu = job_data.get("city_gu") or job_data.get("city_gu_snap")
         state_gu = job_data.get("state_gu") or job_data.get("state_gu_snap")
 
@@ -138,8 +140,19 @@ def render_single_envelope_html(
         else:
             if party_name_gu: party_name = party_name_gu
             if address_gu: address = address_gu
+            if address_line_2_gu: address_line_2 = address_line_2_gu
+            if address_line_3_gu: address_line_3 = address_line_3_gu
             if city_gu: city = city_gu
             if state_gu: state = state_gu
+
+    # Normalize digits: DO NOT translate numbers into Gujarati numerals (keep 0-9)
+    guj_to_eng = str.maketrans("૦૧૨૩૪૫૬૭૮૯", "0123456789")
+    party_name = party_name.translate(guj_to_eng) if party_name else ""
+    address = address.translate(guj_to_eng) if address else ""
+    address_line_2 = address_line_2.translate(guj_to_eng) if address_line_2 else ""
+    address_line_3 = address_line_3.translate(guj_to_eng) if address_line_3 else ""
+    city = city.translate(guj_to_eng) if city else ""
+    state = state.translate(guj_to_eng) if state else ""
 
     party_name = party_name.upper() if language == "en" else party_name
     address = address.upper() if language == "en" else address
@@ -151,8 +164,8 @@ def render_single_envelope_html(
     # 2. Sender Details
     if language == "gu":
         sender_name = "શ્રીજી હેલ્થકેર"
-        sender_addr_1 = "શોપ ૩&૪ જીએફ-નારાયણ કોમ્પ્લેક્ષ, દહેગામ-મોડાસા રોડ,"
-        sender_addr_2 = "દહેગામ-૩૮૨૩૦૫."
+        sender_addr_1 = "શોપ 3&4 જીએફ-નારાયણ કોમ્પ્લેક્ષ, દહેગામ-મોડાસા રોડ,"
+        sender_addr_2 = "દહેગામ-382305."
         to_header = f"TO - {city}" if city else "TO -"
         from_title = "FROM,"
         mob_label = "મો. નં.: "
@@ -994,7 +1007,7 @@ def generate_dispatch_summary_pdf(
 
     if is_gu:
         company_name_display = "શ્રીજી હેલ્થકેર" if ("SHREEJI" in business_name.upper() or not business_name) else ai_service.fast_translate_phrase(business_name)
-        company_sub_display = "શોપ ૩&૪ જીએફ-નારાયણ કોમ્પ્લેક્ષ, દહેગામ-મોડાસા રોડ, દહેગામ-૩૮૨૩૦૫ • ફોન: +૯૧ ૯૯૨૪૫ ૪૪૨૮૩"
+        company_sub_display = "શોપ 3&4 જીએફ-નારાયણ કોમ્પ્લેક્ષ, દહેગામ-મોડાસા રોડ, દહેગામ-382305 • ફોન: +91 99245 44283"
         sheet_title_main = "ડ્રાઈવર ડિસ્પેચ રન શીટ"
         sheet_title_sub = "ડિસ્પેચ સારાંશ (DISPATCH SUMMARY MANIFEST)"
 

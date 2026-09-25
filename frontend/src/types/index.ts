@@ -102,6 +102,8 @@ export interface PrintJob {
   language?: 'en' | 'gu';
   party_name_gu?: string | null;
   address_gu?: string | null;
+  address_line_2_gu?: string | null;
+  address_line_3_gu?: string | null;
   city_gu?: string | null;
   state_gu?: string | null;
   created_at: string;

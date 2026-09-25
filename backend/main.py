@@ -529,12 +529,12 @@ def create_party(party_in: PartyCreate, db: Session = Depends(get_db)):
         email=party_in.email.strip() if party_in.email else None,
         gst_no=party_in.gst_no.strip().upper() if party_in.gst_no else None,
         notes=party_in.notes.strip() if party_in.notes else None,
-        party_name_gu=party_in.party_name_gu,
-        address_gu=party_in.address_gu,
-        address_line_2_gu=party_in.address_line_2_gu,
-        address_line_3_gu=party_in.address_line_3_gu,
-        city_gu=party_in.city_gu,
-        state_gu=party_in.state_gu,
+        party_name_gu=ai_service.clean_gujarati_text(party_in.party_name_gu) if party_in.party_name_gu else None,
+        address_gu=ai_service.clean_gujarati_text(party_in.address_gu) if party_in.address_gu else None,
+        address_line_2_gu=ai_service.clean_gujarati_text(party_in.address_line_2_gu) if party_in.address_line_2_gu else None,
+        address_line_3_gu=ai_service.clean_gujarati_text(party_in.address_line_3_gu) if party_in.address_line_3_gu else None,
+        city_gu=ai_service.clean_gujarati_text(party_in.city_gu) if party_in.city_gu else None,
+        state_gu=ai_service.clean_gujarati_text(party_in.state_gu) if party_in.state_gu else None,
         route=party_in.route.strip().upper() if party_in.route else None,
         is_active=party_in.is_active
     )
@@ -628,12 +628,12 @@ def update_party(party_id: int, party_in: PartyUpdate, db: Session = Depends(get
     party.email = party_in.email.strip() if party_in.email else None
     party.gst_no = party_in.gst_no.strip().upper() if party_in.gst_no else None
     party.notes = party_in.notes.strip() if party_in.notes else None
-    party.party_name_gu = party_in.party_name_gu
-    party.address_gu = party_in.address_gu
-    party.address_line_2_gu = party_in.address_line_2_gu
-    party.address_line_3_gu = party_in.address_line_3_gu
-    party.city_gu = party_in.city_gu
-    party.state_gu = party_in.state_gu
+    party.party_name_gu = ai_service.clean_gujarati_text(party_in.party_name_gu) if party_in.party_name_gu else None
+    party.address_gu = ai_service.clean_gujarati_text(party_in.address_gu) if party_in.address_gu else None
+    party.address_line_2_gu = ai_service.clean_gujarati_text(party_in.address_line_2_gu) if party_in.address_line_2_gu else None
+    party.address_line_3_gu = ai_service.clean_gujarati_text(party_in.address_line_3_gu) if party_in.address_line_3_gu else None
+    party.city_gu = ai_service.clean_gujarati_text(party_in.city_gu) if party_in.city_gu else None
+    party.state_gu = ai_service.clean_gujarati_text(party_in.state_gu) if party_in.state_gu else None
     party.route = party_in.route.strip().upper() if party_in.route else None
     party.is_active = party_in.is_active
 
@@ -1038,10 +1038,12 @@ def create_print_job(req: CreatePrintJobRequest, db: Session = Depends(get_db)):
         if req.party_id and (req.party_name_gu or req.address_gu):
             party_rec = db.query(Party).filter(Party.id == req.party_id).first()
             if party_rec:
-                if req.party_name_gu: party_rec.party_name_gu = req.party_name_gu
-                if req.address_gu: party_rec.address_gu = req.address_gu
-                if req.city_gu: party_rec.city_gu = req.city_gu
-                if req.state_gu: party_rec.state_gu = req.state_gu
+                if req.party_name_gu: party_rec.party_name_gu = ai_service.clean_gujarati_text(req.party_name_gu)
+                if req.address_gu: party_rec.address_gu = ai_service.clean_gujarati_text(req.address_gu)
+                if req.address_line_2_gu: party_rec.address_line_2_gu = ai_service.clean_gujarati_text(req.address_line_2_gu)
+                if req.address_line_3_gu: party_rec.address_line_3_gu = ai_service.clean_gujarati_text(req.address_line_3_gu)
+                if req.city_gu: party_rec.city_gu = ai_service.clean_gujarati_text(req.city_gu)
+                if req.state_gu: party_rec.state_gu = ai_service.clean_gujarati_text(req.state_gu)
 
         cases_resp = []
         for idx, w in enumerate(weights, start=1):
@@ -1136,6 +1138,8 @@ def create_bulk_print_jobs(req: BulkPrintJobsRequest, db: Session = Depends(get_
                     )
                     p.party_name_gu = tr.get("party_name_gu")
                     p.address_gu = tr.get("address_gu")
+                    p.address_line_2_gu = tr.get("address_line_2_gu")
+                    p.address_line_3_gu = tr.get("address_line_3_gu")
                     p.city_gu = tr.get("city_gu")
                     p.state_gu = tr.get("state_gu")
                 except Exception as e:
@@ -1295,6 +1299,17 @@ def list_print_jobs(
             "envelope_size": j.envelope_size,
             "printer_name": j.printer_name,
             "status": j.status,
+            "party_name_gu": j.party.party_name_gu if j.party else None,
+            "address_gu": j.party.address_gu if j.party else None,
+            "address_line_2_gu": j.party.address_line_2_gu if j.party else None,
+            "address_line_3_gu": j.party.address_line_3_gu if j.party else None,
+            "city_gu": j.party.city_gu if j.party else None,
+            "state_gu": j.party.state_gu if j.party else None,
+            "template_format": getattr(j, "template_format", "attachment_pdf") or "attachment_pdf",
+            "language": getattr(j, "language", "en") or "en",
+            "delivery_boy_name": getattr(j, "delivery_boy_name", None),
+            "delivery_route": getattr(j, "delivery_route", None),
+            "case_breakdown_json": getattr(j, "case_breakdown_json", None),
             "created_at": j.created_at.strftime("%d-%m-%Y %I:%M %p") if j.created_at else "",
             "created_at_iso": j.created_at.isoformat() if j.created_at else "",
             "cases_count": len(j.cases)
@@ -1354,8 +1369,17 @@ def get_print_job(job_id: int, db: Session = Depends(get_db)):
         "printer_name": job.printer_name,
         "envelopes_per_page": job.envelopes_per_page,
         "status": job.status,
+        "party_name_gu": job.party.party_name_gu if job.party else None,
+        "address_gu": job.party.address_gu if job.party else None,
+        "address_line_2_gu": job.party.address_line_2_gu if job.party else None,
+        "address_line_3_gu": job.party.address_line_3_gu if job.party else None,
+        "city_gu": job.party.city_gu if job.party else None,
+        "state_gu": job.party.state_gu if job.party else None,
         "template_format": getattr(job, "template_format", "attachment_pdf") or "attachment_pdf",
         "language": getattr(job, "language", "en") or "en",
+        "delivery_boy_name": getattr(job, "delivery_boy_name", None),
+        "delivery_route": getattr(job, "delivery_route", None),
+        "case_breakdown_json": getattr(job, "case_breakdown_json", None),
         "created_at": job.created_at.strftime("%d-%m-%Y %I:%M %p") if job.created_at else "",
         "cases": cases
     }
@@ -1425,6 +1449,8 @@ def download_print_job_pdf(
         "party_notes_snap": getattr(job.party, "notes", "") if job.party else "",
         "party_name_gu": getattr(job.party, "party_name_gu", None) if job.party else None,
         "address_gu": getattr(job.party, "address_gu", None) if job.party else None,
+        "address_line_2_gu": getattr(job.party, "address_line_2_gu", None) if job.party else None,
+        "address_line_3_gu": getattr(job.party, "address_line_3_gu", None) if job.party else None,
         "city_gu": getattr(job.party, "city_gu", None) if job.party else None,
         "state_gu": getattr(job.party, "state_gu", None) if job.party else None,
         "parcel_type": job.parcel_type,
@@ -1693,6 +1719,8 @@ def generate_pdf(req: GeneratePDFRequest, db: Session = Depends(get_db)):
                 "party_notes_snap": getattr(job.party, "notes", "") if job.party else "",
                 "party_name_gu": getattr(job.party, "party_name_gu", None) if job.party else None,
                 "address_gu": getattr(job.party, "address_gu", None) if job.party else None,
+                "address_line_2_gu": getattr(job.party, "address_line_2_gu", None) if job.party else None,
+                "address_line_3_gu": getattr(job.party, "address_line_3_gu", None) if job.party else None,
                 "city_gu": getattr(job.party, "city_gu", None) if job.party else None,
                 "state_gu": getattr(job.party, "state_gu", None) if job.party else None,
                 "parcel_type": job.parcel_type,
@@ -1753,6 +1781,8 @@ def generate_pdf(req: GeneratePDFRequest, db: Session = Depends(get_db)):
             "party_notes_snap": getattr(job.party, "notes", "") if job.party else "",
             "party_name_gu": getattr(job.party, "party_name_gu", None) if job.party else None,
             "address_gu": getattr(job.party, "address_gu", None) if job.party else None,
+            "address_line_2_gu": getattr(job.party, "address_line_2_gu", None) if job.party else None,
+            "address_line_3_gu": getattr(job.party, "address_line_3_gu", None) if job.party else None,
             "city_gu": getattr(job.party, "city_gu", None) if job.party else None,
             "state_gu": getattr(job.party, "state_gu", None) if job.party else None,
             "parcel_type": job.parcel_type,
@@ -1796,6 +1826,8 @@ def generate_pdf(req: GeneratePDFRequest, db: Session = Depends(get_db)):
             "party_notes_snap": "",
             "party_name_gu": req.party_name_gu,
             "address_gu": req.address_gu,
+            "address_line_2_gu": req.address_line_2_gu,
+            "address_line_3_gu": req.address_line_3_gu,
             "city_gu": req.city_gu,
             "state_gu": req.state_gu,
             "parcel_type": req.parcel_type,
@@ -2231,8 +2263,8 @@ def translate_party_to_gujarati(req: TranslatePartyRequest, db: Session = Depend
             return {
                 "party_name_gu": p.party_name_gu,
                 "address_gu": p.address_gu or "",
-                "address_line_2_gu": "",
-                "address_line_3_gu": "",
+                "address_line_2_gu": p.address_line_2_gu or "",
+                "address_line_3_gu": p.address_line_3_gu or "",
                 "city_gu": p.city_gu or "",
                 "state_gu": p.state_gu or ""
             }
@@ -2252,6 +2284,8 @@ def translate_party_to_gujarati(req: TranslatePartyRequest, db: Session = Depend
         if p:
             p.party_name_gu = tr.get("party_name_gu")
             p.address_gu = tr.get("address_gu")
+            p.address_line_2_gu = tr.get("address_line_2_gu")
+            p.address_line_3_gu = tr.get("address_line_3_gu")
             p.city_gu = tr.get("city_gu")
             p.state_gu = tr.get("state_gu")
             db.commit()
