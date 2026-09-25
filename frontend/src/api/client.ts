@@ -427,8 +427,9 @@ export async function batchTranslateParties(party_ids: number[]): Promise<{ succ
   return res.json();
 }
 
-export async function triggerBackgroundTranslation(): Promise<{ success: boolean; started: boolean; message: string }> {
-  const res = await fetch(`${API_BASE}/ai/translate-background`, { method: 'POST' });
+export async function triggerBackgroundTranslation(force: boolean = false): Promise<{ success: boolean; started: boolean; message: string }> {
+  const url = force ? `${API_BASE}/ai/translate-background?force=true` : `${API_BASE}/ai/translate-background`;
+  const res = await fetch(url, { method: 'POST' });
   if (!res.ok) throw new Error('Failed to trigger background translation');
   return res.json();
 }

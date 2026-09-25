@@ -309,82 +309,133 @@ _BG_WORKER_RUNNING = False
 _BG_WORKER_LOCK = threading.Lock()
 _BG_STATS = {"total": 0, "processed": 0, "status": "idle"}
 
-def google_translate_free(text: str, target_lang: str = "gu") -> str:
+def google_translate_free(text: str, target_lang: str = "gu", max_retries: int = 3) -> str:
     """
-    Translates text into Gujarati using Google Translate public gateway without API key.
-    Uses in-memory caching and falls back gracefully to phonetic dictionary if offline.
+    Translates English text into authentic Gujarati using Google Translate without API keys.
+    Uses English source detection ('sl=en'), segments joining, Title-Case fallback for acronyms,
+    and automatic retries for complete reliability and accuracy.
     """
     if not text or not text.strip():
         return ""
-    text = text.strip()
-    cache_key = f"gt:{text.lower()}"
+    clean_text = text.strip()
+    cache_key = f"gt:{clean_text.lower()}"
     if cache_key in _TRANSLATION_CACHE and isinstance(_TRANSLATION_CACHE[cache_key], str):
         return _TRANSLATION_CACHE[cache_key]
 
-    try:
-        url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl={target_lang}&dt=t&q=" + urllib.parse.quote(text)
-        req = urllib.request.Request(
-            url,
-            headers={
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-                "Accept": "*/*"
-            }
-        )
-        with urllib.request.urlopen(req, timeout=4) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            if data and data[0]:
-                translated = "".join([c[0] for c in data[0] if c and c[0]]).strip()
-                if translated:
-                    _TRANSLATION_CACHE[cache_key] = translated
-                    return translated
-    except Exception:
-        pass
+    url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl={target_lang}&dt=t&q=" + urllib.parse.quote(clean_text)
+    req = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            "Accept": "*/*"
+        }
+    )
 
-    fallback = fast_translate_phrase(text)
+    for attempt in range(max_retries):
+        try:
+            with urllib.request.urlopen(req, timeout=12) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                if data and data[0]:
+                    translated = "".join([c[0] for c in data[0] if c and c[0]]).strip()
+                    if translated:
+                        # If string remains pure Latin letters without Gujarati characters, retry with Title Case
+                        if re.search(r'[A-Za-z]', translated) and not re.search(r'[\u0A80-\u0AFF]', translated):
+                            title_url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl={target_lang}&dt=t&q=" + urllib.parse.quote(clean_text.title())
+                            title_req = urllib.request.Request(title_url, headers=req.headers)
+                            with urllib.request.urlopen(title_req, timeout=10) as t_resp:
+                                t_data = json.loads(t_resp.read().decode("utf-8"))
+                                if t_data and t_data[0]:
+                                    t_trans = "".join([c[0] for c in t_data[0] if c and c[0]]).strip()
+                                    if t_trans and re.search(r'[\u0A80-\u0AFF]', t_trans):
+                                        _TRANSLATION_CACHE[cache_key] = t_trans
+                                        return t_trans
+
+                        _TRANSLATION_CACHE[cache_key] = translated
+                        return translated
+        except Exception as e:
+            if attempt < max_retries - 1:
+                time.sleep(1.0 * (attempt + 1))
+
+    # Ultimate offline dictionary fallback
+    fallback = fast_translate_phrase(clean_text)
     _TRANSLATION_CACHE[cache_key] = fallback
     return fallback
 
-def google_translate_batch_free(texts: List[str], target_lang: str = "gu") -> List[str]:
+def google_translate_batch_free(texts: List[str], target_lang: str = "gu", chunk_size: int = 12) -> List[str]:
     """
-    Translates a list of strings efficiently in a single batch request using Google Translate.
+    Translates a list of strings reliably using Google Translate with delimiter-preserving batching.
+    Uses ' ||| ' delimiter so Google leaves separators untouched, guaranteeing exact 1-to-1 mapping.
     """
     if not texts:
         return []
 
-    cleaned = [t.strip() if t else "" for t in texts]
-    if not any(cleaned):
-        return ["" for _ in texts]
+    results = ["" for _ in texts]
+    non_empty_indices = [i for i, t in enumerate(texts) if t and str(t).strip()]
+    if not non_empty_indices:
+        return results
 
-    placeholder = "___EMPTY_LINE___"
-    combined = "\n".join([t if t else placeholder for t in cleaned])
+    delim = " ||| "
 
-    try:
-        url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl={target_lang}&dt=t&q=" + urllib.parse.quote(combined)
+    for i in range(0, len(non_empty_indices), chunk_size):
+        chunk_indices = non_empty_indices[i:i + chunk_size]
+        chunk_texts = [str(texts[idx]).strip() for idx in chunk_indices]
+
+        # Check in-memory cache first for all items in chunk
+        unresolved_sub_indices = []
+        for c_idx, t_str in zip(chunk_indices, chunk_texts):
+            c_key = f"gt:{t_str.lower()}"
+            if c_key in _TRANSLATION_CACHE and isinstance(_TRANSLATION_CACHE[c_key], str):
+                results[c_idx] = _TRANSLATION_CACHE[c_key]
+            else:
+                unresolved_sub_indices.append((c_idx, t_str))
+
+        if not unresolved_sub_indices:
+            continue
+
+        sub_orig_indices = [item[0] for item in unresolved_sub_indices]
+        sub_texts = [item[1] for item in unresolved_sub_indices]
+
+        combined = delim.join(sub_texts)
+        url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl={target_lang}&dt=t&q=" + urllib.parse.quote(combined)
         req = urllib.request.Request(
             url,
             headers={
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
                 "Accept": "*/*"
             }
         )
-        with urllib.request.urlopen(req, timeout=6) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            if data and data[0]:
-                full_translated = "".join([c[0] for c in data[0] if c and c[0]])
-                split_lines = full_translated.split("\n")
-                if len(split_lines) == len(texts):
-                    results = []
-                    for orig, tr in zip(cleaned, split_lines):
-                        if not orig or placeholder in tr:
-                            results.append("")
-                        else:
-                            clean_tr = tr.replace(placeholder, "").strip()
-                            results.append(clean_tr if clean_tr else fast_translate_phrase(orig))
-                    return results
-    except Exception:
-        pass
 
-    return [google_translate_free(t, target_lang) if t else "" for t in texts]
+        translated_chunk = None
+        for attempt in range(3):
+            try:
+                with urllib.request.urlopen(req, timeout=15) as resp:
+                    data = json.loads(resp.read().decode("utf-8"))
+                    if data and data[0]:
+                        full = "".join([c[0] for c in data[0] if c and c[0]]).strip()
+                        parts = full.split("|||")
+                        if len(parts) == len(sub_texts):
+                            translated_chunk = [p.strip() for p in parts]
+                            break
+            except Exception:
+                time.sleep(1.0)
+
+        if translated_chunk and len(translated_chunk) == len(sub_texts):
+            for orig_idx, orig_text, trans in zip(sub_orig_indices, sub_texts, translated_chunk):
+                # If an item still has Latin characters without Gujarati, try single translation
+                if re.search(r'[A-Za-z]', trans) and not re.search(r'[\u0A80-\u0AFF]', trans):
+                    trans = google_translate_free(orig_text, target_lang=target_lang)
+                results[orig_idx] = trans
+                _TRANSLATION_CACHE[f"gt:{orig_text.lower()}"] = trans
+        else:
+            # Fallback to single translate for unresolved items in this chunk
+            for orig_idx, orig_text in zip(sub_orig_indices, sub_texts):
+                trans = google_translate_free(orig_text, target_lang=target_lang)
+                results[orig_idx] = trans
+                _TRANSLATION_CACHE[f"gt:{orig_text.lower()}"] = trans
+
+        time.sleep(0.15)
+
+    return results
 
 def translate_party_to_gujarati(
     party_name: str,
@@ -397,7 +448,6 @@ def translate_party_to_gujarati(
 ) -> Dict[str, str]:
     """
     Translates party details into authentic Gujarati using Google Translator (no API key required).
-    Falls back gracefully to instant local phonetics + dictionary if offline.
     """
     cache_key = f"{party_name}|{address}|{address_line_2 or ''}|{address_line_3 or ''}|{city}|{state}".strip().lower()
     if cache_key in _TRANSLATION_CACHE and isinstance(_TRANSLATION_CACHE[cache_key], dict):
@@ -429,15 +479,14 @@ def batch_translate_parties_fast(
     api_key: Optional[str] = None
 ) -> Dict[int, Dict[str, str]]:
     """
-    Translates multiple parties into Gujarati rapidly using Google Translator (no API required).
-    Batches up to 10 parties at a time for high speed and natural accuracy.
+    Translates multiple parties into Gujarati reliably using delimiter-preserving Google Translator.
     """
     results: Dict[int, Dict[str, str]] = {}
-    
     to_translate = []
+
     for p in parties:
         pid = p.get("id")
-        if p.get("party_name_gu"):
+        if p.get("party_name_gu") and p.get("address_gu"):
             results[pid] = {
                 "party_name_gu": p.get("party_name_gu"),
                 "address_gu": p.get("address_gu") or "",
@@ -449,7 +498,7 @@ def batch_translate_parties_fast(
         else:
             to_translate.append(p)
 
-    chunk_size = 10
+    chunk_size = 5
     for i in range(0, len(to_translate), chunk_size):
         chunk = to_translate[i:i + chunk_size]
         flat_texts = []
@@ -477,10 +526,11 @@ def batch_translate_parties_fast(
 
     return results
 
-def start_background_translation_worker(get_db_session_fn):
+def start_background_translation_worker(get_db_session_fn, force: bool = False) -> bool:
     """
     Spawns a background thread to translate any parties in SQLite
-    that don't have Gujarati translation yet, using Google Translator without API.
+    that don't have Gujarati translation yet (or all parties if force=True),
+    using Google Translator without API.
     """
     global _BG_WORKER_RUNNING, _BG_STATS
     with _BG_WORKER_LOCK:
@@ -495,18 +545,22 @@ def start_background_translation_worker(get_db_session_fn):
             db = get_db_session_fn()
             try:
                 from models import Party
-                untranslated = db.query(Party).filter(
-                    (Party.party_name_gu == None) | (Party.party_name_gu == "")
-                ).all()
+                query = db.query(Party)
+                if not force:
+                    query = query.filter(
+                        (Party.party_name_gu == None) | (Party.party_name_gu == "") |
+                        (Party.address_gu == None) | (Party.address_gu == "")
+                    )
+                parties_to_process = query.all()
 
-                _BG_STATS["total"] = len(untranslated)
-                if not untranslated:
-                    _BG_STATS["status"] = "idle"
+                _BG_STATS["total"] = len(parties_to_process)
+                if not parties_to_process:
+                    _BG_STATS["status"] = "completed"
                     return
 
-                batch_size = 10
-                for i in range(0, len(untranslated), batch_size):
-                    chunk = untranslated[i:i + batch_size]
+                batch_size = 5  # 5 parties * 6 fields = 30 fields, chunked in batches of 12
+                for i in range(0, len(parties_to_process), batch_size):
+                    chunk = parties_to_process[i:i + batch_size]
                     flat_texts = []
                     for p in chunk:
                         flat_texts.append(p.party_name or "")
@@ -529,7 +583,7 @@ def start_background_translation_worker(get_db_session_fn):
 
                     db.commit()
                     _BG_STATS["processed"] += len(chunk)
-                    time.sleep(0.3)
+                    time.sleep(0.15)
                 _BG_STATS["status"] = "completed"
             finally:
                 db.close()

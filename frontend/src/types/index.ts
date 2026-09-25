@@ -223,14 +223,6 @@ export interface ImportedRow {
   email?: string;
   gst_no?: string;
   notes?: string;
-  party_name_gu?: string;
-  route_gu?: string;
-  address_gu?: string;
-  address_line_2_gu?: string;
-  address_line_3_gu?: string;
-  city_gu?: string;
-  state_gu?: string;
-  has_gujarati?: boolean;
   errors: string[];
   warnings: string[];
   is_already_exists?: boolean;
@@ -245,7 +237,6 @@ export interface ImportValidationResult {
   error_count: number;
   already_exists_count?: number;
   new_count?: number;
-  has_gujarati_data?: boolean;
   valid_rows: ImportedRow[];
   warning_rows: ImportedRow[];
   error_rows: ImportedRow[];

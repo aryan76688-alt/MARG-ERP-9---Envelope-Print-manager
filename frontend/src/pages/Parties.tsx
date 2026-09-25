@@ -19,7 +19,9 @@ import {
   Layers,
   Building2,
   MapPin,
-  X
+  X,
+  Languages,
+  RefreshCw
 } from 'lucide-react';
 import { Party } from '../types';
 import { 
@@ -32,7 +34,9 @@ import {
   exportSelectedParties, 
   getExportPartiesUrl,
   bulkAssignPartyRoute,
-  fetchPartyRoutes
+  fetchPartyRoutes,
+  triggerBackgroundTranslation,
+  fetchTranslationStatus
 } from '../api/client';
 import { PartyModal } from '../components/PartyModal';
 
@@ -74,6 +78,51 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
   const [bulkRouteName, setBulkRouteName] = useState<string>('');
   const [existingRoutes, setExistingRoutes] = useState<string[]>([]);
   const [isAssigningRoute, setIsAssigningRoute] = useState<boolean>(false);
+
+  // Background Google Translation state
+  const [translating, setTranslating] = useState<boolean>(false);
+  const [translationStats, setTranslationStats] = useState<{ is_running: boolean; total: number; processed: number; status: string } | null>(null);
+
+  const checkTranslationProgress = async () => {
+    try {
+      const status = await fetchTranslationStatus();
+      setTranslationStats(status);
+      setTranslating(status.is_running);
+      if (!status.is_running && status.status === 'completed') {
+        loadParties();
+      }
+    } catch (e) {
+      // silent
+    }
+  };
+
+  const handleStartTranslation = async (force: boolean = false) => {
+    try {
+      setTranslating(true);
+      const res = await triggerBackgroundTranslation(force);
+      alert(res.message);
+      checkTranslationProgress();
+    } catch (err: any) {
+      alert('Translation failed to start: ' + err.message);
+      setTranslating(false);
+    }
+  };
+
+  useEffect(() => {
+    checkTranslationProgress();
+  }, []);
+
+  useEffect(() => {
+    let interval: any = null;
+    if (translating) {
+      interval = setInterval(() => {
+        checkTranslationProgress();
+      }, 2500);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [translating]);
 
   const loadParties = async () => {
     try {
@@ -267,6 +316,25 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
             <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
             <span>Import Excel</span>
           </button>
+
+          {translating ? (
+            <button
+              disabled
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 font-bold text-xs cursor-wait"
+            >
+              <RefreshCw className="w-4 h-4 animate-spin text-blue-600" />
+              <span>Translating ({translationStats?.processed || 0}/{translationStats?.total || total})...</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => handleStartTranslation(false)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 font-bold text-xs transition-colors"
+              title="Translate untranslated parties into Gujarati using Google Translator"
+            >
+              <Languages className="w-4 h-4 text-emerald-600" />
+              <span>Translate (Google)</span>
+            </button>
+          )}
 
           <button
             onClick={() => {

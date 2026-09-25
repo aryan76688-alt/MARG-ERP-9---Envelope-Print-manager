@@ -640,14 +640,13 @@ def download_sample_template():
     return Response(
         content=xlsx_bytes,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": 'attachment; filename="MARG_Party_Import_Template_Bilingual.xlsx"'}
+        headers={"Content-Disposition": 'attachment; filename="MARG_Party_Import_Template.xlsx"'}
     )
 
 @app.post("/api/import/excel")
 async def upload_and_analyze_excel(file: UploadFile = File(...)):
     """
     Parses uploaded .xlsx or .xls file safely without executing formulas.
-    Supports Dual-Sheet Excel files (Sheet 1: English, Sheet 2: Gujarati).
     Auto-detects column headers matching MARG ERP aliases.
     """
     if not file.filename.lower().endswith(('.xlsx', '.xls')):
@@ -658,13 +657,7 @@ async def upload_and_analyze_excel(file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail="File size exceeds maximum 15MB limit")
 
     try:
-        read_res = excel_service.read_excel_file(content)
-        if len(read_res) >= 6:
-            headers, rows, sheet_name, total_rows, sheets_found, has_gujarati_data = read_res
-        else:
-            headers, rows, sheet_name, total_rows = read_res[:4]
-            sheets_found = [sheet_name]
-            has_gujarati_data = any(bool(r.get("party_name_gu")) for r in rows)
+        headers, rows, sheet_name, total_rows = excel_service.read_excel_file(content)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to parse Excel file: {str(e)}")
 
@@ -674,9 +667,6 @@ async def upload_and_analyze_excel(file: UploadFile = File(...)):
         "filename": file.filename,
         "file_size": len(content),
         "sheet_name": sheet_name,
-        "sheets_found": sheets_found,
-        "has_gujarati_sheet": (len(sheets_found) >= 2 or has_gujarati_data),
-        "has_gujarati_data": has_gujarati_data,
         "total_rows": total_rows,
         "headers": headers,
         "detected_mapping": detected_mapping,
@@ -688,7 +678,6 @@ async def upload_and_analyze_excel(file: UploadFile = File(...)):
 def validate_excel_mapping(req: ValidateImportRequest, db: Session = Depends(get_db)):
     """
     Validates rows using chosen column mappings and detects duplicates in DB.
-    Preserves Gujarati party particulars directly from Excel without using AI.
     """
     existing_parties = db.query(Party.party_name, Party.party_code).all()
     existing_names = {p[0].strip().upper() for p in existing_parties if p[0]}
@@ -705,8 +694,7 @@ def validate_excel_mapping(req: ValidateImportRequest, db: Session = Depends(get
 @app.post("/api/import/confirm")
 def confirm_import(req: ConfirmImportRequest, db: Session = Depends(get_db)):
     """
-    Commits valid party rows to database with direct Gujarati support from Excel.
-    Saves ImportJob history.
+    Commits valid party rows to database. Saves ImportJob history.
     Supports Vyapar-style duplicate handling: 'skip' (default), 'update', or 'allow'.
     """
     imported_count = 0
@@ -760,14 +748,6 @@ def confirm_import(req: ConfirmImportRequest, db: Session = Depends(get_db)):
         gst = (r.get("gst_no") or "").strip().upper() or None
         notes = (r.get("notes") or "").strip() or None
 
-        # Gujarati particulars directly imported from Excel (No AI used)
-        name_gu = (r.get("party_name_gu") or "").strip() or None
-        addr_gu = (r.get("address_gu") or "").strip() or None
-        addr2_gu = (r.get("address_line_2_gu") or "").strip() or None
-        addr3_gu = (r.get("address_line_3_gu") or "").strip() or None
-        city_gu = (r.get("city_gu") or "").strip() or None
-        state_gu = (r.get("state_gu") or "").strip() or None
-
         # Smart address fallback if addr (line 1) is empty
         if not addr:
             if addr2:
@@ -810,19 +790,18 @@ def confirm_import(req: ConfirmImportRequest, db: Session = Depends(get_db)):
                     existing_party.address_line_3 = addr3
                     existing_party.city = city
                     existing_party.state = state
+                    existing_party.party_name_gu = None
+                    existing_party.address_gu = None
+                    existing_party.address_line_2_gu = None
+                    existing_party.address_line_3_gu = None
+                    existing_party.city_gu = None
+                    existing_party.state_gu = None
                     if route: existing_party.route = route
                     if mob: existing_party.mobile_no = mob
                     if land: existing_party.landline = land
                     if email: existing_party.email = email
                     if gst: existing_party.gst_no = gst
                     if notes: existing_party.notes = notes
-                    # Update Gujarati particulars if present in Excel
-                    if name_gu: existing_party.party_name_gu = name_gu
-                    if addr_gu: existing_party.address_gu = addr_gu
-                    if addr2_gu: existing_party.address_line_2_gu = addr2_gu
-                    if addr3_gu: existing_party.address_line_3_gu = addr3_gu
-                    if city_gu: existing_party.city_gu = city_gu
-                    if state_gu: existing_party.state_gu = state_gu
                     updated_count += 1
                     updated_parties.append({
                         "party_name": name,
@@ -845,12 +824,6 @@ def confirm_import(req: ConfirmImportRequest, db: Session = Depends(get_db)):
             email=email,
             gst_no=gst,
             notes=notes,
-            party_name_gu=name_gu,
-            address_gu=addr_gu,
-            address_line_2_gu=addr2_gu,
-            address_line_3_gu=addr3_gu,
-            city_gu=city_gu,
-            state_gu=state_gu,
             is_active=True
         )
         db.add(new_party)
@@ -866,6 +839,12 @@ def confirm_import(req: ConfirmImportRequest, db: Session = Depends(get_db)):
 
     db.commit()
 
+    # Automatically trigger Google background translation for all newly imported parties
+    try:
+        ai_service.start_background_translation_worker(SessionLocal, force=False)
+    except Exception as e:
+        print("Excel import translation trigger notice:", e)
+
     return {
         "imported": imported_count,
         "skipped": skipped_count,
@@ -874,7 +853,9 @@ def confirm_import(req: ConfirmImportRequest, db: Session = Depends(get_db)):
         "errors": error_count,
         "skipped_parties": skipped_parties,
         "updated_parties": updated_parties,
-        "import_job_id": import_job.id
+        "import_job_id": import_job.id,
+        "translation_started": True,
+        "message": f"Successfully imported {imported_count} parties. Gujarati translation is running in the background."
     }
 
 @app.get("/api/import/history")
@@ -2206,17 +2187,19 @@ def batch_translate_parties(req: BatchTranslatePartiesRequest, db: Session = Dep
 
 @app.post("/api/ai/translate-background")
 @app.post("/api/parties-translate/start")
-def trigger_background_translation():
-    """Starts background Google translation for untranslated parties without requiring an API key."""
-    started = ai_service.start_background_translation_worker(SessionLocal)
+@app.post("/api/parties/translate-all")
+def trigger_background_translation(force: bool = False):
+    """Starts background Google translation for untranslated parties (or all if force=True) without requiring an API key."""
+    started = ai_service.start_background_translation_worker(SessionLocal, force=force)
     return {
         "success": True,
         "started": started,
-        "message": "Background translation started with Google Translator (no API required)" if started else "Background translation is already active"
+        "message": f"Background translation {'(full force re-translate)' if force else ''} started with Google Translator (no API required)" if started else "Background translation is already active"
     }
 
 @app.get("/api/ai/translate-status")
 @app.get("/api/parties-translate/status")
+@app.get("/api/parties/translate-status")
 def get_translation_status():
     """Gets current status of background Google translation."""
     return ai_service.get_background_translation_status()
