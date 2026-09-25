@@ -68,6 +68,14 @@ export const ImportExcel: React.FC<ImportExcelProps> = ({ onNavigate }) => {
     { key: 'email', label: 'Email Address', required: false },
     { key: 'gst_no', label: 'GST Number', required: false },
     { key: 'notes', label: 'Notes / Remarks', required: false },
+    // Direct Gujarati fields from Excel (No AI used)
+    { key: 'party_name_gu', label: 'Party Name (ગુજરાતી)', required: false },
+    { key: 'route_gu', label: 'Route (ગુજરાતી)', required: false },
+    { key: 'address_gu', label: 'Address Line 1 (ગુજરાતી)', required: false },
+    { key: 'address_line_2_gu', label: 'Address Line 2 (ગુજરાતી)', required: false },
+    { key: 'address_line_3_gu', label: 'Address Line 3 (ગુજરાતી)', required: false },
+    { key: 'city_gu', label: 'City (ગુજરાતી)', required: false },
+    { key: 'state_gu', label: 'State (ગુજરાતી)', required: false },
   ];
 
   const handleFileChange = async (selectedFile: File) => {
@@ -216,11 +224,11 @@ export const ImportExcel: React.FC<ImportExcelProps> = ({ onNavigate }) => {
           <a
             href={getSampleTemplateUrl()}
             download
-            className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold text-xs hover:bg-emerald-100 transition-colors"
-            title="Download clean Excel template formatted for MARG ERP"
+            className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold text-xs hover:bg-emerald-100 transition-colors shadow-sm"
+            title="Download clean Excel template formatted with English (Sheet 1) and Gujarati (Sheet 2)"
           >
             <Download className="w-4 h-4 text-emerald-600" />
-            <span>Sample Template (.xlsx)</span>
+            <span>Sample Template (English + Gujarati .xlsx)</span>
           </a>
         </div>
       </div>
@@ -249,7 +257,7 @@ export const ImportExcel: React.FC<ImportExcelProps> = ({ onNavigate }) => {
                 DRAG & DROP EXCEL FILE HERE
               </h3>
               <p className="text-xs text-slate-500 font-medium max-w-sm">
-                Supports Microsoft Excel (.xlsx, .xls) party lists exported directly from MARG ERP 9+. Formula-safe.
+                Supports Microsoft Excel (.xlsx, .xls) party lists exported directly from MARG ERP 9+. Supports Dual-Sheets (Sheet 1: English, Sheet 2: Gujarati).
               </p>
               <button
                 type="button"
@@ -291,9 +299,16 @@ export const ImportExcel: React.FC<ImportExcelProps> = ({ onNavigate }) => {
                     <span className="text-[10px] font-extrabold text-slate-400 uppercase">Rows Found</span>
                     <p className="text-base font-black text-slate-900">{fileInfo.total_rows} Rows</p>
                   </div>
-                  <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 font-extrabold text-xs">
-                    VALID FILE
-                  </span>
+                  {fileInfo.has_gujarati_data ? (
+                    <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 font-extrabold text-xs flex items-center gap-1 border border-emerald-300">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>GUJARATI FROM EXCEL (NO AI)</span>
+                    </span>
+                  ) : (
+                    <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 font-extrabold text-xs">
+                      VALID FILE
+                    </span>
+                  )}
                   <button
                     onClick={() => {
                       setFile(null);
@@ -541,13 +556,13 @@ export const ImportExcel: React.FC<ImportExcelProps> = ({ onNavigate }) => {
                           <thead className="bg-slate-100 text-slate-600 font-extrabold text-[10px] uppercase sticky top-0 border-b border-slate-200">
                             <tr>
                               <th className="px-3 py-2 w-10">#</th>
-                              <th className="px-4 py-2">Party Name</th>
+                              <th className="px-4 py-2">Party Name (English & Gujarati)</th>
                               <th className="px-3 py-2">Route</th>
                               <th className="px-3 py-2">Address (Lines 1, 2, 3)</th>
                               <th className="px-3 py-2">City</th>
                               <th className="px-3 py-2">State</th>
                               <th className="px-3 py-2">Mobile</th>
-                              <th className="px-4 py-2">Status & Vyapar Notice</th>
+                              <th className="px-4 py-2">Status & Gujarati Notice</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100 font-medium">
@@ -555,12 +570,41 @@ export const ImportExcel: React.FC<ImportExcelProps> = ({ onNavigate }) => {
                               validation.all_preview_rows.slice(0, 50).map((r, idx) => (
                                 <tr key={idx} className="hover:bg-slate-50">
                                   <td className="px-3 py-2 text-slate-400 font-bold">{r.row_index != null ? r.row_index + 1 : idx + 1}</td>
-                                  <td className="px-4 py-2 font-bold text-slate-900">{r.party_name || '—'}</td>
-                                  <td className="px-3 py-2 font-semibold text-blue-700">{r.route || '—'}</td>
-                                  <td className="px-3 py-2 text-slate-600 max-w-[240px] truncate" title={[r.address, r.address_line_2, r.address_line_3].filter(Boolean).join(', ')}>
-                                    {[r.address, r.address_line_2, r.address_line_3].filter(Boolean).join(', ') || '—'}
+                                  <td className="px-4 py-2 text-slate-900">
+                                    <div className="font-bold">{r.party_name || '—'}</div>
+                                    {r.party_name_gu && (
+                                      <div className="text-emerald-700 font-semibold text-[11px] font-['Noto_Sans_Gujarati'] flex items-center gap-1 mt-0.5">
+                                        <span>{r.party_name_gu}</span>
+                                        <span className="text-[9px] bg-emerald-50 text-emerald-700 px-1 py-0.2 rounded border border-emerald-200 font-sans">
+                                          Excel GU
+                                        </span>
+                                      </div>
+                                    )}
                                   </td>
-                                  <td className="px-3 py-2 text-slate-700">{r.city || '—'}</td>
+                                  <td className="px-3 py-2 font-semibold text-blue-700">
+                                    <div>{r.route || '—'}</div>
+                                    {r.route_gu && (
+                                      <div className="text-emerald-700 text-[10px] font-['Noto_Sans_Gujarati']">
+                                        {r.route_gu}
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td className="px-3 py-2 text-slate-600 max-w-[240px]" title={[r.address, r.address_line_2, r.address_line_3].filter(Boolean).join(', ')}>
+                                    <div className="truncate">{[r.address, r.address_line_2, r.address_line_3].filter(Boolean).join(', ') || '—'}</div>
+                                    {(r.address_gu || r.address_line_2_gu || r.address_line_3_gu) && (
+                                      <div className="text-emerald-700 text-[10px] truncate font-['Noto_Sans_Gujarati'] mt-0.5">
+                                        {[r.address_gu, r.address_line_2_gu, r.address_line_3_gu].filter(Boolean).join(', ')}
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td className="px-3 py-2 text-slate-700">
+                                    <div>{r.city || '—'}</div>
+                                    {r.city_gu && (
+                                      <div className="text-emerald-700 text-[10px] font-['Noto_Sans_Gujarati']">
+                                        {r.city_gu}
+                                      </div>
+                                    )}
+                                  </td>
                                   <td className="px-3 py-2 text-slate-600">{r.state || '—'}</td>
                                   <td className="px-3 py-2 font-mono text-slate-600">{r.mobile_no || '—'}</td>
                                   <td className="px-4 py-2">

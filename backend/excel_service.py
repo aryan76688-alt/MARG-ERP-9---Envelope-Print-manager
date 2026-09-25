@@ -17,7 +17,7 @@ MARG_COLUMN_ALIASES: Dict[str, List[str]] = {
     "party_code": [
         "party code", "code", "account code", "ledger code", "partycode",
         "cust code", "customer code", "ac code", "ac_code", "pcode", "id",
-        "ledger id", "party id", "sr no", "sr.no", "s.no", "sno", "serial no", "ac no", "acc no"
+        "ledger id", "party id", "sr no", "sr.no", "s.no", "sno", "serial no", "ac no", "acc no", "કોડ", "પાર્ટી કોડ"
     ],
     "route": [
         "route", "route name", "delivery route", "beat", "area route", "route no", "routeno",
@@ -64,6 +64,39 @@ MARG_COLUMN_ALIASES: Dict[str, List[str]] = {
     ],
     "notes": [
         "notes", "remark", "remarks", "dispatch instruction", "comment", "description", "narration"
+    ],
+    # Direct Gujarati Column Aliases from Excel
+    "party_name_gu": [
+        "party name gujarati", "party name (gujarati)", "gujarati party name", "પાર્ટીનું નામ", "પાર્ટી નામ",
+        "નામ (ગુજરાતી)", "party_name_gu", "name_gu", "party name gu", "ગ્રાહક નામ", "ખાતાનું નામ",
+        "party name (gujarati) * / પાર્ટીનું નામ"
+    ],
+    "route_gu": [
+        "route gujarati", "route (gujarati)", "રૂટ", "ડિલિવરી રૂટ", "વિસ્તાર રૂટ", "route_gu",
+        "delivery route / રૂટ"
+    ],
+    "address_gu": [
+        "address gujarati", "address (gujarati)", "સરનામું", "સરનામું ૧", "સરનામું 1", "address_gu", "addr_gu",
+        "address line 1 gujarati", "સરનામું લાઇન ૧", "સરનામું લાઇન 1", "address 1 gujarati",
+        "address line 1 (gujarati) * / સરનામું ૧"
+    ],
+    "address_line_2_gu": [
+        "address line 2 gujarati", "સરનામું ૨", "સરનામું 2", "address_line_2_gu", "addr2_gu",
+        "સરનામું લાઇન ૨", "સરનામું લાઇન 2", "વિસ્તાર (ગુજરાતી)", "address 2 gujarati",
+        "address line 2 (gujarati) / સરનામું ૨"
+    ],
+    "address_line_3_gu": [
+        "address line 3 gujarati", "સરનામું ૩", "સરનામું 3", "address_line_3_gu", "addr3_gu",
+        "સરનામું લાઇન ૩", "સરનામું લાઇન 3", "લેન્ડમાર્ક (ગુજરાતી)", "address 3 gujarati",
+        "address line 3 (gujarati) / સરનામું ૩"
+    ],
+    "city_gu": [
+        "city gujarati", "city (gujarati)", "શહેર", "ગામ", "મુકામ", "તાલુકો", "જિલ્લો", "city_gu",
+        "city (gujarati) * / શહેર"
+    ],
+    "state_gu": [
+        "state gujarati", "state (gujarati)", "રાજ્ય", "રાજ્ય (ગુજરાતી)", "state_gu",
+        "state (gujarati) * / રાજ્ય"
     ]
 }
 
@@ -75,7 +108,8 @@ def clean_header(h: Any) -> str:
 def detect_column_mappings(headers: List[str]) -> Dict[str, Optional[str]]:
     """
     Automatically detects best-matching column headers for MARG ERP party imports.
-    Supports Route and all 3 address lines (address, address_line_2, address_line_3).
+    Supports Route and all 3 address lines (address, address_line_2, address_line_3)
+    plus direct Gujarati columns (party_name_gu, address_gu, etc.).
     Strictly ignores and excludes any PIN code / Postal code columns.
     """
     mapping: Dict[str, Optional[str]] = {
@@ -91,25 +125,42 @@ def detect_column_mappings(headers: List[str]) -> Dict[str, Optional[str]]:
         "landline": None,
         "email": None,
         "gst_no": None,
-        "notes": None
+        "notes": None,
+        "party_name_gu": None,
+        "route_gu": None,
+        "address_gu": None,
+        "address_line_2_gu": None,
+        "address_line_3_gu": None,
+        "city_gu": None,
+        "state_gu": None,
     }
     
     used_headers = set()
     cleaned = [(orig, clean_header(orig)) for orig in headers if orig]
 
     def is_pin(text: str) -> bool:
-        return any(k in text for k in ["pin", "zip", "postal", "pincode"])
+        return any(k in text for k in ["pin", "zip", "postal", "pincode", "પીન", "પીનકોડ"])
 
-    # 1. Exact alias matching (normalized)
+    # 0. Direct key match (e.g. party_name_gu, address_gu)
+    for k in mapping.keys():
+        for orig, cl in cleaned:
+            if orig in used_headers:
+                continue
+            if cl == k or cl.replace("_", "") == k.replace("_", ""):
+                mapping[k] = orig
+                used_headers.add(orig)
+                break
+
+    # 1. Exact alias matching (normalized unicode-safe)
     for field, aliases in MARG_COLUMN_ALIASES.items():
         if mapping[field] is not None:
             continue
         for orig, cl in cleaned:
             if orig in used_headers or is_pin(cl):
                 continue
-            norm_cl = re.sub(r"[^a-z0-9]", "", cl)
+            norm_cl = re.sub(r"[\s\-_/\\().*:,#+\[\]]", "", cl)
             for alias in aliases:
-                norm_alias = re.sub(r"[^a-z0-9]", "", alias)
+                norm_alias = re.sub(r"[\s\-_/\\().*:,#+\[\]]", "", alias)
                 if cl == alias or norm_cl == norm_alias:
                     mapping[field] = orig
                     used_headers.add(orig)
@@ -126,8 +177,7 @@ def detect_column_mappings(headers: List[str]) -> Dict[str, Optional[str]]:
                 continue
             for alias in aliases:
                 if len(alias) >= 3:
-                    pattern = r'\b' + re.escape(alias) + r'\b'
-                    if re.search(pattern, cl):
+                    if alias in cl:
                         mapping[field] = orig
                         used_headers.add(orig)
                         break
@@ -152,7 +202,7 @@ def detect_column_mappings(headers: List[str]) -> Dict[str, Optional[str]]:
     # 4. Sequential 3-Address Line Fallback:
     unmapped_addr_cols = [
         orig for orig, cl in cleaned 
-        if orig not in used_headers and ("address" in cl or "addr" in cl or "street" in cl or "line" in cl) and not is_pin(cl)
+        if orig not in used_headers and ("address" in cl or "addr" in cl or "street" in cl or "line" in cl or "સરનામું" in cl) and not is_pin(cl)
     ]
     if mapping["address"] is None and unmapped_addr_cols:
         mapping["address"] = unmapped_addr_cols.pop(0)
@@ -177,20 +227,21 @@ def detect_column_mappings(headers: List[str]) -> Dict[str, Optional[str]]:
     if mapping["route"] is None:
         for orig, cl in cleaned:
             if orig not in used_headers and not is_pin(cl):
-                if "route" in cl or "beat" in cl:
+                if "route" in cl or "beat" in cl or "રૂટ" in cl:
                     mapping["route"] = orig
                     used_headers.add(orig)
                     break
 
     return mapping
 
-def _load_raw_table(file_bytes: bytes) -> Tuple[List[List[Any]], str]:
+def _load_all_raw_sheets(file_bytes: bytes) -> Dict[str, List[List[Any]]]:
     """
-    Safely loads tabular data from diverse formats produced by MARG ERP 9+:
-    1. openpyxl (Modern .xlsx)
-    2. xlrd (Legacy binary .xls BIFF8)
+    Safely loads tabular data from all sheets in diverse formats produced by MARG ERP 9+:
+    1. openpyxl (Modern .xlsx) - extracts all worksheets
+    2. xlrd (Legacy binary .xls BIFF8) - extracts all worksheets
     3. pandas.read_html (HTML tables exported with .xls extension)
     4. pandas.read_csv (CSV / TSV text exports)
+    Returns Dict[sheet_name, raw_2d_table_rows].
     """
     # 1. Try openpyxl (.xlsx)
     try:
@@ -200,12 +251,15 @@ def _load_raw_table(file_bytes: bytes) -> Tuple[List[List[Any]], str]:
             read_only=True,
             keep_vba=False
         )
-        sheet = wb.active
-        sheet_name = sheet.title or "Sheet1"
-        rows = [list(r) for r in sheet.iter_rows(values_only=True)]
+        sheets_dict = {}
+        for sname in wb.sheetnames:
+            sheet = wb[sname]
+            rows = [list(r) for r in sheet.iter_rows(values_only=True)]
+            if rows and any(any(c is not None for c in r) for r in rows):
+                sheets_dict[sname] = rows
         wb.close()
-        if rows and any(any(c is not None for c in r) for r in rows):
-            return rows, sheet_name
+        if sheets_dict:
+            return sheets_dict
     except Exception:
         pass
 
@@ -213,13 +267,16 @@ def _load_raw_table(file_bytes: bytes) -> Tuple[List[List[Any]], str]:
     try:
         import xlrd
         wb = xlrd.open_workbook(file_contents=file_bytes)
-        sheet = wb.sheet_by_index(0)
-        sheet_name = sheet.name or "Sheet1"
-        rows = []
-        for r in range(sheet.nrows):
-            rows.append([sheet.cell_value(r, c) for c in range(sheet.ncols)])
-        if rows and any(any(c not in (None, "") for c in r) for r in rows):
-            return rows, sheet_name
+        sheets_dict = {}
+        for sname in wb.sheet_names():
+            sheet = wb.sheet_by_name(sname)
+            rows = []
+            for r in range(sheet.nrows):
+                rows.append([sheet.cell_value(r, c) for c in range(sheet.ncols)])
+            if rows and any(any(c not in (None, "") for c in r) for r in rows):
+                sheets_dict[sname] = rows
+        if sheets_dict:
+            return sheets_dict
     except Exception:
         pass
 
@@ -228,10 +285,13 @@ def _load_raw_table(file_bytes: bytes) -> Tuple[List[List[Any]], str]:
         import pandas as pd
         dfs = pd.read_html(io.BytesIO(file_bytes))
         if dfs:
-            df = dfs[0]
-            headers = [str(c) for c in df.columns]
-            rows = [headers] + [[cell if pd.notna(cell) else "" for cell in r] for r in df.values.tolist()]
-            return rows, "HTML_Export"
+            sheets_dict = {}
+            for idx, df in enumerate(dfs):
+                sname = f"Sheet{idx + 1}"
+                headers = [str(c) for c in df.columns]
+                rows = [headers] + [[cell if pd.notna(cell) else "" for cell in r] for r in df.values.tolist()]
+                sheets_dict[sname] = rows
+            return sheets_dict
     except Exception:
         pass
 
@@ -244,7 +304,7 @@ def _load_raw_table(file_bytes: bytes) -> Tuple[List[List[Any]], str]:
                 if not df.empty and len(df.columns) >= 2:
                     headers = [str(c) for c in df.columns]
                     rows = [headers] + [[cell if pd.notna(cell) else "" for cell in r] for r in df.values.tolist()]
-                    return rows, "CSV_Export"
+                    return {"CSV_Export": rows}
             except Exception:
                 continue
     except Exception:
@@ -252,23 +312,21 @@ def _load_raw_table(file_bytes: bytes) -> Tuple[List[List[Any]], str]:
 
     raise ValueError("Unable to read Excel workbook. Supported formats: .xlsx, .xls, and MARG ERP HTML/CSV exports.")
 
-def read_excel_file(file_bytes: bytes) -> Tuple[List[str], List[Dict[str, Any]], str, int]:
+def _parse_raw_sheet_table(raw_table: List[List[Any]]) -> Tuple[List[str], List[Dict[str, Any]]]:
     """
-    Safely reads an Excel workbook without executing formulas or macros.
-    Automatically detects the true header row even if title rows precede it.
-    Returns (headers, rows, sheet_name, total_rows).
+    Scans a 2D raw table, detects true header row, deduplicates column headers,
+    and returns (headers, rows).
     """
-    raw_table, sheet_name = _load_raw_table(file_bytes)
-
     if not raw_table:
-        return [], [], sheet_name, 0
+        return [], []
 
-    # Scan the first 15 rows to find the true column header row
     HEADER_KEYWORDS = {
         "party", "name", "ledger", "account", "customer", "code", "address",
         "addr", "add1", "add2", "add3", "city", "station", "state", "mobile",
         "phone", "contact", "route", "area", "gst", "gstin", "email", "remarks",
-        "notes", "sno", "s.no", "sr", "particulars", "ac", "dr", "balance"
+        "notes", "sno", "s.no", "sr", "particulars", "ac", "dr", "balance",
+        # Gujarati keywords
+        "પાર્ટી", "નામ", "કોડ", "સરનામું", "શહેર", "રાજ્ય", "રૂટ", "ગામ", "મુકામ"
     }
 
     best_header_idx = 0
@@ -284,7 +342,7 @@ def read_excel_file(file_bytes: bytes) -> Tuple[List[str], List[Dict[str, Any]],
             if cell is None:
                 continue
             cell_str = str(cell).strip().lower()
-            cell_norm = re.sub(r"[^a-z0-9]", "", cell_str)
+            cell_norm = re.sub(r"[\s\-_/\\().*:,#+\[\]]", "", cell_str)
             if any(k in cell_norm for k in HEADER_KEYWORDS):
                 score += 1
         if score > max_score:
@@ -311,7 +369,6 @@ def read_excel_file(file_bytes: bytes) -> Tuple[List[str], List[Dict[str, Any]],
         else:
             h_text = f"Column_{col_idx + 1}"
         
-        # Deduplicate identical header names (e.g. "Address", "Address")
         base_h = h_text
         dup_count = 2
         while h_text in seen_headers:
@@ -336,7 +393,6 @@ def read_excel_file(file_bytes: bytes) -> Tuple[List[str], List[Dict[str, Any]],
                 h = headers[col_idx]
                 if cell_value is not None:
                     val_str = str(cell_value).strip()
-                    # Remove trailing .0 from float numbers
                     if isinstance(cell_value, float) and cell_value.is_integer():
                         val_str = str(int(cell_value))
                     elif isinstance(cell_value, float) and val_str.endswith(".0"):
@@ -350,7 +406,149 @@ def read_excel_file(file_bytes: bytes) -> Tuple[List[str], List[Dict[str, Any]],
         if has_any_val:
             rows.append(row_dict)
 
-    return headers, rows, sheet_name, len(rows)
+    return headers, rows
+
+def read_excel_file(file_bytes: bytes) -> Tuple[List[str], List[Dict[str, Any]], str, int, List[str], bool]:
+    """
+    Safely reads an Excel workbook without executing formulas or macros.
+    Supports Dual-Sheet imports:
+    - Sheet 1 (English): English party particulars (name, address, city, route, contact, etc.)
+    - Sheet 2 (Gujarati): Gujarati party particulars (પાર્ટીનું નામ, સરનામું, શહેર, રૂટ, etc.)
+    Matches rows across sheets by Party Code, English Name, or sequential Row Index.
+    Returns (headers, rows, sheet_name, total_rows, sheets_found, has_gujarati_data).
+    """
+    sheets_dict = _load_all_raw_sheets(file_bytes)
+    if not sheets_dict:
+        return [], [], "Sheet1", 0, [], False
+
+    sheet_names = list(sheets_dict.keys())
+    
+    # Identify English vs Gujarati sheets
+    en_sheet_name = sheet_names[0]
+    gu_sheet_name = None
+
+    if len(sheet_names) >= 2:
+        # Check sheet names for Gujarati hints
+        for name in sheet_names:
+            norm_name = name.strip().lower()
+            if any(k in norm_name for k in ["guj", "gujarati", "ગુજરાતી"]):
+                gu_sheet_name = name
+                break
+        
+        # If no explicit "gujarati" in name, assume Sheet 1 is English and Sheet 2 is Gujarati
+        if not gu_sheet_name:
+            gu_sheet_name = sheet_names[1]
+
+        # Find English sheet name
+        for name in sheet_names:
+            if name != gu_sheet_name:
+                en_sheet_name = name
+                break
+
+    # Parse primary / English sheet
+    en_headers, en_rows = _parse_raw_sheet_table(sheets_dict[en_sheet_name])
+    has_gujarati_data = False
+
+    # Check if primary sheet already contains Gujarati columns
+    for h in en_headers:
+        norm_h = h.strip().lower()
+        if any(k in norm_h for k in ["gujarati", "ગુજરાતી", "party_name_gu", "address_gu", "પાર્ટી"]):
+            has_gujarati_data = True
+            break
+
+    # If Gujarati sheet was found, parse it and merge into en_rows
+    if gu_sheet_name and gu_sheet_name in sheets_dict:
+        gu_headers, gu_rows = _parse_raw_sheet_table(sheets_dict[gu_sheet_name])
+        gu_mapping = detect_column_mappings(gu_headers)
+
+        # Detect columns in Sheet 2
+        gu_party_col = gu_mapping.get("party_name_gu") or gu_mapping.get("party_name")
+        gu_code_col = gu_mapping.get("party_code")
+        gu_route_col = gu_mapping.get("route_gu") or gu_mapping.get("route")
+        gu_addr_col = gu_mapping.get("address_gu") or gu_mapping.get("address")
+        gu_addr2_col = gu_mapping.get("address_line_2_gu") or gu_mapping.get("address_line_2")
+        gu_addr3_col = gu_mapping.get("address_line_3_gu") or gu_mapping.get("address_line_3")
+        gu_city_col = gu_mapping.get("city_gu") or gu_mapping.get("city")
+        gu_state_col = gu_mapping.get("state_gu") or gu_mapping.get("state")
+
+        # Check for English reference name column in Sheet 2
+        en_ref_col = None
+        for gh in gu_headers:
+            gh_clean = gh.strip().lower()
+            if "english" in gh_clean or "ref" in gh_clean:
+                en_ref_col = gh
+                break
+
+        # Build index maps for matching:
+        gu_by_code: Dict[str, Dict[str, Any]] = {}
+        gu_by_name: Dict[str, Dict[str, Any]] = {}
+        for r_idx, g_row in enumerate(gu_rows):
+            if gu_code_col and g_row.get(gu_code_col):
+                c_val = str(g_row[gu_code_col]).strip().upper()
+                if c_val:
+                    gu_by_code[c_val] = g_row
+
+            if en_ref_col and g_row.get(en_ref_col):
+                n_val = str(g_row[en_ref_col]).strip().upper()
+                if n_val:
+                    gu_by_name[n_val] = g_row
+
+        # Determine English sheet's code and name columns
+        en_mapping = detect_column_mappings(en_headers)
+        en_code_col = en_mapping.get("party_code")
+        en_name_col = en_mapping.get("party_name")
+
+        for idx, r in enumerate(en_rows):
+            match_row = None
+            # 1. Try match by code
+            if en_code_col and r.get(en_code_col):
+                c_key = str(r[en_code_col]).strip().upper()
+                if c_key in gu_by_code:
+                    match_row = gu_by_code[c_key]
+            
+            # 2. Try match by English name
+            if not match_row and en_name_col and r.get(en_name_col):
+                n_key = str(r[en_name_col]).strip().upper()
+                if n_key in gu_by_name:
+                    match_row = gu_by_name[n_key]
+
+            # 3. Match by sequential row index (Row 1 -> Row 1)
+            if not match_row and idx < len(gu_rows):
+                match_row = gu_rows[idx]
+
+            if match_row:
+                p_gu = str(match_row.get(gu_party_col) or "").strip() if gu_party_col else ""
+                r_gu = str(match_row.get(gu_route_col) or "").strip() if gu_route_col else ""
+                a_gu = str(match_row.get(gu_addr_col) or "").strip() if gu_addr_col else ""
+                a2_gu = str(match_row.get(gu_addr2_col) or "").strip() if gu_addr2_col else ""
+                a3_gu = str(match_row.get(gu_addr3_col) or "").strip() if gu_addr3_col else ""
+                c_gu = str(match_row.get(gu_city_col) or "").strip() if gu_city_col else ""
+                s_gu = str(match_row.get(gu_state_col) or "").strip() if gu_state_col else ""
+
+                if p_gu:
+                    r["party_name_gu"] = p_gu
+                    has_gujarati_data = True
+                if r_gu:
+                    r["route_gu"] = r_gu
+                if a_gu:
+                    r["address_gu"] = a_gu
+                if a2_gu:
+                    r["address_line_2_gu"] = a2_gu
+                if a3_gu:
+                    r["address_line_3_gu"] = a3_gu
+                if c_gu:
+                    r["city_gu"] = c_gu
+                if s_gu:
+                    r["state_gu"] = s_gu
+
+        # Append Gujarati headers to en_headers so user can inspect / map them
+        for gh_key in ["party_name_gu", "route_gu", "address_gu", "address_line_2_gu", "address_line_3_gu", "city_gu", "state_gu"]:
+            if gh_key not in en_headers:
+                en_headers.append(gh_key)
+
+    display_sheet_name = f"{en_sheet_name} + {gu_sheet_name}" if (gu_sheet_name and gu_sheet_name != en_sheet_name) else en_sheet_name
+
+    return en_headers, en_rows, display_sheet_name, len(en_rows), sheet_names, has_gujarati_data
 
 def validate_imported_rows(
     raw_rows: List[Dict[str, Any]],
@@ -361,6 +559,7 @@ def validate_imported_rows(
     """
     Validates rows against MARG rules and existing DB records.
     Returns categorized rows: valid_rows, warning_rows, error_rows.
+    Preserves Gujarati party particulars (party_name_gu, address_gu, etc.) directly from Excel.
     Guarantees that rows with a party name are never rejected due to missing address lines;
     they are intelligently auto-filled with warnings instead of fatal errors.
     """
@@ -376,6 +575,9 @@ def validate_imported_rows(
             col = mapping.get(key)
             if col and col in row:
                 return str(row[col]).strip()
+            # Also fallback to direct key if present
+            if key in row and row[key] is not None:
+                return str(row[key]).strip()
             return ""
 
         party_name = get_val("party_name")
@@ -391,6 +593,15 @@ def validate_imported_rows(
         email = get_val("email")
         gst_no = get_val("gst_no")
         notes = get_val("notes")
+
+        # Gujarati particulars directly from Excel
+        party_name_gu = get_val("party_name_gu")
+        route_gu = get_val("route_gu")
+        address_gu = get_val("address_gu")
+        address_line_2_gu = get_val("address_line_2_gu")
+        address_line_3_gu = get_val("address_line_3_gu")
+        city_gu = get_val("city_gu")
+        state_gu = get_val("state_gu")
 
         # Normalize mobile (strip non-digits)
         clean_mob = re.sub(r"[^\d]", "", mobile) if mobile else ""
@@ -478,6 +689,14 @@ def validate_imported_rows(
             "email": email,
             "gst_no": gst_no,
             "notes": notes,
+            "party_name_gu": party_name_gu,
+            "route_gu": route_gu,
+            "address_gu": address_gu,
+            "address_line_2_gu": address_line_2_gu,
+            "address_line_3_gu": address_line_3_gu,
+            "city_gu": city_gu,
+            "state_gu": state_gu,
+            "has_gujarati": bool(party_name_gu),
             "errors": errors,
             "warnings": warnings,
             "is_already_exists": is_already_exists,
@@ -504,6 +723,7 @@ def validate_imported_rows(
         "error_count": len(error_rows),
         "already_exists_count": len(already_exists_rows),
         "new_count": len(new_rows),
+        "has_gujarati_data": any(bool(r.get("party_name_gu")) for r in (valid_rows + warning_rows + error_rows)),
         "valid_rows": valid_rows,
         "warning_rows": warning_rows,
         "error_rows": error_rows,
@@ -513,15 +733,20 @@ def validate_imported_rows(
 
 def generate_sample_excel_template() -> bytes:
     """
-    Creates a pre-formatted Excel workbook template for office staff to import MARG ERP party data.
-    Includes Delivery Route and 3 Address lines. Strictly excludes PIN code.
+    Creates a pre-formatted Dual-Sheet Excel workbook template for MARG ERP party data:
+    - Sheet 1: "English Parties" with complete English particulars
+    - Sheet 2: "Gujarati Parties" with corresponding Gujarati particulars (પાર્ટીનું નામ, સરનામું, શહેર, etc.)
+    Eliminates reliance on automated translation and allows direct office Excel entry.
     """
     wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "MARG Parties"
 
-    # Header styling: MARG navy header with bold white text
-    header_fill = PatternFill(start_color="1E3A8A", end_color="1E3A8A", fill_type="solid")
+    # -------------------------------------------------------------
+    # SHEET 1: English Parties (MARG Navy styling)
+    # -------------------------------------------------------------
+    ws_en = wb.active
+    ws_en.title = "English Parties"
+
+    en_header_fill = PatternFill(start_color="1E3A8A", end_color="1E3A8A", fill_type="solid")
     header_font = Font(name="Arial", size=11, bold=True, color="FFFFFF")
     data_font = Font(name="Arial", size=10)
     thin_border = Border(
@@ -531,7 +756,7 @@ def generate_sample_excel_template() -> bytes:
         bottom=Side(style='thin', color='D1D5DB')
     )
 
-    columns = [
+    en_columns = [
         ("Party Name *", 28),
         ("Party Code", 14),
         ("Delivery Route", 18),
@@ -547,19 +772,18 @@ def generate_sample_excel_template() -> bytes:
         ("Notes", 30)
     ]
 
-    for col_idx, (col_name, width) in enumerate(columns, start=1):
-        cell = ws.cell(row=1, column=col_idx, value=col_name)
-        cell.fill = header_fill
+    for col_idx, (col_name, width) in enumerate(en_columns, start=1):
+        cell = ws_en.cell(row=1, column=col_idx, value=col_name)
+        cell.fill = en_header_fill
         cell.font = header_font
         cell.alignment = Alignment(horizontal="center", vertical="center")
         col_letter = get_column_letter(col_idx)
-        ws.column_dimensions[col_letter].width = width
+        ws_en.column_dimensions[col_letter].width = width
 
-    ws.row_dimensions[1].height = 28
+    ws_en.row_dimensions[1].height = 28
 
-    # Realistic MARG ERP sample data rows with Delivery Route and 3 Address Lines
-    sample_data = [
-        ["JODHPUR MEDICOSE", "P0001", "RAJASTHAN ROUTE", "SHREE MOHANGADH", "NEAR STN ROAD", "OPP CIVIL HOSPITAL", "JODHPUR", "RAJASTHAN", "9829012345", "0291-2645120", "jodhpurmedicose@gmail.com", "08ABCDE1234F1Z2", "Express courier"],
+    sample_en_data = [
+        ["JODHPUR MEDICOSE", "P0001", "RAJASTHAN ROUTE", "SHREE MOHANGADH", "NEAR STN ROAD", "OPP CIVIL HOSPITAL", "JAISALMER", "RAJASTHAN", "9829012345", "0291-2645120", "jodhpurmedicose@gmail.com", "08ABCDE1234F1Z2", "Express courier"],
         ["JAY SHREE TRADERS", "P0002", "CITY MAIN ROUTE", "SHOP 14, APMC MARKET", "SECTOR 19", "PHARMA WING", "AHMEDABAD", "GUJARAT", "9876543210", "079-25418900", "jayshreetraders@yahoo.com", "24ABCDE5678G2Z1", "Medical consignments"],
         ["JIGNESH ENTERPRISE", "P0003", "VADODARA HIGHWAY", "GIDC PHASE 2", "PLOT 45/A", "", "VADODARA", "GUJARAT", "9824098765", "0265-2890123", "jignesh_ent@rediffmail.com", "24XYZAB9876C1Z8", "Priority"],
         ["J K PHARMA DISTRIBUTOR", "P0004", "SOUTH GUJARAT", "MEDICINE COMPLEX", "RING ROAD", "", "SURAT", "GUJARAT", "9898011223", "0261-2478901", "jkpharma@suratpharma.com", "24LMNOP4321D1Z9", ""],
@@ -567,13 +791,59 @@ def generate_sample_excel_template() -> bytes:
         ["JANTA MEDICALS", "P0006", "NORTH ZONE", "MAIN HOSPITAL ROAD", "NEAR BUS STAND", "", "JAIPUR", "RAJASTHAN", "9829567890", "0141-2356789", "jantamedicals.jpr@gmail.com", "08JKLMN3456H1Z3", "Cold chain parcel"]
     ]
 
-    for row_idx, row_values in enumerate(sample_data, start=2):
-        ws.row_dimensions[row_idx].height = 20
+    for row_idx, row_values in enumerate(sample_en_data, start=2):
+        ws_en.row_dimensions[row_idx].height = 20
         for col_idx, val in enumerate(row_values, start=1):
-            cell = ws.cell(row=row_idx, column=col_idx, value=val)
+            cell = ws_en.cell(row=row_idx, column=col_idx, value=val)
             cell.font = data_font
             cell.border = thin_border
             if col_idx in [2, 3, 9, 10]:
+                cell.alignment = Alignment(horizontal="center")
+
+    # -------------------------------------------------------------
+    # SHEET 2: Gujarati Parties (Emerald Green styling)
+    # -------------------------------------------------------------
+    ws_gu = wb.create_sheet(title="Gujarati Parties")
+    gu_header_fill = PatternFill(start_color="065F46", end_color="065F46", fill_type="solid")
+
+    gu_columns = [
+        ("Party Name (Gujarati) * / પાર્ટીનું નામ", 34),
+        ("Party Code / કોડ", 16),
+        ("English Name (Reference)", 28),
+        ("Delivery Route / રૂટ", 22),
+        ("Address Line 1 (Gujarati) * / સરનામું ૧", 38),
+        ("Address Line 2 (Gujarati) / સરનામું ૨", 32),
+        ("Address Line 3 (Gujarati) / સરનામું ૩", 28),
+        ("City (Gujarati) * / શહેર", 20),
+        ("State (Gujarati) * / રાજ્ય", 20)
+    ]
+
+    for col_idx, (col_name, width) in enumerate(gu_columns, start=1):
+        cell = ws_gu.cell(row=1, column=col_idx, value=col_name)
+        cell.fill = gu_header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        col_letter = get_column_letter(col_idx)
+        ws_gu.column_dimensions[col_letter].width = width
+
+    ws_gu.row_dimensions[1].height = 28
+
+    sample_gu_data = [
+        ["જોધપુર મેડીકોઝ", "P0001", "JODHPUR MEDICOSE", "રાજસ્થાન રૂટ", "શ્રી મોહનગઢ", "સ્ટેશન રોડ નજીક", "સિવિલ હોસ્પિટલ સામે", "જેસલમેર", "રાજસ્થાન"],
+        ["જય શ્રી ટ્રેડર્સ", "P0002", "JAY SHREE TRADERS", "સિટી મેઇન રૂટ", "દુકાન ૧૪, એપીએમસી માર્કેટ", "સેક્ટર ૧૯", "ફાર્મા વિંગ", "અમદાવાદ", "ગુજરાત"],
+        ["જીગ્નેશ એન્ટરપ્રાઇઝ", "P0003", "JIGNESH ENTERPRISE", "વડોદરા હાઇવે", "જીઆઈડીસી ફેઝ ૨", "પ્લોટ ૪૫/એ", "", "વડોદરા", "ગુજરાત"],
+        ["જે કે ફાર્મા ડિસ્ટ્રીબ્યુટર", "P0004", "J K PHARMA DISTRIBUTOR", "દક્ષિણ ગુજરાત", "મેડિસિન કોમ્પ્લેક્સ", "રિંગ રોડ", "", "સુરત", "ગુજરાત"],
+        ["જલારામ એજન્સીઝ", "P0005", "JALARAM AGENCIES", "સૌરાષ્ટ્ર રૂટ", "દાણા પીઠ (ગ્રેન માર્કેટ)", "ટાઉન હોલ સામે", "", "રાજકોટ", "ગુજરાત"],
+        ["જનતા મેડીકલ્સ", "P0006", "JANTA MEDICALS", "ઉત્તર ઝોન", "મુખ્ય હોસ્પિટલ રોડ", "બસ સ્ટેન્ડ પાસે", "", "જયપુર", "રાજસ્થાન"]
+    ]
+
+    for row_idx, row_values in enumerate(sample_gu_data, start=2):
+        ws_gu.row_dimensions[row_idx].height = 20
+        for col_idx, val in enumerate(row_values, start=1):
+            cell = ws_gu.cell(row=row_idx, column=col_idx, value=val)
+            cell.font = data_font
+            cell.border = thin_border
+            if col_idx in [2, 3, 4]:
                 cell.alignment = Alignment(horizontal="center")
 
     output = io.BytesIO()
@@ -582,10 +852,18 @@ def generate_sample_excel_template() -> bytes:
     return output.getvalue()
 
 def export_parties_to_excel(parties: List[Any]) -> bytes:
-    """Exports parties to a clean, formatted XLSX spreadsheet."""
+    """
+    Exports parties to a dual-sheet formatted XLSX spreadsheet:
+    - Sheet 1: English Parties
+    - Sheet 2: Gujarati Parties (Direct Gujarati particulars matching Sheet 1)
+    """
     wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "Parties"
+
+    # -------------------------------------------------------------
+    # SHEET 1: English Parties
+    # -------------------------------------------------------------
+    ws_en = wb.active
+    ws_en.title = "English Parties"
 
     header_fill = PatternFill(start_color="1E3A8A", end_color="1E3A8A", fill_type="solid")
     header_font = Font(name="Arial", size=11, bold=True, color="FFFFFF")
@@ -597,7 +875,7 @@ def export_parties_to_excel(parties: List[Any]) -> bytes:
         bottom=Side(style='thin', color='E5E7EB')
     )
 
-    headers = [
+    headers_en = [
         ("Party Name", 28),
         ("Code", 14),
         ("Delivery Route", 18),
@@ -613,18 +891,18 @@ def export_parties_to_excel(parties: List[Any]) -> bytes:
         ("Status", 12)
     ]
 
-    for col_idx, (col_name, width) in enumerate(headers, start=1):
-        cell = ws.cell(row=1, column=col_idx, value=col_name)
+    for col_idx, (col_name, width) in enumerate(headers_en, start=1):
+        cell = ws_en.cell(row=1, column=col_idx, value=col_name)
         cell.fill = header_fill
         cell.font = header_font
         cell.alignment = Alignment(horizontal="center", vertical="center")
         col_letter = get_column_letter(col_idx)
-        ws.column_dimensions[col_letter].width = width
+        ws_en.column_dimensions[col_letter].width = width
 
-    ws.row_dimensions[1].height = 26
+    ws_en.row_dimensions[1].height = 26
 
     for row_idx, p in enumerate(parties, start=2):
-        ws.row_dimensions[row_idx].height = 20
+        ws_en.row_dimensions[row_idx].height = 20
         row_vals = [
             p.party_name,
             p.party_code or "",
@@ -641,9 +919,57 @@ def export_parties_to_excel(parties: List[Any]) -> bytes:
             "Active" if p.is_active else "Inactive"
         ]
         for col_idx, val in enumerate(row_vals, start=1):
-            cell = ws.cell(row=row_idx, column=col_idx, value=val)
+            cell = ws_en.cell(row=row_idx, column=col_idx, value=val)
             cell.font = data_font
             cell.border = thin_border
+
+    # -------------------------------------------------------------
+    # SHEET 2: Gujarati Parties
+    # -------------------------------------------------------------
+    ws_gu = wb.create_sheet(title="Gujarati Parties")
+    gu_header_fill = PatternFill(start_color="065F46", end_color="065F46", fill_type="solid")
+
+    headers_gu = [
+        ("Party Name (Gujarati) * / પાર્ટીનું નામ", 34),
+        ("Party Code / કોડ", 16),
+        ("English Name (Reference)", 28),
+        ("Delivery Route / રૂટ", 22),
+        ("Address Line 1 (Gujarati) * / સરનામું ૧", 38),
+        ("Address Line 2 (Gujarati) / સરનામું ૨", 32),
+        ("Address Line 3 (Gujarati) / સરનામું ૩", 28),
+        ("City (Gujarati) * / શહેર", 20),
+        ("State (Gujarati) * / રાજ્ય", 20)
+    ]
+
+    for col_idx, (col_name, width) in enumerate(headers_gu, start=1):
+        cell = ws_gu.cell(row=1, column=col_idx, value=col_name)
+        cell.fill = gu_header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        col_letter = get_column_letter(col_idx)
+        ws_gu.column_dimensions[col_letter].width = width
+
+    ws_gu.row_dimensions[1].height = 26
+
+    for row_idx, p in enumerate(parties, start=2):
+        ws_gu.row_dimensions[row_idx].height = 20
+        row_vals_gu = [
+            getattr(p, "party_name_gu", "") or "",
+            p.party_code or "",
+            p.party_name or "",
+            getattr(p, "route_gu", "") or getattr(p, "route", "") or "",
+            getattr(p, "address_gu", "") or "",
+            getattr(p, "address_line_2_gu", "") or "",
+            getattr(p, "address_line_3_gu", "") or "",
+            getattr(p, "city_gu", "") or "",
+            getattr(p, "state_gu", "") or ""
+        ]
+        for col_idx, val in enumerate(row_vals_gu, start=1):
+            cell = ws_gu.cell(row=row_idx, column=col_idx, value=val)
+            cell.font = data_font
+            cell.border = thin_border
+            if col_idx in [2, 3, 4]:
+                cell.alignment = Alignment(horizontal="center")
 
     output = io.BytesIO()
     wb.save(output)
