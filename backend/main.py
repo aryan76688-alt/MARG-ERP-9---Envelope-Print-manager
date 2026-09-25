@@ -197,6 +197,20 @@ class ConfirmImportRequest(BaseModel):
     file_size: int = 0
     sheet_name: str = "Sheet1"
 
+class AICleanAddressRequest(BaseModel):
+    address: str
+    city: Optional[str] = None
+    state: Optional[str] = None
+
+class AIOptimizeRoutesRequest(BaseModel):
+    parties: List[Dict[str, Any]]
+
+class AIParseSmartRequest(BaseModel):
+    text: str
+
+class AITestKeyRequest(BaseModel):
+    api_key: Optional[str] = None
+
 # ==========================================
 # 1. DASHBOARD ENDPOINT
 # ==========================================
@@ -2203,6 +2217,38 @@ def trigger_background_translation(force: bool = False):
 def get_translation_status():
     """Gets current status of background Google translation."""
     return ai_service.get_background_translation_status()
+
+@app.get("/api/ai/brain-status")
+def get_ai_brain_status():
+    """Returns AI Brain core status, active Gemini key pool, models, and workers."""
+    return ai_service.get_brain_status()
+
+@app.post("/api/ai/parse-smart")
+def parse_smart_text(req: AIParseSmartRequest):
+    """Parses messy unstructured invoice/bill text into structured party and envelope fields."""
+    try:
+        res = ai_service.parse_unstructured_marg_data(req.text)
+        return {"success": True, "data": res}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/ai/clean-address")
+def clean_address(req: AICleanAddressRequest):
+    """Cleans and standardizes an address into Line 1, 2, 3, City, State without PIN."""
+    res = ai_service.clean_party_address_ai(req.address, req.city, req.state)
+    return {"success": True, "data": res}
+
+@app.post("/api/ai/optimize-routes")
+def optimize_routes(req: AIOptimizeRoutesRequest):
+    """Clusters and groups party deliveries into optimal dispatch routes."""
+    res = ai_service.optimize_delivery_routes_ai(req.parties)
+    return {"success": True, "data": res}
+
+@app.post("/api/ai/test-key")
+def test_gemini_key(req: AITestKeyRequest):
+    """Tests connectivity to Google Gemini API using provided or default key pool."""
+    res = ai_service.test_connection(req.api_key)
+    return res
 
 # Mount built React frontend if dist exists
 dist_dir = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")

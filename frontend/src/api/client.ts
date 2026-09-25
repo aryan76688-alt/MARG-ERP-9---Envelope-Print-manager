@@ -440,6 +440,32 @@ export async function fetchTranslationStatus(): Promise<{ is_running: boolean; t
   return res.json();
 }
 
+export async function fetchBrainStatus(): Promise<any> {
+  const res = await fetch(`${API_BASE}/ai/brain-status`);
+  if (!res.ok) throw new Error('Failed to fetch AI brain status');
+  return res.json();
+}
+
+export async function cleanAddressAI(address: string, city?: string, state?: string): Promise<{ success: boolean; data: any }> {
+  const res = await fetch(`${API_BASE}/ai/clean-address`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ address, city, state })
+  });
+  if (!res.ok) throw new Error('Failed to clean address via AI');
+  return res.json();
+}
+
+export async function parseSmartText(text: string): Promise<{ success: boolean; data: any }> {
+  const res = await fetch(`${API_BASE}/ai/parse-smart`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text })
+  });
+  if (!res.ok) throw new Error('Failed to parse text via AI');
+  return res.json();
+}
+
 export async function fetchDispatchSummary(params?: {
   date?: string;
   delivery_boy?: string;
