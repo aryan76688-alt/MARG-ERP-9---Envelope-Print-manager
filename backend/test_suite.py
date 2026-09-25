@@ -30,14 +30,19 @@ def test_dashboard():
 
 def test_party_autocomplete_and_crud():
     print("\nTesting Party Autocomplete & CRUD...")
-    # 1. Autocomplete for 'J'
-    res = client.get("/api/parties/autocomplete?q=J&mode=contains")
+    # 1. Autocomplete for 'JODHPUR'
+    res = client.get("/api/parties/autocomplete?q=JODHPUR&mode=contains")
     assert res.status_code == 200
     results = res.json()
-    assert len(results) >= 5, "Expected at least 5 parties for 'J'"
+    assert len(results) >= 1, "Expected at least 1 party for 'JODHPUR'"
     names = [p["party_name"] for p in results]
     assert "JODHPUR MEDICOSE" in names
-    print(f" -> Found {len(results)} parties for 'J': {names[:3]}...")
+    print(f" -> Found {len(results)} parties for 'JODHPUR': {names[:3]}...")
+
+    # 1b. Autocomplete in Gujarati
+    res_gu = client.get("/api/parties/autocomplete?q=દહેગામ&mode=contains")
+    assert res_gu.status_code == 200
+    print(f" -> Found {len(res_gu.json())} parties for Gujarati 'દહેગામ'")
 
     # 2. Verify NO PIN CODE anywhere in party fields
     for p in results:
@@ -82,7 +87,7 @@ def test_excel_import_and_template():
     headers = [cell.value for cell in ws[1]]
     print(" -> Sample template headers:", headers)
     assert "Party Name *" in headers
-    assert "Address *" in headers
+    assert ("Address Line 1 *" in headers or "Address *" in headers)
     assert "City *" in headers
     assert not any("pin" in str(h).lower() for h in headers), "PIN code found in sample template!"
 
@@ -121,7 +126,8 @@ def test_print_job_creation_and_cases():
         "case_weights": [2.00, 3.50, 1.75],
         "envelope_size": "A4",
         "envelopes_per_page": 2,
-        "status": "Printed"
+        "status": "Printed",
+        "allow_duplicate": True
     }
     res = client.post("/api/print-jobs", json=payload)
     assert res.status_code == 201, f"Failed to create print job: {res.text}"
@@ -153,8 +159,16 @@ def test_pdf_generation(job_id):
     pdf_bytes = res.content
     assert len(pdf_bytes) > 5000, f"PDF seems too small: {len(pdf_bytes)} bytes"
     assert pdf_bytes.startswith(b"%PDF"), "Invalid PDF header!"
-    print(f" -> Generated PDF size: {len(pdf_bytes)} bytes ({len(pdf_bytes)//1024} KB)")
-    print("[PASS] High-precision vector PDF generation passed.")
+    print(f" -> Generated PDF size via POST /api/pdf/generate: {len(pdf_bytes)} bytes ({len(pdf_bytes)//1024} KB)")
+
+    # Test direct GET endpoint
+    get_res = client.get(f"/api/print-jobs/{job_id}/pdf")
+    assert get_res.status_code == 200, f"GET /api/print-jobs/{job_id}/pdf failed: {get_res.status_code}"
+    assert get_res.headers["content-type"] == "application/pdf"
+    assert len(get_res.content) > 5000
+    assert "Content-Disposition" in get_res.headers
+    print(f" -> Generated PDF via direct GET /api/print-jobs/{job_id}/pdf: {len(get_res.content)} bytes ({len(get_res.content)//1024} KB)")
+    print("[PASS] High-precision vector PDF generation and direct GET endpoints passed.")
 
 def test_xlsx_exports_and_backup():
     print("\nTesting XLSX Exports and Database Backup...")

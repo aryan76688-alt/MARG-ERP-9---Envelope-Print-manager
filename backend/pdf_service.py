@@ -1,5 +1,6 @@
 import os
 import json
+import shutil
 import tempfile
 import subprocess
 from typing import Dict, List, Any, Optional
@@ -865,6 +866,14 @@ def generate_envelopes_pdf(
     Generates a high-quality vector PDF of envelopes matching the user's MARG Courier Envelope layout.
     Supports both Attachment PDF and Classic 22-Row Grid templates, in English or Gujarati.
     """
+    if not cases_data:
+        cases_data = [{
+            "case_number": 1,
+            "case_total": job_data.get("total_cases", 1) or 1,
+            "weight": 1.0,
+            "barcode_value": f"{job_data.get('job_number', 'JOB')}-C1"
+        }]
+
     html_content = build_full_html_document(
         job_data, cases_data, sender_data, settings,
         template_format=template_format, language=language
@@ -917,25 +926,29 @@ def compile_html_to_pdf(html_content: str, auto_print: bool = False) -> bytes:
         f.write(html_content)
 
     raw_pdf = None
-    try:
-        cmd = [
-            "chromium",
-            "--headless",
-            "--disable-gpu",
-            "--no-sandbox",
-            "--no-pdf-header-footer",
-            f"--print-to-pdf={pdf_path}",
-            "--run-all-compositor-stages-before-draw",
-            f"file://{html_path}"
-        ]
-        subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30)
-        if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
-            with open(pdf_path, "rb") as pf:
-                raw_pdf = pf.read()
-    except Exception as e:
-        print("Chromium PDF error:", e)
 
-    # Fallback to WeasyPrint if Chromium did not produce PDF
+    # Check for Chromium binary first before attempting subprocess execution
+    chrome_bin = shutil.which("chromium") or shutil.which("chromium-browser") or shutil.which("google-chrome")
+    if chrome_bin:
+        try:
+            cmd = [
+                chrome_bin,
+                "--headless",
+                "--disable-gpu",
+                "--no-sandbox",
+                "--no-pdf-header-footer",
+                f"--print-to-pdf={pdf_path}",
+                "--run-all-compositor-stages-before-draw",
+                f"file://{html_path}"
+            ]
+            subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30)
+            if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
+                with open(pdf_path, "rb") as pf:
+                    raw_pdf = pf.read()
+        except Exception as e:
+            print("Chromium PDF error:", e)
+
+    # Use WeasyPrint if Chromium is not available or failed
     if not raw_pdf:
         try:
             import weasyprint

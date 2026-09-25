@@ -503,7 +503,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
           setActiveSearchIndex(0);
         })
         .finally(() => setIsSearching(false));
-    }, 100);
+    }, 250);
 
     return () => clearTimeout(timer);
   }, [partySearch, searchMode]);
@@ -590,6 +590,15 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
 
     setIsPrinting(true);
     try {
+      let allowDup = isEditReprintMode;
+      if (hasPrintedToday && !isEditReprintMode) {
+        if (!window.confirm(`Notice: "${selectedParty.party_name}" has already been printed today.\n\nDo you want to print another envelope anyway?`)) {
+          setIsPrinting(false);
+          return;
+        }
+        allowDup = true;
+      }
+
       const weights = casesList.map((c) => c.weight);
       const res = await createPrintJob({
         party_id: selectedParty.id,
@@ -622,7 +631,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
         address_line_3_gu: selectedParty.address_line_3_gu || undefined,
         city_gu: selectedParty.city_gu || undefined,
         state_gu: selectedParty.state_gu || undefined,
-        allow_duplicate: isEditReprintMode,
+        allow_duplicate: allowDup,
       });
 
       if (onJobCreated) onJobCreated(res.id);
@@ -677,11 +686,6 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
   const handleDownloadPDF = async () => {
     if (!selectedParty) {
       alert('Please select a party first.');
-      return;
-    }
-
-    if (hasPrintedToday && !isEditReprintMode) {
-      alert('This party has already been printed today and is locked to prevent duplicate dispatches. Please use Print History to reprint or edit.');
       return;
     }
 

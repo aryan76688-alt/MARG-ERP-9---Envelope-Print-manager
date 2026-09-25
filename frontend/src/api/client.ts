@@ -42,11 +42,24 @@ export async function fetchParties(params: {
   return res.json();
 }
 
+const _autocompleteCache = new Map<string, Party[]>();
+
 export async function autocompleteParties(q: string, mode: 'starts_with' | 'contains' = 'contains'): Promise<Party[]> {
-  if (!q.trim()) return [];
-  const res = await fetch(`${API_BASE}/parties/autocomplete?q=${encodeURIComponent(q.trim())}&mode=${mode}`);
+  const cleanQ = q.trim();
+  if (!cleanQ) return [];
+  const cacheKey = `${mode}:${cleanQ.toLowerCase()}`;
+  if (_autocompleteCache.has(cacheKey)) {
+    return _autocompleteCache.get(cacheKey)!;
+  }
+  const res = await fetch(`${API_BASE}/parties/autocomplete?q=${encodeURIComponent(cleanQ)}&mode=${mode}`);
   if (!res.ok) return [];
-  return res.json();
+  const data = await res.json();
+  if (_autocompleteCache.size > 200) {
+    const firstKey = _autocompleteCache.keys().next().value;
+    if (firstKey) _autocompleteCache.delete(firstKey);
+  }
+  _autocompleteCache.set(cacheKey, data);
+  return data;
 }
 
 export async function createParty(party: Party): Promise<Party> {
@@ -345,7 +358,10 @@ export async function downloadEnvelopePDF(payload: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  if (!res.ok) throw new Error('PDF generation failed on server');
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.detail || 'PDF generation failed on server');
+  }
 
   const blob = await res.blob();
   const disposition = res.headers.get('Content-Disposition');
@@ -361,8 +377,12 @@ export async function downloadEnvelopePDF(payload: {
   a.download = filename;
   document.body.appendChild(a);
   a.click();
-  window.URL.revokeObjectURL(url);
-  document.body.removeChild(a);
+  setTimeout(() => {
+    try {
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch {}
+  }, 15000);
 }
 
 // ==========================================
@@ -535,7 +555,10 @@ export async function downloadDispatchSummaryPDF(params?: {
   }
 
   const res = await fetch(`${API_BASE}/dispatch-summary/pdf?${query.toString()}`);
-  if (!res.ok) throw new Error('Failed to download dispatch summary run-sheet');
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.detail || 'Failed to download dispatch summary run-sheet');
+  }
 
   const blob = await res.blob();
   const disposition = res.headers.get('Content-Disposition');
@@ -551,8 +574,12 @@ export async function downloadDispatchSummaryPDF(params?: {
   a.download = filename;
   document.body.appendChild(a);
   a.click();
-  window.URL.revokeObjectURL(url);
-  document.body.removeChild(a);
+  setTimeout(() => {
+    try {
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch {}
+  }, 15000);
 }
 
 export async function printDispatchSummaryPDF(params?: {
@@ -736,4 +763,8 @@ export function getSampleTemplateUrl(): string {
 
 export function getBackupExportUrl(): string {
   return `${API_BASE}/backup/export`;
+}
+
+export function getPrintJobPdfUrl(jobId: number, autoPrint: boolean = false): string {
+  return `${API_BASE}/print-jobs/${jobId}/pdf${autoPrint ? '?auto_print=true' : ''}`;
 }

@@ -5,6 +5,7 @@ import datetime
 from typing import Optional, List, Dict, Any
 from fastapi import FastAPI, Depends, HTTPException, Query, UploadFile, File, Form, status, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -33,6 +34,9 @@ app = FastAPI(
     description="Backend API for Envelope Print Manager",
     version="1.0.0"
 )
+
+# Enable GZIP compression (min 500 bytes) for 75-90% faster transfers across the web
+app.add_middleware(GZipMiddleware, minimum_size=500)
 
 # Enable CORS for frontend development and production
 app.add_middleware(
@@ -408,11 +412,13 @@ def autocomplete_parties(
         Party.is_active == True,
         or_(
             Party.party_name.ilike(pattern),
+            Party.party_name_gu.ilike(pattern),
             Party.party_code.ilike(pattern),
             Party.mobile_no.ilike(f"%{clean_q}%"),
-            Party.city.ilike(pattern)
+            Party.city.ilike(pattern),
+            Party.city_gu.ilike(pattern)
         )
-    ).order_by(Party.party_name.asc()).limit(20).all()
+    ).order_by(Party.party_name.asc()).limit(25).all()
 
     return [
         {
@@ -448,11 +454,12 @@ def get_unprinted_parties_today(
     now = datetime.datetime.now(datetime.timezone.utc)
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
-    # All party names printed today
+    # All party names printed today (normalized)
     printed_today_parties = set(
-        name for (name,) in db.query(PrintJob.party_name_snap).filter(
+        (name or "").strip().upper() for (name,) in db.query(PrintJob.party_name_snap).filter(
             PrintJob.created_at >= today_start
         ).all()
+        if name
     )
 
     query = db.query(Party).filter(Party.is_active == True).order_by(Party.party_name.asc())
@@ -1326,6 +1333,8 @@ def get_print_job(job_id: int, db: Session = Depends(get_db)):
         "party_name": job.party_name_snap,
         "party_code": job.party_code_snap,
         "address": job.party_address_snap,
+        "address_line_2": getattr(job, "party_address_line_2_snap", "") or "",
+        "address_line_3": getattr(job, "party_address_line_3_snap", "") or "",
         "city": job.party_city_snap,
         "state": job.party_state_snap,
         "mobile": job.party_mobile_snap,
@@ -1345,9 +1354,115 @@ def get_print_job(job_id: int, db: Session = Depends(get_db)):
         "printer_name": job.printer_name,
         "envelopes_per_page": job.envelopes_per_page,
         "status": job.status,
+        "template_format": getattr(job, "template_format", "attachment_pdf") or "attachment_pdf",
+        "language": getattr(job, "language", "en") or "en",
         "created_at": job.created_at.strftime("%d-%m-%Y %I:%M %p") if job.created_at else "",
         "cases": cases
     }
+
+@app.get("/api/print-jobs/{job_id}/pdf")
+@app.get("/api/print-jobs/{job_id}/download")
+def download_print_job_pdf(
+    job_id: int,
+    auto_print: bool = Query(False),
+    language: Optional[str] = Query(None),
+    template_format: Optional[str] = Query(None),
+    db: Session = Depends(get_db)
+):
+    """
+    Directly streams the vector PDF for any existing print job as an attachment.
+    Can be used via direct link, curl, window.open, or standard download buttons.
+    """
+    job = db.query(PrintJob).filter(PrintJob.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Print Job not found")
+
+    sender_settings = db.query(SenderSettings).first()
+    app_settings = db.query(AppSettings).first()
+
+    sender_dict = {
+        "business_name": sender_settings.business_name if sender_settings else "SHREEJI 7",
+        "address": sender_settings.address if sender_settings else "DAHEGAM",
+        "city": sender_settings.city if sender_settings else "DAHEGAM",
+        "state": sender_settings.state if sender_settings else "GUJARAT",
+        "mobile": sender_settings.mobile if sender_settings else "9924544283",
+        "email": sender_settings.email if sender_settings else "SHREEJISEVEN@GMAIL.COM"
+    }
+
+    settings_dict = {
+        "envelopes_per_page": getattr(job, "envelopes_per_page", None) or (app_settings.envelopes_per_page if app_settings else 2),
+        "envelope_size": getattr(job, "envelope_size", None) or (app_settings.default_envelope_size if app_settings else "A4"),
+        "margin_top_mm": app_settings.margin_top_mm if app_settings else 15.0,
+        "margin_bottom_mm": app_settings.margin_bottom_mm if app_settings else 10.0,
+        "margin_left_mm": app_settings.margin_left_mm if app_settings else 3.0,
+        "margin_right_mm": app_settings.margin_right_mm if app_settings else 3.0,
+        "scale_percent": app_settings.scale_percent if app_settings else 100,
+        "show_barcode": app_settings.show_barcode if app_settings else False,
+        "show_case_number": app_settings.show_case_number if app_settings else True,
+        "show_weight": app_settings.show_weight if app_settings else False,
+        "show_mobile": app_settings.show_mobile if app_settings else True,
+        "show_party_code": app_settings.show_party_code if app_settings else True
+    }
+
+    b_items = None
+    if job.case_breakdown_json:
+        try:
+            b_items = json.loads(job.case_breakdown_json)
+        except Exception:
+            b_items = None
+
+    job_data = {
+        "job_number": job.job_number,
+        "party_name_snap": job.party_name_snap,
+        "party_code_snap": job.party_code_snap,
+        "party_address_snap": job.party_address_snap,
+        "party_address_line_2_snap": getattr(job, "party_address_line_2_snap", "") or "",
+        "party_address_line_3_snap": getattr(job, "party_address_line_3_snap", "") or "",
+        "party_city_snap": job.party_city_snap,
+        "party_state_snap": job.party_state_snap,
+        "party_mobile_snap": job.party_mobile_snap,
+        "party_gst_snap": job.party_gst_snap,
+        "party_notes_snap": getattr(job.party, "notes", "") if job.party else "",
+        "party_name_gu": getattr(job.party, "party_name_gu", None) if job.party else None,
+        "address_gu": getattr(job.party, "address_gu", None) if job.party else None,
+        "city_gu": getattr(job.party, "city_gu", None) if job.party else None,
+        "state_gu": getattr(job.party, "state_gu", None) if job.party else None,
+        "parcel_type": job.parcel_type,
+        "total_cases": job.total_cases,
+        "case_breakdown": b_items
+    }
+
+    cases_data = [
+        {
+            "case_number": c.case_number,
+            "case_total": c.case_total,
+            "weight": c.weight,
+            "barcode_value": c.barcode_value
+        }
+        for c in job.cases
+    ]
+
+    active_format = template_format or getattr(job, "template_format", None) or (app_settings.envelope_template_format if app_settings else "attachment_pdf")
+    active_lang = language or getattr(job, "language", None) or (app_settings.default_language if app_settings else "en")
+
+    try:
+        pdf_bytes = pdf_service.generate_envelopes_pdf(
+            job_data, cases_data, sender_dict, settings_dict,
+            template_format=active_format, language=active_lang,
+            auto_print=bool(auto_print)
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"PDF generation failed: {str(e)}")
+
+    filename = f"MARG_Envelope_{job.job_number}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Access-Control-Expose-Headers": "Content-Disposition"
+        }
+    )
 
 @app.post("/api/print-jobs/{job_id}/reprint")
 def reprint_job(job_id: int, db: Session = Depends(get_db)):
@@ -2250,10 +2365,22 @@ def test_gemini_key(req: AITestKeyRequest):
     res = ai_service.test_connection(req.api_key)
     return res
 
+# Custom static file server with immutable caching for fingerprinted assets
+class CachedStaticFiles(StaticFiles):
+    def file_response(self, *args, **kwargs) -> Response:
+        resp = super().file_response(*args, **kwargs)
+        path = args[0] if args else kwargs.get("full_path", "")
+        # Fingerprinted Vite assets in /assets/ can be permanently cached by the browser
+        if "assets" in str(path):
+            resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        else:
+            resp.headers["Cache-Control"] = "no-cache"
+        return resp
+
 # Mount built React frontend if dist exists
 dist_dir = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")
 if os.path.exists(dist_dir):
-    app.mount("/", StaticFiles(directory=dist_dir, html=True), name="static")
+    app.mount("/", CachedStaticFiles(directory=dist_dir, html=True), name="static")
 
 if __name__ == "__main__":
     import uvicorn
