@@ -41,18 +41,13 @@ export const DispatchSummary: React.FC = () => {
 
   const translateCaseToGu = (text: string): string => {
     if (!text) return text;
+    // Strictly do NOT translate fluid cases like NS 100ML CASE: 1, DNS 100ML CASE: 1, etc.
+    if (/\b(NS|DNS|RL|METRO)\b/i.test(text) || /\bCASE\b/i.test(text)) {
+      return text;
+    }
     return text
       .replace(/\bSTANDARD CASE\b/gi, "સ્ટાન્ડર્ડ કેસ")
       .replace(/\bPARCEL BAG\b/gi, "પાર્સલ બેગ")
-      .replace(/\bDNS CASE\b/gi, "ડી.એન.એસ. કેસ")
-      .replace(/\bNS CASE\b/gi, "એન.એસ. કેસ")
-      .replace(/\bRL CASE\b/gi, "આર.એલ. કેસ")
-      .replace(/\bMETRO CASE\b/gi, "મેટ્રો કેસ")
-      .replace(/\bDNS\b/gi, "ડી.એન.એસ.")
-      .replace(/\bNS\b/gi, "એન.એસ.")
-      .replace(/\bRL\b/gi, "આર.એલ.")
-      .replace(/\bMETRO\b/gi, "મેટ્રો")
-      .replace(/\bCASE\b/gi, "કેસ")
       .replace(/\bBAG\b/gi, "બેગ")
       .replace(/\bBOX\b/gi, "બોક્સ");
   };
@@ -372,7 +367,7 @@ export const DispatchSummary: React.FC = () => {
                 key={name}
                 className="bg-white/10 border border-white/20 px-3 py-1 rounded-lg text-xs font-bold tracking-tight text-white flex items-center gap-1.5"
               >
-                <span>{isGu ? translateCaseToGu(name) : name}:</span>
+                <span>{name}:</span>
                 <span className="font-black text-amber-300 bg-amber-950/60 px-1.5 py-0.2 rounded">
                   {qty}
                 </span>
@@ -501,7 +496,7 @@ export const DispatchSummary: React.FC = () => {
                     breakdownParts.push(`CASE: ${job.total_cases}`);
                   }
                   const rawBreakdown = breakdownParts.join(", ");
-                  const displayBreakdown = isGu ? translateCaseToGu(rawBreakdown) : rawBreakdown;
+                  const displayBreakdown = rawBreakdown;
 
                   const displayName = isGu ? (job.party_name_gu || job.party_name) : job.party_name;
                   const displayCity = isGu ? (job.city_gu || job.city) : job.city;

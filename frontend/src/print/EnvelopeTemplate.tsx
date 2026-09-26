@@ -168,7 +168,7 @@ export const EnvelopeTemplate: React.FC<EnvelopeTemplateProps> = ({
 
   // FORMAT 1: Classic MARG 22-Row Grid Format
   if (templateFormat === 'marg_grid_22') {
-    const caseBadge = breakdownLines[0] || (isGu ? 'કેસ: 1' : 'CASE: 1');
+    const caseBadge = breakdownLines[0] || 'CASE: 1';
     const extraCases = breakdownLines.slice(1);
 
     return (

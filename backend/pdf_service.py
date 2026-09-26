@@ -13,25 +13,18 @@ except ImportError:
 
 
 def translate_case_label_to_gu(label: str) -> str:
-    """Translates case breakdown types and labels into Gujarati."""
+    """Translates case labels into Gujarati, keeping fluid cases and case codes strictly in English per user requirement."""
     if not label:
         return ""
     res = str(label).strip()
     
-    # Replace whole phrases first with word boundaries (DNS before NS to prevent partial match)
+    # User requirement: DO NOT translate fluid case breakdown like "NS 100ML CASE: 1", "DNS 100ML CASE: 1", "CASE: 1"
+    if re.search(r'\b(NS|DNS|RL|METRO)\b', res, re.IGNORECASE) or re.search(r'\bCASE\b', res, re.IGNORECASE):
+        return res
+
+    # General parcel / bag translation
     res = re.sub(r'\bSTANDARD CASE\b', 'સ્ટાન્ડર્ડ કેસ', res, flags=re.IGNORECASE)
     res = re.sub(r'\bPARCEL BAG\b', 'પાર્સલ બેગ', res, flags=re.IGNORECASE)
-    res = re.sub(r'\bDNS CASE\b', 'ડી.એન.એસ. કેસ', res, flags=re.IGNORECASE)
-    res = re.sub(r'\bNS CASE\b', 'એન.એસ. કેસ', res, flags=re.IGNORECASE)
-    res = re.sub(r'\bRL CASE\b', 'આર.એલ. કેસ', res, flags=re.IGNORECASE)
-    res = re.sub(r'\bMETRO CASE\b', 'મેટ્રો કેસ', res, flags=re.IGNORECASE)
-    
-    # Replace individual tokens with word boundaries (DNS before NS)
-    res = re.sub(r'\bDNS\b', 'ડી.એન.એસ.', res, flags=re.IGNORECASE)
-    res = re.sub(r'\bNS\b', 'એન.એસ.', res, flags=re.IGNORECASE)
-    res = re.sub(r'\bRL\b', 'આર.એલ.', res, flags=re.IGNORECASE)
-    res = re.sub(r'\bMETRO\b', 'મેટ્રો', res, flags=re.IGNORECASE)
-    res = re.sub(r'\bCASE\b', 'કેસ', res, flags=re.IGNORECASE)
     res = re.sub(r'\bBAG\b', 'બેગ', res, flags=re.IGNORECASE)
     res = re.sub(r'\bBOX\b', 'બોક્સ', res, flags=re.IGNORECASE)
     return res
@@ -240,7 +233,7 @@ def render_single_envelope_html(
     # 3. Format Branching
     if template_format == "marg_grid_22":
         # Classic 22-row MARG ERP grid table layout (Previous Function restored)
-        case_badge = case_lines[0] if case_lines else ("CASE: 1" if language == "en" else "કેસ: 1")
+        case_badge = case_lines[0] if case_lines else "CASE: 1"
         extra_cases_html = "".join([f'<div class="case-highlight-box" style="margin-top: 2px;">{c}</div>' for c in case_lines[1:]])
 
         sender_addr_2_row = f"""
@@ -1176,9 +1169,10 @@ def generate_dispatch_summary_pdf(
             total_standard_cases += pkg_count
             full_breakdown_counts["CASE"] = full_breakdown_counts.get("CASE", 0) + pkg_count
 
+        # User requirement: Strictly do NOT translate case breakdown (keep "NS 100ML CASE: 1", "DNS 100ML CASE: 1", "CASE: N")
+        breakdown_str = ", ".join(breakdown_text_parts) if breakdown_text_parts else f"CASE: {pkg_count}"
+
         if is_gu:
-            translated_parts = [translate_case_label_to_gu(p) for p in breakdown_text_parts]
-            breakdown_str = ", ".join(translated_parts) if translated_parts else f"કેસ: {pkg_count}"
             party_cell_html = f"""
             <div style="font-weight: 800; font-size: 10pt; color: #000000; line-height: 1.2;">{party_name_gu}</div>
             <div style="font-size: 7.5pt; font-weight: 700; color: #475569; margin-top: 1px;">{party_name_en}</div>
@@ -1188,7 +1182,6 @@ def generate_dispatch_summary_pdf(
             {f'<div style="font-size: 7pt; font-weight: 600; color: #64748b;">{city_en}</div>' if city_gu != city_en else ''}
             """
         else:
-            breakdown_str = ", ".join(breakdown_text_parts) if breakdown_text_parts else f"CASE: {pkg_count}"
             party_cell_html = f'<div style="font-weight: 800; font-size: 10pt;">{party_name_en}</div>'
             city_cell_html = f'<div style="font-weight: 700;">{city_en}</div>'
 
@@ -1210,7 +1203,7 @@ def generate_dispatch_summary_pdf(
         f"""
         <div style="background: #ffffff; border: 1.5px solid #1e3a8a; border-radius: 6px; padding: 4px 6px; text-align: center;">
           <div style="font-size: 7.5pt; font-weight: 800; color: #1e3a8a; text-transform: uppercase;">
-            {translate_case_label_to_gu(k) if is_gu else k}
+            {k}
           </div>
           <div style="font-size: 13pt; font-weight: 900; color: #000000; margin-top: 1px;">{v}</div>
         </div>

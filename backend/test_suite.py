@@ -278,10 +278,10 @@ def test_fluid_case_breakdown_single_line():
 
     print(" -> Unit formatting verified: NS 100ML CASE: 1, DNS 100ML CASE: 1, RL 500ML CASE: 2")
 
-    # 2. Test Gujarati translation for summary
+    # 2. Test that fluid case breakdown is strictly NOT translated per user requirement
     gu_ns = translate_case_label_to_gu(ns_line)
-    assert "100" in gu_ns and "1" in gu_ns, f"Digits must remain 0-9: {gu_ns}"
-    print(f" -> Gujarati translated summary line: {gu_ns}")
+    assert gu_ns == "NS 100ML CASE: 1", f"Fluid cases must remain strictly English: {gu_ns}"
+    print(f" -> Untranslated fluid summary line verified: {gu_ns}")
 
     # 3. Create a print job with fluids case breakdown
     payload = {
