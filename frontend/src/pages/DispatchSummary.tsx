@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { fetchDispatchSummary, updateDispatchJobs, downloadDispatchSummaryPDF, printDispatchSummaryPDF } from "../api/client";
 import { DispatchSummaryData, DispatchSummaryJob } from "../types";
+import { formatCaseBreakdownItem } from "../print/EnvelopeTemplate";
 
 export const DispatchSummary: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState<string>(
@@ -47,9 +48,13 @@ export const DispatchSummary: React.FC = () => {
       .replace(/RL CASE/gi, "આર.એલ. કેસ")
       .replace(/DNS CASE/gi, "ડી.એન.એસ. કેસ")
       .replace(/METRO CASE/gi, "મેટ્રો કેસ")
-      .replace(/CASE/gi, "કેસ")
-      .replace(/BAG/gi, "બેગ")
-      .replace(/BOX/gi, "બોક્સ");
+      .replace(/\bNS\b/gi, "એન.એસ.")
+      .replace(/\bRL\b/gi, "આર.એલ.")
+      .replace(/\bDNS\b/gi, "ડી.એન.એસ.")
+      .replace(/\bMETRO\b/gi, "મેટ્રો")
+      .replace(/\bCASE\b/gi, "કેસ")
+      .replace(/\bBAG\b/gi, "બેગ")
+      .replace(/\bBOX\b/gi, "બોક્સ");
   };
 
   const loadSummary = async () => {
@@ -489,8 +494,7 @@ export const DispatchSummary: React.FC = () => {
                   if (job.case_breakdown && job.case_breakdown.length > 0) {
                     job.case_breakdown.forEach((b) => {
                       if (b.qty > 0) {
-                        const v = b.volume ? ` ${b.volume}` : "";
-                        breakdownParts.push(`${b.type}${v}: ${b.qty}`);
+                        breakdownParts.push(formatCaseBreakdownItem(b.type, b.volume, b.qty));
                       }
                     });
                   } else {

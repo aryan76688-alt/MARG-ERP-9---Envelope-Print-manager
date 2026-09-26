@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import shutil
 import tempfile
@@ -15,25 +16,62 @@ def translate_case_label_to_gu(label: str) -> str:
     """Translates case breakdown types and labels into Gujarati."""
     if not label:
         return ""
-    up = str(label).strip()
-    gu_map = [
+    res = str(label).strip()
+    gu_phrases = [
         ("STANDARD CASE", "સ્ટાન્ડર્ડ કેસ"),
         ("PARCEL BAG", "પાર્સલ બેગ"),
         ("NS CASE", "એન.એસ. કેસ"),
         ("RL CASE", "આર.એલ. કેસ"),
         ("DNS CASE", "ડી.એન.એસ. કેસ"),
         ("METRO CASE", "મેટ્રો કેસ"),
-        ("CASE", "કેસ"),
-        ("BAG", "બેગ"),
-        ("BOX", "બોક્સ")
     ]
-    res = up
-    for k, v in gu_map:
+    for k, v in gu_phrases:
         if k in res.upper():
-            # case insensitive replace
             idx = res.upper().find(k)
             res = res[:idx] + v + res[idx + len(k):]
+    
+    # Replace individual tokens safely
+    res = re.sub(r'\bNS\b', 'એન.એસ.', res, flags=re.IGNORECASE)
+    res = re.sub(r'\bDNS\b', 'ડી.એન.એસ.', res, flags=re.IGNORECASE)
+    res = re.sub(r'\bRL\b', 'આર.એલ.', res, flags=re.IGNORECASE)
+    res = re.sub(r'\bMETRO\b', 'મેટ્રો', res, flags=re.IGNORECASE)
+    res = re.sub(r'\bCASE\b', 'કેસ', res, flags=re.IGNORECASE)
+    res = re.sub(r'\bBAG\b', 'બેગ', res, flags=re.IGNORECASE)
+    res = re.sub(r'\bBOX\b', 'બોક્સ', res, flags=re.IGNORECASE)
     return res
+
+
+def format_case_breakdown_line(c_type: str, c_vol: str = "", qty: int = 1) -> str:
+    """
+    Formats case breakdown items onto a single clean line per user requirements:
+      - "NS CASE" + "100ML" -> "NS 100 CASE: 1"
+      - "DNS CASE" + "100ML" -> "DNS 100 CASE: 1"
+      - "RL CASE" + "500ML" -> "RL 500 CASE: 2"
+      - "METRO CASE" + "100ML" -> "METRO 100 CASE: 1"
+      - "CASE" -> "CASE: 1"
+      - "PARCEL BAG" -> "PARCEL BAG: 1"
+    """
+    clean_type = str(c_type or "").strip().upper()
+    clean_vol = str(c_vol or "").strip().upper()
+    
+    # Check if string is already formatted like "NS CASE 100ML: 1" or "NS 100 CASE: 1"
+    m = re.match(r"^(NS|DNS|RL|METRO)\s*(?:CASE)?\s*(\d+)(?:ML)?\s*(?:CASE)?:\s*(\d+)$", clean_type, re.IGNORECASE)
+    if m:
+        return f"{m.group(1).upper()} {m.group(2)} CASE: {m.group(3)}"
+
+    type_base = clean_type.replace(" CASE", "").replace("CASE", "").strip()
+
+    if type_base in ("NS", "DNS", "RL", "METRO") and clean_vol:
+        vol_display = clean_vol.replace("ML", "").strip() if clean_vol.endswith("ML") else clean_vol
+        return f"{type_base} {vol_display} CASE: {qty}"
+    elif clean_vol:
+        vol_display = clean_vol.replace("ML", "").strip() if clean_vol.endswith("ML") else clean_vol
+        prefix = type_base if type_base else clean_type
+        return f"{prefix} {vol_display} CASE: {qty}"
+    else:
+        if not clean_type.endswith("CASE") and clean_type not in ("PARCEL BAG", "BOX", "CARTON", "BAG"):
+            return f"{clean_type} CASE: {qty}"
+        return f"{clean_type}: {qty}"
 
 
 def get_case_breakdown_lines(
@@ -45,8 +83,8 @@ def get_case_breakdown_lines(
     """
     Extracts non-zero case breakdown items for display on the envelope.
     Items with quantity 0 are strictly excluded.
-    Supports multi-volume items (e.g. NS CASE 100ML: 1 and NS CASE 200ML: 1).
-    Supports English and Gujarati language output.
+    Supports single-line fluid format (e.g. NS 100 CASE: 1 and DNS 100 CASE: 1).
+    Strictly preserves standard 0-9 digits and uppercase case labels.
     """
     breakdown = job_data.get("case_breakdown")
     if not breakdown and job_data.get("case_breakdown_json"):
@@ -71,15 +109,11 @@ def get_case_breakdown_lines(
                     continue
                 c_type = str(item.get("type", "CASE")).strip().upper()
                 c_vol = str(item.get("volume", "")).strip().upper()
-                
-                # User requirement: DON'T TRANSLATE TO-,FROM-,CASES
-                if c_vol:
-                    lines.append(f"{c_type} {c_vol}: {qty}")
-                else:
-                    lines.append(f"{c_type}: {qty}")
+                line = format_case_breakdown_line(c_type, c_vol, qty)
+                lines.append(line)
             elif isinstance(item, str) and item.strip():
                 txt = item.strip().upper()
-                lines.append(txt)
+                lines.append(format_case_breakdown_line(txt))
 
     if not lines and settings.get("show_case_number", True):
         case_total = case_data.get("case_total", job_data.get("total_cases", 1))
@@ -87,6 +121,7 @@ def get_case_breakdown_lines(
             lines.append(f"CASE: {case_total}")
 
     return lines
+
 
 
 def render_single_envelope_html(
@@ -209,7 +244,8 @@ def render_single_envelope_html(
     if template_format == "marg_grid_22":
         # Classic 22-row MARG ERP grid table layout (Previous Function restored)
         case_badge = case_lines[0] if case_lines else ("CASE: 1" if language == "en" else "કેસ: 1")
-        extra_cases_html = "".join([f'<div style="font-size: 8.5pt; font-weight: 800; margin-top: 1px;">{c}</div>' for c in case_lines[1:]])
+        extra_cases_html = "".join([f'<div class="case-highlight-box" style="margin-top: 2px;">{c}</div>' for c in case_lines[1:]])
+
         sender_addr_2_row = f"""
         <tr class="h-row">
           <td></td><td></td><td></td>
@@ -522,18 +558,20 @@ def build_full_html_document(
     }}
 
     .case-item {{
-      font-size: 22pt;
+      font-size: 14pt;
       font-weight: 900;
-      line-height: 1.25;
-      letter-spacing: 0.3px;
+      line-height: 1.2;
+      letter-spacing: 0.2px;
       color: #000000;
-      border: 2.5px solid #000000;
-      border-radius: 5px;
-      padding: 3px 12px;
-      margin-bottom: 5px;
+      border: 2px solid #000000;
+      border-radius: 4px;
+      padding: 2.5px 8px;
+      margin-bottom: 3.5px;
       background: #ffffff;
       display: inline-block;
+      white-space: nowrap;
     }}
+
 
     .sender-block {{
       text-align: left;
@@ -633,15 +671,19 @@ def build_full_html_document(
     }}
 
     .case-highlight-box {{
-      font-size: 16pt;
+      font-size: 11pt;
       font-weight: 900;
-      border: 2px solid #000000;
-      border-radius: 4px;
-      padding: 2px 8px;
+      line-height: 1.2;
+      border: 1.8px solid #000000;
+      border-radius: 3px;
+      padding: 1.5px 6px;
       display: inline-block;
       background: #ffffff;
       color: #000000;
+      white-space: nowrap;
+      margin-bottom: 2px;
     }}
+
 
     .cell-party {{
       font-size: 13pt;
@@ -811,7 +853,8 @@ def build_bulk_html_document(
     .state-notes {{ font-size: 11.5pt; font-weight: 700; line-height: 1.3; text-transform: uppercase; margin-bottom: 10px; }}
     .mobile-no {{ font-size: 13pt; font-weight: 800; text-decoration: underline; letter-spacing: 0.2px; }}
     .case-block {{ text-align: right; padding-top: 2px; }}
-    .case-item {{ font-size: 12pt; font-weight: 800; line-height: 1.35; letter-spacing: 0.2px; color: #000000; }}
+    .case-item {{ font-size: 13.5pt; font-weight: 900; line-height: 1.2; letter-spacing: 0.2px; color: #000000; border: 2px solid #000000; border-radius: 4px; padding: 2px 7px; margin-bottom: 3px; background: #ffffff; display: inline-block; white-space: nowrap; }}
+
     .sender-block {{ text-align: left; margin-top: auto; padding-left: 10px; }}
     .from-title {{ font-size: 12.5pt; font-weight: 800; margin-bottom: 3px; }}
     .sender-name {{ font-size: 11.5pt; font-weight: 800; line-height: 1.25; margin-bottom: 2px; }}
@@ -1123,14 +1166,14 @@ def generate_dispatch_summary_pdf(
                     else:
                         total_fluid_cases += qty
 
-                    if b_vol:
-                        breakdown_text_parts.append(f"{b_type} {b_vol}: {qty}")
-                    else:
-                        breakdown_text_parts.append(f"{b_type}: {qty}")
+                    formatted_line = format_case_breakdown_line(b_type, b_vol, qty)
+                    breakdown_text_parts.append(formatted_line)
                 elif isinstance(b, str) and b.strip():
                     txt = b.strip().upper()
-                    breakdown_text_parts.append(txt)
+                    formatted_line = format_case_breakdown_line(txt)
+                    breakdown_text_parts.append(formatted_line)
                     full_breakdown_counts[txt] = full_breakdown_counts.get(txt, 0) + 1
+
         else:
             breakdown_text_parts.append(f"CASE: {pkg_count}")
             total_standard_cases += pkg_count

@@ -11,6 +11,7 @@ import openpyxl
 from main import app
 from database import SessionLocal
 from models import Party, PrintJob, PrintCase
+from pdf_service import format_case_breakdown_line, translate_case_label_to_gu
 
 client = TestClient(app)
 
@@ -257,6 +258,74 @@ def test_dual_brain_system():
     print(f" -> Big Brain Assistant Response: {chat_data['reply'][:90]}...")
     print("[PASS] Dual Brain AI system endpoints verified successfully.")
 
+def test_fluid_case_breakdown_single_line():
+    print("\nTesting Fluid Case Breakdown Single-Line Formatting & PDF...")
+    # 1. Test unit formatting helper
+    ns_line = format_case_breakdown_line("NS CASE", "100ML", 1)
+    assert ns_line == "NS 100 CASE: 1", f"Expected 'NS 100 CASE: 1', got '{ns_line}'"
+    
+    dns_line = format_case_breakdown_line("DNS CASE", "100ML", 1)
+    assert dns_line == "DNS 100 CASE: 1", f"Expected 'DNS 100 CASE: 1', got '{dns_line}'"
+
+    rl_line = format_case_breakdown_line("RL CASE", "500ML", 2)
+    assert rl_line == "RL 500 CASE: 2", f"Expected 'RL 500 CASE: 2', got '{rl_line}'"
+
+    metro_line = format_case_breakdown_line("METRO CASE", "100ML", 1)
+    assert metro_line == "METRO 100 CASE: 1", f"Expected 'METRO 100 CASE: 1', got '{metro_line}'"
+
+    std_line = format_case_breakdown_line("CASE", "", 1)
+    assert std_line == "CASE: 1", f"Expected 'CASE: 1', got '{std_line}'"
+
+    print(" -> Unit formatting verified: NS 100 CASE: 1, DNS 100 CASE: 1, RL 500 CASE: 2")
+
+    # 2. Test Gujarati translation for summary
+    gu_ns = translate_case_label_to_gu(ns_line)
+    assert "100" in gu_ns and "1" in gu_ns, f"Digits must remain 0-9: {gu_ns}"
+    print(f" -> Gujarati translated summary line: {gu_ns}")
+
+    # 3. Create a print job with fluids case breakdown
+    payload = {
+        "party_name": "SHREE KRISHNA PHARMA",
+        "party_code": "P0088",
+        "address": "SHOP 12, MEDICAL MARKET",
+        "city": "AHMEDABAD",
+        "state": "GUJARAT",
+        "mobile_no": "9825012345",
+        "parcel_type": "IV Fluids",
+        "total_cases": 2,
+        "case_breakdown": [
+            {"type": "NS CASE", "volume": "100ML", "qty": 1},
+            {"type": "DNS CASE", "volume": "100ML", "qty": 1}
+        ],
+        "envelope_size": "A4",
+        "envelopes_per_page": 2,
+        "status": "Printed",
+        "allow_duplicate": True
+    }
+    res = client.post("/api/print-jobs", json=payload)
+    assert res.status_code == 201, f"Failed creating fluid job: {res.text}"
+    job = res.json()
+    job_id = job["id"]
+
+    # 4. Generate PDF in attachment_pdf template format
+    pdf_res = client.post("/api/pdf/generate", json={
+        "job_id": job_id,
+        "template_format": "attachment_pdf"
+    })
+    assert pdf_res.status_code == 200, f"PDF generation failed: {pdf_res.status_code}"
+    assert len(pdf_res.content) > 5000
+    print(f" -> Fluid PDF (attachment_pdf) generated successfully ({len(pdf_res.content)} bytes)")
+
+    # 5. Generate PDF in marg_grid_22 template format
+    pdf_res2 = client.post("/api/pdf/generate", json={
+        "job_id": job_id,
+        "template_format": "marg_grid_22"
+    })
+    assert pdf_res2.status_code == 200, f"PDF generation (marg_grid_22) failed: {pdf_res2.status_code}"
+    assert len(pdf_res2.content) > 5000
+    print(f" -> Fluid PDF (marg_grid_22) generated successfully ({len(pdf_res2.content)} bytes)")
+    print("[PASS] Fluid case breakdown single-line and compact formatting verified.")
+
 if __name__ == "__main__":
     test_dashboard()
     test_party_autocomplete_and_crud()
@@ -265,7 +334,9 @@ if __name__ == "__main__":
     test_pdf_generation(job_id)
     test_xlsx_exports_and_backup()
     test_dual_brain_system()
+    test_fluid_case_breakdown_single_line()
     print("\n========================================================")
-    print("ALL 7 END-TO-END AUTOMATED VERIFICATION SUITES PASSED!")
+    print("ALL 8 END-TO-END AUTOMATED VERIFICATION SUITES PASSED!")
     print("========================================================")
+
 

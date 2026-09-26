@@ -61,7 +61,7 @@ import {
   fetchBigBrainUiControl
 } from '../api/client';
 
-import { EnvelopeTemplate } from '../print/EnvelopeTemplate';
+import { EnvelopeTemplate, formatCaseBreakdownItem } from '../print/EnvelopeTemplate';
 import { FullScreenPreviewModal } from '../components/FullScreenPreviewModal';
 
 interface PrintEnvelopeProps {
@@ -1784,9 +1784,9 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                   activeCaseBreakdown.map((item, idx) => (
                     <span
                       key={idx}
-                      className="bg-white/10 px-2 py-0.5 rounded border border-white/20 font-black text-[11px] text-white"
+                      className="bg-white/10 px-2 py-0.5 rounded border border-white/20 font-black text-[11px] text-white whitespace-nowrap"
                     >
-                      {item.type} {item.volume ? item.volume : ''}: {item.qty}
+                      {formatCaseBreakdownItem(item.type, item.volume, item.qty)}
                     </span>
                   ))
                 ) : (

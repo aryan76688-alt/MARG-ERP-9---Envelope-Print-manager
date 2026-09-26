@@ -21,6 +21,34 @@ const normalizeDigits = (str?: string | null): string => {
   return str.replace(/[૦-૯]/g, (ch) => String(gujaratiDigits.indexOf(ch)));
 };
 
+export const formatCaseBreakdownItem = (typeStr?: string, volStr?: string, qty: number = 1): string => {
+  const cleanType = (typeStr || 'CASE').trim().toUpperCase();
+  const cleanVol = (volStr || '').trim().toUpperCase();
+
+  // Check if string is already formatted like "NS CASE 100ML: 1" or "NS 100 CASE: 1"
+  const m = cleanType.match(/^(NS|DNS|RL|METRO)\s*(?:CASE)?\s*(\d+)(?:ML)?\s*(?:CASE)?:\s*(\d+)$/i);
+  if (m) {
+    return `${m[1].toUpperCase()} ${m[2]} CASE: ${m[3]}`;
+  }
+
+  const typeBase = cleanType.replace(/\s*CASE/g, '').trim();
+
+  if (['NS', 'DNS', 'RL', 'METRO'].includes(typeBase) && cleanVol) {
+    const volDisplay = cleanVol.endsWith('ML') ? cleanVol.replace('ML', '').trim() : cleanVol;
+    return `${typeBase} ${volDisplay} CASE: ${qty}`;
+  } else if (cleanVol) {
+    const volDisplay = cleanVol.endsWith('ML') ? cleanVol.replace('ML', '').trim() : cleanVol;
+    const prefix = typeBase || cleanType;
+    return `${prefix} ${volDisplay} CASE: ${qty}`;
+  } else {
+    if (!cleanType.endsWith('CASE') && !['PARCEL BAG', 'BOX', 'CARTON', 'BAG'].includes(cleanType)) {
+      return `${cleanType} CASE: ${qty}`;
+    }
+    return `${cleanType}: ${qty}`;
+  }
+};
+
+
 export const EnvelopeTemplate: React.FC<EnvelopeTemplateProps> = ({
   party,
   sender,
@@ -126,16 +154,11 @@ export const EnvelopeTemplate: React.FC<EnvelopeTemplateProps> = ({
     caseBreakdown.forEach((b) => {
       const qty = Number(b.qty) || 0;
       if (qty > 0) {
-        const typeStr = (b.type || 'CASE').trim().toUpperCase();
-        const volStr = (b.volume || '').trim().toUpperCase();
-        if (volStr) {
-          breakdownLines.push(`${typeStr} ${volStr}: ${qty}`);
-        } else {
-          breakdownLines.push(`${typeStr}: ${qty}`);
-        }
+        breakdownLines.push(formatCaseBreakdownItem(b.type, b.volume, qty));
       }
     });
   }
+
 
   // Fallback to CASE: N if no items with qty > 0 were specified
   if (breakdownLines.length === 0 && showCaseNumber && caseItem.case_total > 0) {
@@ -176,14 +199,17 @@ export const EnvelopeTemplate: React.FC<EnvelopeTemplateProps> = ({
               <td className="border-l border-r border-gray-300"></td>
               <td className="border-r border-gray-300"></td>
               <td className="border-r border-gray-300"></td>
-              <td className="px-2 text-right font-black text-[15px] border-l border-gray-300">
-                <div className="inline-block border-2 border-black rounded px-2.5 py-0.5 text-[16px] font-black text-black bg-white">
+              <td className="px-2 text-right font-black border-l border-gray-300">
+                <div className="inline-block border-[1.8px] border-black rounded px-2 py-0.5 text-[12.5px] font-black text-black bg-white whitespace-nowrap mb-0.5">
                   {caseBadge}
                 </div>
                 {extraCases.map((ec, i) => (
-                  <div key={i} className="text-[12px] font-bold mt-0.5">{ec}</div>
+                  <div key={i} className="inline-block border-[1.8px] border-black rounded px-2 py-0.5 text-[12.5px] font-black text-black bg-white whitespace-nowrap mt-0.5">
+                    {ec}
+                  </div>
                 ))}
               </td>
+
             </tr>
 
             {/* Row 2: Empty Spacer */}
@@ -315,17 +341,18 @@ export const EnvelopeTemplate: React.FC<EnvelopeTemplateProps> = ({
 
         {/* Right Column: Case Breakdown & Sender Info */}
         <div className="w-[40%] flex flex-col justify-between text-right">
-          {/* Top Right: Dynamic Case Breakdown (Strictly non-zero, Highlighted Box & Biggest Font) */}
+          {/* Top Right: Dynamic Case Breakdown (Strictly non-zero, Single Line Compact Box) */}
           <div className="text-right pt-0.5 flex flex-col items-end">
             {breakdownLines.map((line, idx) => (
               <div 
                 key={idx} 
-                className="inline-block border-[2.5px] border-black rounded px-3.5 py-1 text-[22px] font-black text-black tracking-tight shadow-sm bg-white mb-2"
+                className="inline-block border-2 border-black rounded px-2.5 py-0.5 text-[15px] font-black text-black tracking-tight bg-white mb-1.5 whitespace-nowrap shadow-none"
               >
                 {line}
               </div>
             ))}
           </div>
+
 
           {/* Bottom Right: Sender Info */}
           <div className="text-left mt-auto pl-3 space-y-0.5">
