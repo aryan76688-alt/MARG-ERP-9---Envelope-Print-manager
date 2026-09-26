@@ -77,8 +77,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'parties', label: 'Parties', icon: Users },
     { id: 'import', label: 'Import Excel', icon: FileSpreadsheet },
-    { id: 'print', label: 'Print Envelope', icon: Printer, badge: 'Main' },
-    { id: 'dispatch', label: 'Dispatch Summary', icon: Truck, badge: 'New' },
+    { id: 'print', label: 'Print Envelope', icon: Printer },
+    { id: 'dispatch', label: 'Dispatch Summary', icon: Truck },
     { id: 'history', label: 'Print History', icon: History },
     { id: 'settings', label: 'Settings', icon: SettingsIcon },
     ...(userRole === 'super_admin' ? [{ id: 'users', label: 'User Management', icon: User }] : [])
@@ -86,6 +86,17 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
 
   const navItems = navItemsRaw;
 
+  const pageTitles: Record<string, string> = {
+    dashboard: 'Dispatch Dashboard',
+    parties: 'Parties Management',
+    import: 'Import Excel',
+    print: 'Print Envelope',
+    dispatch: 'Dispatch Summary',
+    history: 'Print History',
+    settings: 'Settings',
+    users: 'User Management',
+  };
+  const activeTitle = pageTitles[currentTab] || 'Envelope Print';
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-slate-100 font-sans">
@@ -100,7 +111,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
             <span className="font-extrabold text-base tracking-wider text-white flex items-center gap-1">
               Envelope Print
             </span>
-            <span className="text-[10px] text-slate-400 font-medium tracking-wide">Dispatch Manager</span>
+            <span className="text-xs text-slate-400 font-medium tracking-wide">Dispatch Manager</span>
           </div>
         </div>
 
@@ -126,29 +137,25 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
                   <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-400'}`} />
                   <span>{item.label}</span>
                 </div>
-                {item.badge && (
-                  <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${
-                    isActive ? 'bg-blue-700 text-white' : 'bg-blue-900/60 text-blue-300'
-                  }`}>
-                    {item.badge}
-                  </span>
-                )}
               </button>
             );
           })}
         </nav>
 
         {/* Sidebar Footer System Info */}
-        <div className="p-4 border-t border-slate-800/80 bg-slate-950/30 text-xs text-slate-400">
+        <div className="p-4 border-t border-slate-800 bg-slate-950/40 text-xs text-slate-400 space-y-2.5">
           <div className="flex items-center justify-between font-medium">
             <span>System Status</span>
-            <span className="inline-flex items-center gap-1 text-emerald-400 text-[11px] font-semibold">
+            <span className="inline-flex items-center gap-1.5 text-emerald-400 text-xs font-semibold">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
               Connected
             </span>
           </div>
-          <div className="mt-2 text-[11px] text-slate-400">
-            PIN Code: <span className="text-emerald-400 font-bold">DISABLED</span>
+          <div className="flex items-center justify-between text-xs text-slate-400 font-medium">
+            <span>PIN Code Policy</span>
+            <span className="text-slate-400 bg-slate-800/80 px-2 py-0.5 rounded text-[11px] font-medium border border-slate-700/60">
+              Disabled
+            </span>
           </div>
         </div>
       </aside>
@@ -222,10 +229,10 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-base sm:text-lg font-black text-slate-900 tracking-tight flex items-center gap-1.5">
-                  <span className="text-blue-900 font-bold">Envelope Print</span>
+                  <span className="text-slate-900 font-bold">{activeTitle}</span>
                 </h1>
               </div>
-              <p className="text-[11px] text-slate-500 font-medium hidden sm:block">
+              <p className="text-xs text-slate-500 font-medium hidden sm:block">
                 Professional Envelope Dispatch & Print Manager
               </p>
             </div>

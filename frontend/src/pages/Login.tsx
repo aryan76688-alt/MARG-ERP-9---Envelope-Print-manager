@@ -77,12 +77,14 @@ export const Login: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
               required
             />
           </div>
-          <button
-            type="submit"
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-lg transition-colors"
-          >
-            Sign In
-          </button>
+          <div className="pt-3">
+            <button
+              type="submit"
+              className="w-full btn-primary py-2.5 text-sm"
+            >
+              Sign In
+            </button>
+          </div>
         </form>
       </div>
     </div>

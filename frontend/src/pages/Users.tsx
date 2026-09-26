@@ -85,8 +85,9 @@ export const Users: React.FC = () => {
           <p className="text-sm text-slate-500">Manage access, roles, and permissions.</p>
         </div>
         {!showForm && (
-          <button onClick={() => { setEditingUser(null); setShowForm(true); }} className="btn-primary flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700">
-            <Plus className="w-4 h-4" /> Add User
+          <button onClick={() => { setEditingUser(null); setShowForm(true); }} className="btn-primary">
+            <Plus className="w-4 h-4" />
+            <span>Add User</span>
           </button>
         )}
       </div>
@@ -97,19 +98,19 @@ export const Users: React.FC = () => {
           <form onSubmit={handleSave} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Username</label>
-              <input name="username" defaultValue={editingUser?.username} required className="w-full border p-2 rounded-lg" disabled={!!editingUser} />
+              <input name="username" defaultValue={editingUser?.username} required className="w-full border border-slate-300 p-2 rounded-lg text-sm" disabled={!!editingUser} />
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Password {editingUser && '(Leave empty to keep current)'}</label>
-              <input name="password" type="password" required={!editingUser} className="w-full border p-2 rounded-lg" />
+              <input name="password" type="password" required={!editingUser} className="w-full border border-slate-300 p-2 rounded-lg text-sm" />
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Full Name</label>
-              <input name="full_name" defaultValue={editingUser?.full_name} required className="w-full border p-2 rounded-lg" />
+              <input name="full_name" defaultValue={editingUser?.full_name} required className="w-full border border-slate-300 p-2 rounded-lg text-sm" />
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Role</label>
-              <select name="role" defaultValue={editingUser?.role || 'employee'} className="w-full border p-2 rounded-lg">
+              <select name="role" defaultValue={editingUser?.role || 'employee'} className="w-full border border-slate-300 p-2 rounded-lg text-sm bg-white">
                 <option value="super_admin">Super Admin</option>
                 <option value="admin">Admin</option>
                 <option value="employee">Employee</option>
@@ -119,31 +120,32 @@ export const Users: React.FC = () => {
             <div className="md:col-span-2 mt-2">
               <label className="block text-sm font-medium text-slate-700 mb-2">Permissions</label>
               <div className="flex gap-4">
-                <label className="flex items-center gap-2">
-                  <input type="checkbox" name="permissions" value="create_job" defaultChecked={editingUser ? editingUser.permissions?.includes('create_job') : true} />
-                  <span>Create Print/PDF Jobs</span>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" name="permissions" value="create_job" defaultChecked={editingUser ? editingUser.permissions?.includes('create_job') : true} className="rounded text-blue-600" />
+                  <span className="text-sm text-slate-700">Create Print/PDF Jobs</span>
                 </label>
-                <label className="flex items-center gap-2">
-                  <input type="checkbox" name="permissions" value="save_job" defaultChecked={editingUser ? editingUser.permissions?.includes('save_job') : true} />
-                  <span>Save Jobs (No Print)</span>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" name="permissions" value="save_job" defaultChecked={editingUser ? editingUser.permissions?.includes('save_job') : true} className="rounded text-blue-600" />
+                  <span className="text-sm text-slate-700">Save Jobs (No Print)</span>
                 </label>
               </div>
             </div>
 
             <div className="md:col-span-2 mt-2 flex items-center gap-2">
-              <input type="checkbox" name="is_active" id="is_active" defaultChecked={editingUser ? editingUser.is_active : true} />
-              <label htmlFor="is_active" className="text-sm font-medium text-slate-700">Account Active</label>
+              <input type="checkbox" name="is_active" id="is_active" defaultChecked={editingUser ? editingUser.is_active : true} className="rounded text-blue-600" />
+              <label htmlFor="is_active" className="text-sm font-medium text-slate-700 cursor-pointer">Account Active</label>
             </div>
 
-            <div className="md:col-span-2 flex justify-end gap-3 mt-4 pt-4 border-t">
-              <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 border rounded-lg text-slate-600 hover:bg-slate-50 font-medium">Cancel</button>
-              <button type="submit" disabled={saveUserMutation.isPending} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium flex items-center gap-2">
-                <Check className="w-4 h-4" /> {saveUserMutation.isPending ? 'Saving...' : 'Save User'}
+            <div className="md:col-span-2 flex justify-end gap-2.5 mt-4 pt-4 border-t border-slate-100">
+              <button type="button" onClick={() => setShowForm(false)} className="btn-secondary">Cancel</button>
+              <button type="submit" disabled={saveUserMutation.isPending} className="btn-primary">
+                <Check className="w-4 h-4" />
+                <span>{saveUserMutation.isPending ? 'Saving...' : 'Save User'}</span>
               </button>
             </div>
             
             {saveUserMutation.isError && (
-              <div className="md:col-span-2 text-red-600 text-sm">{saveUserMutation.error.message}</div>
+              <div className="md:col-span-2 text-rose-600 text-sm">{saveUserMutation.error.message}</div>
             )}
           </form>
         </div>
@@ -152,7 +154,7 @@ export const Users: React.FC = () => {
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="bg-slate-50 border-b border-slate-200 text-sm font-semibold text-slate-600">
+            <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600">
               <th className="p-4">User</th>
               <th className="p-4">Role</th>
               <th className="p-4">Status</th>
@@ -166,28 +168,41 @@ export const Users: React.FC = () => {
               users.map((u: any) => (
                 <tr key={u.id} className="hover:bg-slate-50">
                   <td className="p-4">
-                    <div className="font-medium text-slate-900">{u.full_name}</div>
+                    <div className="font-semibold text-slate-900">{u.full_name}</div>
                     <div className="text-xs text-slate-500">@{u.username}</div>
                   </td>
                   <td className="p-4">
-                    <span className="px-2 py-1 bg-slate-100 rounded text-xs font-medium text-slate-700 uppercase">
+                    <span className="px-2.5 py-0.5 bg-slate-100 border border-slate-200 rounded text-xs font-medium text-slate-700 capitalize">
                       {u.role.replace('_', ' ')}
                     </span>
                   </td>
                   <td className="p-4">
                     {u.is_active ? (
-                      <span className="text-emerald-600 text-xs font-semibold px-2 py-1 bg-emerald-50 rounded">Active</span>
+                      <span className="text-emerald-700 text-xs font-semibold px-2 py-0.5 bg-emerald-50 border border-emerald-200 rounded">Active</span>
                     ) : (
-                      <span className="text-red-600 text-xs font-semibold px-2 py-1 bg-red-50 rounded">Inactive</span>
+                      <span className="text-rose-700 text-xs font-semibold px-2 py-0.5 bg-rose-50 border border-rose-200 rounded">Inactive</span>
                     )}
                   </td>
-                  <td className="p-4 text-right flex items-center justify-end gap-2">
-                    <button onClick={() => { setEditingUser(u); setShowForm(true); }} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded" title="Edit">
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => deleteUserMutation.mutate(u.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded" title="Delete" disabled={deleteUserMutation.isPending}>
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                  <td className="p-4 text-right">
+                    <div className="flex items-center justify-end gap-1.5">
+                      <button 
+                        onClick={() => { setEditingUser(u); setShowForm(true); }} 
+                        className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-slate-100 transition-colors" 
+                        title="Edit User"
+                        aria-label={`Edit user ${u.username}`}
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button 
+                        onClick={() => deleteUserMutation.mutate(u.id)} 
+                        className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors" 
+                        title="Delete User" 
+                        disabled={deleteUserMutation.isPending}
+                        aria-label={`Delete user ${u.username}`}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))

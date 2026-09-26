@@ -1151,13 +1151,13 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
         {/* ========================================== */}
         <div className="lg:col-span-3 bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-4">
           <div className="border-b border-slate-200 pb-3">
-            <h3 className="font-extrabold text-slate-900 text-sm flex items-center justify-between">
+            <h2 className="font-extrabold text-slate-900 text-sm flex items-center justify-between">
               <span>Select Party</span>
               <span className="text-[10px] font-bold bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-200">
                 1-Letter Instant
               </span>
-            </h3>
-            <p className="text-[11px] text-slate-500 mt-0.5">
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
               Instant search from 2,339 parties
             </p>
           </div>
@@ -1252,8 +1252,8 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
               {(selectedParty.party_name_gu || selectedLanguage === 'gu') && (
                 <div className="mt-2 p-2.5 bg-purple-50/70 border border-purple-200 rounded-lg space-y-1.5 text-purple-950">
                   <div className="flex items-center justify-between border-b border-purple-200/60 pb-1">
-                    <span className="text-[10px] font-black text-purple-800 uppercase flex items-center gap-1">
-                      <Languages className="w-3 h-3" />
+                    <span className="text-xs font-bold text-purple-900 flex items-center gap-1.5">
+                      <Languages className="w-3.5 h-3.5" />
                       <span>ગુજરાતી વિગતો (Gujarati Details)</span>
                     </span>
                     <button
@@ -1445,8 +1445,8 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                     <h3 className="font-black text-slate-900 text-xs flex items-center gap-1.5">
                       <span>Multi-Fluid & Case Breakdown</span>
                     </h3>
-                    <p className="text-[10px] text-slate-500 font-bold">
-                      0-quantity items are NOT printed on envelope
+                    <p className="text-xs text-slate-500 font-medium">
+                      0-quantity items are not printed on envelope
                     </p>
                   </div>
 
@@ -1774,9 +1774,9 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
 
             {/* Active Items to Print Preview Banner */}
             <div className="bg-slate-900 text-white p-3 rounded-xl space-y-1.5 text-xs">
-              <div className="flex items-center justify-between text-[11px] font-extrabold text-blue-300">
-                <span>ACTIVE ITEMS TO PRINT ON ENVELOPE:</span>
-                <span className="text-amber-400 font-black">
+              <div className="flex items-center justify-between text-xs font-bold text-blue-300">
+                <span>Active items to print on envelope:</span>
+                <span className="text-amber-400 font-bold">
                   Total: {totalPackagesCount} Case(s)
                 </span>
               </div>
