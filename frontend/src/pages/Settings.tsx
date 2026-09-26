@@ -14,7 +14,12 @@ import {
   AlertCircle,
   Sparkles,
   Brain,
-  Cpu
+  Cpu,
+  Cloud,
+  Clock,
+  Lock,
+  ShieldCheck,
+  RefreshCw
 } from 'lucide-react';
 import { SenderSettings, AppSettings, DualBrainStatus } from '../types';
 import { 
@@ -25,7 +30,10 @@ import {
   getExportHistoryUrl, 
   testGeminiAI,
   testOpenAIApi,
-  fetchBrainStatus
+  fetchBrainStatus,
+  fetchBackupSettings,
+  updateBackupSettings,
+  triggerManualBackup
 } from '../api/client';
 
 
@@ -80,6 +88,38 @@ export const Settings: React.FC = () => {
   const [brainStatus, setBrainStatus] = useState<DualBrainStatus | null>(null);
   const backupFileInputRef = useRef<HTMLInputElement>(null);
 
+  const [currentUser] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('user') || '{}');
+    } catch {
+      return {};
+    }
+  });
+  const canEditBackup = currentUser.role === 'super_admin' || currentUser.role === 'admin';
+
+  const [autoBackupEnabled, setAutoBackupEnabled] = useState<boolean>(true);
+  const [autoBackupTime, setAutoBackupTime] = useState<string>('20:00');
+  const [rcloneRemoteName, setRcloneRemoteName] = useState<string>('gdrive');
+  const [rcloneBackupPath, setRcloneBackupPath] = useState<string>('MARG_Backups');
+  const [lastBackupTime, setLastBackupTime] = useState<string | null>(null);
+  const [lastBackupStatus, setLastBackupStatus] = useState<string | null>(null);
+  const [backupSaving, setBackupSaving] = useState<boolean>(false);
+  const [backupRunning, setBackupRunning] = useState<boolean>(false);
+  const [backupMessage, setBackupMessage] = useState<string | null>(null);
+
+  const loadBackupSettings = () => {
+    fetchBackupSettings()
+      .then((b) => {
+        setAutoBackupEnabled(b.auto_backup_enabled ?? true);
+        setAutoBackupTime(b.auto_backup_time || '20:00');
+        setRcloneRemoteName(b.rclone_remote_name || 'gdrive');
+        setRcloneBackupPath(b.rclone_backup_path || 'MARG_Backups');
+        setLastBackupTime(b.last_backup_time || null);
+        setLastBackupStatus(b.last_backup_status || null);
+      })
+      .catch((err) => console.warn('Could not load backup settings:', err));
+  };
+
   useEffect(() => {
     fetchSettings()
       .then((res) => {
@@ -91,7 +131,51 @@ export const Settings: React.FC = () => {
     fetchBrainStatus()
       .then(st => setBrainStatus(st))
       .catch(console.warn);
+
+    loadBackupSettings();
   }, []);
+
+  const handleSaveBackupSchedule = async () => {
+    if (!canEditBackup) {
+      alert('Permission Denied: Only Super Admin and Admin can change backup schedule.');
+      return;
+    }
+    setBackupSaving(true);
+    setBackupMessage(null);
+    try {
+      await updateBackupSettings({
+        auto_backup_enabled: autoBackupEnabled,
+        auto_backup_time: autoBackupTime,
+        rclone_remote_name: rcloneRemoteName,
+        rclone_backup_path: rcloneBackupPath,
+      });
+      setBackupMessage('Auto backup schedule updated successfully!');
+      setTimeout(() => setBackupMessage(null), 4000);
+    } catch (err: any) {
+      alert('Failed to update backup settings: ' + err.message);
+    } finally {
+      setBackupSaving(false);
+    }
+  };
+
+  const handleTriggerManualBackup = async () => {
+    if (!canEditBackup) {
+      alert('Permission Denied: Only Super Admin and Admin can trigger backups.');
+      return;
+    }
+    setBackupRunning(true);
+    setBackupMessage(null);
+    try {
+      const res = await triggerManualBackup();
+      loadBackupSettings();
+      setBackupMessage(res.message || 'Backup completed!');
+      setTimeout(() => setBackupMessage(null), 6000);
+    } catch (err: any) {
+      alert('Backup failed: ' + err.message);
+    } finally {
+      setBackupRunning(false);
+    }
+  };
 
 
   const handleSave = async (e: React.FormEvent) => {
@@ -687,8 +771,167 @@ export const Settings: React.FC = () => {
             <div className="border-b border-slate-200 pb-2">
               <h3 className="font-extrabold text-slate-900 text-sm">Data Backup & Bulk Exports</h3>
               <p className="text-slate-500">
-                Full relational database backups (JSON) and Microsoft Excel (.xlsx) exports.
+                Automated daily cloud backups via Rclone and Microsoft Excel (.xlsx) bilingual exports.
               </p>
+            </div>
+
+            {/* Rclone Auto Cloud Backup Card */}
+            <div className="p-5 rounded-2xl border-2 border-indigo-200 bg-gradient-to-br from-indigo-50/70 via-white to-purple-50/50 shadow-sm space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-indigo-100 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-indigo-600 text-white shadow-md shadow-indigo-600/30">
+                    <Cloud className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-black text-slate-900 text-sm">
+                        Auto Cloud Backup (Rclone Google Drive Sync)
+                      </h4>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-indigo-100 text-indigo-700 uppercase tracking-wide">
+                        Daily at 8:00 PM
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 font-medium">
+                      Automated daily snapshot of SQLite database synced directly to Google Drive via Rclone.
+                    </p>
+                  </div>
+                </div>
+
+                {canEditBackup ? (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Admin Access Granted</span>
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                    <Lock className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Read-Only for Employee</span>
+                  </span>
+                )}
+              </div>
+
+              {!canEditBackup && (
+                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-center gap-2 font-semibold">
+                  <Lock className="w-4 h-4 shrink-0 text-amber-600" />
+                  <span>
+                    Schedule settings and manual backup triggers can only be modified by Super Admin and Admin.
+                  </span>
+                </div>
+              )}
+
+              {backupMessage && (
+                <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2 font-bold animate-in fade-in">
+                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                  <span>{backupMessage}</span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                {/* Auto Backup Toggle */}
+                <div>
+                  <label className="font-extrabold text-slate-700 block mb-1.5">Scheduled Auto-Backup</label>
+                  <label className="flex items-center gap-2 p-2.5 rounded-xl border border-slate-200 bg-white cursor-pointer">
+                    <input
+                      type="checkbox"
+                      disabled={!canEditBackup}
+                      checked={autoBackupEnabled}
+                      onChange={(e) => setAutoBackupEnabled(e.target.checked)}
+                      className="w-4 h-4 text-indigo-600 rounded border-slate-300 disabled:opacity-50"
+                    />
+                    <span className="font-bold text-slate-800">
+                      {autoBackupEnabled ? 'Enabled (Daily)' : 'Disabled'}
+                    </span>
+                  </label>
+                </div>
+
+                {/* Auto Backup Time (8:00 PM) */}
+                <div>
+                  <label className="font-extrabold text-slate-700 block mb-1.5 flex items-center gap-1">
+                    <Clock className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Backup Time (Default 8:00 PM)</span>
+                  </label>
+                  <input
+                    type="time"
+                    disabled={!canEditBackup}
+                    value={autoBackupTime}
+                    onChange={(e) => setAutoBackupTime(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono font-bold text-slate-800 disabled:bg-slate-100 disabled:cursor-not-allowed"
+                  />
+                </div>
+
+                {/* Remote & Path */}
+                <div>
+                  <label className="font-extrabold text-slate-700 block mb-1.5 flex items-center gap-1">
+                    <Cloud className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Rclone Remote & Folder</span>
+                  </label>
+                  <div className="flex gap-1.5">
+                    <input
+                      type="text"
+                      disabled={!canEditBackup}
+                      value={rcloneRemoteName}
+                      onChange={(e) => setRcloneRemoteName(e.target.value)}
+                      placeholder="Remote (gdrive)"
+                      className="w-28 px-2.5 py-2 rounded-xl border border-slate-200 bg-white font-mono font-bold text-xs text-slate-800 disabled:bg-slate-100 disabled:cursor-not-allowed"
+                    />
+                    <span className="self-center font-bold text-slate-400">:</span>
+                    <input
+                      type="text"
+                      disabled={!canEditBackup}
+                      value={rcloneBackupPath}
+                      onChange={(e) => setRcloneBackupPath(e.target.value)}
+                      placeholder="Path (MARG_Backups)"
+                      className="flex-1 px-2.5 py-2 rounded-xl border border-slate-200 bg-white font-mono font-bold text-xs text-slate-800 disabled:bg-slate-100 disabled:cursor-not-allowed"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Status and Action Buttons */}
+              <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs border-t border-indigo-100/60">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-slate-500">Last Cloud Sync:</span>
+                    <span className="font-extrabold text-slate-800">
+                      {lastBackupTime || 'No backups executed yet'}
+                    </span>
+                  </div>
+                  {lastBackupStatus && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-slate-500">Status:</span>
+                      <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${
+                        lastBackupStatus.toLowerCase().includes('success')
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : 'bg-amber-100 text-amber-800'
+                      }`}>
+                        {lastBackupStatus}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {canEditBackup && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={backupSaving}
+                      onClick={handleSaveBackupSchedule}
+                      className="px-4 py-2 rounded-xl bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 font-bold text-xs transition-colors shadow-xs disabled:opacity-50"
+                    >
+                      {backupSaving ? 'Saving...' : 'Save Schedule'}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={backupRunning}
+                      onClick={handleTriggerManualBackup}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs shadow-md shadow-indigo-600/30 transition-all hover:scale-102 disabled:opacity-50"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${backupRunning ? 'animate-spin' : ''}`} />
+                      <span>{backupRunning ? 'Syncing to Cloud...' : 'Backup Now'}</span>
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -744,7 +987,7 @@ export const Settings: React.FC = () => {
                   <span>Export Parties Spreadsheet (.xlsx)</span>
                 </div>
                 <p className="text-slate-600 text-xs">
-                  Clean Microsoft Excel spreadsheet of all parties, codes, addresses, and contacts. NO PIN code.
+                  Bilingual workbook featuring two separate sheets: English (ઇંગ્લિશ) and Gujarati (ગુજરાતી) with localized party details. NO PIN code.
                 </p>
                 <a
                   href={getExportPartiesUrl()}
@@ -752,7 +995,7 @@ export const Settings: React.FC = () => {
                   className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-600/20"
                 >
                   <Download className="w-4 h-4" />
-                  <span>Export Parties (.xlsx)</span>
+                  <span>Export Bilingual Parties (.xlsx)</span>
                 </a>
               </div>
 

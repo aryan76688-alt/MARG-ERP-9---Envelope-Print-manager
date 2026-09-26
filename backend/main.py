@@ -19,6 +19,11 @@ import excel_service
 import pdf_service
 import ai_service
 import openai_service
+import subprocess
+import shutil
+import threading
+import time
+import auth as auth_module
 from pathlib import Path
 
 # Load .env file
@@ -48,6 +53,115 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Rclone Auto Cloud Backup Service & Scheduler
+def find_rclone_bin():
+    candidates = [
+        shutil.which("rclone"),
+        os.path.expanduser("~/.local/bin/rclone"),
+        "/usr/local/bin/rclone",
+        "/usr/bin/rclone",
+        "/home/aryan/.local/bin/rclone"
+    ]
+    for c in candidates:
+        if c and os.path.isfile(c) and os.access(c, os.X_OK):
+            return c
+    return None
+
+def _update_backup_status(db: Session, timestamp_dt: datetime.datetime, status_msg: str):
+    try:
+        app_set = db.query(AppSettings).first()
+        if app_set:
+            app_set.last_backup_time = timestamp_dt
+            app_set.last_backup_status = status_msg
+            db.commit()
+    except Exception as ex:
+        print("Failed to save backup status:", ex)
+
+def perform_rclone_backup(db: Session, remote_name: str = "gdrive", backup_path: str = "MARG_Backups") -> Dict[str, Any]:
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    db_file = os.path.join(base_dir, "envelope_manager.db")
+    backups_dir = os.path.join(base_dir, "backups")
+    os.makedirs(backups_dir, exist_ok=True)
+
+    now_dt = datetime.datetime.now()
+    now_display = now_dt.strftime("%d-%m-%Y %I:%M %p")
+    timestamp = now_dt.strftime("%Y%m%d_%H%M%S")
+    backup_file = os.path.join(backups_dir, f"envelope_manager_{timestamp}.db")
+
+    try:
+        if os.path.exists(db_file):
+            shutil.copy2(db_file, backup_file)
+            shutil.copy2(db_file, os.path.join(backups_dir, "envelope_manager_latest.db"))
+            status_msg = f"Local backup created ({os.path.basename(backup_file)})"
+        else:
+            status_msg = "Error: Local envelope_manager.db not found"
+            _update_backup_status(db, now_dt, status_msg)
+            return {"success": False, "message": status_msg}
+
+        rclone_bin = find_rclone_bin()
+        if not rclone_bin:
+            status_msg += " (rclone executable not found; cloud sync skipped)"
+            _update_backup_status(db, now_dt, status_msg)
+            return {"success": True, "message": status_msg, "rclone": False}
+
+        clean_remote = (remote_name or "gdrive").strip().rstrip(":")
+        clean_path = (backup_path or "MARG_Backups").strip().lstrip("/")
+        remote_target = f"{clean_remote}:{clean_path}"
+
+        cmd = [rclone_bin, "copy", backups_dir, remote_target]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+
+        if result.returncode == 0:
+            status_msg = f"Success: Cloud synced to {remote_target} at {now_display}"
+            _update_backup_status(db, now_dt, status_msg)
+            return {"success": True, "message": status_msg, "rclone": True}
+        else:
+            err_snippet = (result.stderr or result.stdout or "Command returned non-zero exit code").strip()
+            status_msg = f"Local saved, rclone error: {err_snippet[:150]}"
+            _update_backup_status(db, now_dt, status_msg)
+            return {"success": False, "message": status_msg, "rclone": True}
+
+    except Exception as e:
+        status_msg = f"Backup failed: {str(e)[:150]}"
+        _update_backup_status(db, now_dt, status_msg)
+        return {"success": False, "message": status_msg}
+
+_BACKUP_SCHEDULER_RUNNING = False
+
+def start_backup_scheduler():
+    global _BACKUP_SCHEDULER_RUNNING
+    if _BACKUP_SCHEDULER_RUNNING:
+        return
+    _BACKUP_SCHEDULER_RUNNING = True
+
+    def _loop():
+        last_triggered_date = None
+        while True:
+            try:
+                time.sleep(30)
+                now = datetime.datetime.now()
+                current_time_str = now.strftime("%H:%M")
+                today_str = now.strftime("%Y-%m-%d")
+
+                db = SessionLocal()
+                try:
+                    app_set = db.query(AppSettings).first()
+                    if app_set and getattr(app_set, "auto_backup_enabled", True):
+                        target_time = getattr(app_set, "auto_backup_time", "20:00") or "20:00"
+                        if current_time_str == target_time and last_triggered_date != today_str:
+                            last_triggered_date = today_str
+                            r_name = getattr(app_set, "rclone_remote_name", "gdrive") or "gdrive"
+                            b_path = getattr(app_set, "rclone_backup_path", "MARG_Backups") or "MARG_Backups"
+                            print(f"[AutoBackup] Scheduled backup triggering at {current_time_str} ({r_name}:{b_path})...")
+                            perform_rclone_backup(db, remote_name=r_name, backup_path=b_path)
+                finally:
+                    db.close()
+            except Exception as e:
+                print("[AutoBackup] Scheduler tick exception:", e)
+
+    t = threading.Thread(target=_loop, daemon=True)
+    t.start()
+
 # Startup event to ensure database is created and seeded
 @app.on_event("startup")
 def startup_event():
@@ -56,6 +170,10 @@ def startup_event():
         ai_service.start_background_translation_worker(SessionLocal)
     except Exception as e:
         print("Startup background translation notice:", e)
+    try:
+        start_backup_scheduler()
+    except Exception as e:
+        print("Startup backup scheduler notice:", e)
 
 # ==========================================
 # PYDANTIC SCHEMAS
@@ -161,6 +279,13 @@ class CreatePrintJobRequest(BaseModel):
     city_gu: Optional[str] = None
     state_gu: Optional[str] = None
     allow_duplicate: bool = False
+    created_by: Optional[str] = "Admin"
+
+class BackupSettingsRequest(BaseModel):
+    auto_backup_enabled: bool = True
+    auto_backup_time: str = "20:00"
+    rclone_remote_name: str = "gdrive"
+    rclone_backup_path: str = "MARG_Backups"
 
 class BulkRouteRequest(BaseModel):
     party_ids: List[int]
@@ -1007,12 +1132,13 @@ def create_print_job(req: CreatePrintJobRequest, db: Session = Depends(get_db)):
         already_printed = db.query(PrintJob).filter(
             PrintJob.created_at >= today_start,
             func.upper(PrintJob.party_name_snap) == norm_name,
-            PrintJob.status == "Printed"
+            PrintJob.status.in_(["Printed", "Saved"])
         ).first()
         if already_printed:
+            action_verb = "printed" if already_printed.status == "Printed" else "saved"
             raise HTTPException(
                 status_code=409,
-                detail=f"Party '{norm_name}' has already been printed today (#{already_printed.job_number}). 1-Time/Day Lock is active to prevent duplicate dispatches. Please use Print History to reprint or edit."
+                detail=f"Party '{norm_name}' has already been {action_verb} today (#{already_printed.job_number}). 1-Time/Day Lock is active to prevent duplicate dispatches. Please use Print History to reprint or edit."
             )
 
     # Fetch default sender settings if not provided
@@ -1074,6 +1200,7 @@ def create_print_job(req: CreatePrintJobRequest, db: Session = Depends(get_db)):
             delivery_route=req.delivery_route,
             language=req.language or "en",
             template_format=req.template_format or "attachment_pdf",
+            created_by=(req.created_by.strip() if req.created_by else None) or "Admin",
             created_at=datetime.datetime.now(datetime.timezone.utc)
         )
         db.add(job)
@@ -1354,6 +1481,7 @@ def list_print_jobs(
             "delivery_boy_name": getattr(j, "delivery_boy_name", None),
             "delivery_route": getattr(j, "delivery_route", None),
             "case_breakdown_json": getattr(j, "case_breakdown_json", None),
+            "created_by": getattr(j, "created_by", "Admin") or "Admin",
             "created_at": j.created_at.strftime("%d-%m-%Y %I:%M %p") if j.created_at else "",
             "created_at_iso": j.created_at.isoformat() if j.created_at else "",
             "cases_count": len(j.cases)
@@ -1424,6 +1552,7 @@ def get_print_job(job_id: int, db: Session = Depends(get_db)):
         "delivery_boy_name": getattr(job, "delivery_boy_name", None),
         "delivery_route": getattr(job, "delivery_route", None),
         "case_breakdown_json": getattr(job, "case_breakdown_json", None),
+        "created_by": getattr(job, "created_by", "Admin") or "Admin",
         "created_at": job.created_at.strftime("%d-%m-%Y %I:%M %p") if job.created_at else "",
         "cases": cases
     }
@@ -2265,6 +2394,46 @@ def import_database_backup(backup_data: Dict[str, Any], db: Session = Depends(ge
         sender.gst_no = s_data.get("gst_no")
         db.commit()
 
+@app.get("/api/backup/settings")
+def get_backup_settings(db: Session = Depends(get_db)):
+    app_set = db.query(AppSettings).first()
+    return {
+        "auto_backup_enabled": getattr(app_set, "auto_backup_enabled", True) if app_set else True,
+        "auto_backup_time": getattr(app_set, "auto_backup_time", "20:00") or "20:00",
+        "rclone_remote_name": getattr(app_set, "rclone_remote_name", "gdrive") or "gdrive",
+        "rclone_backup_path": getattr(app_set, "rclone_backup_path", "MARG_Backups") or "MARG_Backups",
+        "last_backup_time": app_set.last_backup_time.strftime("%d-%m-%Y %I:%M %p") if app_set and app_set.last_backup_time else None,
+        "last_backup_status": getattr(app_set, "last_backup_status", None) if app_set else None
+    }
+
+@app.put("/api/backup/settings")
+def update_backup_settings(
+    req: BackupSettingsRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth_module.get_current_active_admin)
+):
+    app_set = db.query(AppSettings).first()
+    if not app_set:
+        app_set = AppSettings()
+        db.add(app_set)
+    app_set.auto_backup_enabled = bool(req.auto_backup_enabled)
+    app_set.auto_backup_time = req.auto_backup_time.strip() or "20:00"
+    app_set.rclone_remote_name = req.rclone_remote_name.strip() or "gdrive"
+    app_set.rclone_backup_path = req.rclone_backup_path.strip() or "MARG_Backups"
+    db.commit()
+    return {"message": "Backup settings updated successfully"}
+
+@app.post("/api/backup/run")
+def trigger_backup_now(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth_module.get_current_active_admin)
+):
+    app_set = db.query(AppSettings).first()
+    remote_name = getattr(app_set, "rclone_remote_name", "gdrive") or "gdrive"
+    backup_path = getattr(app_set, "rclone_backup_path", "MARG_Backups") or "MARG_Backups"
+    result = perform_rclone_backup(db, remote_name=remote_name, backup_path=backup_path)
+    return result
+
 # ==========================================
 # 9. GEMINI AI TRANSLATION & SMART PARSER
 # ==========================================
@@ -2475,7 +2644,6 @@ def big_brain_dashboard_insights(req: BigBrainInsightsRequest, db: Session = Dep
     return {"success": True, "insights": res}
 
 from fastapi.security import OAuth2PasswordRequestForm
-import auth as auth_module
 
 @app.post("/api/auth/login", response_model=Token)
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):

@@ -582,22 +582,26 @@ def generate_sample_excel_template() -> bytes:
     return output.getvalue()
 
 def export_parties_to_excel(parties: List[Any]) -> bytes:
-    """Exports parties to a clean, formatted XLSX spreadsheet."""
+    """Exports parties to a clean, formatted XLSX spreadsheet with separate English and Gujarati sheets."""
     wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "Parties"
 
-    header_fill = PatternFill(start_color="1E3A8A", end_color="1E3A8A", fill_type="solid")
-    header_font = Font(name="Arial", size=11, bold=True, color="FFFFFF")
-    data_font = Font(name="Arial", size=10)
     thin_border = Border(
         left=Side(style='thin', color='E5E7EB'),
         right=Side(style='thin', color='E5E7EB'),
         top=Side(style='thin', color='E5E7EB'),
         bottom=Side(style='thin', color='E5E7EB')
     )
+    header_font = Font(name="Arial", size=11, bold=True, color="FFFFFF")
+    data_font = Font(name="Arial", size=10)
 
-    headers = [
+    # ==========================================
+    # SHEET 1: ENGLISH
+    # ==========================================
+    ws_en = wb.active
+    ws_en.title = "English"
+    en_fill = PatternFill(start_color="1E3A8A", end_color="1E3A8A", fill_type="solid")
+
+    en_headers = [
         ("Party Name", 28),
         ("Code", 14),
         ("Delivery Route", 18),
@@ -613,18 +617,18 @@ def export_parties_to_excel(parties: List[Any]) -> bytes:
         ("Status", 12)
     ]
 
-    for col_idx, (col_name, width) in enumerate(headers, start=1):
-        cell = ws.cell(row=1, column=col_idx, value=col_name)
-        cell.fill = header_fill
+    for col_idx, (col_name, width) in enumerate(en_headers, start=1):
+        cell = ws_en.cell(row=1, column=col_idx, value=col_name)
+        cell.fill = en_fill
         cell.font = header_font
         cell.alignment = Alignment(horizontal="center", vertical="center")
         col_letter = get_column_letter(col_idx)
-        ws.column_dimensions[col_letter].width = width
+        ws_en.column_dimensions[col_letter].width = width
 
-    ws.row_dimensions[1].height = 26
+    ws_en.row_dimensions[1].height = 26
 
     for row_idx, p in enumerate(parties, start=2):
-        ws.row_dimensions[row_idx].height = 20
+        ws_en.row_dimensions[row_idx].height = 20
         row_vals = [
             p.party_name,
             p.party_code or "",
@@ -641,7 +645,69 @@ def export_parties_to_excel(parties: List[Any]) -> bytes:
             "Active" if p.is_active else "Inactive"
         ]
         for col_idx, val in enumerate(row_vals, start=1):
-            cell = ws.cell(row=row_idx, column=col_idx, value=val)
+            cell = ws_en.cell(row=row_idx, column=col_idx, value=val)
+            cell.font = data_font
+            cell.border = thin_border
+
+    # ==========================================
+    # SHEET 2: GUJARATI (ગુજરાતી)
+    # ==========================================
+    ws_gu = wb.create_sheet(title="Gujarati")
+    gu_fill = PatternFill(start_color="065F46", end_color="065F46", fill_type="solid") # Deep Emerald
+
+    gu_headers = [
+        ("પાર્ટીનું નામ (Party Name)", 30),
+        ("કોડ (Code)", 14),
+        ("ડિલિવરી રૂટ (Route)", 18),
+        ("સરનામું ૧ (Address Line 1)", 35),
+        ("સરનામું ૨ (Address Line 2)", 30),
+        ("સરનામું ૩ (Address Line 3)", 25),
+        ("શહેર (City)", 18),
+        ("રાજ્ય (State)", 18),
+        ("મોબાઈલ નંબર (Mobile)", 16),
+        ("લેન્ડલાઈન (Phone)", 16),
+        ("ઇમેઇલ (Email)", 25),
+        ("GST નંબર (GST No.)", 20),
+        ("સ્થિતિ (Status)", 12)
+    ]
+
+    for col_idx, (col_name, width) in enumerate(gu_headers, start=1):
+        cell = ws_gu.cell(row=1, column=col_idx, value=col_name)
+        cell.fill = gu_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        col_letter = get_column_letter(col_idx)
+        ws_gu.column_dimensions[col_letter].width = width
+
+    ws_gu.row_dimensions[1].height = 26
+
+    for row_idx, p in enumerate(parties, start=2):
+        ws_gu.row_dimensions[row_idx].height = 20
+        # Use Gujarati translation fields if present, else fallback gracefully
+        gu_name = getattr(p, "party_name_gu", None) or p.party_name
+        gu_addr = getattr(p, "address_gu", None) or p.address
+        gu_addr2 = getattr(p, "address_line_2_gu", None) or getattr(p, "address_line_2", "") or ""
+        gu_addr3 = getattr(p, "address_line_3_gu", None) or getattr(p, "address_line_3", "") or ""
+        gu_city = getattr(p, "city_gu", None) or p.city
+        gu_state = getattr(p, "state_gu", None) or p.state
+
+        row_vals_gu = [
+            gu_name,
+            p.party_code or "",
+            getattr(p, "route", "") or "",
+            gu_addr,
+            gu_addr2,
+            gu_addr3,
+            gu_city,
+            gu_state,
+            p.mobile_no or "",
+            p.landline or "",
+            p.email or "",
+            p.gst_no or "",
+            "ચાલુ (Active)" if p.is_active else "બંધ (Inactive)"
+        ]
+        for col_idx, val in enumerate(row_vals_gu, start=1):
+            cell = ws_gu.cell(row=row_idx, column=col_idx, value=val)
             cell.font = data_font
             cell.border = thin_border
 
@@ -651,7 +717,7 @@ def export_parties_to_excel(parties: List[Any]) -> bytes:
     return output.getvalue()
 
 def export_print_history_to_excel(jobs: List[Any]) -> bytes:
-    """Exports print jobs history to an XLSX spreadsheet."""
+    """Exports print jobs history to an XLSX spreadsheet with user attribution."""
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Print History"
@@ -669,6 +735,7 @@ def export_print_history_to_excel(jobs: List[Any]) -> bytes:
     headers = [
         ("Job No.", 18),
         ("Date & Time", 20),
+        ("Created By", 16),
         ("Party Name", 28),
         ("Parcel Type", 16),
         ("Cases", 10),
@@ -691,9 +758,11 @@ def export_print_history_to_excel(jobs: List[Any]) -> bytes:
     for row_idx, j in enumerate(jobs, start=2):
         ws.row_dimensions[row_idx].height = 20
         date_str = j.created_at.strftime("%d-%m-%Y %H:%M") if j.created_at else ""
+        creator = getattr(j, "created_by", "Admin") or "Admin"
         row_vals = [
             j.job_number,
             date_str,
+            creator,
             j.party_name_snap,
             j.parcel_type,
             j.total_cases,

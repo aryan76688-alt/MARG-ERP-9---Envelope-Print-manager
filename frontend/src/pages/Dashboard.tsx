@@ -65,6 +65,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     loadData(filterPeriod);
   }, [filterPeriod]);
 
+  // Real-time Auto-Sync across all user sessions every 15s
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetchDashboard(filterPeriod);
+        setData(res);
+      } catch (err) {
+        console.warn('Dashboard auto-sync notice:', err);
+      }
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [filterPeriod]);
+
 
   const statCards = [
     {

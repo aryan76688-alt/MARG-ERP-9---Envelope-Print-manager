@@ -59,6 +59,12 @@ export interface AppSettings {
   openai_api_key?: string;
   default_language?: 'en' | 'gu';
   envelope_template_format?: 'attachment_pdf' | 'marg_grid_22';
+  auto_backup_enabled?: boolean;
+  auto_backup_time?: string;
+  rclone_remote_name?: string;
+  rclone_backup_path?: string;
+  last_backup_time?: string;
+  last_backup_status?: string;
 }
 
 
@@ -109,6 +115,7 @@ export interface PrintJob {
   city_gu?: string | null;
   state_gu?: string | null;
   created_at: string;
+  created_by?: string;
   cases_count?: number;
 }
 

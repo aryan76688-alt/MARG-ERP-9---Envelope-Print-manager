@@ -45,9 +45,9 @@ export const PrintHistory: React.FC<PrintHistoryProps> = ({ onNavigate }) => {
   const [detailsModalOpen, setDetailsModalOpen] = useState<boolean>(false);
   const [deleteConfirmJob, setDeleteConfirmJob] = useState<PrintJob | null>(null);
 
-  const loadJobs = async () => {
+  const loadJobs = async (silent: boolean = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const res = await fetchPrintJobs({
         page,
         limit,
@@ -64,7 +64,7 @@ export const PrintHistory: React.FC<PrintHistoryProps> = ({ onNavigate }) => {
     } catch (err) {
       console.error(err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -73,6 +73,14 @@ export const PrintHistory: React.FC<PrintHistoryProps> = ({ onNavigate }) => {
       loadJobs();
     }, 200);
     return () => clearTimeout(timer);
+  }, [search, statusFilter, typeFilter, dateFrom, dateTo, uniquePerDay, page, limit]);
+
+  // Real-time Auto-Sync across all user sessions every 10s
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadJobs(true);
+    }, 10000);
+    return () => clearInterval(interval);
   }, [search, statusFilter, typeFilter, dateFrom, dateTo, uniquePerDay, page, limit]);
 
   const handleViewDetails = async (jobId: number) => {
@@ -129,6 +137,14 @@ export const PrintHistory: React.FC<PrintHistoryProps> = ({ onNavigate }) => {
         </div>
 
         <div className="flex items-center gap-3">
+          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold shadow-xs">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <span>Auto-Sync: Live</span>
+          </div>
+
           <a
             href={getExportHistoryUrl()}
             download
@@ -265,13 +281,14 @@ export const PrintHistory: React.FC<PrintHistoryProps> = ({ onNavigate }) => {
                 <th className="px-3 py-3">Size</th>
                 <th className="px-3 py-3">Printer</th>
                 <th className="px-3 py-3">Status</th>
+                <th className="px-3 py-3">Created By</th>
                 <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
               {loading ? (
                 <tr>
-                  <td colSpan={11} className="px-4 py-12 text-center text-slate-500">
+                  <td colSpan={12} className="px-4 py-12 text-center text-slate-500">
                     <div className="inline-flex items-center gap-2">
                       <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
                       <span>Loading print logs...</span>
@@ -312,8 +329,16 @@ export const PrintHistory: React.FC<PrintHistoryProps> = ({ onNavigate }) => {
                       {j.printer_name}
                     </td>
                     <td className="px-3 py-3">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                        j.status === 'Printed' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                      }`}>
                         {j.status}
+                      </span>
+                    </td>
+                    <td className="px-3 py-3 whitespace-nowrap">
+                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
+                        @{j.created_by || 'Admin'}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right">
@@ -360,7 +385,7 @@ export const PrintHistory: React.FC<PrintHistoryProps> = ({ onNavigate }) => {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={11} className="px-4 py-12 text-center text-slate-400">
+                  <td colSpan={12} className="px-4 py-12 text-center text-slate-400">
                     No print history records found.
                   </td>
                 </tr>

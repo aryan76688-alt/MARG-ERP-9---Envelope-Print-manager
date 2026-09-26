@@ -96,6 +96,15 @@ class AppSettings(Base):
     openai_api_key = Column(String(255), default="")
     default_language = Column(String(10), default="en") # en or gu
     envelope_template_format = Column(String(50), default="attachment_pdf") # attachment_pdf or marg_grid_22
+
+    # Rclone Auto Cloud Backup Settings
+    auto_backup_enabled = Column(Boolean, default=True)
+    auto_backup_time = Column(String(10), default="20:00") # 8:00 PM default
+    rclone_remote_name = Column(String(100), default="gdrive")
+    rclone_backup_path = Column(String(200), default="MARG_Backups")
+    last_backup_time = Column(DateTime, nullable=True)
+    last_backup_status = Column(String(255), nullable=True)
+
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 
 
@@ -136,6 +145,7 @@ class PrintJob(Base):
     delivery_route = Column(String(100), nullable=True)
     language = Column(String(10), default="en") # en or gu
     template_format = Column(String(50), default="attachment_pdf") # attachment_pdf or marg_grid_22
+    created_by = Column(String(100), default="Admin") # User attribution
     created_at = Column(DateTime, default=datetime.datetime.utcnow, index=True)
 
     # Relationships

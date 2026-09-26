@@ -675,6 +675,9 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
         allowDup = true;
       }
 
+      const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+      const currentCreator = currentUser.username || currentUser.full_name || 'Admin';
+
       const weights = casesList.map((c) => c.weight);
       const res = await createPrintJob({
         party_id: selectedParty.id,
@@ -708,6 +711,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
         city_gu: selectedParty.city_gu || undefined,
         state_gu: selectedParty.state_gu || undefined,
         allow_duplicate: allowDup,
+        created_by: currentCreator,
       });
 
       if (onJobCreated) onJobCreated(res.id);
@@ -2066,9 +2070,18 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                     {!hasPrint && hasSave && (
                       <button
                         onClick={async () => {
-                          // Save Job Only Logic
+                          // Save Job Only Logic with Party Lock enforcement
                           if (!isValidToPrint || !selectedParty) return;
+
+                          if (hasPrintedToday && !isEditReprintMode) {
+                            alert(`Notice: Party '${selectedParty.party_name}' has already been printed or saved today (1-Time/Day Lock Active).\n\nDuplicate saves are blocked to prevent dispatch errors.`);
+                            return;
+                          }
+
                           try {
+                            const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+                            const currentCreator = currentUser.username || currentUser.full_name || 'Admin';
+
                             const res = await createPrintJob({
                               party_id: selectedParty.id,
                               party_name: selectedParty.party_name,
@@ -2087,14 +2100,19 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                               envelopes_per_page: appSettings?.envelopes_per_page || 2,
                               orientation: appSettings?.default_orientation || 'Landscape',
                               printer_name: appSettings?.default_printer || 'Microsoft Print to PDF',
-                              status: 'Printed',
-                              allow_duplicate: true,
+                              status: 'Saved',
+                              allow_duplicate: isEditReprintMode,
                               case_breakdown: activeCaseBreakdown,
+                              created_by: currentCreator,
                             });
-                            if (onJobCreated) onJobCreated(res.job.id);
-                            alert('Job saved successfully!');
+
+                            setHasPrintedToday(true);
+                            setPrintedTodayCount((c) => c + 1);
+
+                            if (onJobCreated) onJobCreated(res.id || (res.job && res.job.id));
+                            alert('Job saved successfully! Party is now locked for today.');
                           } catch (err: any) {
-                            alert(err.message);
+                            alert(err.message || 'Failed to save job');
                           }
                         }}
                         disabled={!isValidToPrint}

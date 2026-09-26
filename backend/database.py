@@ -74,6 +74,21 @@ def init_db():
                 conn.exec_driver_sql("ALTER TABLE print_jobs ADD COLUMN language TEXT DEFAULT 'en'")
             if "template_format" not in job_cols:
                 conn.exec_driver_sql("ALTER TABLE print_jobs ADD COLUMN template_format TEXT DEFAULT 'attachment_pdf'")
+            if "created_by" not in job_cols:
+                conn.exec_driver_sql("ALTER TABLE print_jobs ADD COLUMN created_by TEXT DEFAULT 'Admin'")
+
+            if "auto_backup_enabled" not in setting_cols:
+                conn.exec_driver_sql("ALTER TABLE app_settings ADD COLUMN auto_backup_enabled BOOLEAN DEFAULT 1")
+            if "auto_backup_time" not in setting_cols:
+                conn.exec_driver_sql("ALTER TABLE app_settings ADD COLUMN auto_backup_time TEXT DEFAULT '20:00'")
+            if "rclone_remote_name" not in setting_cols:
+                conn.exec_driver_sql("ALTER TABLE app_settings ADD COLUMN rclone_remote_name TEXT DEFAULT 'gdrive'")
+            if "rclone_backup_path" not in setting_cols:
+                conn.exec_driver_sql("ALTER TABLE app_settings ADD COLUMN rclone_backup_path TEXT DEFAULT 'MARG_Backups'")
+            if "last_backup_time" not in setting_cols:
+                conn.exec_driver_sql("ALTER TABLE app_settings ADD COLUMN last_backup_time TIMESTAMP")
+            if "last_backup_status" not in setting_cols:
+                conn.exec_driver_sql("ALTER TABLE app_settings ADD COLUMN last_backup_status TEXT")
             
             user_cols = [row[1] for row in conn.exec_driver_sql("PRAGMA table_info(users)").fetchall()]
             if "role" not in user_cols:

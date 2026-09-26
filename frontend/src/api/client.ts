@@ -242,6 +242,7 @@ export async function createPrintJob(payload: {
   city_gu?: string;
   state_gu?: string;
   allow_duplicate?: boolean;
+  created_by?: string;
 }): Promise<any> {
   const res = await fetchApi(`${API_BASE}/print-jobs`, {
     method: 'POST',
@@ -850,4 +851,48 @@ export function getBackupExportUrl(): string {
 
 export function getPrintJobPdfUrl(jobId: number, autoPrint: boolean = false): string {
   return `${API_BASE}/print-jobs/${jobId}/pdf${autoPrint ? '?auto_print=true' : ''}`;
+}
+
+export interface BackupSettingsData {
+  auto_backup_enabled: boolean;
+  auto_backup_time: string;
+  rclone_remote_name: string;
+  rclone_backup_path: string;
+  last_backup_time?: string | null;
+  last_backup_status?: string | null;
+}
+
+export async function fetchBackupSettings(): Promise<BackupSettingsData> {
+  const res = await fetchApi(`${API_BASE}/backup/settings`);
+  if (!res.ok) throw new Error('Failed to load backup settings');
+  return res.json();
+}
+
+export async function updateBackupSettings(data: {
+  auto_backup_enabled: boolean;
+  auto_backup_time: string;
+  rclone_remote_name: string;
+  rclone_backup_path: string;
+}): Promise<{ message: string }> {
+  const res = await fetchApi(`${API_BASE}/backup/settings`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to update backup settings' }));
+    throw new Error(err.detail || 'Failed to update backup settings');
+  }
+  return res.json();
+}
+
+export async function triggerManualBackup(): Promise<{ success: boolean; message: string; rclone?: boolean }> {
+  const res = await fetchApi(`${API_BASE}/backup/run`, {
+    method: 'POST',
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to trigger backup' }));
+    throw new Error(err.detail || 'Failed to trigger backup');
+  }
+  return res.json();
 }
