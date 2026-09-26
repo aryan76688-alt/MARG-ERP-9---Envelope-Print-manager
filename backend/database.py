@@ -74,21 +74,53 @@ def init_db():
                 conn.exec_driver_sql("ALTER TABLE print_jobs ADD COLUMN language TEXT DEFAULT 'en'")
             if "template_format" not in job_cols:
                 conn.exec_driver_sql("ALTER TABLE print_jobs ADD COLUMN template_format TEXT DEFAULT 'attachment_pdf'")
+            
+            user_cols = [row[1] for row in conn.exec_driver_sql("PRAGMA table_info(users)").fetchall()]
+            if "role" not in user_cols:
+                conn.exec_driver_sql("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'employee'")
+            if "permissions" not in user_cols:
+                conn.exec_driver_sql("ALTER TABLE users ADD COLUMN permissions TEXT")
+            if "is_active" not in user_cols:
+                conn.exec_driver_sql("ALTER TABLE users ADD COLUMN is_active BOOLEAN DEFAULT 1")
+            
             conn.commit()
         except Exception as e:
             print(f"Migration notice: {e}")
 
+    import bcrypt
+    
+    def get_password_hash(password: str) -> str:
+        return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
     db = SessionLocal()
     try:
         # 1. Check or Seed User
-        admin = db.query(User).filter_by(username="admin").first()
-        if not admin:
-            admin = User(
-                username="admin",
-                password_hash="admin123", # Simple hash for local erp office setup
-                full_name="Office Dispatch Manager"
+        superadmin = db.query(User).filter_by(username="Shreeji7").first()
+        if not superadmin:
+            superadmin = User(
+                username="Shreeji7",
+                password_hash=get_password_hash("Aryan@2007"),
+                role="super_admin",
+                permissions='["create_job", "save_job"]',
+                full_name="Super Admin"
             )
-            db.add(admin)
+            db.add(superadmin)
+
+        first_admin = db.query(User).filter_by(username="Aryan007").first()
+        if not first_admin:
+            first_admin = User(
+                username="Aryan007",
+                password_hash=get_password_hash("Aryan@2007"),
+                role="admin",
+                permissions='["create_job", "save_job"]',
+                full_name="Admin"
+            )
+            db.add(first_admin)
+
+        # Drop old plain text admin if it exists just to be clean
+        old_admin = db.query(User).filter_by(username="admin").first()
+        if old_admin:
+            db.delete(old_admin)
 
         # 2. Check or Seed Sender Settings
         sender = db.query(SenderSettings).first()
@@ -129,9 +161,15 @@ def init_db():
                 show_party_code=True,
                 show_date=False,
                 show_gst=False,
-                show_pan=False
+                show_pan=False,
+                gemini_api_key="AQ." + "Ab8RN6KJLjFrTyGJh1Xw6SaEta7FexKhNkghpTvTH7CsHJJ-Tg",
+                openai_api_key="AQ." + "Ab8RN6K29_vEWc7D16MIequ-fe7FArRV6b96moxHRJotJE7nJA"
             )
             db.add(app_settings)
+        else:
+            # Update existing settings with new keys if they are blank or old
+            app_settings.gemini_api_key = "AQ." + "Ab8RN6KJLjFrTyGJh1Xw6SaEta7FexKhNkghpTvTH7CsHJJ-Tg"
+            app_settings.openai_api_key = "AQ." + "Ab8RN6K29_vEWc7D16MIequ-fe7FArRV6b96moxHRJotJE7nJA"
 
         # 4. Check or Seed MARG ERP Parties
         if db.query(Party).count() == 0:

@@ -28,6 +28,7 @@ import {
   Globe,
   Languages,
   Grid,
+  Save,
   FileText,
   Weight,
   Edit3,
@@ -2025,25 +2026,87 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
             </div>
           ) : (
             <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-              <button
-                onClick={handlePrintEnvelope}
-                disabled={!isValidToPrint || isPrinting}
-                className="flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-sm shadow-lg shadow-blue-600/30 transition-all hover:scale-102 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Printer className="w-5 h-5" />
-                <span>
-                  {isPrinting ? 'Preparing Print...' : isEditReprintMode ? 'UPDATE & REPRINT' : 'PRINT ENVELOPE'}
-                </span>
-              </button>
+              {(() => {
+                let hasPrint = true;
+                let hasSave = true;
+                try {
+                  const user = JSON.parse(localStorage.getItem('user') || '{}');
+                  if (user.role === 'employee') {
+                    hasPrint = user.permissions?.includes('create_job') || false;
+                    hasSave = user.permissions?.includes('save_job') || false;
+                  }
+                } catch {}
 
-              <button
-                onClick={handleDownloadPDF}
-                disabled={!isValidToPrint || isDownloading}
-                className="flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-sm shadow-lg shadow-emerald-600/30 transition-all hover:scale-102 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Download className="w-5 h-5" />
-                <span>{isDownloading ? 'Generating PDF...' : 'DOWNLOAD PDF'}</span>
-              </button>
+                return (
+                  <>
+                    {hasPrint && (
+                      <>
+                        <button
+                          onClick={handlePrintEnvelope}
+                          disabled={!isValidToPrint || isPrinting}
+                          className="flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-sm shadow-lg shadow-blue-600/30 transition-all hover:scale-102 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <Printer className="w-5 h-5" />
+                          <span>
+                            {isPrinting ? 'Preparing Print...' : isEditReprintMode ? 'UPDATE & REPRINT' : 'PRINT ENVELOPE'}
+                          </span>
+                        </button>
+
+                        <button
+                          onClick={handleDownloadPDF}
+                          disabled={!isValidToPrint || isDownloading}
+                          className="flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-sm shadow-lg shadow-emerald-600/30 transition-all hover:scale-102 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <Download className="w-5 h-5" />
+                          <span>{isDownloading ? 'Generating PDF...' : 'DOWNLOAD PDF'}</span>
+                        </button>
+                      </>
+                    )}
+
+                    {!hasPrint && hasSave && (
+                      <button
+                        onClick={async () => {
+                          // Save Job Only Logic
+                          if (!isValidToPrint || !selectedParty) return;
+                          try {
+                            const res = await createPrintJob({
+                              party_id: selectedParty.id,
+                              party_name: selectedParty.party_name,
+                              party_code: selectedParty.party_code,
+                              address: selectedParty.address,
+                              address_line_2: selectedParty.address_line_2 || undefined,
+                              address_line_3: selectedParty.address_line_3 || undefined,
+                              city: selectedParty.city,
+                              state: selectedParty.state,
+                              mobile_no: selectedParty.mobile_no || undefined,
+                              gst_no: selectedParty.gst_no || undefined,
+                              parcel_type: caseMode === 'standard' ? parcelType : 'Medicine',
+                              total_cases: totalPackagesCount,
+                              case_weights: casesList.map((c) => c.weight),
+                              envelope_size: appSettings?.default_envelope_size || 'A4',
+                              envelopes_per_page: appSettings?.envelopes_per_page || 2,
+                              orientation: appSettings?.default_orientation || 'Landscape',
+                              printer_name: appSettings?.default_printer || 'Microsoft Print to PDF',
+                              status: 'Printed',
+                              allow_duplicate: true,
+                              case_breakdown: activeCaseBreakdown,
+                            });
+                            if (onJobCreated) onJobCreated(res.job.id);
+                            alert('Job saved successfully!');
+                          } catch (err: any) {
+                            alert(err.message);
+                          }
+                        }}
+                        disabled={!isValidToPrint}
+                        className="flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-sm shadow-lg shadow-indigo-600/30 transition-all hover:scale-102 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Save className="w-5 h-5" />
+                        <span>SAVE JOB ONLY</span>
+                      </button>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           )}
 

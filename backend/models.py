@@ -10,9 +10,12 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
-    username = Column(String(100), unique=True, nullable=False, default="admin")
+    username = Column(String(100), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
+    role = Column(String(50), nullable=False, default="employee") # super_admin, admin, employee
+    permissions = Column(Text, nullable=True) # JSON list of features
     full_name = Column(String(150), default="Administrator")
+    is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
 

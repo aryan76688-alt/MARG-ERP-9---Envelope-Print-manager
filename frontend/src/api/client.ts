@@ -19,8 +19,27 @@ import {
 
 const API_BASE = '/api';
 
+export function getAuthToken() {
+  return localStorage.getItem('token');
+}
+
+async function fetchApi(url: string, options: RequestInit = {}) {
+  const token = getAuthToken();
+  const headers = { ...options.headers } as any;
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  const res = await fetch(url, { ...options, headers });
+  if (res.status === 401 && window.location.hash !== '#login') {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    window.location.hash = 'login';
+  }
+  return res;
+}
+
 export async function fetchDashboard(period: string = 'this_month'): Promise<DashboardData> {
-  const res = await fetch(`${API_BASE}/dashboard?filter_period=${period}`);
+  const res = await fetchApi(`${API_BASE}/dashboard?filter_period=${period}`);
   if (!res.ok) throw new Error('Failed to load dashboard statistics');
   return res.json();
 }
@@ -41,7 +60,7 @@ export async function fetchParties(params: {
   if (params.city) query.append('city', params.city);
   if (params.status) query.append('status', params.status);
 
-  const res = await fetch(`${API_BASE}/parties?${query.toString()}`);
+  const res = await fetchApi(`${API_BASE}/parties?${query.toString()}`);
   if (!res.ok) throw new Error('Failed to load parties');
   return res.json();
 }
@@ -55,7 +74,7 @@ export async function autocompleteParties(q: string, mode: 'starts_with' | 'cont
   if (_autocompleteCache.has(cacheKey)) {
     return _autocompleteCache.get(cacheKey)!;
   }
-  const res = await fetch(`${API_BASE}/parties/autocomplete?q=${encodeURIComponent(cleanQ)}&mode=${mode}`);
+  const res = await fetchApi(`${API_BASE}/parties/autocomplete?q=${encodeURIComponent(cleanQ)}&mode=${mode}`);
   if (!res.ok) return [];
   const data = await res.json();
   if (_autocompleteCache.size > 200) {
@@ -67,7 +86,7 @@ export async function autocompleteParties(q: string, mode: 'starts_with' | 'cont
 }
 
 export async function createParty(party: Party): Promise<Party> {
-  const res = await fetch(`${API_BASE}/parties`, {
+  const res = await fetchApi(`${API_BASE}/parties`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(party),
@@ -80,7 +99,7 @@ export async function createParty(party: Party): Promise<Party> {
 }
 
 export async function updateParty(id: number, party: Party): Promise<Party> {
-  const res = await fetch(`${API_BASE}/parties/${id}`, {
+  const res = await fetchApi(`${API_BASE}/parties/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(party),
@@ -93,14 +112,14 @@ export async function updateParty(id: number, party: Party): Promise<Party> {
 }
 
 export async function deleteParty(id: number): Promise<void> {
-  const res = await fetch(`${API_BASE}/parties/${id}`, {
+  const res = await fetchApi(`${API_BASE}/parties/${id}`, {
     method: 'DELETE',
   });
   if (!res.ok) throw new Error('Failed to delete party');
 }
 
 export async function bulkDeleteParties(partyIds: number[]): Promise<{ deleted_count: number; message: string }> {
-  const res = await fetch(`${API_BASE}/parties/bulk-delete`, {
+  const res = await fetchApi(`${API_BASE}/parties/bulk-delete`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ party_ids: partyIds }),
@@ -110,7 +129,7 @@ export async function bulkDeleteParties(partyIds: number[]): Promise<{ deleted_c
 }
 
 export async function deleteAllParties(): Promise<{ deleted_count: number; message: string }> {
-  const res = await fetch(`${API_BASE}/parties/delete-all`, {
+  const res = await fetchApi(`${API_BASE}/parties/delete-all`, {
     method: 'POST',
   });
   if (!res.ok) throw new Error('Failed to delete all parties');
@@ -118,7 +137,7 @@ export async function deleteAllParties(): Promise<{ deleted_count: number; messa
 }
 
 export async function exportSelectedParties(partyIds: number[]): Promise<void> {
-  const res = await fetch(`${API_BASE}/parties/export-selected`, {
+  const res = await fetchApi(`${API_BASE}/parties/export-selected`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ party_ids: partyIds }),
@@ -138,7 +157,7 @@ export async function exportSelectedParties(partyIds: number[]): Promise<void> {
 export async function uploadExcelFile(file: File): Promise<any> {
   const formData = new FormData();
   formData.append('file', file);
-  const res = await fetch(`${API_BASE}/import/excel`, {
+  const res = await fetchApi(`${API_BASE}/import/excel`, {
     method: 'POST',
     body: formData,
   });
@@ -150,7 +169,7 @@ export async function uploadExcelFile(file: File): Promise<any> {
 }
 
 export async function validateImportRows(raw_rows: any[], mapping: Record<string, string | null>): Promise<ImportValidationResult> {
-  const res = await fetch(`${API_BASE}/import/validate`, {
+  const res = await fetchApi(`${API_BASE}/import/validate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ raw_rows, mapping }),
@@ -176,7 +195,7 @@ export async function confirmImport(payload: {
   updated_parties?: any[];
   import_job_id?: number;
 }> {
-  const res = await fetch(`${API_BASE}/import/confirm`, {
+  const res = await fetchApi(`${API_BASE}/import/confirm`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -186,7 +205,7 @@ export async function confirmImport(payload: {
 }
 
 export async function fetchImportHistory(): Promise<any[]> {
-  const res = await fetch(`${API_BASE}/import/history`);
+  const res = await fetchApi(`${API_BASE}/import/history`);
   if (!res.ok) throw new Error('Failed to load import history');
   return res.json();
 }
@@ -224,7 +243,7 @@ export async function createPrintJob(payload: {
   state_gu?: string;
   allow_duplicate?: boolean;
 }): Promise<any> {
-  const res = await fetch(`${API_BASE}/print-jobs`, {
+  const res = await fetchApi(`${API_BASE}/print-jobs`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -248,7 +267,7 @@ export async function createBulkPrintJobs(payload: {
   template_format?: string;
   language?: string;
 }): Promise<{ success: boolean; created_count: number; job_ids: number[] }> {
-  const res = await fetch(`${API_BASE}/print-jobs/bulk`, {
+  const res = await fetchApi(`${API_BASE}/print-jobs/bulk`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -266,7 +285,7 @@ export async function fetchUnprintedPartiesToday(unprintedOnly: boolean = true):
   total_unprinted: number;
   total_printed_today: number;
 }> {
-  const res = await fetch(`${API_BASE}/parties/unprinted-today?unprinted_only=${unprintedOnly}`);
+  const res = await fetchApi(`${API_BASE}/parties/unprinted-today?unprinted_only=${unprintedOnly}`);
   if (!res.ok) throw new Error('Failed to load unprinted parties');
   return res.json();
 }
@@ -291,32 +310,32 @@ export async function fetchPrintJobs(params: {
   if (params.date_to) query.append('date_to', params.date_to);
   if (params.unique_per_day) query.append('unique_per_day', 'true');
 
-  const res = await fetch(`${API_BASE}/print-jobs?${query.toString()}`);
+  const res = await fetchApi(`${API_BASE}/print-jobs?${query.toString()}`);
   if (!res.ok) throw new Error('Failed to fetch print history');
   return res.json();
 }
 
 export async function fetchPrintJobDetails(id: number): Promise<PrintJobDetails> {
-  const res = await fetch(`${API_BASE}/print-jobs/${id}`);
+  const res = await fetchApi(`${API_BASE}/print-jobs/${id}`);
   if (!res.ok) throw new Error('Failed to load print job');
   return res.json();
 }
 
 export async function deletePrintJob(id: number): Promise<void> {
-  const res = await fetch(`${API_BASE}/print-jobs/${id}`, {
+  const res = await fetchApi(`${API_BASE}/print-jobs/${id}`, {
     method: 'DELETE',
   });
   if (!res.ok) throw new Error('Failed to delete print job');
 }
 
 export async function fetchSettings(): Promise<{ sender: SenderSettings; app: AppSettings }> {
-  const res = await fetch(`${API_BASE}/settings`);
+  const res = await fetchApi(`${API_BASE}/settings`);
   if (!res.ok) throw new Error('Failed to load settings');
   return res.json();
 }
 
 export async function saveSettings(payload: { sender?: SenderSettings; app?: Partial<AppSettings> }): Promise<void> {
-  const res = await fetch(`${API_BASE}/settings`, {
+  const res = await fetchApi(`${API_BASE}/settings`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -357,7 +376,7 @@ export async function downloadEnvelopePDF(payload: {
   city_gu?: string;
   state_gu?: string;
 }): Promise<void> {
-  const res = await fetch(`${API_BASE}/pdf/generate`, {
+  const res = await fetchApi(`${API_BASE}/pdf/generate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -394,7 +413,7 @@ export async function downloadEnvelopePDF(payload: {
 // ==========================================
 
 export async function testGeminiAI(): Promise<{ success: boolean; model: string; message: string; output: string }> {
-  const res = await fetch(`${API_BASE}/ai/test`, {
+  const res = await fetchApi(`${API_BASE}/ai/test`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
   });
@@ -415,7 +434,7 @@ export async function translatePartyToGujarati(payload: {
   state: string;
   save_to_db?: boolean;
 }): Promise<TranslatePartyResponse> {
-  const res = await fetch(`${API_BASE}/ai/translate-party`, {
+  const res = await fetchApi(`${API_BASE}/ai/translate-party`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -428,7 +447,7 @@ export async function translatePartyToGujarati(payload: {
 }
 
 export async function parseMargTextWithAI(text: string): Promise<ParseMargTextResponse> {
-  const res = await fetch(`${API_BASE}/ai/parse-text`, {
+  const res = await fetchApi(`${API_BASE}/ai/parse-text`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ text }),
@@ -441,7 +460,7 @@ export async function parseMargTextWithAI(text: string): Promise<ParseMargTextRe
 }
 
 export async function batchTranslateParties(party_ids: number[]): Promise<{ success: boolean; updated_count: number }> {
-  const res = await fetch(`${API_BASE}/ai/batch-translate`, {
+  const res = await fetchApi(`${API_BASE}/ai/batch-translate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ party_ids }),
@@ -455,25 +474,25 @@ export async function batchTranslateParties(party_ids: number[]): Promise<{ succ
 
 export async function triggerBackgroundTranslation(force: boolean = false): Promise<{ success: boolean; started: boolean; message: string }> {
   const url = force ? `${API_BASE}/ai/translate-background?force=true` : `${API_BASE}/ai/translate-background`;
-  const res = await fetch(url, { method: 'POST' });
+  const res = await fetchApi(url, { method: 'POST' });
   if (!res.ok) throw new Error('Failed to trigger background translation');
   return res.json();
 }
 
 export async function fetchTranslationStatus(): Promise<{ is_running: boolean; total: number; processed: number; status: string }> {
-  const res = await fetch(`${API_BASE}/ai/translate-status`);
+  const res = await fetchApi(`${API_BASE}/ai/translate-status`);
   if (!res.ok) throw new Error('Failed to fetch translation status');
   return res.json();
 }
 
 export async function fetchBrainStatus(): Promise<DualBrainStatus> {
-  const res = await fetch(`${API_BASE}/ai/brain-status`);
+  const res = await fetchApi(`${API_BASE}/ai/brain-status`);
   if (!res.ok) throw new Error('Failed to fetch AI brain status');
   return res.json();
 }
 
 export async function testOpenAIApi(apiKey?: string): Promise<{ success: boolean; message: string; model?: string; output?: string }> {
-  const res = await fetch(`${API_BASE}/ai/openai/test`, {
+  const res = await fetchApi(`${API_BASE}/ai/openai/test`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ api_key: apiKey }),
@@ -492,7 +511,7 @@ export async function fetchBigBrainUiControl(payload: {
   envelopes_per_page?: number;
   api_key?: string;
 }): Promise<{ success: boolean; ui_control: BigBrainUiControlResult }> {
-  const res = await fetch(`${API_BASE}/ai/big-brain/ui-control`, {
+  const res = await fetchApi(`${API_BASE}/ai/big-brain/ui-control`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -505,7 +524,7 @@ export async function fetchBigBrainDashboardInsights(payload: {
   stats_data?: any;
   api_key?: string;
 }): Promise<{ success: boolean; insights: BigBrainDashboardInsights }> {
-  const res = await fetch(`${API_BASE}/ai/big-brain/dashboard-insights`, {
+  const res = await fetchApi(`${API_BASE}/ai/big-brain/dashboard-insights`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -520,7 +539,7 @@ export async function chatWithBigBrain(payload: {
   context_data?: any;
   api_key?: string;
 }): Promise<{ success: boolean; reply: string; model?: string; usage?: any; notice?: string }> {
-  const res = await fetch(`${API_BASE}/ai/big-brain/chat`, {
+  const res = await fetchApi(`${API_BASE}/ai/big-brain/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -531,7 +550,7 @@ export async function chatWithBigBrain(payload: {
 
 
 export async function cleanAddressAI(address: string, city?: string, state?: string): Promise<{ success: boolean; data: any }> {
-  const res = await fetch(`${API_BASE}/ai/clean-address`, {
+  const res = await fetchApi(`${API_BASE}/ai/clean-address`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ address, city, state })
@@ -541,7 +560,7 @@ export async function cleanAddressAI(address: string, city?: string, state?: str
 }
 
 export async function parseSmartText(text: string): Promise<{ success: boolean; data: any }> {
-  const res = await fetch(`${API_BASE}/ai/parse-smart`, {
+  const res = await fetchApi(`${API_BASE}/ai/parse-smart`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ text })
@@ -562,7 +581,7 @@ export async function fetchDispatchSummary(params?: {
   if (params?.route) query.append('route', params.route);
   if (params?.language) query.append('language', params.language);
 
-  const res = await fetch(`${API_BASE}/dispatch-summary?${query.toString()}`);
+  const res = await fetchApi(`${API_BASE}/dispatch-summary?${query.toString()}`);
   if (!res.ok) throw new Error('Failed to load dispatch summary');
   return res.json();
 }
@@ -573,7 +592,7 @@ export async function updateDispatchJobs(payload: {
   delivery_route?: string;
   status?: string;
 }): Promise<{ success: boolean; updated_count: number }> {
-  const res = await fetch(`${API_BASE}/dispatch-summary/update-job`, {
+  const res = await fetchApi(`${API_BASE}/dispatch-summary/update-job`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -583,7 +602,7 @@ export async function updateDispatchJobs(payload: {
 }
 
 export async function bulkAssignPartyRoute(partyIds: number[], route: string): Promise<{ success: boolean; updated_count: number; route: string }> {
-  const res = await fetch(`${API_BASE}/parties/bulk-route`, {
+  const res = await fetchApi(`${API_BASE}/parties/bulk-route`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ party_ids: partyIds, route }),
@@ -596,7 +615,7 @@ export async function bulkAssignPartyRoute(partyIds: number[], route: string): P
 }
 
 export async function fetchPartyRoutes(): Promise<string[]> {
-  const res = await fetch(`${API_BASE}/parties/routes`);
+  const res = await fetchApi(`${API_BASE}/parties/routes`);
   if (!res.ok) return [];
   return res.json();
 }
@@ -618,7 +637,7 @@ export async function downloadDispatchSummaryPDF(params?: {
     query.append('job_ids', idsStr);
   }
 
-  const res = await fetch(`${API_BASE}/dispatch-summary/pdf?${query.toString()}`);
+  const res = await fetchApi(`${API_BASE}/dispatch-summary/pdf?${query.toString()}`);
   if (!res.ok) {
     const errData = await res.json().catch(() => ({}));
     throw new Error(errData.detail || 'Failed to download dispatch summary run-sheet');
@@ -664,7 +683,7 @@ export async function printDispatchSummaryPDF(params?: {
   }
   query.append('auto_print', 'true');
 
-  const res = await fetch(`${API_BASE}/dispatch-summary/pdf?${query.toString()}`);
+  const res = await fetchApi(`${API_BASE}/dispatch-summary/pdf?${query.toString()}`);
   if (!res.ok) {
     const errData = await res.json().catch(() => ({}));
     throw new Error(errData.detail || 'Failed to load dispatch summary run-sheet');
@@ -751,7 +770,7 @@ export async function printEnvelopePDF(payload: {
   state_gu?: string;
   auto_print?: boolean;
 }): Promise<void> {
-  const res = await fetch(`${API_BASE}/pdf/generate`, {
+  const res = await fetchApi(`${API_BASE}/pdf/generate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ...payload, auto_print: true }),

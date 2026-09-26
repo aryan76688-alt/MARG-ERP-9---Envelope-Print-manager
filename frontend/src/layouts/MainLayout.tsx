@@ -23,6 +23,7 @@ interface MainLayoutProps {
   setCurrentTab: (tab: string) => void;
   canGoBack?: boolean;
   onGoBack?: () => void;
+  onLogout?: () => void;
   children: React.ReactNode;
 }
 
@@ -31,6 +32,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
   setCurrentTab, 
   canGoBack = false,
   onGoBack,
+  onLogout,
   children 
 }) => {
   const [currentTime, setCurrentTime] = useState<string>('');
@@ -65,7 +67,13 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
     return () => clearInterval(interval);
   }, []);
 
-  const navItems = [
+  let userRole = 'employee';
+  try {
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    userRole = user.role || 'employee';
+  } catch {}
+
+  const navItemsRaw = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'parties', label: 'Parties', icon: Users },
     { id: 'import', label: 'Import Excel', icon: FileSpreadsheet },
@@ -73,7 +81,11 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
     { id: 'dispatch', label: 'Dispatch Summary', icon: Truck, badge: 'New' },
     { id: 'history', label: 'Print History', icon: History },
     { id: 'settings', label: 'Settings', icon: SettingsIcon },
+    ...(userRole === 'super_admin' ? [{ id: 'users', label: 'User Management', icon: User }] : [])
   ];
+
+  const navItems = navItemsRaw;
+
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-slate-100 font-sans">
@@ -262,13 +274,40 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
             </div>
 
             {/* Admin Profile */}
-            <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
-              <div className="w-8 h-8 rounded-full bg-blue-900 text-white flex items-center justify-center font-bold text-xs shadow-inner">
-                AD
+            <div className="flex items-center gap-2 pl-2 border-l border-slate-200 group relative">
+              <div className="w-8 h-8 rounded-full bg-blue-900 text-white flex items-center justify-center font-bold text-xs shadow-inner cursor-pointer">
+                {(() => {
+                  try {
+                    const user = JSON.parse(localStorage.getItem('user') || '{}');
+                    return (user.username?.[0] || 'U').toUpperCase();
+                  } catch { return 'U'; }
+                })()}
               </div>
               <div className="hidden md:flex flex-col">
-                <span className="text-xs font-bold text-slate-800 leading-tight">Admin User</span>
-                <span className="text-[10px] text-emerald-600 font-semibold leading-tight">Super Admin</span>
+                <span className="text-xs font-bold text-slate-800 leading-tight">
+                  {(() => {
+                    try {
+                      return JSON.parse(localStorage.getItem('user') || '{}').full_name || 'User';
+                    } catch { return 'User'; }
+                  })()}
+                </span>
+                <span className="text-[10px] text-emerald-600 font-semibold leading-tight capitalize">
+                  {(() => {
+                    try {
+                      return JSON.parse(localStorage.getItem('user') || '{}').role?.replace('_', ' ') || 'Employee';
+                    } catch { return 'Employee'; }
+                  })()}
+                </span>
+              </div>
+              
+              {/* Logout Dropdown */}
+              <div className="absolute right-0 top-full mt-1 hidden group-hover:block bg-white border border-slate-200 shadow-lg rounded-lg min-w-[120px] overflow-hidden z-50">
+                <button
+                  onClick={onLogout}
+                  className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                >
+                  Sign Out
+                </button>
               </div>
             </div>
           </div>

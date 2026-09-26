@@ -7,3 +7,7 @@ openpyxl>=3.1.0
 weasyprint>=60.0
 python-barcode>=0.15.1
 pillow>=10.0.0
+passlib
+bcrypt
+pyjwt
+python-jose

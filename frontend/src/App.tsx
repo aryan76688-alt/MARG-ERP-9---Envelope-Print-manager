@@ -8,18 +8,42 @@ import { PrintEnvelope } from './pages/PrintEnvelope';
 import { DispatchSummary } from './pages/DispatchSummary';
 import { PrintHistory } from './pages/PrintHistory';
 import { Settings } from './pages/Settings';
-import { BigBrainAssistant } from './components/BigBrainAssistant';
+import { Users } from './pages/Users';
+import { Login } from './pages/Login';
 import { Party } from './types';
-
+import { getAuthToken } from './api/client';
 
 const queryClient = new QueryClient();
 
 export const App: React.FC = () => {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(!!getAuthToken());
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
   const [historyStack, setHistoryStack] = useState<string[]>(['dashboard']);
   const [selectedPartyForPrint, setSelectedPartyForPrint] = useState<Party | null>(null);
   const [reprintJobData, setReprintJobData] = useState<any | null>(null);
   const [openAddPartyModal, setOpenAddPartyModal] = useState<boolean>(false);
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      if (window.location.hash === '#login') {
+        setIsAuthenticated(false);
+      }
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  const handleLogin = () => {
+    setIsAuthenticated(true);
+    window.location.hash = 'dashboard';
+    setCurrentTab('dashboard');
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    setIsAuthenticated(false);
+  };
 
   const navigateToTab = (tab: string, state?: any) => {
     if (tab === 'print' && state?.selectedParty) {
@@ -103,6 +127,10 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [currentTab, handleGoBack]);
 
+  if (!isAuthenticated) {
+    return <Login onLogin={handleLogin} />;
+  }
+
   return (
     <QueryClientProvider client={queryClient}>
       <MainLayout 
@@ -110,6 +138,7 @@ export const App: React.FC = () => {
         setCurrentTab={navigateToTab}
         canGoBack={currentTab !== 'dashboard'}
         onGoBack={handleGoBack}
+        onLogout={handleLogout}
       >
         {currentTab === 'dashboard' && <Dashboard onNavigate={navigateToTab} />}
         {currentTab === 'parties' && (
@@ -129,11 +158,10 @@ export const App: React.FC = () => {
         )}
         {currentTab === 'history' && <PrintHistory onNavigate={navigateToTab} />}
         {currentTab === 'dispatch' && <DispatchSummary />}
+        {currentTab === 'users' && <Users />}
         {currentTab === 'settings' && <Settings />}
       </MainLayout>
-      <BigBrainAssistant currentTab={currentTab} />
     </QueryClientProvider>
-
   );
 };
 

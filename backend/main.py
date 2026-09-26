@@ -230,11 +230,34 @@ class BigBrainInsightsRequest(BaseModel):
     stats_data: Optional[Dict[str, Any]] = None
     api_key: Optional[str] = None
 
-class BigBrainChatRequest(BaseModel):
-    message: str
-    history: Optional[List[Dict[str, str]]] = None
-    context_data: Optional[Dict[str, Any]] = None
-    api_key: Optional[str] = None
+class UserResponse(BaseModel):
+    id: int
+    username: str
+    role: str
+    permissions: Optional[str] = None
+    full_name: str
+    is_active: bool
+
+    class Config:
+        from_attributes = True
+
+class UserCreate(BaseModel):
+    username: str
+    password: str
+    role: str = "employee"
+    permissions: Optional[str] = None
+    full_name: Optional[str] = None
+
+class UserUpdate(BaseModel):
+    password: Optional[str] = None
+    role: Optional[str] = None
+    permissions: Optional[str] = None
+    full_name: Optional[str] = None
+    is_active: Optional[bool] = None
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
 
 # ==========================================
 # 1. DASHBOARD ENDPOINT
@@ -2451,18 +2474,85 @@ def big_brain_dashboard_insights(req: BigBrainInsightsRequest, db: Session = Dep
     )
     return {"success": True, "insights": res}
 
-@app.post("/api/ai/big-brain/chat")
-def big_brain_chat(req: BigBrainChatRequest, db: Session = Depends(get_db)):
-    """Interactive chat with OpenAI Big Brain assistant."""
-    app_set = db.query(AppSettings).first()
-    key = req.api_key or (getattr(app_set, "openai_api_key", None) if app_set else None)
-    res = openai_service.chat_with_big_brain(
-        message=req.message,
-        history=req.history,
-        context_data=req.context_data,
-        api_key=key
+from fastapi.security import OAuth2PasswordRequestForm
+import auth as auth_module
+
+@app.post("/api/auth/login", response_model=Token)
+def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.username == form_data.username).first()
+    if not user or not auth_module.verify_password(form_data.password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    if not user.is_active:
+        raise HTTPException(status_code=400, detail="Inactive user")
+    
+    access_token_expires = datetime.timedelta(minutes=auth_module.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = auth_module.create_access_token(
+        data={"sub": user.username, "role": user.role, "permissions": user.permissions}, expires_delta=access_token_expires
     )
-    return res
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@app.get("/api/auth/me", response_model=UserResponse)
+def read_users_me(current_user: User = Depends(auth_module.get_current_user)):
+    return current_user
+
+@app.get("/api/users", response_model=List[UserResponse])
+def get_users(db: Session = Depends(get_db), current_user: User = Depends(auth_module.get_current_super_admin)):
+    return db.query(User).all()
+
+@app.post("/api/users", response_model=UserResponse)
+def create_user(user_in: UserCreate, db: Session = Depends(get_db), current_user: User = Depends(auth_module.get_current_super_admin)):
+    existing_user = db.query(User).filter(User.username == user_in.username).first()
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Username already registered")
+    
+    new_user = User(
+        username=user_in.username,
+        password_hash=auth_module.get_password_hash(user_in.password),
+        role=user_in.role,
+        permissions=user_in.permissions,
+        full_name=user_in.full_name
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return new_user
+
+@app.put("/api/users/{user_id}", response_model=UserResponse)
+def update_user(user_id: int, user_in: UserUpdate, db: Session = Depends(get_db), current_user: User = Depends(auth_module.get_current_super_admin)):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if user_in.password:
+        user.password_hash = auth_module.get_password_hash(user_in.password)
+    if user_in.role is not None:
+        user.role = user_in.role
+    if user_in.permissions is not None:
+        user.permissions = user_in.permissions
+    if user_in.full_name is not None:
+        user.full_name = user_in.full_name
+    if user_in.is_active is not None:
+        user.is_active = user_in.is_active
+        
+    db.commit()
+    db.refresh(user)
+    return user
+
+@app.delete("/api/users/{user_id}")
+def delete_user(user_id: int, db: Session = Depends(get_db), current_user: User = Depends(auth_module.get_current_super_admin)):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user.id == current_user.id:
+        raise HTTPException(status_code=400, detail="Cannot delete yourself")
+        
+    db.delete(user)
+    db.commit()
+    return {"success": True, "message": "User deleted successfully"}
 
 @app.post("/api/ai/parse-smart")
 def parse_smart_text(req: AIParseSmartRequest):
