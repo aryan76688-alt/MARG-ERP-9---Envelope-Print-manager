@@ -17,22 +17,18 @@ def translate_case_label_to_gu(label: str) -> str:
     if not label:
         return ""
     res = str(label).strip()
-    gu_phrases = [
-        ("STANDARD CASE", "સ્ટાન્ડર્ડ કેસ"),
-        ("PARCEL BAG", "પાર્સલ બેગ"),
-        ("NS CASE", "એન.એસ. કેસ"),
-        ("RL CASE", "આર.એલ. કેસ"),
-        ("DNS CASE", "ડી.એન.એસ. કેસ"),
-        ("METRO CASE", "મેટ્રો કેસ"),
-    ]
-    for k, v in gu_phrases:
-        if k in res.upper():
-            idx = res.upper().find(k)
-            res = res[:idx] + v + res[idx + len(k):]
     
-    # Replace individual tokens safely
-    res = re.sub(r'\bNS\b', 'એન.એસ.', res, flags=re.IGNORECASE)
+    # Replace whole phrases first with word boundaries (DNS before NS to prevent partial match)
+    res = re.sub(r'\bSTANDARD CASE\b', 'સ્ટાન્ડર્ડ કેસ', res, flags=re.IGNORECASE)
+    res = re.sub(r'\bPARCEL BAG\b', 'પાર્સલ બેગ', res, flags=re.IGNORECASE)
+    res = re.sub(r'\bDNS CASE\b', 'ડી.એન.એસ. કેસ', res, flags=re.IGNORECASE)
+    res = re.sub(r'\bNS CASE\b', 'એન.એસ. કેસ', res, flags=re.IGNORECASE)
+    res = re.sub(r'\bRL CASE\b', 'આર.એલ. કેસ', res, flags=re.IGNORECASE)
+    res = re.sub(r'\bMETRO CASE\b', 'મેટ્રો કેસ', res, flags=re.IGNORECASE)
+    
+    # Replace individual tokens with word boundaries (DNS before NS)
     res = re.sub(r'\bDNS\b', 'ડી.એન.એસ.', res, flags=re.IGNORECASE)
+    res = re.sub(r'\bNS\b', 'એન.એસ.', res, flags=re.IGNORECASE)
     res = re.sub(r'\bRL\b', 'આર.એલ.', res, flags=re.IGNORECASE)
     res = re.sub(r'\bMETRO\b', 'મેટ્રો', res, flags=re.IGNORECASE)
     res = re.sub(r'\bCASE\b', 'કેસ', res, flags=re.IGNORECASE)

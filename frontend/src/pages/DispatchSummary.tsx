@@ -42,15 +42,15 @@ export const DispatchSummary: React.FC = () => {
   const translateCaseToGu = (text: string): string => {
     if (!text) return text;
     return text
-      .replace(/STANDARD CASE/gi, "સ્ટાન્ડર્ડ કેસ")
-      .replace(/PARCEL BAG/gi, "પાર્સલ બેગ")
-      .replace(/NS CASE/gi, "એન.એસ. કેસ")
-      .replace(/RL CASE/gi, "આર.એલ. કેસ")
-      .replace(/DNS CASE/gi, "ડી.એન.એસ. કેસ")
-      .replace(/METRO CASE/gi, "મેટ્રો કેસ")
+      .replace(/\bSTANDARD CASE\b/gi, "સ્ટાન્ડર્ડ કેસ")
+      .replace(/\bPARCEL BAG\b/gi, "પાર્સલ બેગ")
+      .replace(/\bDNS CASE\b/gi, "ડી.એન.એસ. કેસ")
+      .replace(/\bNS CASE\b/gi, "એન.એસ. કેસ")
+      .replace(/\bRL CASE\b/gi, "આર.એલ. કેસ")
+      .replace(/\bMETRO CASE\b/gi, "મેટ્રો કેસ")
+      .replace(/\bDNS\b/gi, "ડી.એન.એસ.")
       .replace(/\bNS\b/gi, "એન.એસ.")
       .replace(/\bRL\b/gi, "આર.એલ.")
-      .replace(/\bDNS\b/gi, "ડી.એન.એસ.")
       .replace(/\bMETRO\b/gi, "મેટ્રો")
       .replace(/\bCASE\b/gi, "કેસ")
       .replace(/\bBAG\b/gi, "બેગ")
