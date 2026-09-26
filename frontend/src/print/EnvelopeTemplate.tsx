@@ -25,19 +25,20 @@ export const formatCaseBreakdownItem = (typeStr?: string, volStr?: string, qty: 
   const cleanType = (typeStr || 'CASE').trim().toUpperCase();
   const cleanVol = (volStr || '').trim().toUpperCase();
 
-  // Check if string is already formatted like "NS CASE 100ML: 1" or "NS 100 CASE: 1"
-  const m = cleanType.match(/^(NS|DNS|RL|METRO)\s*(?:CASE)?\s*(\d+)(?:ML)?\s*(?:CASE)?:\s*(\d+)$/i);
+  // Check if string is already formatted like "NS CASE 100ML: 1", "NS 100 CASE: 1" or "NS 100ML CASE: 1"
+  const m = cleanType.match(/^(NS|DNS|RL|METRO)\s*(?:CASE)?\s*(\d+)\s*(ML|LTR)?\s*(?:CASE)?:\s*(\d+)$/i);
   if (m) {
-    return `${m[1].toUpperCase()} ${m[2]} CASE: ${m[3]}`;
+    const unit = m[3] ? m[3].toUpperCase() : 'ML';
+    return `${m[1].toUpperCase()} ${m[2]}${unit} CASE: ${m[4]}`;
   }
 
   const typeBase = cleanType.replace(/\s*CASE/g, '').trim();
 
   if (['NS', 'DNS', 'RL', 'METRO'].includes(typeBase) && cleanVol) {
-    const volDisplay = cleanVol.endsWith('ML') ? cleanVol.replace('ML', '').trim() : cleanVol;
+    const volDisplay = /^\d+$/.test(cleanVol) ? `${cleanVol}ML` : cleanVol;
     return `${typeBase} ${volDisplay} CASE: ${qty}`;
   } else if (cleanVol) {
-    const volDisplay = cleanVol.endsWith('ML') ? cleanVol.replace('ML', '').trim() : cleanVol;
+    const volDisplay = /^\d+$/.test(cleanVol) ? `${cleanVol}ML` : cleanVol;
     const prefix = typeBase || cleanType;
     return `${prefix} ${volDisplay} CASE: ${qty}`;
   } else {

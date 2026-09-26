@@ -262,21 +262,21 @@ def test_fluid_case_breakdown_single_line():
     print("\nTesting Fluid Case Breakdown Single-Line Formatting & PDF...")
     # 1. Test unit formatting helper
     ns_line = format_case_breakdown_line("NS CASE", "100ML", 1)
-    assert ns_line == "NS 100 CASE: 1", f"Expected 'NS 100 CASE: 1', got '{ns_line}'"
+    assert ns_line == "NS 100ML CASE: 1", f"Expected 'NS 100ML CASE: 1', got '{ns_line}'"
     
     dns_line = format_case_breakdown_line("DNS CASE", "100ML", 1)
-    assert dns_line == "DNS 100 CASE: 1", f"Expected 'DNS 100 CASE: 1', got '{dns_line}'"
+    assert dns_line == "DNS 100ML CASE: 1", f"Expected 'DNS 100ML CASE: 1', got '{dns_line}'"
 
     rl_line = format_case_breakdown_line("RL CASE", "500ML", 2)
-    assert rl_line == "RL 500 CASE: 2", f"Expected 'RL 500 CASE: 2', got '{rl_line}'"
+    assert rl_line == "RL 500ML CASE: 2", f"Expected 'RL 500ML CASE: 2', got '{rl_line}'"
 
     metro_line = format_case_breakdown_line("METRO CASE", "100ML", 1)
-    assert metro_line == "METRO 100 CASE: 1", f"Expected 'METRO 100 CASE: 1', got '{metro_line}'"
+    assert metro_line == "METRO 100ML CASE: 1", f"Expected 'METRO 100ML CASE: 1', got '{metro_line}'"
 
     std_line = format_case_breakdown_line("CASE", "", 1)
     assert std_line == "CASE: 1", f"Expected 'CASE: 1', got '{std_line}'"
 
-    print(" -> Unit formatting verified: NS 100 CASE: 1, DNS 100 CASE: 1, RL 500 CASE: 2")
+    print(" -> Unit formatting verified: NS 100ML CASE: 1, DNS 100ML CASE: 1, RL 500ML CASE: 2")
 
     # 2. Test Gujarati translation for summary
     gu_ns = translate_case_label_to_gu(ns_line)

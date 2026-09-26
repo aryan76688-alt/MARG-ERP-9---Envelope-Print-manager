@@ -40,28 +40,29 @@ def translate_case_label_to_gu(label: str) -> str:
 def format_case_breakdown_line(c_type: str, c_vol: str = "", qty: int = 1) -> str:
     """
     Formats case breakdown items onto a single clean line per user requirements:
-      - "NS CASE" + "100ML" -> "NS 100 CASE: 1"
-      - "DNS CASE" + "100ML" -> "DNS 100 CASE: 1"
-      - "RL CASE" + "500ML" -> "RL 500 CASE: 2"
-      - "METRO CASE" + "100ML" -> "METRO 100 CASE: 1"
+      - "NS CASE" + "100ML" -> "NS 100ML CASE: 1"
+      - "DNS CASE" + "100ML" -> "DNS 100ML CASE: 1"
+      - "RL CASE" + "500ML" -> "RL 500ML CASE: 2"
+      - "METRO CASE" + "100ML" -> "METRO 100ML CASE: 1"
       - "CASE" -> "CASE: 1"
       - "PARCEL BAG" -> "PARCEL BAG: 1"
     """
     clean_type = str(c_type or "").strip().upper()
     clean_vol = str(c_vol or "").strip().upper()
     
-    # Check if string is already formatted like "NS CASE 100ML: 1" or "NS 100 CASE: 1"
-    m = re.match(r"^(NS|DNS|RL|METRO)\s*(?:CASE)?\s*(\d+)(?:ML)?\s*(?:CASE)?:\s*(\d+)$", clean_type, re.IGNORECASE)
+    # Check if string is already formatted like "NS CASE 100ML: 1", "NS 100 CASE: 1" or "NS 100ML CASE: 1"
+    m = re.match(r"^(NS|DNS|RL|METRO)\s*(?:CASE)?\s*(\d+)\s*(ML|LTR)?\s*(?:CASE)?:\s*(\d+)$", clean_type, re.IGNORECASE)
     if m:
-        return f"{m.group(1).upper()} {m.group(2)} CASE: {m.group(3)}"
+        unit = m.group(3).upper() if m.group(3) else "ML"
+        return f"{m.group(1).upper()} {m.group(2)}{unit} CASE: {m.group(4)}"
 
     type_base = clean_type.replace(" CASE", "").replace("CASE", "").strip()
 
     if type_base in ("NS", "DNS", "RL", "METRO") and clean_vol:
-        vol_display = clean_vol.replace("ML", "").strip() if clean_vol.endswith("ML") else clean_vol
+        vol_display = f"{clean_vol}ML" if clean_vol.isdigit() else clean_vol
         return f"{type_base} {vol_display} CASE: {qty}"
     elif clean_vol:
-        vol_display = clean_vol.replace("ML", "").strip() if clean_vol.endswith("ML") else clean_vol
+        vol_display = f"{clean_vol}ML" if clean_vol.isdigit() else clean_vol
         prefix = type_base if type_base else clean_type
         return f"{prefix} {vol_display} CASE: {qty}"
     else:
