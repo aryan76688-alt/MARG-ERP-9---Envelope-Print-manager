@@ -12,10 +12,22 @@ import {
   Upload, 
   CheckCircle2, 
   AlertCircle,
-  Sparkles
+  Sparkles,
+  Brain,
+  Cpu
 } from 'lucide-react';
-import { SenderSettings, AppSettings } from '../types';
-import { fetchSettings, saveSettings, getBackupExportUrl, getExportPartiesUrl, getExportHistoryUrl, testGeminiAI } from '../api/client';
+import { SenderSettings, AppSettings, DualBrainStatus } from '../types';
+import { 
+  fetchSettings, 
+  saveSettings, 
+  getBackupExportUrl, 
+  getExportPartiesUrl, 
+  getExportHistoryUrl, 
+  testGeminiAI,
+  testOpenAIApi,
+  fetchBrainStatus
+} from '../api/client';
+
 
 export const Settings: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>('company');
@@ -54,6 +66,7 @@ export const Settings: React.FC = () => {
     default_language: 'en',
     envelope_template_format: 'attachment_pdf',
     gemini_api_key: '',
+    openai_api_key: '',
   });
 
   const [saving, setSaving] = useState<boolean>(false);
@@ -61,6 +74,10 @@ export const Settings: React.FC = () => {
   const [aiTesting, setAiTesting] = useState<boolean>(false);
   const [aiTestResult, setAiTestResult] = useState<string | null>(null);
   const [aiTestSuccess, setAiTestSuccess] = useState<boolean | null>(null);
+  const [openAiTesting, setOpenAiTesting] = useState<boolean>(false);
+  const [openAiTestResult, setOpenAiTestResult] = useState<string | null>(null);
+  const [openAiTestSuccess, setOpenAiTestSuccess] = useState<boolean | null>(null);
+  const [brainStatus, setBrainStatus] = useState<DualBrainStatus | null>(null);
   const backupFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -70,7 +87,12 @@ export const Settings: React.FC = () => {
         if (res.app) setApp(res.app);
       })
       .catch(console.error);
+
+    fetchBrainStatus()
+      .then(st => setBrainStatus(st))
+      .catch(console.warn);
   }, []);
+
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -337,12 +359,119 @@ export const Settings: React.FC = () => {
               </div>
             </div>
 
-            {/* Gemini AI API Key Configuration */}
+            {/* Dual Brain Architecture Status Card */}
+            <div className="p-4 rounded-xl bg-gradient-to-r from-purple-950 via-slate-900 to-indigo-950 text-white border border-purple-500/30 space-y-3">
+              <div className="flex items-center justify-between border-b border-purple-500/30 pb-2.5">
+                <div className="flex items-center gap-2">
+                  <Brain className="w-5 h-5 text-purple-300" />
+                  <span className="font-extrabold text-sm tracking-wide">Dual-Brain AI Architecture</span>
+                </div>
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-emerald-950 text-emerald-300 border border-emerald-800">
+                  Fully Operational
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                <div className="p-3 bg-purple-900/30 border border-purple-500/30 rounded-lg">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-bold text-purple-200 flex items-center gap-1.5">
+                      <Brain className="w-4 h-4 text-purple-400" />
+                      Big Brain (OpenAI ChatGPT)
+                    </span>
+                    <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-800/80">Online</span>
+                  </div>
+                  <p className="text-[11px] text-purple-200/90 leading-relaxed">
+                    Master UI Design, PDF Print Layout Controls, Dashboard Logistics Intelligence & Assistant Chat.
+                  </p>
+                </div>
+
+                <div className="p-3 bg-blue-900/30 border border-blue-500/30 rounded-lg">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-bold text-blue-200 flex items-center gap-1.5">
+                      <Cpu className="w-4 h-4 text-blue-400" />
+                      Small Brains (Gemini Pool)
+                    </span>
+                    <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-800/80">
+                      {brainStatus?.small_brains?.key_pool_count || 2} Keys Active
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-blue-200/90 leading-relaxed">
+                    High-speed backend batch translations, Gujarati address conversion, barcode and data parsing.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* 1. Big Brain (OpenAI) Configuration */}
             <div className="pt-3 border-t border-slate-100 space-y-2">
               <div className="flex items-center justify-between">
                 <label className="block font-bold text-slate-900 text-xs flex items-center gap-1.5">
-                  <Sparkles className="w-4 h-4 text-purple-600" />
-                  <span>Google Gemini AI API Key</span>
+                  <Brain className="w-4 h-4 text-purple-600" />
+                  <span>OpenAI API Key (Big Brain Core)</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setOpenAiTesting(true);
+                    setOpenAiTestResult(null);
+                    setOpenAiTestSuccess(null);
+                    try {
+                      const res = await testOpenAIApi(app.openai_api_key);
+                      setOpenAiTestSuccess(true);
+                      setOpenAiTestResult(res.message || 'Connected to OpenAI Big Brain successfully!');
+                    } catch (err: any) {
+                      setOpenAiTestSuccess(false);
+                      setOpenAiTestResult(`Notice: ${err.message || 'Connection test failed'}`);
+                    } finally {
+                      setOpenAiTesting(false);
+                    }
+                  }}
+                  disabled={openAiTesting}
+                  className="px-3 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-lg text-[11px] font-bold transition-colors flex items-center gap-1"
+                >
+                  <Sparkles className="w-3 h-3 text-purple-500" />
+                  <span>{openAiTesting ? 'Testing...' : 'Test Big Brain'}</span>
+                </button>
+              </div>
+
+              <div className="relative">
+                <input
+                  type="password"
+                  value={app.openai_api_key || ''}
+                  onChange={(e) => setApp({ ...app, openai_api_key: e.target.value })}
+                  placeholder="Paste your OpenAI API Key (sk-proj-...) or leave blank to use server environment default"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono text-xs focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+
+              <p className="text-[11px] text-slate-500">
+                Powers real-time print layout intelligence, visual density optimization, and ChatGPT operations assistant.
+              </p>
+
+              {openAiTestResult && (
+                <div
+                  className={`p-2.5 rounded-lg border text-xs font-semibold flex items-start gap-2 ${
+                    openAiTestSuccess
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                      : 'bg-amber-50 border-amber-200 text-amber-800'
+                  }`}
+                >
+                  {openAiTestSuccess ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                  )}
+                  <span>{openAiTestResult}</span>
+                </div>
+              )}
+            </div>
+
+            {/* 2. Small Brains (Gemini) Configuration */}
+            <div className="pt-3 border-t border-slate-100 space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="block font-bold text-slate-900 text-xs flex items-center gap-1.5">
+                  <Cpu className="w-4 h-4 text-blue-600" />
+                  <span>Google Gemini API Key (Small Brains Pool)</span>
                 </label>
                 <button
                   type="button"
@@ -353,19 +482,19 @@ export const Settings: React.FC = () => {
                     try {
                       const res = await testGeminiAI();
                       setAiTestSuccess(true);
-                      setAiTestResult(`Connected successfully to model: ${res.model}! Response: ${res.output}`);
+                      setAiTestResult(`Connected successfully to Gemini! Response: ${res.output}`);
                     } catch (err: any) {
                       setAiTestSuccess(false);
-                      setAiTestResult(`Connection failed: ${err.message}`);
+                      setAiTestResult(`Connection notice: ${err.message}`);
                     } finally {
                       setAiTesting(false);
                     }
                   }}
                   disabled={aiTesting}
-                  className="px-3 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-lg text-[11px] font-bold transition-colors flex items-center gap-1"
+                  className="px-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-[11px] font-bold transition-colors flex items-center gap-1"
                 >
-                  <Sparkles className="w-3 h-3" />
-                  <span>{aiTesting ? 'Testing API...' : 'Test Gemini Connection'}</span>
+                  <Sparkles className="w-3 h-3 text-blue-500" />
+                  <span>{aiTesting ? 'Testing API...' : 'Test Small Brains'}</span>
                 </button>
               </div>
 
@@ -374,13 +503,13 @@ export const Settings: React.FC = () => {
                   type="password"
                   value={app.gemini_api_key || ''}
                   onChange={(e) => setApp({ ...app, gemini_api_key: e.target.value })}
-                  placeholder="Paste your Google Gemini API Key here..."
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono text-xs focus:ring-2 focus:ring-purple-500"
+                  placeholder="Paste your Google Gemini API Key here (or keep default multi-key pool)..."
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono text-xs focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
               <p className="text-[11px] text-slate-500">
-                Used for instant transliteration into Gujarati and intelligent MARG ERP text parsing.
+                Powers lightning-fast party translations to Gujarati and MARG text parsing with automatic multi-key failover.
               </p>
 
               {aiTestResult && (
@@ -388,13 +517,13 @@ export const Settings: React.FC = () => {
                   className={`p-2.5 rounded-lg border text-xs font-semibold flex items-start gap-2 ${
                     aiTestSuccess
                       ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                      : 'bg-red-50 border-red-200 text-red-800'
+                      : 'bg-amber-50 border-amber-200 text-amber-800'
                   }`}
                 >
                   {aiTestSuccess ? (
                     <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
                   ) : (
-                    <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
+                    <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
                   )}
                   <span>{aiTestResult}</span>
                 </div>
@@ -402,6 +531,7 @@ export const Settings: React.FC = () => {
             </div>
           </div>
         )}
+
 
         {/* TAB 3: PRINTER */}
         {activeTab === 'printer' && (

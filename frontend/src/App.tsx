@@ -8,7 +8,9 @@ import { PrintEnvelope } from './pages/PrintEnvelope';
 import { DispatchSummary } from './pages/DispatchSummary';
 import { PrintHistory } from './pages/PrintHistory';
 import { Settings } from './pages/Settings';
+import { BigBrainAssistant } from './components/BigBrainAssistant';
 import { Party } from './types';
+
 
 const queryClient = new QueryClient();
 
@@ -129,7 +131,9 @@ export const App: React.FC = () => {
         {currentTab === 'dispatch' && <DispatchSummary />}
         {currentTab === 'settings' && <Settings />}
       </MainLayout>
+      <BigBrainAssistant currentTab={currentTab} />
     </QueryClientProvider>
+
   );
 };
 

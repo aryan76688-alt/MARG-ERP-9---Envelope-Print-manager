@@ -13,10 +13,13 @@ import {
   CheckCircle2, 
   Clock, 
   AlertTriangle,
-  RefreshCw
+  RefreshCw,
+  Brain,
+  Sparkles
 } from 'lucide-react';
-import { DashboardData } from '../types';
-import { fetchDashboard } from '../api/client';
+import { DashboardData, BigBrainDashboardInsights } from '../types';
+import { fetchDashboard, fetchBigBrainDashboardInsights } from '../api/client';
+
 
 interface DashboardProps {
   onNavigate: (tab: string, state?: any) => void;
@@ -27,12 +30,29 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   const [loading, setLoading] = useState<boolean>(true);
   const [filterPeriod, setFilterPeriod] = useState<string>('this_month');
   const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [bigBrainInsights, setBigBrainInsights] = useState<BigBrainDashboardInsights | null>(null);
+  const [loadingInsights, setLoadingInsights] = useState<boolean>(false);
+
+  const loadBigBrainInsights = async (metricsData?: any) => {
+    setLoadingInsights(true);
+    try {
+      const res = await fetchBigBrainDashboardInsights({ stats_data: metricsData || data?.metrics });
+      if (res.success && res.insights) {
+        setBigBrainInsights(res.insights);
+      }
+    } catch (e) {
+      console.warn('Big Brain Insights notice:', e);
+    } finally {
+      setLoadingInsights(false);
+    }
+  };
 
   const loadData = async (period: string) => {
     try {
       setRefreshing(true);
       const res = await fetchDashboard(period);
       setData(res);
+      loadBigBrainInsights(res.metrics);
     } catch (err) {
       console.error(err);
     } finally {
@@ -44,6 +64,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   useEffect(() => {
     loadData(filterPeriod);
   }, [filterPeriod]);
+
 
   const statCards = [
     {
@@ -216,8 +237,89 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         </div>
       </div>
 
+      {/* Big Brain Dispatch Intelligence Card */}
+      <div className="bg-gradient-to-r from-purple-950 via-slate-900 to-indigo-950 rounded-xl p-5 text-white border border-purple-500/30 shadow-lg relative overflow-hidden">
+        <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-purple-500/20 pb-4 mb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-purple-600/30 border border-purple-400/40 flex items-center justify-center text-purple-200 shadow-inner">
+              <Brain className="w-6 h-6 text-purple-300" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-black tracking-wide text-white">Big Brain Logistics Intelligence</h3>
+                <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-purple-500/20 text-purple-200 border border-purple-400/30">
+                  ChatGPT Core
+                </span>
+              </div>
+              <p className="text-xs text-purple-200 mt-0.5">
+                Executive dispatch briefings & route recommendations
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {bigBrainInsights && (
+              <div className="flex items-center gap-2 bg-slate-900/80 border border-purple-400/30 px-3 py-1.5 rounded-lg text-xs">
+                <span className="text-purple-300 font-semibold">Efficiency:</span>
+                <span className="text-emerald-400 font-black text-sm">{bigBrainInsights.efficiency_score}%</span>
+              </div>
+            )}
+            <button
+              onClick={() => loadBigBrainInsights()}
+              disabled={loadingInsights}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs transition-colors shadow-sm disabled:opacity-50"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-yellow-300" />
+              <span>{loadingInsights ? 'Analyzing...' : 'Refresh Insights'}</span>
+            </button>
+          </div>
+        </div>
+
+        {bigBrainInsights ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+            <div className="bg-slate-900/60 border border-purple-500/20 rounded-lg p-3">
+              <span className="text-purple-300 font-bold uppercase text-[10px] tracking-wider block mb-1">
+                Executive Status
+              </span>
+              <p className="text-slate-200 leading-relaxed font-medium">
+                {bigBrainInsights.daily_status_summary}
+              </p>
+            </div>
+
+            <div className="bg-slate-900/60 border border-purple-500/20 rounded-lg p-3">
+              <span className="text-purple-300 font-bold uppercase text-[10px] tracking-wider block mb-1">
+                Route & Driver Notice
+              </span>
+              <p className="text-slate-200 leading-relaxed font-medium">
+                {bigBrainInsights.driver_coordination_note}
+              </p>
+            </div>
+
+            <div className="bg-slate-900/60 border border-purple-500/20 rounded-lg p-3">
+              <span className="text-purple-300 font-bold uppercase text-[10px] tracking-wider block mb-1">
+                Action Suggestions
+              </span>
+              <div className="space-y-1">
+                {bigBrainInsights.actionable_suggestions.map((sug, i) => (
+                  <div key={i} className="flex items-start gap-1.5 text-slate-200">
+                    <span className="text-purple-400 font-bold">•</span>
+                    <span>{sug}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="text-xs text-purple-300/80 py-2 flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-purple-400 animate-spin" />
+            <span>Big Brain is synthesizing today's courier operations...</span>
+          </div>
+        )}
+      </div>
+
       {/* Middle Grid: Charts & Summary */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
         {/* Print Summary Chart (Left 1 col) */}
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
           <div>

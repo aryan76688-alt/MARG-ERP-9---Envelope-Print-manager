@@ -10,8 +10,12 @@ import {
   UnprintedPartyItem,
   DispatchSummaryData,
   TranslatePartyResponse,
-  ParseMargTextResponse
+  ParseMargTextResponse,
+  BigBrainUiControlResult,
+  BigBrainDashboardInsights,
+  DualBrainStatus
 } from '../types';
+
 
 const API_BASE = '/api';
 
@@ -462,11 +466,69 @@ export async function fetchTranslationStatus(): Promise<{ is_running: boolean; t
   return res.json();
 }
 
-export async function fetchBrainStatus(): Promise<any> {
+export async function fetchBrainStatus(): Promise<DualBrainStatus> {
   const res = await fetch(`${API_BASE}/ai/brain-status`);
   if (!res.ok) throw new Error('Failed to fetch AI brain status');
   return res.json();
 }
+
+export async function testOpenAIApi(apiKey?: string): Promise<{ success: boolean; message: string; model?: string; output?: string }> {
+  const res = await fetch(`${API_BASE}/ai/openai/test`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ api_key: apiKey }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'OpenAI Big Brain connection test failed' }));
+    throw new Error(err.detail || 'OpenAI Big Brain connection test failed');
+  }
+  return res.json();
+}
+
+export async function fetchBigBrainUiControl(payload: {
+  party_data?: any;
+  template_format?: string;
+  language?: string;
+  envelopes_per_page?: number;
+  api_key?: string;
+}): Promise<{ success: boolean; ui_control: BigBrainUiControlResult }> {
+  const res = await fetch(`${API_BASE}/ai/big-brain/ui-control`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error('Big Brain layout optimization failed');
+  return res.json();
+}
+
+export async function fetchBigBrainDashboardInsights(payload: {
+  stats_data?: any;
+  api_key?: string;
+}): Promise<{ success: boolean; insights: BigBrainDashboardInsights }> {
+  const res = await fetch(`${API_BASE}/ai/big-brain/dashboard-insights`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error('Failed to fetch Big Brain logistics insights');
+  return res.json();
+}
+
+export async function chatWithBigBrain(payload: {
+  message: string;
+  history?: { role: string; content: string }[];
+  context_data?: any;
+  api_key?: string;
+}): Promise<{ success: boolean; reply: string; model?: string; usage?: any; notice?: string }> {
+  const res = await fetch(`${API_BASE}/ai/big-brain/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error('Failed to get answer from Big Brain Assistant');
+  return res.json();
+}
+
 
 export async function cleanAddressAI(address: string, city?: string, state?: string): Promise<{ success: boolean; data: any }> {
   const res = await fetch(`${API_BASE}/ai/clean-address`, {

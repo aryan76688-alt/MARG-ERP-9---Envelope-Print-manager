@@ -18,6 +18,7 @@ import barcode_generator
 import excel_service
 import pdf_service
 import ai_service
+import openai_service
 from pathlib import Path
 
 # Load .env file
@@ -213,6 +214,26 @@ class AIParseSmartRequest(BaseModel):
     text: str
 
 class AITestKeyRequest(BaseModel):
+    api_key: Optional[str] = None
+
+class OpenAITestKeyRequest(BaseModel):
+    api_key: Optional[str] = None
+
+class BigBrainUiControlRequest(BaseModel):
+    party_data: Optional[Dict[str, Any]] = None
+    template_format: str = "attachment_pdf"
+    language: str = "en"
+    envelopes_per_page: int = 2
+    api_key: Optional[str] = None
+
+class BigBrainInsightsRequest(BaseModel):
+    stats_data: Optional[Dict[str, Any]] = None
+    api_key: Optional[str] = None
+
+class BigBrainChatRequest(BaseModel):
+    message: str
+    history: Optional[List[Dict[str, str]]] = None
+    context_data: Optional[Dict[str, Any]] = None
     api_key: Optional[str] = None
 
 # ==========================================
@@ -1557,6 +1578,7 @@ def get_settings(db: Session = Depends(get_db)):
             "show_gst": app_set.show_gst,
             "show_pan": app_set.show_pan,
             "gemini_api_key": app_set.gemini_api_key or os.environ.get("GEMINI_API_KEY", ""),
+            "openai_api_key": getattr(app_set, "openai_api_key", "") or os.environ.get("OPENAI_API_KEY", ""),
             "default_language": getattr(app_set, "default_language", "en") or "en",
             "envelope_template_format": getattr(app_set, "envelope_template_format", "attachment_pdf") or "attachment_pdf"
         }
@@ -1607,6 +1629,8 @@ def update_settings(payload: Dict[str, Any], db: Session = Depends(get_db)):
         app_set.show_pan = bool(a_data.get("show_pan", app_set.show_pan))
         if "gemini_api_key" in a_data:
             app_set.gemini_api_key = a_data["gemini_api_key"].strip()
+        if "openai_api_key" in a_data:
+            app_set.openai_api_key = a_data["openai_api_key"].strip()
         if "default_language" in a_data:
             app_set.default_language = a_data["default_language"].strip()
         if "envelope_template_format" in a_data:
@@ -2368,9 +2392,77 @@ def get_translation_status():
     return ai_service.get_background_translation_status()
 
 @app.get("/api/ai/brain-status")
-def get_ai_brain_status():
-    """Returns AI Brain core status, active Gemini key pool, models, and workers."""
-    return ai_service.get_brain_status()
+def get_ai_brain_status(db: Session = Depends(get_db)):
+    """Returns Dual AI Brain core status: Big Brain (OpenAI) + Small Brains (Gemini multi-key pool)."""
+    gemini_status = ai_service.get_brain_status()
+    openai_status = openai_service.get_brain_status()
+    return {
+        "status": "active",
+        "architecture": "dual_brain",
+        "big_brain": {
+            "role": "Master UI Design, PDF Print Layout Control, Dashboard Intelligence, Assistant Chat",
+            "provider": "OpenAI ChatGPT",
+            **openai_status
+        },
+        "small_brains": {
+            "role": "High-Speed Batch Gujarati Translations, Address Parsing, Data Support",
+            "provider": "Google Gemini (Multi-Key Pool)",
+            **gemini_status
+        }
+    }
+
+@app.post("/api/ai/openai/test")
+@app.post("/api/ai/big-brain/test")
+def test_openai_key(req: Optional[OpenAITestKeyRequest] = None, db: Session = Depends(get_db)):
+    """Tests connectivity to OpenAI Big Brain API."""
+    key = None
+    if req and req.api_key:
+        key = req.api_key.strip()
+    else:
+        app_set = db.query(AppSettings).first()
+        if app_set and getattr(app_set, "openai_api_key", None):
+            key = app_set.openai_api_key.strip()
+    return openai_service.test_connection(api_key=key)
+
+@app.post("/api/ai/big-brain/ui-control")
+def big_brain_ui_control(req: BigBrainUiControlRequest, db: Session = Depends(get_db)):
+    """OpenAI Big Brain analyzes print layout & recipient data to recommend optimal font scaling, margins, and template layout."""
+    app_set = db.query(AppSettings).first()
+    key = req.api_key or (getattr(app_set, "openai_api_key", None) if app_set else None)
+    party_dict = req.party_data or {}
+    res = openai_service.analyze_ui_layout_control(
+        party_data=party_dict,
+        template_format=req.template_format,
+        language=req.language,
+        envelopes_per_page=req.envelopes_per_page,
+        api_key=key
+    )
+    return {"success": True, "ui_control": res}
+
+@app.post("/api/ai/big-brain/dashboard-insights")
+def big_brain_dashboard_insights(req: BigBrainInsightsRequest, db: Session = Depends(get_db)):
+    """OpenAI Big Brain synthesizes executive dashboard logistics intelligence and route suggestions."""
+    app_set = db.query(AppSettings).first()
+    key = req.api_key or (getattr(app_set, "openai_api_key", None) if app_set else None)
+    stats_dict = req.stats_data or {}
+    res = openai_service.generate_dashboard_intelligence(
+        stats_data=stats_dict,
+        api_key=key
+    )
+    return {"success": True, "insights": res}
+
+@app.post("/api/ai/big-brain/chat")
+def big_brain_chat(req: BigBrainChatRequest, db: Session = Depends(get_db)):
+    """Interactive chat with OpenAI Big Brain assistant."""
+    app_set = db.query(AppSettings).first()
+    key = req.api_key or (getattr(app_set, "openai_api_key", None) if app_set else None)
+    res = openai_service.chat_with_big_brain(
+        message=req.message,
+        history=req.history,
+        context_data=req.context_data,
+        api_key=key
+    )
+    return res
 
 @app.post("/api/ai/parse-smart")
 def parse_smart_text(req: AIParseSmartRequest):
@@ -2398,6 +2490,7 @@ def test_gemini_key(req: AITestKeyRequest):
     """Tests connectivity to Google Gemini API using provided or default key pool."""
     res = ai_service.test_connection(req.api_key)
     return res
+
 
 # Custom static file server with immutable caching for fingerprinted assets
 class CachedStaticFiles(StaticFiles):

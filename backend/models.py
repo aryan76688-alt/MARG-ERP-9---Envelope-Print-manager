@@ -90,6 +90,7 @@ class AppSettings(Base):
     show_gst = Column(Boolean, default=False)
     show_pan = Column(Boolean, default=False)
     gemini_api_key = Column(String(200), default="")
+    openai_api_key = Column(String(255), default="")
     default_language = Column(String(10), default="en") # en or gu
     envelope_template_format = Column(String(50), default="attachment_pdf") # attachment_pdf or marg_grid_22
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)

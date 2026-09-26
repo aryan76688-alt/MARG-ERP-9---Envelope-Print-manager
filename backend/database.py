@@ -52,6 +52,8 @@ def init_db():
             setting_cols = [row[1] for row in conn.exec_driver_sql("PRAGMA table_info(app_settings)").fetchall()]
             if "gemini_api_key" not in setting_cols:
                 conn.exec_driver_sql("ALTER TABLE app_settings ADD COLUMN gemini_api_key TEXT DEFAULT ''")
+            if "openai_api_key" not in setting_cols:
+                conn.exec_driver_sql("ALTER TABLE app_settings ADD COLUMN openai_api_key TEXT DEFAULT ''")
             if "default_language" not in setting_cols:
                 conn.exec_driver_sql("ALTER TABLE app_settings ADD COLUMN default_language TEXT DEFAULT 'en'")
             if "envelope_template_format" not in setting_cols:

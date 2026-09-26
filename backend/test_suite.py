@@ -197,6 +197,66 @@ def test_xlsx_exports_and_backup():
     print(f" -> Database Backup JSON exported: {len(backup_json['parties'])} parties saved")
     print("[PASS] XLSX exports and database backup passed.")
 
+def test_dual_brain_system():
+    print("\nTesting Dual Brain Architecture (OpenAI Big Brain + Gemini Small Brains)...")
+    # 1. Dual Brain Status
+    status_res = client.get("/api/ai/brain-status")
+    assert status_res.status_code == 200
+    st = status_res.json()
+    assert st["architecture"] == "dual_brain"
+    assert "big_brain" in st
+    assert "small_brains" in st
+    print(f" -> Dual Brain Status: Big Brain Provider={st['big_brain']['provider']}, Status={st['big_brain']['status']}")
+    print(f" -> Small Brain Status: Gemini Multi-Key Pool={st['small_brains']['key_pool_count']} keys active")
+
+    # 2. Big Brain UI Control
+    ui_res = client.post("/api/ai/big-brain/ui-control", json={
+        "party_data": {
+            "party_name": "SHREE SHIV MEDICOSE DAHEGAM",
+            "address": "NEAR BUS STAND, MAIN MARKET, DAHEGAM",
+            "city": "DAHEGAM",
+            "total_cases": 2
+        },
+        "template_format": "attachment_pdf",
+        "language": "bilingual",
+        "envelopes_per_page": 2
+    })
+    assert ui_res.status_code == 200
+    ui_data = ui_res.json()
+    assert ui_data["success"] is True
+    assert "ui_control" in ui_data
+    assert "recommended_scale_percent" in ui_data["ui_control"]
+    print(f" -> Big Brain UI Layout Control Recommendation: Scale={ui_data['ui_control']['recommended_scale_percent']}%, Headline={ui_data['ui_control'].get('headline')}")
+
+    # 3. Big Brain Dashboard Insights
+    insights_res = client.post("/api/ai/big-brain/dashboard-insights", json={
+        "stats_data": {
+            "total_parties": 1836,
+            "today_envelopes": 24,
+            "unprinted_today": 5,
+            "active_routes_count": 8,
+            "top_routes": ["DAHEGAM", "AHMEDABAD", "SURAT"],
+            "month_dispatches": 120
+        }
+    })
+    assert insights_res.status_code == 200
+    in_data = insights_res.json()
+    assert in_data["success"] is True
+    assert "daily_status_summary" in in_data["insights"]
+    print(f" -> Big Brain Dashboard Intelligence: Summary={in_data['insights']['daily_status_summary']}")
+
+    # 4. Big Brain Assistant Chat
+    chat_res = client.post("/api/ai/big-brain/chat", json={
+        "message": "What is the best layout format for 2-up printing on A4?",
+        "context_data": {"parties_count": 1836, "current_tab": "print"}
+    })
+    assert chat_res.status_code == 200
+    chat_data = chat_res.json()
+    assert chat_data["success"] is True
+    assert "reply" in chat_data and len(chat_data["reply"]) > 10
+    print(f" -> Big Brain Assistant Response: {chat_data['reply'][:90]}...")
+    print("[PASS] Dual Brain AI system endpoints verified successfully.")
+
 if __name__ == "__main__":
     test_dashboard()
     test_party_autocomplete_and_crud()
@@ -204,6 +264,8 @@ if __name__ == "__main__":
     job_id = test_print_job_creation_and_cases()
     test_pdf_generation(job_id)
     test_xlsx_exports_and_backup()
+    test_dual_brain_system()
     print("\n========================================================")
-    print("ALL 6 END-TO-END AUTOMATED VERIFICATION SUITES PASSED!")
+    print("ALL 7 END-TO-END AUTOMATED VERIFICATION SUITES PASSED!")
     print("========================================================")
+

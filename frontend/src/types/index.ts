@@ -56,9 +56,11 @@ export interface AppSettings {
   show_gst: boolean;
   show_pan: boolean;
   gemini_api_key?: string;
+  openai_api_key?: string;
   default_language?: 'en' | 'gu';
   envelope_template_format?: 'attachment_pdf' | 'marg_grid_22';
 }
+
 
 export interface CaseItem {
   case_number: number;
@@ -265,3 +267,58 @@ export interface ImportConfirmationResult {
   updated_parties?: { party_name: string; party_code?: string; status?: string }[];
   import_job_id?: number;
 }
+
+export interface BigBrainUiControlResult {
+  status: 'optimal' | 'warning' | 'dense';
+  recommended_template: 'attachment_pdf' | 'marg_grid_22';
+  recommended_scale_percent: number;
+  recommended_envelopes_per_page: number;
+  density_score: number;
+  headline: string;
+  recommendation: string;
+  layout_tips: string[];
+  ai_model: string;
+}
+
+export interface BigBrainDashboardInsights {
+  daily_status_summary: string;
+  efficiency_score: number;
+  route_highlights: string[];
+  actionable_suggestions: string[];
+  driver_coordination_note: string;
+  ai_model: string;
+}
+
+export interface BigBrainChatMessage {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp?: string;
+  model?: string;
+  notice?: string;
+}
+
+export interface DualBrainStatus {
+  status: string;
+  architecture: string;
+  big_brain: {
+    role: string;
+    provider: string;
+    status: string;
+    primary_model: string;
+    fallback_model: string;
+    masked_key: string;
+    configured: boolean;
+  };
+  small_brains: {
+    role: string;
+    provider: string;
+    status: string;
+    primary_model: string;
+    available_models: string[];
+    key_pool_count: number;
+    keys: string[];
+    background_translator?: any;
+    capabilities: string[];
+  };
+}
+

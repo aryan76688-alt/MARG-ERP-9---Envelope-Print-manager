@@ -34,7 +34,8 @@ import {
   Lock,
   Unlock,
   History,
-  X
+  X,
+  Brain
 } from 'lucide-react';
 import { 
   Party, 
@@ -42,7 +43,8 @@ import {
   AppSettings, 
   CaseItem, 
   CaseBreakdownItem, 
-  UnprintedPartyItem 
+  UnprintedPartyItem,
+  BigBrainUiControlResult
 } from '../types';
 import { 
   autocompleteParties, 
@@ -55,8 +57,10 @@ import {
   fetchUnprintedPartiesToday,
   translatePartyToGujarati,
   parseMargTextWithAI,
-  batchTranslateParties
+  batchTranslateParties,
+  fetchBigBrainUiControl
 } from '../api/client';
+
 import { EnvelopeTemplate } from '../print/EnvelopeTemplate';
 import { FullScreenPreviewModal } from '../components/FullScreenPreviewModal';
 
@@ -174,7 +178,49 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
   const [isEditReprintMode, setIsEditReprintMode] = useState<boolean>(!!reprintJob);
   const [editingJobId, setEditingJobId] = useState<number | null>(reprintJob?.id || null);
 
+  // Big Brain UI Layout Control Advisor
+  const [bigBrainAdvice, setBigBrainAdvice] = useState<BigBrainUiControlResult | null>(null);
+  const [isBigBrainAnalyzing, setIsBigBrainAnalyzing] = useState<boolean>(false);
+
+  const handleBigBrainLayoutCheck = async () => {
+    if (!selectedParty) return;
+    setIsBigBrainAnalyzing(true);
+    try {
+      const res = await fetchBigBrainUiControl({
+        party_data: {
+          ...selectedParty,
+          total_cases: totalPackagesCount,
+          case_breakdown: activeCaseBreakdown
+        },
+        template_format: selectedTemplate,
+        language: selectedLanguage,
+        envelopes_per_page: envelopesPerPage
+      });
+      if (res.success && res.ui_control) {
+        setBigBrainAdvice(res.ui_control);
+      }
+    } catch (err) {
+      console.warn('Big Brain Layout check error:', err);
+    } finally {
+      setIsBigBrainAnalyzing(false);
+    }
+  };
+
+  const handleApplyBigBrainAdvice = () => {
+    if (!bigBrainAdvice) return;
+    if (bigBrainAdvice.recommended_template) {
+      setSelectedTemplate(bigBrainAdvice.recommended_template);
+    }
+    if (bigBrainAdvice.recommended_envelopes_per_page) {
+      setEnvelopesPerPage(bigBrainAdvice.recommended_envelopes_per_page);
+    }
+    if (bigBrainAdvice.recommended_scale_percent) {
+      setPreviewZoom(bigBrainAdvice.recommended_scale_percent / 100);
+    }
+  };
+
   const searchInputRef = useRef<HTMLInputElement>(null);
+
 
   // Compute Active Non-Zero Breakdown Items (0 quantities excluded)
   const activeCaseBreakdown = useMemo<CaseBreakdownItem[]>(() => {
@@ -1832,8 +1878,82 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
             </div>
           </div>
 
+          {/* Big Brain UI Layout Control Advisor */}
+          <div className="bg-gradient-to-r from-purple-50 via-indigo-50 to-blue-50 border border-purple-200/90 rounded-xl p-3 space-y-2 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-purple-700 to-indigo-600 text-white flex items-center justify-center shadow-sm">
+                  <Brain className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-purple-950">Big Brain Layout Control</span>
+                    <span className="text-[10px] font-semibold px-1.5 py-0.2 bg-purple-200/80 text-purple-800 rounded">
+                      ChatGPT
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-purple-700">Intelligent density verification & UI scaling advisor</p>
+                </div>
+              </div>
+
+              <button
+                onClick={handleBigBrainLayoutCheck}
+                disabled={!selectedParty || isBigBrainAnalyzing}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white shadow-sm transition-all active:scale-95"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-yellow-300" />
+                <span>{isBigBrainAnalyzing ? 'Analyzing...' : 'Advisor Check'}</span>
+              </button>
+            </div>
+
+            {bigBrainAdvice && (
+              <div className="bg-white/95 rounded-lg p-2.5 border border-purple-200 space-y-2 text-xs text-slate-800">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-purple-900 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    {bigBrainAdvice.headline || 'Layout Recommendation'}
+                  </span>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
+                    bigBrainAdvice.status === 'optimal'
+                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                      : bigBrainAdvice.status === 'dense'
+                      ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                      : 'bg-blue-100 text-blue-800 border border-blue-300'
+                  }`}>
+                    {bigBrainAdvice.status}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  {bigBrainAdvice.recommendation}
+                </p>
+                {bigBrainAdvice.layout_tips && bigBrainAdvice.layout_tips.length > 0 && (
+                  <div className="text-[10px] text-slate-500 bg-slate-50 rounded p-1.5 border border-slate-100 space-y-0.5">
+                    {bigBrainAdvice.layout_tips.map((tip, idx) => (
+                      <div key={idx} className="flex items-center gap-1">
+                        <span className="text-purple-600 font-bold">•</span>
+                        <span>{tip}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="flex items-center justify-between pt-1 border-t border-purple-100 text-[11px]">
+                  <span className="text-slate-600">
+                    Template: <strong>{bigBrainAdvice.recommended_template === 'attachment_pdf' ? 'Attachment PDF' : 'Classic Grid'}</strong> • Scale: <strong>{bigBrainAdvice.recommended_scale_percent}%</strong>
+                  </span>
+                  <button
+                    onClick={handleApplyBigBrainAdvice}
+                    className="px-2.5 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded font-bold text-[11px] shadow-sm transition-colors"
+                  >
+                    Apply Layout Controls
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Envelope Preview Canvas */}
           <div className="bg-slate-100 p-4 rounded-xl border border-slate-200 overflow-hidden flex items-center justify-center min-h-[380px] shadow-inner relative">
+
             {selectedParty ? (
               <div className="overflow-auto max-w-full flex justify-center py-2">
                 <EnvelopeTemplate
