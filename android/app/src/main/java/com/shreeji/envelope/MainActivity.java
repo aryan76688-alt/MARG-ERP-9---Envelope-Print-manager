@@ -31,8 +31,8 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 public class MainActivity extends AppCompatActivity {
 
-    public static final String APP_URL = "https://envelope.shreeji7.com";
-    public static final String FALLBACK_URL = "https://marg-envelope-manager-production.up.railway.app";
+    public static final String APP_URL = "https://envelope.shreeji7.com/?mode=mobile";
+    public static final String FALLBACK_URL = "https://marg-envelope-manager-production.up.railway.app/?mode=mobile";
 
     private WebView webView;
     private SwipeRefreshLayout swipeRefreshLayout;

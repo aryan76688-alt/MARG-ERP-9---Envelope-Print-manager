@@ -2773,6 +2773,22 @@ def test_gemini_key(req: AITestKeyRequest):
     res = ai_service.test_connection(req.api_key)
     return res
 
+@app.get("/api/download/apk")
+def download_android_apk():
+    """Serves the Android APK for easy employee and admin mobile installation."""
+    apk_paths = [
+        os.path.join(os.path.dirname(__file__), "..", "android", "app", "build", "outputs", "apk", "debug", "app-debug.apk"),
+        os.path.join(os.path.dirname(__file__), "static", "downloads", "EnvelopeManager.apk"),
+    ]
+    for p in apk_paths:
+        if os.path.exists(p):
+            return FileResponse(
+                p, 
+                media_type="application/vnd.android.package-archive", 
+                filename="ShreejiEnvelopeManager.apk"
+            )
+    raise HTTPException(status_code=404, detail="APK build in progress or not yet available.")
+
 
 # Custom static file server with immutable caching for fingerprinted assets
 class CachedStaticFiles(StaticFiles):
