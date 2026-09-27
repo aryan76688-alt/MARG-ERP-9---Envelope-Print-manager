@@ -31,8 +31,8 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 public class MainActivity extends AppCompatActivity {
 
-    public static final String APP_URL = "https://envelope.shreeji7.com/?mode=mobile";
-    public static final String FALLBACK_URL = "https://marg-envelope-manager-production.up.railway.app/?mode=mobile";
+    public static final String APP_URL = "https://marg-envelope-manager-production.up.railway.app/?mode=mobile";
+    public static final String FALLBACK_URL = "https://envelope.shreeji7.com/?mode=mobile";
 
     private WebView webView;
     private SwipeRefreshLayout swipeRefreshLayout;
@@ -206,8 +206,12 @@ public class MainActivity extends AppCompatActivity {
                 if (request.isForMainFrame()) {
                     progressBar.setVisibility(View.GONE);
                     swipeRefreshLayout.setRefreshing(false);
-                    // Only show error layout if completely failed to load main frame
-                    if (view.getUrl() == null || view.getUrl().equals(APP_URL)) {
+                    String currentUrl = request.getUrl() != null ? request.getUrl().toString() : "";
+                    if (currentUrl.contains("shreeji7.com") && !currentUrl.contains("railway.app")) {
+                        webView.loadUrl(APP_URL);
+                    } else if (currentUrl.contains("railway.app") && !FALLBACK_URL.isEmpty()) {
+                        webView.loadUrl(FALLBACK_URL);
+                    } else {
                         webView.setVisibility(View.GONE);
                         errorLayout.setVisibility(View.VISIBLE);
                     }
