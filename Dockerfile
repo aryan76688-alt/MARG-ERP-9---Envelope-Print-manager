@@ -24,6 +24,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     fonts-indic \
     fonts-deva \
     ghostscript \
+    rclone \
+    curl \
+    ca-certificates \
+    libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

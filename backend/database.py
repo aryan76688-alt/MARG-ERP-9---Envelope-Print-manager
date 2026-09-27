@@ -1,17 +1,35 @@
 import os
 import datetime
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import sessionmaker, Session
 from models import Base, Party, SenderSettings, AppSettings, PrintJob, PrintCase, User
 import barcode_generator
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "envelope_manager.db")
-DATABASE_URL = f"sqlite:///{DB_PATH}"
+RAW_DATABASE_URL = os.environ.get("DATABASE_URL")
+if RAW_DATABASE_URL:
+    if RAW_DATABASE_URL.startswith("postgres://"):
+        DATABASE_URL = RAW_DATABASE_URL.replace("postgres://", "postgresql://", 1)
+    else:
+        DATABASE_URL = RAW_DATABASE_URL
+    is_sqlite = False
+else:
+    DB_PATH = os.path.join(os.path.dirname(__file__), "envelope_manager.db")
+    DATABASE_URL = f"sqlite:///{DB_PATH}"
+    is_sqlite = True
 
-engine = create_engine(
-    DATABASE_URL, 
-    connect_args={"check_same_thread": False}
-)
+if is_sqlite:
+    engine = create_engine(
+        DATABASE_URL, 
+        connect_args={"check_same_thread": False}
+    )
+else:
+    engine = create_engine(
+        DATABASE_URL,
+        pool_pre_ping=True,
+        pool_recycle=300,
+        pool_size=10,
+        max_overflow=20
+    )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -22,85 +40,96 @@ def get_db():
     finally:
         db.close()
 
+def get_db_system_info():
+    """Returns database type and connection health metadata."""
+    db = SessionLocal()
+    try:
+        parties_count = db.query(Party).count()
+        jobs_count = db.query(PrintJob).count()
+        users_count = db.query(User).count()
+        return {
+            "type": "PostgreSQL" if not is_sqlite else "SQLite",
+            "is_postgres": not is_sqlite,
+            "connected": True,
+            "parties_count": parties_count,
+            "jobs_count": jobs_count,
+            "users_count": users_count,
+        }
+    except Exception as e:
+        return {
+            "type": "PostgreSQL" if not is_sqlite else "SQLite",
+            "is_postgres": not is_sqlite,
+            "connected": False,
+            "error": str(e)
+        }
+    finally:
+        db.close()
+
 def init_db():
     """Initializes schema and seeds realistic MARG ERP demo data if database is empty."""
     Base.metadata.create_all(bind=engine)
     
-    # Safe SQLite column migrations
-    with engine.connect() as conn:
-        try:
-            party_cols = [row[1] for row in conn.exec_driver_sql("PRAGMA table_info(parties)").fetchall()]
-            if "address_line_2" not in party_cols:
-                conn.exec_driver_sql("ALTER TABLE parties ADD COLUMN address_line_2 TEXT")
-            if "address_line_3" not in party_cols:
-                conn.exec_driver_sql("ALTER TABLE parties ADD COLUMN address_line_3 TEXT")
-            if "party_name_gu" not in party_cols:
-                conn.exec_driver_sql("ALTER TABLE parties ADD COLUMN party_name_gu TEXT")
-            if "address_gu" not in party_cols:
-                conn.exec_driver_sql("ALTER TABLE parties ADD COLUMN address_gu TEXT")
-            if "city_gu" not in party_cols:
-                conn.exec_driver_sql("ALTER TABLE parties ADD COLUMN city_gu TEXT")
-            if "state_gu" not in party_cols:
-                conn.exec_driver_sql("ALTER TABLE parties ADD COLUMN state_gu TEXT")
-            if "address_line_2_gu" not in party_cols:
-                conn.exec_driver_sql("ALTER TABLE parties ADD COLUMN address_line_2_gu TEXT")
-            if "address_line_3_gu" not in party_cols:
-                conn.exec_driver_sql("ALTER TABLE parties ADD COLUMN address_line_3_gu TEXT")
-            if "route" not in party_cols:
-                conn.exec_driver_sql("ALTER TABLE parties ADD COLUMN route TEXT")
-            
-            setting_cols = [row[1] for row in conn.exec_driver_sql("PRAGMA table_info(app_settings)").fetchall()]
-            if "gemini_api_key" not in setting_cols:
-                conn.exec_driver_sql("ALTER TABLE app_settings ADD COLUMN gemini_api_key TEXT DEFAULT ''")
-            if "openai_api_key" not in setting_cols:
-                conn.exec_driver_sql("ALTER TABLE app_settings ADD COLUMN openai_api_key TEXT DEFAULT ''")
-            if "default_language" not in setting_cols:
-                conn.exec_driver_sql("ALTER TABLE app_settings ADD COLUMN default_language TEXT DEFAULT 'en'")
-            if "envelope_template_format" not in setting_cols:
-                conn.exec_driver_sql("ALTER TABLE app_settings ADD COLUMN envelope_template_format TEXT DEFAULT 'attachment_pdf'")
+    # Universal database-agnostic column migrations
+    try:
+        inspector = inspect(engine)
+        def ensure_columns(table_name, columns_spec):
+            try:
+                existing = {c["name"] for c in inspector.get_columns(table_name)}
+            except Exception:
+                existing = set()
+            with engine.connect() as conn:
+                for col_name, col_type, default_val in columns_spec:
+                    if col_name not in existing:
+                        try:
+                            default_clause = f" DEFAULT {default_val}" if default_val is not None else ""
+                            conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_type}{default_clause}"))
+                            conn.commit()
+                        except Exception as e:
+                            print(f"Migration note for {table_name}.{col_name}: {e}")
 
-            job_cols = [row[1] for row in conn.exec_driver_sql("PRAGMA table_info(print_jobs)").fetchall()]
-            if "party_address_line_2_snap" not in job_cols:
-                conn.exec_driver_sql("ALTER TABLE print_jobs ADD COLUMN party_address_line_2_snap TEXT")
-            if "party_address_line_3_snap" not in job_cols:
-                conn.exec_driver_sql("ALTER TABLE print_jobs ADD COLUMN party_address_line_3_snap TEXT")
-            if "case_breakdown_json" not in job_cols:
-                conn.exec_driver_sql("ALTER TABLE print_jobs ADD COLUMN case_breakdown_json TEXT")
-            if "delivery_boy_name" not in job_cols:
-                conn.exec_driver_sql("ALTER TABLE print_jobs ADD COLUMN delivery_boy_name TEXT")
-            if "delivery_route" not in job_cols:
-                conn.exec_driver_sql("ALTER TABLE print_jobs ADD COLUMN delivery_route TEXT")
-            if "language" not in job_cols:
-                conn.exec_driver_sql("ALTER TABLE print_jobs ADD COLUMN language TEXT DEFAULT 'en'")
-            if "template_format" not in job_cols:
-                conn.exec_driver_sql("ALTER TABLE print_jobs ADD COLUMN template_format TEXT DEFAULT 'attachment_pdf'")
-            if "created_by" not in job_cols:
-                conn.exec_driver_sql("ALTER TABLE print_jobs ADD COLUMN created_by TEXT DEFAULT 'Admin'")
+        ensure_columns("parties", [
+            ("address_line_2", "TEXT", None),
+            ("address_line_3", "TEXT", None),
+            ("party_name_gu", "TEXT", None),
+            ("address_gu", "TEXT", None),
+            ("city_gu", "TEXT", None),
+            ("state_gu", "TEXT", None),
+            ("address_line_2_gu", "TEXT", None),
+            ("address_line_3_gu", "TEXT", None),
+            ("route", "TEXT", None),
+        ])
 
-            if "auto_backup_enabled" not in setting_cols:
-                conn.exec_driver_sql("ALTER TABLE app_settings ADD COLUMN auto_backup_enabled BOOLEAN DEFAULT 1")
-            if "auto_backup_time" not in setting_cols:
-                conn.exec_driver_sql("ALTER TABLE app_settings ADD COLUMN auto_backup_time TEXT DEFAULT '20:00'")
-            if "rclone_remote_name" not in setting_cols:
-                conn.exec_driver_sql("ALTER TABLE app_settings ADD COLUMN rclone_remote_name TEXT DEFAULT 'gdrive'")
-            if "rclone_backup_path" not in setting_cols:
-                conn.exec_driver_sql("ALTER TABLE app_settings ADD COLUMN rclone_backup_path TEXT DEFAULT 'MARG_Backups'")
-            if "last_backup_time" not in setting_cols:
-                conn.exec_driver_sql("ALTER TABLE app_settings ADD COLUMN last_backup_time TIMESTAMP")
-            if "last_backup_status" not in setting_cols:
-                conn.exec_driver_sql("ALTER TABLE app_settings ADD COLUMN last_backup_status TEXT")
-            
-            user_cols = [row[1] for row in conn.exec_driver_sql("PRAGMA table_info(users)").fetchall()]
-            if "role" not in user_cols:
-                conn.exec_driver_sql("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'employee'")
-            if "permissions" not in user_cols:
-                conn.exec_driver_sql("ALTER TABLE users ADD COLUMN permissions TEXT")
-            if "is_active" not in user_cols:
-                conn.exec_driver_sql("ALTER TABLE users ADD COLUMN is_active BOOLEAN DEFAULT 1")
-            
-            conn.commit()
-        except Exception as e:
-            print(f"Migration notice: {e}")
+        ensure_columns("app_settings", [
+            ("gemini_api_key", "TEXT", "''"),
+            ("openai_api_key", "TEXT", "''"),
+            ("default_language", "TEXT", "'en'"),
+            ("envelope_template_format", "TEXT", "'attachment_pdf'"),
+            ("auto_backup_enabled", "BOOLEAN", "1"),
+            ("auto_backup_time", "TEXT", "'20:00'"),
+            ("rclone_remote_name", "TEXT", "'gdrive'"),
+            ("rclone_backup_path", "TEXT", "'MARG_Backups'"),
+            ("last_backup_time", "TIMESTAMP", None),
+            ("last_backup_status", "TEXT", None),
+        ])
+
+        ensure_columns("print_jobs", [
+            ("party_address_line_2_snap", "TEXT", None),
+            ("party_address_line_3_snap", "TEXT", None),
+            ("case_breakdown_json", "TEXT", None),
+            ("delivery_boy_name", "TEXT", None),
+            ("delivery_route", "TEXT", None),
+            ("language", "TEXT", "'en'"),
+            ("template_format", "TEXT", "'attachment_pdf'"),
+            ("created_by", "TEXT", "'Admin'"),
+        ])
+
+        ensure_columns("users", [
+            ("role", "TEXT", "'employee'"),
+            ("permissions", "TEXT", None),
+            ("is_active", "BOOLEAN", "1"),
+        ])
+    except Exception as mig_err:
+        print(f"Column inspector migration notice: {mig_err}")
 
     import bcrypt
     
@@ -177,16 +206,40 @@ def init_db():
                 show_date=False,
                 show_gst=False,
                 show_pan=False,
-                gemini_api_key="AQ." + "Ab8RN6KJLjFrTyGJh1Xw6SaEta7FexKhNkghpTvTH7CsHJJ-Tg",
-                openai_api_key="AQ." + "Ab8RN6K29_vEWc7D16MIequ-fe7FArRV6b96moxHRJotJE7nJA"
+                gemini_api_key="AQ." + "Ab8RN6KJLjFrTyGJh1Xw6SaEta7FexKhNkghpTvTH7CsHJJ-Tg"
             )
             db.add(app_settings)
         else:
             # Update existing settings with new keys if they are blank or old
             app_settings.gemini_api_key = "AQ." + "Ab8RN6KJLjFrTyGJh1Xw6SaEta7FexKhNkghpTvTH7CsHJJ-Tg"
-            app_settings.openai_api_key = "AQ." + "Ab8RN6K29_vEWc7D16MIequ-fe7FArRV6b96moxHRJotJE7nJA"
+        # 4. Check if migrating existing SQLite database to PostgreSQL
+        sqlite_file = os.path.join(os.path.dirname(__file__), "envelope_manager.db")
+        if not is_sqlite and os.path.exists(sqlite_file) and db.query(Party).count() == 0:
+            try:
+                from sqlalchemy.orm import sessionmaker as sm
+                sqlite_engine = create_engine(f"sqlite:///{sqlite_file}", connect_args={"check_same_thread": False})
+                SqliteSession = sm(bind=sqlite_engine)
+                sdb = SqliteSession()
+                sqlite_parties = sdb.query(Party).all()
+                if sqlite_parties:
+                    print(f"Auto-migrating {len(sqlite_parties)} parties from SQLite to PostgreSQL database system...")
+                    for p in sqlite_parties:
+                        db.add(Party(
+                            party_name=p.party_name, party_code=p.party_code,
+                            address=p.address, address_line_2=p.address_line_2, address_line_3=p.address_line_3,
+                            city=p.city, state=p.state, mobile_no=p.mobile_no, landline=p.landline,
+                            email=p.email, gst_no=p.gst_no, notes=p.notes,
+                            party_name_gu=p.party_name_gu, address_gu=p.address_gu,
+                            address_line_2_gu=p.address_line_2_gu, address_line_3_gu=p.address_line_3_gu,
+                            city_gu=p.city_gu, state_gu=p.state_gu, route=p.route, is_active=p.is_active
+                        ))
+                    db.commit()
+                    print("Auto-migration to PostgreSQL completed successfully.")
+                sdb.close()
+            except Exception as mig_err:
+                print(f"Auto-migration notice: {mig_err}")
 
-        # 4. Check or Seed MARG ERP Parties
+        # 5. Check or Seed MARG ERP Parties if still empty
         if db.query(Party).count() == 0:
             demo_parties = [
                 {

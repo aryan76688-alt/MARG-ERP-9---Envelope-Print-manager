@@ -39,6 +39,30 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
   const [currentDate, setCurrentDate] = useState<string>('');
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
   const [notificationsOpen, setNotificationsOpen] = useState<boolean>(false);
+  const [tabHistory, setTabHistory] = useState<string[]>(['dashboard']);
+
+  const handleTabChange = (newTab: string) => {
+    if (newTab !== currentTab) {
+      setTabHistory((prev) => [...prev, newTab]);
+      setCurrentTab(newTab);
+    }
+  };
+
+  const handleMobileBack = () => {
+    if (canGoBack && onGoBack) {
+      onGoBack();
+      return;
+    }
+    if (tabHistory.length > 1) {
+      const nextHistory = [...tabHistory];
+      nextHistory.pop(); // remove current
+      const prevTab = nextHistory[nextHistory.length - 1];
+      setTabHistory(nextHistory);
+      setCurrentTab(prevTab);
+    } else if (currentTab !== 'dashboard') {
+      setCurrentTab('dashboard');
+    }
+  };
 
   // Live Digital Clock & Date
   useEffect(() => {
@@ -321,9 +345,104 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
         </header>
 
         {/* Page Content Body */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-100">
+        <main className="flex-1 overflow-y-auto p-3 sm:p-6 bg-slate-100 pb-28 md:pb-6">
           {children}
         </main>
+
+        {/* Mobile System Navigation Bar (Android System Navigation Buttons) */}
+        <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 flex flex-col bg-slate-950/95 backdrop-blur-md border-t border-slate-800 select-none shadow-2xl no-print">
+          {/* Top Tier: Primary Mobile App Tabs */}
+          <div className="flex items-center justify-around px-2 py-1.5 border-b border-slate-800/60">
+            <button
+              type="button"
+              onClick={() => handleTabChange('dashboard')}
+              className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg transition-all ${
+                currentTab === 'dashboard' ? 'text-blue-400 font-extrabold' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <LayoutDashboard className="w-5 h-5" />
+              <span className="text-[10px]">Home</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleTabChange('parties')}
+              className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg transition-all ${
+                currentTab === 'parties' ? 'text-blue-400 font-extrabold' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Users className="w-5 h-5" />
+              <span className="text-[10px]">Parties</span>
+            </button>
+
+            {/* Central Primary Print Action Button */}
+            <button
+              type="button"
+              onClick={() => handleTabChange('print')}
+              className={`flex flex-col items-center -mt-4 p-2.5 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-500 text-white shadow-lg shadow-blue-600/40 ring-4 ring-slate-950 transition-transform active:scale-95 ${
+                currentTab === 'print' ? 'scale-105 from-blue-500 to-indigo-400 ring-blue-500/50' : ''
+              }`}
+              title="Print Envelope"
+            >
+              <Printer className="w-5 h-5" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleTabChange('history')}
+              className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg transition-all ${
+                currentTab === 'history' ? 'text-blue-400 font-extrabold' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <History className="w-5 h-5" />
+              <span className="text-[10px]">History</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleTabChange('settings')}
+              className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg transition-all ${
+                currentTab === 'settings' ? 'text-blue-400 font-extrabold' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <SettingsIcon className="w-5 h-5" />
+              <span className="text-[10px]">Settings</span>
+            </button>
+          </div>
+
+          {/* Bottom Tier: Mobile System Navigation Buttons (◀ Back, ● Home, ≡ Menu) */}
+          <div className="flex items-center justify-around h-8 px-8 bg-black/50 text-slate-400">
+            <button
+              type="button"
+              onClick={handleMobileBack}
+              className="p-1 px-5 text-slate-400 hover:text-white active:scale-90 transition-transform flex items-center justify-center"
+              title="System Back Button"
+              aria-label="Back"
+            >
+              <span className="text-sm font-bold tracking-tighter">◀</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleTabChange('dashboard')}
+              className="p-1 px-5 text-slate-400 hover:text-white active:scale-90 transition-transform flex items-center justify-center"
+              title="System Home Button"
+              aria-label="Home"
+            >
+              <span className="text-lg leading-none">●</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(true)}
+              className="p-1 px-5 text-slate-400 hover:text-white active:scale-90 transition-transform flex items-center justify-center"
+              title="System Menu / Recents Button"
+              aria-label="Menu"
+            >
+              <span className="text-base font-bold leading-none">≡</span>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

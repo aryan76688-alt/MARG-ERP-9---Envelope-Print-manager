@@ -56,7 +56,6 @@ export interface AppSettings {
   show_gst: boolean;
   show_pan: boolean;
   gemini_api_key?: string;
-  openai_api_key?: string;
   default_language?: 'en' | 'gu';
   envelope_template_format?: 'attachment_pdf' | 'marg_grid_22';
   auto_backup_enabled?: boolean;

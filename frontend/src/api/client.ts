@@ -492,15 +492,15 @@ export async function fetchBrainStatus(): Promise<DualBrainStatus> {
   return res.json();
 }
 
-export async function testOpenAIApi(apiKey?: string): Promise<{ success: boolean; message: string; model?: string; output?: string }> {
-  const res = await fetchApi(`${API_BASE}/ai/openai/test`, {
+export async function testGeminiApi(apiKey?: string): Promise<{ success: boolean; message: string; model?: string; output?: string }> {
+  const res = await fetchApi(`${API_BASE}/ai/gemini/test`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ api_key: apiKey }),
   });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: 'OpenAI Big Brain connection test failed' }));
-    throw new Error(err.detail || 'OpenAI Big Brain connection test failed');
+    const err = await res.json().catch(() => ({ detail: 'Gemini Big Brain connection test failed' }));
+    throw new Error(err.detail || 'Gemini Big Brain connection test failed');
   }
   return res.json();
 }
@@ -860,6 +860,7 @@ export interface BackupSettingsData {
   rclone_backup_path: string;
   last_backup_time?: string | null;
   last_backup_status?: string | null;
+  google_account?: string | null;
 }
 
 export async function fetchBackupSettings(): Promise<BackupSettingsData> {

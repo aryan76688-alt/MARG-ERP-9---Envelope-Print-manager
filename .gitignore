@@ -13,3 +13,6 @@ __pycache__/
 scratch/
 .agents/
 backend/backups/
+android/.gradle/
+android/build/
+android/local.properties

@@ -23,6 +23,7 @@ import subprocess
 import shutil
 import threading
 import time
+import base64
 import auth as auth_module
 from pathlib import Path
 
@@ -54,6 +55,22 @@ app.add_middleware(
 )
 
 # Rclone Auto Cloud Backup Service & Scheduler
+def ensure_rclone_config():
+    """Ensures rclone.conf is available on disk, reading from RCLONE_CONFIG_BASE64 env var if needed."""
+    conf_dir = os.path.expanduser("~/.config/rclone")
+    conf_file = os.path.join(conf_dir, "rclone.conf")
+    if not os.path.exists(conf_file) or os.path.getsize(conf_file) == 0:
+        b64 = os.environ.get("RCLONE_CONFIG_BASE64", "").strip()
+        if b64:
+            try:
+                decoded = base64.b64decode(b64).decode("utf-8")
+                os.makedirs(conf_dir, exist_ok=True)
+                with open(conf_file, "w", encoding="utf-8") as f:
+                    f.write(decoded)
+                print("[Rclone] Config successfully written from RCLONE_CONFIG_BASE64.")
+            except Exception as e:
+                print("[Rclone] Failed to decode RCLONE_CONFIG_BASE64:", e)
+
 def find_rclone_bin():
     candidates = [
         shutil.which("rclone"),
@@ -98,6 +115,8 @@ def perform_rclone_backup(db: Session, remote_name: str = "gdrive", backup_path:
             _update_backup_status(db, now_dt, status_msg)
             return {"success": False, "message": status_msg}
 
+        ensure_rclone_config()
+
         rclone_bin = find_rclone_bin()
         if not rclone_bin:
             status_msg += " (rclone executable not found; cloud sync skipped)"
@@ -108,7 +127,11 @@ def perform_rclone_backup(db: Session, remote_name: str = "gdrive", backup_path:
         clean_path = (backup_path or "MARG_Backups").strip().lstrip("/")
         remote_target = f"{clean_remote}:{clean_path}"
 
-        cmd = [rclone_bin, "copy", backups_dir, remote_target]
+        conf_file = os.path.expanduser("~/.config/rclone/rclone.conf")
+        cmd = [rclone_bin]
+        if os.path.exists(conf_file):
+            cmd.extend(["--config", conf_file])
+        cmd.extend(["copy", backups_dir, remote_target])
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
 
         if result.returncode == 0:
@@ -341,7 +364,7 @@ class AIParseSmartRequest(BaseModel):
 class AITestKeyRequest(BaseModel):
     api_key: Optional[str] = None
 
-class OpenAITestKeyRequest(BaseModel):
+class GeminiTestKeyRequest(BaseModel):
     api_key: Optional[str] = None
 
 class BigBrainUiControlRequest(BaseModel):
@@ -1730,7 +1753,6 @@ def get_settings(db: Session = Depends(get_db)):
             "show_gst": app_set.show_gst,
             "show_pan": app_set.show_pan,
             "gemini_api_key": app_set.gemini_api_key or os.environ.get("GEMINI_API_KEY", ""),
-            "openai_api_key": getattr(app_set, "openai_api_key", "") or os.environ.get("OPENAI_API_KEY", ""),
             "default_language": getattr(app_set, "default_language", "en") or "en",
             "envelope_template_format": getattr(app_set, "envelope_template_format", "attachment_pdf") or "attachment_pdf"
         }
@@ -1781,8 +1803,6 @@ def update_settings(payload: Dict[str, Any], db: Session = Depends(get_db)):
         app_set.show_pan = bool(a_data.get("show_pan", app_set.show_pan))
         if "gemini_api_key" in a_data:
             app_set.gemini_api_key = a_data["gemini_api_key"].strip()
-        if "openai_api_key" in a_data:
-            app_set.openai_api_key = a_data["openai_api_key"].strip()
         if "default_language" in a_data:
             app_set.default_language = a_data["default_language"].strip()
         if "envelope_template_format" in a_data:
@@ -2397,13 +2417,16 @@ def import_database_backup(backup_data: Dict[str, Any], db: Session = Depends(ge
 @app.get("/api/backup/settings")
 def get_backup_settings(db: Session = Depends(get_db)):
     app_set = db.query(AppSettings).first()
+    sender = db.query(SenderSettings).first()
+    g_email = (sender.email if sender and sender.email else "shreejiseven@gmail.com") or "shreejiseven@gmail.com"
     return {
         "auto_backup_enabled": getattr(app_set, "auto_backup_enabled", True) if app_set else True,
         "auto_backup_time": getattr(app_set, "auto_backup_time", "20:00") or "20:00",
         "rclone_remote_name": getattr(app_set, "rclone_remote_name", "gdrive") or "gdrive",
         "rclone_backup_path": getattr(app_set, "rclone_backup_path", "MARG_Backups") or "MARG_Backups",
         "last_backup_time": app_set.last_backup_time.strftime("%d-%m-%Y %I:%M %p") if app_set and app_set.last_backup_time else None,
-        "last_backup_status": getattr(app_set, "last_backup_status", None) if app_set else None
+        "last_backup_status": getattr(app_set, "last_backup_status", None) if app_set else None,
+        "google_account": g_email
     }
 
 @app.put("/api/backup/settings")
@@ -2585,16 +2608,16 @@ def get_translation_status():
 
 @app.get("/api/ai/brain-status")
 def get_ai_brain_status(db: Session = Depends(get_db)):
-    """Returns Dual AI Brain core status: Big Brain (OpenAI) + Small Brains (Gemini multi-key pool)."""
+    """Returns AI Brain core status: Gemini-powered Big Brain + Small Brains."""
     gemini_status = ai_service.get_brain_status()
-    openai_status = openai_service.get_brain_status()
+    big_brain_status = openai_service.get_brain_status()
     return {
         "status": "active",
-        "architecture": "dual_brain",
+        "architecture": "gemini_unified",
         "big_brain": {
             "role": "Master UI Design, PDF Print Layout Control, Dashboard Intelligence, Assistant Chat",
-            "provider": "OpenAI ChatGPT",
-            **openai_status
+            "provider": "Google Gemini",
+            **big_brain_status
         },
         "small_brains": {
             "role": "High-Speed Batch Gujarati Translations, Address Parsing, Data Support",
@@ -2605,22 +2628,23 @@ def get_ai_brain_status(db: Session = Depends(get_db)):
 
 @app.post("/api/ai/openai/test")
 @app.post("/api/ai/big-brain/test")
-def test_openai_key(req: Optional[OpenAITestKeyRequest] = None, db: Session = Depends(get_db)):
-    """Tests connectivity to OpenAI Big Brain API."""
+@app.post("/api/ai/gemini/test")
+def test_gemini_big_brain(req: Optional[GeminiTestKeyRequest] = None, db: Session = Depends(get_db)):
+    """Tests connectivity to Gemini Big Brain API."""
     key = None
     if req and req.api_key:
         key = req.api_key.strip()
     else:
         app_set = db.query(AppSettings).first()
-        if app_set and getattr(app_set, "openai_api_key", None):
-            key = app_set.openai_api_key.strip()
+        if app_set and getattr(app_set, "gemini_api_key", None):
+            key = app_set.gemini_api_key.strip()
     return openai_service.test_connection(api_key=key)
 
 @app.post("/api/ai/big-brain/ui-control")
 def big_brain_ui_control(req: BigBrainUiControlRequest, db: Session = Depends(get_db)):
-    """OpenAI Big Brain analyzes print layout & recipient data to recommend optimal font scaling, margins, and template layout."""
+    """Gemini Big Brain analyzes print layout & recipient data to recommend optimal font scaling, margins, and template layout."""
     app_set = db.query(AppSettings).first()
-    key = req.api_key or (getattr(app_set, "openai_api_key", None) if app_set else None)
+    key = req.api_key or (getattr(app_set, "gemini_api_key", None) if app_set else None)
     party_dict = req.party_data or {}
     res = openai_service.analyze_ui_layout_control(
         party_data=party_dict,
@@ -2633,9 +2657,9 @@ def big_brain_ui_control(req: BigBrainUiControlRequest, db: Session = Depends(ge
 
 @app.post("/api/ai/big-brain/dashboard-insights")
 def big_brain_dashboard_insights(req: BigBrainInsightsRequest, db: Session = Depends(get_db)):
-    """OpenAI Big Brain synthesizes executive dashboard logistics intelligence and route suggestions."""
+    """Gemini Big Brain synthesizes executive dashboard logistics intelligence and route suggestions."""
     app_set = db.query(AppSettings).first()
-    key = req.api_key or (getattr(app_set, "openai_api_key", None) if app_set else None)
+    key = req.api_key or (getattr(app_set, "gemini_api_key", None) if app_set else None)
     stats_dict = req.stats_data or {}
     res = openai_service.generate_dashboard_intelligence(
         stats_data=stats_dict,
