@@ -364,7 +364,7 @@ class AIParseSmartRequest(BaseModel):
 class AITestKeyRequest(BaseModel):
     api_key: Optional[str] = None
 
-class GeminiTestKeyRequest(BaseModel):
+class OpenAITestKeyRequest(BaseModel):
     api_key: Optional[str] = None
 
 class BigBrainUiControlRequest(BaseModel):
@@ -1753,6 +1753,7 @@ def get_settings(db: Session = Depends(get_db)):
             "show_gst": app_set.show_gst,
             "show_pan": app_set.show_pan,
             "gemini_api_key": app_set.gemini_api_key or os.environ.get("GEMINI_API_KEY", ""),
+            "openai_api_key": getattr(app_set, "openai_api_key", "") or os.environ.get("OPENAI_API_KEY", ""),
             "default_language": getattr(app_set, "default_language", "en") or "en",
             "envelope_template_format": getattr(app_set, "envelope_template_format", "attachment_pdf") or "attachment_pdf"
         }
@@ -1803,6 +1804,8 @@ def update_settings(payload: Dict[str, Any], db: Session = Depends(get_db)):
         app_set.show_pan = bool(a_data.get("show_pan", app_set.show_pan))
         if "gemini_api_key" in a_data:
             app_set.gemini_api_key = a_data["gemini_api_key"].strip()
+        if "openai_api_key" in a_data:
+            app_set.openai_api_key = a_data["openai_api_key"].strip()
         if "default_language" in a_data:
             app_set.default_language = a_data["default_language"].strip()
         if "envelope_template_format" in a_data:
@@ -2608,16 +2611,16 @@ def get_translation_status():
 
 @app.get("/api/ai/brain-status")
 def get_ai_brain_status(db: Session = Depends(get_db)):
-    """Returns AI Brain core status: Gemini-powered Big Brain + Small Brains."""
+    """Returns Dual AI Brain core status: Big Brain (OpenAI) + Small Brains (Gemini multi-key pool)."""
     gemini_status = ai_service.get_brain_status()
-    big_brain_status = openai_service.get_brain_status()
+    openai_status = openai_service.get_brain_status()
     return {
         "status": "active",
-        "architecture": "gemini_unified",
+        "architecture": "dual_brain",
         "big_brain": {
             "role": "Master UI Design, PDF Print Layout Control, Dashboard Intelligence, Assistant Chat",
-            "provider": "Google Gemini",
-            **big_brain_status
+            "provider": "OpenAI ChatGPT",
+            **openai_status
         },
         "small_brains": {
             "role": "High-Speed Batch Gujarati Translations, Address Parsing, Data Support",
@@ -2628,23 +2631,22 @@ def get_ai_brain_status(db: Session = Depends(get_db)):
 
 @app.post("/api/ai/openai/test")
 @app.post("/api/ai/big-brain/test")
-@app.post("/api/ai/gemini/test")
-def test_gemini_big_brain(req: Optional[GeminiTestKeyRequest] = None, db: Session = Depends(get_db)):
-    """Tests connectivity to Gemini Big Brain API."""
+def test_openai_key(req: Optional[OpenAITestKeyRequest] = None, db: Session = Depends(get_db)):
+    """Tests connectivity to OpenAI Big Brain API."""
     key = None
     if req and req.api_key:
         key = req.api_key.strip()
     else:
         app_set = db.query(AppSettings).first()
-        if app_set and getattr(app_set, "gemini_api_key", None):
-            key = app_set.gemini_api_key.strip()
+        if app_set and getattr(app_set, "openai_api_key", None):
+            key = app_set.openai_api_key.strip()
     return openai_service.test_connection(api_key=key)
 
 @app.post("/api/ai/big-brain/ui-control")
 def big_brain_ui_control(req: BigBrainUiControlRequest, db: Session = Depends(get_db)):
-    """Gemini Big Brain analyzes print layout & recipient data to recommend optimal font scaling, margins, and template layout."""
+    """OpenAI Big Brain analyzes print layout & recipient data to recommend optimal font scaling, margins, and template layout."""
     app_set = db.query(AppSettings).first()
-    key = req.api_key or (getattr(app_set, "gemini_api_key", None) if app_set else None)
+    key = req.api_key or (getattr(app_set, "openai_api_key", None) if app_set else None)
     party_dict = req.party_data or {}
     res = openai_service.analyze_ui_layout_control(
         party_data=party_dict,
@@ -2657,9 +2659,9 @@ def big_brain_ui_control(req: BigBrainUiControlRequest, db: Session = Depends(ge
 
 @app.post("/api/ai/big-brain/dashboard-insights")
 def big_brain_dashboard_insights(req: BigBrainInsightsRequest, db: Session = Depends(get_db)):
-    """Gemini Big Brain synthesizes executive dashboard logistics intelligence and route suggestions."""
+    """OpenAI Big Brain synthesizes executive dashboard logistics intelligence and route suggestions."""
     app_set = db.query(AppSettings).first()
-    key = req.api_key or (getattr(app_set, "gemini_api_key", None) if app_set else None)
+    key = req.api_key or (getattr(app_set, "openai_api_key", None) if app_set else None)
     stats_dict = req.stats_data or {}
     res = openai_service.generate_dashboard_intelligence(
         stats_data=stats_dict,
@@ -2774,20 +2776,23 @@ def test_gemini_key(req: AITestKeyRequest):
     return res
 
 @app.get("/api/download/apk")
+@app.get("/downloads/EnvelopeManager.apk")
 def download_android_apk():
-    """Serves the Android APK for easy employee and admin mobile installation."""
+    """Serves the standalone Android APK installer."""
     apk_paths = [
-        os.path.join(os.path.dirname(__file__), "..", "android", "app", "build", "outputs", "apk", "debug", "app-debug.apk"),
         os.path.join(os.path.dirname(__file__), "static", "downloads", "EnvelopeManager.apk"),
+        os.path.join(os.path.dirname(__file__), "..", "frontend", "public", "downloads", "EnvelopeManager.apk"),
+        os.path.join(os.path.dirname(__file__), "..", "frontend", "dist", "downloads", "EnvelopeManager.apk"),
+        os.path.join(os.path.dirname(__file__), "..", "android", "app", "build", "outputs", "apk", "debug", "app-debug.apk")
     ]
     for p in apk_paths:
         if os.path.exists(p):
             return FileResponse(
-                p, 
-                media_type="application/vnd.android.package-archive", 
-                filename="ShreejiEnvelopeManager.apk"
+                path=p,
+                filename="Shreeji_Envelope_Manager.apk",
+                media_type="application/vnd.android.package-archive"
             )
-    raise HTTPException(status_code=404, detail="APK build in progress or not yet available.")
+    raise HTTPException(status_code=404, detail="APK build not found")
 
 
 # Custom static file server with immutable caching for fingerprinted assets

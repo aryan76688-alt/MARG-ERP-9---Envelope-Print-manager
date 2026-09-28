@@ -20,7 +20,8 @@ import {
   Lock,
   ShieldCheck,
   RefreshCw,
-  Mail
+  Mail,
+  Smartphone
 } from 'lucide-react';
 import { SenderSettings, AppSettings, DualBrainStatus } from '../types';
 import { 
@@ -30,7 +31,7 @@ import {
   getExportPartiesUrl, 
   getExportHistoryUrl, 
   testGeminiAI,
-  testGeminiApi,
+  testOpenAIApi,
   fetchBrainStatus,
   fetchBackupSettings,
   updateBackupSettings,
@@ -75,6 +76,7 @@ export const Settings: React.FC = () => {
     default_language: 'en',
     envelope_template_format: 'attachment_pdf',
     gemini_api_key: '',
+    openai_api_key: '',
   });
 
   const [saving, setSaving] = useState<boolean>(false);
@@ -82,6 +84,9 @@ export const Settings: React.FC = () => {
   const [aiTesting, setAiTesting] = useState<boolean>(false);
   const [aiTestResult, setAiTestResult] = useState<string | null>(null);
   const [aiTestSuccess, setAiTestSuccess] = useState<boolean | null>(null);
+  const [openAiTesting, setOpenAiTesting] = useState<boolean>(false);
+  const [openAiTestResult, setOpenAiTestResult] = useState<string | null>(null);
+  const [openAiTestSuccess, setOpenAiTestSuccess] = useState<boolean | null>(null);
   const [brainStatus, setBrainStatus] = useState<DualBrainStatus | null>(null);
   const backupFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -455,15 +460,15 @@ export const Settings: React.FC = () => {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                <div className="p-3 bg-blue-900/30 border border-blue-500/30 rounded-lg">
+                <div className="p-3 bg-purple-900/30 border border-purple-500/30 rounded-lg">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="font-bold text-blue-200 flex items-center gap-1.5">
-                      <Brain className="w-4 h-4 text-blue-400" />
-                      Big Brain (Google Gemini)
+                    <span className="font-bold text-purple-200 flex items-center gap-1.5">
+                      <Brain className="w-4 h-4 text-purple-400" />
+                      Big Brain (OpenAI ChatGPT)
                     </span>
                     <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-800/80">Online</span>
                   </div>
-                  <p className="text-[11px] text-blue-200/90 leading-relaxed">
+                  <p className="text-[11px] text-purple-200/90 leading-relaxed">
                     Master UI Design, PDF Print Layout Controls, Dashboard Logistics Intelligence & Assistant Chat.
                   </p>
                 </div>
@@ -483,6 +488,70 @@ export const Settings: React.FC = () => {
                   </p>
                 </div>
               </div>
+            </div>
+
+            {/* 1. Big Brain (OpenAI) Configuration */}
+            <div className="pt-3 border-t border-slate-100 space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="block font-bold text-slate-900 text-xs flex items-center gap-1.5">
+                  <Brain className="w-4 h-4 text-purple-600" />
+                  <span>OpenAI API Key (Big Brain Core)</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setOpenAiTesting(true);
+                    setOpenAiTestResult(null);
+                    setOpenAiTestSuccess(null);
+                    try {
+                      const res = await testOpenAIApi(app.openai_api_key);
+                      setOpenAiTestSuccess(true);
+                      setOpenAiTestResult(res.message || 'Connected to OpenAI Big Brain successfully!');
+                    } catch (err: any) {
+                      setOpenAiTestSuccess(false);
+                      setOpenAiTestResult(`Notice: ${err.message || 'Connection test failed'}`);
+                    } finally {
+                      setOpenAiTesting(false);
+                    }
+                  }}
+                  disabled={openAiTesting}
+                  className="px-3 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-lg text-[11px] font-bold transition-colors flex items-center gap-1"
+                >
+                  <Sparkles className="w-3 h-3 text-purple-500" />
+                  <span>{openAiTesting ? 'Testing...' : 'Test Big Brain'}</span>
+                </button>
+              </div>
+
+              <div className="relative">
+                <input
+                  type="password"
+                  value={app.openai_api_key || ''}
+                  onChange={(e) => setApp({ ...app, openai_api_key: e.target.value })}
+                  placeholder="Paste your OpenAI API Key (sk-proj-...) or leave blank to use server environment default"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono text-xs focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+
+              <p className="text-[11px] text-slate-500">
+                Powers real-time print layout intelligence, visual density optimization, and ChatGPT operations assistant.
+              </p>
+
+              {openAiTestResult && (
+                <div
+                  className={`p-2.5 rounded-lg border text-xs font-semibold flex items-start gap-2 ${
+                    openAiTestSuccess
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                      : 'bg-amber-50 border-amber-200 text-amber-800'
+                  }`}
+                >
+                  {openAiTestSuccess ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                  )}
+                  <span>{openAiTestResult}</span>
+                </div>
+              )}
             </div>
 
             {/* 2. Small Brains (Gemini) Configuration */}
@@ -881,6 +950,39 @@ export const Settings: React.FC = () => {
                     </button>
                   </div>
                 )}
+              </div>
+            </div>
+
+            {/* Android Mobile App (.APK) Download Card */}
+            <div className="p-5 rounded-2xl border-2 border-emerald-200 bg-gradient-to-br from-emerald-50/80 via-white to-teal-50/40 shadow-sm space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-xl bg-emerald-600 text-white shadow-md shadow-emerald-600/30">
+                    <Smartphone className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-black text-slate-900 text-sm">
+                        Standalone Android Mobile App (.APK)
+                      </h4>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 uppercase tracking-wide">
+                        Full-Stack Standalone Edition
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 font-medium">
+                      Self-contained APK bundling all offline assets locally + auto-syncing with PostgreSQL cloud database. Features dedicated mobile navigation buttons (◀ Back, ● Home, ≡ Menu) active only on mobile.
+                    </p>
+                  </div>
+                </div>
+
+                <a
+                  href="/api/download/apk"
+                  download="Shreeji_Envelope_Manager.apk"
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-md shadow-emerald-600/30 transition-all hover:scale-102 shrink-0"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Download APK (6.7 MB)</span>
+                </a>
               </div>
             </div>
 

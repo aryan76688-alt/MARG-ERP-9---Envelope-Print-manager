@@ -10,7 +10,6 @@ import { PrintHistory } from './pages/PrintHistory';
 import { Settings } from './pages/Settings';
 import { Users } from './pages/Users';
 import { Login } from './pages/Login';
-import { MobileApp } from './mobile/MobileApp';
 import { Party } from './types';
 import { getAuthToken } from './api/client';
 
@@ -23,15 +22,6 @@ export const App: React.FC = () => {
   const [selectedPartyForPrint, setSelectedPartyForPrint] = useState<Party | null>(null);
   const [reprintJobData, setReprintJobData] = useState<any | null>(null);
   const [openAddPartyModal, setOpenAddPartyModal] = useState<boolean>(false);
-  const [isMobileMode, setIsMobileMode] = useState<boolean>(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('mode') === 'desktop') return false;
-    if (urlParams.get('mode') === 'mobile' || window.location.pathname.startsWith('/m')) return true;
-    const saved = localStorage.getItem('shreeji_view_mode');
-    if (saved === 'desktop') return false;
-    if (saved === 'mobile') return true;
-    return /Android|iPhone|iPad|iPod|ShreejiEnvelopeApp/i.test(navigator.userAgent) || window.innerWidth < 768;
-  });
 
   useEffect(() => {
     const handleHashChange = () => {
@@ -139,20 +129,6 @@ export const App: React.FC = () => {
 
   if (!isAuthenticated) {
     return <Login onLogin={handleLogin} />;
-  }
-
-  if (isMobileMode) {
-    return (
-      <QueryClientProvider client={queryClient}>
-        <MobileApp 
-          onLogout={handleLogout} 
-          onSwitchToDesktop={() => {
-            localStorage.setItem('shreeji_view_mode', 'desktop');
-            setIsMobileMode(false);
-          }} 
-        />
-      </QueryClientProvider>
-    );
   }
 
   return (

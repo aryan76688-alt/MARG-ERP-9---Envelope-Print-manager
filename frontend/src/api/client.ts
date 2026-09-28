@@ -17,7 +17,18 @@ import {
 } from '../types';
 
 
-const API_BASE = '/api';
+const isLocalAsset = typeof window !== 'undefined' && (
+  window.location.protocol === 'file:' || 
+  window.location.hostname === 'appassets.androidplatform.net' ||
+  (window as any).isAndroidApp === true ||
+  navigator.userAgent.includes('ShreejiEnvelopeApp')
+);
+
+export const DEFAULT_REMOTE_API = 'https://marg-envelope-manager-production.up.railway.app';
+
+export const API_BASE = isLocalAsset 
+  ? (localStorage.getItem('api_server_url') || DEFAULT_REMOTE_API) + '/api'
+  : '/api';
 
 export function getAuthToken() {
   return localStorage.getItem('token');
@@ -492,15 +503,15 @@ export async function fetchBrainStatus(): Promise<DualBrainStatus> {
   return res.json();
 }
 
-export async function testGeminiApi(apiKey?: string): Promise<{ success: boolean; message: string; model?: string; output?: string }> {
-  const res = await fetchApi(`${API_BASE}/ai/gemini/test`, {
+export async function testOpenAIApi(apiKey?: string): Promise<{ success: boolean; message: string; model?: string; output?: string }> {
+  const res = await fetchApi(`${API_BASE}/ai/openai/test`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ api_key: apiKey }),
   });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: 'Gemini Big Brain connection test failed' }));
-    throw new Error(err.detail || 'Gemini Big Brain connection test failed');
+    const err = await res.json().catch(() => ({ detail: 'OpenAI Big Brain connection test failed' }));
+    throw new Error(err.detail || 'OpenAI Big Brain connection test failed');
   }
   return res.json();
 }

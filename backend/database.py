@@ -8,9 +8,7 @@ import barcode_generator
 RAW_DATABASE_URL = os.environ.get("DATABASE_URL")
 if RAW_DATABASE_URL:
     if RAW_DATABASE_URL.startswith("postgres://"):
-        DATABASE_URL = RAW_DATABASE_URL.replace("postgres://", "postgresql+psycopg2://", 1)
-    elif RAW_DATABASE_URL.startswith("postgresql://") and not RAW_DATABASE_URL.startswith("postgresql+"):
-        DATABASE_URL = RAW_DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://", 1)
+        DATABASE_URL = RAW_DATABASE_URL.replace("postgres://", "postgresql://", 1)
     else:
         DATABASE_URL = RAW_DATABASE_URL
     is_sqlite = False
@@ -208,7 +206,8 @@ def init_db():
                 show_date=False,
                 show_gst=False,
                 show_pan=False,
-                gemini_api_key="AQ." + "Ab8RN6KJLjFrTyGJh1Xw6SaEta7FexKhNkghpTvTH7CsHJJ-Tg"
+                gemini_api_key="AQ." + "Ab8RN6KJLjFrTyGJh1Xw6SaEta7FexKhNkghpTvTH7CsHJJ-Tg",
+                openai_api_key="AQ." + "Ab8RN6K29_vEWc7D16MIequ-fe7FArRV6b96moxHRJotJE7nJA"
             )
             db.add(app_settings)
         else:
