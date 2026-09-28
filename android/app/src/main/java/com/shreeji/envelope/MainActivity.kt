@@ -23,7 +23,7 @@ import androidx.webkit.WebViewAssetLoader
 class MainActivity : AppCompatActivity() {
 
     companion object {
-        const val LOCAL_APP_URL = "https://appassets.androidplatform.net/assets/web/index.html?mode=apk"
+        const val LOCAL_APP_URL = "https://appassets.androidplatform.net/assets/index.html?mode=apk"
         const val REMOTE_FALLBACK_URL = "https://marg-envelope-manager-production.up.railway.app/?mode=apk"
     }
 
@@ -179,7 +179,45 @@ class MainActivity : AppCompatActivity() {
 
         webView.webViewClient = object : WebViewClient() {
             override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): WebResourceResponse? {
-                return request?.url?.let { assetLoader.shouldInterceptRequest(it) }
+                val url = request?.url ?: return null
+                if (url.host == "appassets.androidplatform.net") {
+                    val rawPath = url.path.orEmpty().trimStart('/')
+                    val cleanPath = rawPath.removePrefix("assets/").removePrefix("web/")
+                    val candidates = listOf(
+                        rawPath,
+                        rawPath.removePrefix("assets/"),
+                        "assets/$rawPath",
+                        cleanPath,
+                        "assets/$cleanPath",
+                        "web/$cleanPath",
+                        "web/assets/$cleanPath"
+                    )
+                    for (candidate in candidates) {
+                        try {
+                            val inputStream = this@MainActivity.assets.open(candidate)
+                            val mimeType = when {
+                                candidate.endsWith(".html") -> "text/html"
+                                candidate.endsWith(".js") -> "application/javascript"
+                                candidate.endsWith(".css") -> "text/css"
+                                candidate.endsWith(".png") -> "image/png"
+                                candidate.endsWith(".jpg") || candidate.endsWith(".jpeg") -> "image/jpeg"
+                                candidate.endsWith(".svg") -> "image/svg+xml"
+                                candidate.endsWith(".json") -> "application/json"
+                                candidate.endsWith(".woff2") -> "font/woff2"
+                                candidate.endsWith(".woff") -> "font/woff"
+                                candidate.endsWith(".ttf") -> "font/ttf"
+                                else -> "application/octet-stream"
+                            }
+                            val headers = mapOf(
+                                "Access-Control-Allow-Origin" to "*",
+                                "Access-Control-Allow-Methods" to "GET, OPTIONS",
+                                "Access-Control-Allow-Headers" to "*"
+                            )
+                            return WebResourceResponse(mimeType, "UTF-8", 200, "OK", headers, inputStream)
+                        } catch (_: Exception) {}
+                    }
+                }
+                return assetLoader.shouldInterceptRequest(url)
             }
 
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
