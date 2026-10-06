@@ -38,10 +38,10 @@ export const FullScreenPreviewModal: React.FC<FullScreenPreviewModalProps> = ({
   if (!isOpen) return null;
 
   const currentCase = cases[currentCaseIndex] || {
-    case_number: 1,
-    case_total: 1,
-    weight: 1.0,
-    barcode_value: 'MRG-2026-000001-C1',
+    case_number: 0,
+    case_total: 0,
+    weight: 0.0,
+    barcode_value: 'MRG-2026-000001-C0',
   };
 
   const handlePrev = () => {
@@ -68,7 +68,7 @@ export const FullScreenPreviewModal: React.FC<FullScreenPreviewModalProps> = ({
           <h2 className="text-sm font-extrabold text-white flex items-center gap-2">
             <span>Envelope Full-Screen Preview</span>
             <span className="text-xs bg-blue-900 text-blue-300 px-2 py-0.5 rounded font-mono">
-              Case {currentCaseIndex + 1} of {cases.length}
+              {currentCase.case_total === 0 ? 'Address Only (0 Cases)' : `Case ${currentCaseIndex + 1} of ${cases.length}`}
             </span>
           </h2>
         </div>

@@ -1143,8 +1143,8 @@ def create_print_job(req: CreatePrintJobRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="City is required")
     if not req.state.strip():
         raise HTTPException(status_code=400, detail="State is required")
-    if req.total_cases < 1:
-        raise HTTPException(status_code=400, detail="Number of cases must be at least 1")
+    if req.total_cases < 0:
+        raise HTTPException(status_code=400, detail="Number of cases cannot be negative")
 
     # 1-Time/Day Lock enforcement on single party print
     now_utc = datetime.datetime.now(datetime.timezone.utc)
@@ -1174,23 +1174,25 @@ def create_print_job(req: CreatePrintJobRequest, db: Session = Depends(get_db)):
 
     job_number = get_next_job_number(db)
 
-    # Prepare case weights
-    weights = req.case_weights
-    if len(weights) < req.total_cases:
-        last_w = weights[-1] if weights else 1.0
-        weights.extend([last_w] * (req.total_cases - len(weights)))
-    elif len(weights) > req.total_cases:
-        weights = weights[:req.total_cases]
-
-    total_weight = sum(weights)
-
     # Check if case_breakdown was provided
     case_breakdown_json = None
     if req.case_breakdown:
         case_breakdown_json = json.dumps(req.case_breakdown)
         valid_sum = sum(int(item.get("qty", 0)) for item in req.case_breakdown if int(item.get("qty", 0)) > 0)
-        if valid_sum > 0:
-            req.total_cases = valid_sum
+        req.total_cases = valid_sum
+
+    # Prepare case weights
+    if req.total_cases == 0:
+        weights = [0.0]
+        total_weight = 0.0
+    else:
+        weights = req.case_weights
+        if len(weights) < req.total_cases:
+            last_w = weights[-1] if weights else 1.0
+            weights.extend([last_w] * (req.total_cases - len(weights)))
+        elif len(weights) > req.total_cases:
+            weights = weights[:req.total_cases]
+        total_weight = sum(weights)
 
     try:
         job = PrintJob(
@@ -1240,23 +1242,41 @@ def create_print_job(req: CreatePrintJobRequest, db: Session = Depends(get_db)):
                 if req.state_gu: party_rec.state_gu = ai_service.clean_gujarati_text(req.state_gu)
 
         cases_resp = []
-        for idx, w in enumerate(weights, start=1):
-            barcode_val = f"{job_number}-C{idx}"
+        if req.total_cases == 0:
+            barcode_val = f"{job_number}-C0"
             pcase = PrintCase(
                 print_job_id=job.id,
-                case_number=idx,
-                case_total=req.total_cases,
-                weight=w,
+                case_number=0,
+                case_total=0,
+                weight=0.0,
                 barcode_value=barcode_val,
                 status="Printed"
             )
             db.add(pcase)
             cases_resp.append({
-                "case_number": idx,
-                "case_total": req.total_cases,
-                "weight": w,
+                "case_number": 0,
+                "case_total": 0,
+                "weight": 0.0,
                 "barcode_value": barcode_val
             })
+        else:
+            for idx, w in enumerate(weights, start=1):
+                barcode_val = f"{job_number}-C{idx}"
+                pcase = PrintCase(
+                    print_job_id=job.id,
+                    case_number=idx,
+                    case_total=req.total_cases,
+                    weight=w,
+                    barcode_value=barcode_val,
+                    status="Printed"
+                )
+                db.add(pcase)
+                cases_resp.append({
+                    "case_number": idx,
+                    "case_total": req.total_cases,
+                    "weight": w,
+                    "barcode_value": barcode_val
+                })
 
         db.commit()
         db.refresh(job)
@@ -1312,8 +1332,7 @@ def create_bulk_print_jobs(req: BulkPrintJobsRequest, db: Session = Depends(get_
     cases_count = req.total_cases
     if req.case_breakdown:
         valid_sum = sum(int(b.get("qty", 0)) for b in req.case_breakdown if int(b.get("qty", 0)) > 0)
-        if valid_sum > 0:
-            cases_count = valid_sum
+        cases_count = valid_sum
 
     app_settings = db.query(AppSettings).first()
     gemini_key = app_settings.gemini_api_key if app_settings else None
@@ -1375,16 +1394,27 @@ def create_bulk_print_jobs(req: BulkPrintJobsRequest, db: Session = Depends(get_
             db.add(job)
             db.flush()
 
-            for idx in range(1, cases_count + 1):
+            if cases_count == 0:
                 pcase = PrintCase(
                     print_job_id=job.id,
-                    case_number=idx,
-                    case_total=cases_count,
-                    weight=1.0,
-                    barcode_value=f"{job_number}-C{idx}",
+                    case_number=0,
+                    case_total=0,
+                    weight=0.0,
+                    barcode_value=f"{job_number}-C0",
                     status="Printed"
                 )
                 db.add(pcase)
+            else:
+                for idx in range(1, cases_count + 1):
+                    pcase = PrintCase(
+                        print_job_id=job.id,
+                        case_number=idx,
+                        case_total=cases_count,
+                        weight=1.0,
+                        barcode_value=f"{job_number}-C{idx}",
+                        status="Printed"
+                    )
+                    db.add(pcase)
 
             created_jobs.append(job.id)
 
@@ -2034,20 +2064,28 @@ def generate_pdf(req: GeneratePDFRequest, db: Session = Depends(get_db)):
             "case_breakdown": req.case_breakdown
         }
         cases_data = []
-        weights = req.case_weights
-        if len(weights) < req.total_cases:
-            last_w = weights[-1] if weights else 1.0
-            weights.extend([last_w] * (req.total_cases - len(weights)))
-        elif len(weights) > req.total_cases:
-            weights = weights[:req.total_cases]
-
-        for idx, w in enumerate(weights, start=1):
+        if req.total_cases == 0:
             cases_data.append({
-                "case_number": idx,
-                "case_total": req.total_cases,
-                "weight": w,
-                "barcode_value": f"{temp_job_number}-C{idx}"
+                "case_number": 0,
+                "case_total": 0,
+                "weight": 0.0,
+                "barcode_value": f"{temp_job_number}-C0"
             })
+        else:
+            weights = req.case_weights
+            if len(weights) < req.total_cases:
+                last_w = weights[-1] if weights else 1.0
+                weights.extend([last_w] * (req.total_cases - len(weights)))
+            elif len(weights) > req.total_cases:
+                weights = weights[:req.total_cases]
+
+            for idx, w in enumerate(weights, start=1):
+                cases_data.append({
+                    "case_number": idx,
+                    "case_total": req.total_cases,
+                    "weight": w,
+                    "barcode_value": f"{temp_job_number}-C{idx}"
+                })
         job_number = temp_job_number
 
         try:

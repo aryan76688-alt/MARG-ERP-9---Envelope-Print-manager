@@ -168,8 +168,9 @@ export const EnvelopeTemplate: React.FC<EnvelopeTemplateProps> = ({
 
   // FORMAT 1: Classic MARG 22-Row Grid Format
   if (templateFormat === 'marg_grid_22') {
-    const caseBadge = breakdownLines[0] || 'CASE: 1';
-    const extraCases = breakdownLines.slice(1);
+    const hasCases = breakdownLines.length > 0;
+    const caseBadge = hasCases ? breakdownLines[0] : '';
+    const extraCases = hasCases ? breakdownLines.slice(1) : [];
 
     return (
       <div
@@ -201,16 +202,19 @@ export const EnvelopeTemplate: React.FC<EnvelopeTemplateProps> = ({
               <td className="border-r border-gray-300"></td>
               <td className="border-r border-gray-300"></td>
               <td className="px-2 text-right font-black border-l border-gray-300">
-                <div className="inline-block border-[1.8px] border-black rounded px-2 py-0.5 text-[12.5px] font-black text-black bg-white whitespace-nowrap mb-0.5">
-                  {caseBadge}
-                </div>
-                {extraCases.map((ec, i) => (
-                  <div key={i} className="inline-block border-[1.8px] border-black rounded px-2 py-0.5 text-[12.5px] font-black text-black bg-white whitespace-nowrap mt-0.5">
-                    {ec}
-                  </div>
-                ))}
+                {hasCases && (
+                  <>
+                    <div className="inline-block border-[1.8px] border-black rounded px-2 py-0.5 text-[12.5px] font-black text-black bg-white whitespace-nowrap mb-0.5">
+                      {caseBadge}
+                    </div>
+                    {extraCases.map((ec, i) => (
+                      <div key={i} className="inline-block border-[1.8px] border-black rounded px-2 py-0.5 text-[12.5px] font-black text-black bg-white whitespace-nowrap mt-0.5">
+                        {ec}
+                      </div>
+                    ))}
+                  </>
+                )}
               </td>
-
             </tr>
 
             {/* Row 2: Empty Spacer */}

@@ -226,7 +226,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
   // Compute Active Non-Zero Breakdown Items (0 quantities excluded)
   const activeCaseBreakdown = useMemo<CaseBreakdownItem[]>(() => {
     if (caseMode === 'standard') {
-      return [{ type: 'CASE', qty: standardCasesCount }];
+      return standardCasesCount > 0 ? [{ type: 'CASE', qty: standardCasesCount }] : [];
     }
 
     const list: CaseBreakdownItem[] = [];
@@ -253,24 +253,32 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
     return list;
   }, [caseMode, standardCasesCount, standardCaseQty, parcelBagQty, nsCaseVolumes, rlCaseVolumes, dnsCaseVolumes, metroCaseVolumes]);
 
-  // Total Packages Count
+  // Total Packages Count (0 when no cases/standard count is 0)
   const totalPackagesCount = useMemo<number>(() => {
     if (caseMode === 'standard') return standardCasesCount;
-    const sum = activeCaseBreakdown.reduce((acc, curr) => acc + curr.qty, 0);
-    return sum > 0 ? sum : 1;
+    return activeCaseBreakdown.reduce((acc, curr) => acc + curr.qty, 0);
   }, [caseMode, standardCasesCount, activeCaseBreakdown]);
 
   // Sync individual weights array when totalPackagesCount changes
   useEffect(() => {
     setIndividualWeights((prev) => {
       const arr = [...prev];
-      while (arr.length < totalPackagesCount) arr.push(uniformWeight);
-      return arr.slice(0, totalPackagesCount);
+      const targetLen = Math.max(1, totalPackagesCount);
+      while (arr.length < targetLen) arr.push(uniformWeight);
+      return arr.slice(0, targetLen);
     });
   }, [totalPackagesCount, uniformWeight]);
 
-  // Generated Cases Array for preview & print
+  // Generated Cases Array for preview & print (1 address-only case when totalPackagesCount is 0)
   const casesList: CaseItem[] = useMemo(() => {
+    if (totalPackagesCount === 0) {
+      return [{
+        case_number: 0,
+        case_total: 0,
+        weight: 0.0,
+        barcode_value: 'MRG-2026-000001-C0',
+      }];
+    }
     return Array.from({ length: totalPackagesCount }, (_, i) => ({
       case_number: i + 1,
       case_total: totalPackagesCount,
@@ -1691,22 +1699,24 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1.5">
                   <div className="font-extrabold text-slate-800 text-[11px] uppercase flex items-center justify-between">
                     <span>Total Cases to Print</span>
-                    <span className="text-blue-600 font-black">CASE: 1 to {standardCasesCount}</span>
+                    <span className="text-blue-600 font-black">
+                      {standardCasesCount === 0 ? 'Address Only (0 Cases)' : `CASE: 1 to ${standardCasesCount}`}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between gap-2">
                     <button
                       type="button"
-                      onClick={() => setStandardCasesCount((c) => Math.max(1, c - 1))}
+                      onClick={() => setStandardCasesCount((c) => Math.max(0, c - 1))}
                       className="w-10 h-9 rounded-lg bg-white border border-slate-300 font-black text-slate-700 hover:bg-slate-100 flex items-center justify-center text-base"
                     >
                       -
                     </button>
                     <input
                       type="number"
-                      min={1}
+                      min={0}
                       max={100}
                       value={standardCasesCount}
-                      onChange={(e) => setStandardCasesCount(Math.max(1, parseInt(e.target.value || '1', 10)))}
+                      onChange={(e) => setStandardCasesCount(Math.max(0, parseInt(e.target.value || '0', 10)))}
                       className="w-20 text-center font-black text-lg text-blue-950 py-1 bg-white border border-slate-300 rounded-lg"
                     />
                     <button
@@ -1781,7 +1791,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
               <div className="flex items-center justify-between text-xs font-bold text-blue-300">
                 <span>Active items to print on envelope:</span>
                 <span className="text-amber-400 font-bold">
-                  Total: {totalPackagesCount} Case(s)
+                  {totalPackagesCount === 0 ? 'Address Only (0 Cases)' : `Total: ${totalPackagesCount} Case(s)`}
                 </span>
               </div>
               <div className="flex flex-wrap items-center gap-1.5">
@@ -1795,8 +1805,8 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                     </span>
                   ))
                 ) : (
-                  <span className="text-slate-400 italic text-[11px]">
-                    No cases selected yet (will fallback to CASE: 1)
+                  <span className="text-amber-300 italic text-[11px] font-semibold">
+                    Address Only (No cases selected — envelope prints addresses only)
                   </span>
                 )}
               </div>
@@ -1990,7 +2000,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
               </span>
             </div>
             <span className="font-extrabold text-blue-950">
-              Total Pages: {Math.ceil(totalPackagesCount / 2)} Page(s)
+              Total Pages: {Math.max(1, Math.ceil(totalPackagesCount / 2))} Page(s)
             </span>
           </div>
 
@@ -2133,7 +2143,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
             {isValidToPrint ? (
               <span className="text-emerald-600 font-bold flex items-center justify-center gap-1">
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                Ready to Print ({totalPackagesCount} Cases) • {selectedLanguage === 'gu' ? 'ગુજરાતી' : 'English'}
+                Ready to Print ({totalPackagesCount === 0 ? 'Address Only (0 Cases)' : `${totalPackagesCount} Cases`}) • {selectedLanguage === 'gu' ? 'ગુજરાતી' : 'English'}
               </span>
             ) : (
               <span className="text-red-500 font-bold flex items-center justify-center gap-1">
@@ -2253,7 +2263,7 @@ CASE: 3 NS: 2 (500ML)"
       {/* Hidden print sheet container for window.print() rendered directly to body */}
       {selectedParty && createPortal(
         <div className="print-only-sheet">
-          {Array.from({ length: Math.ceil(totalPackagesCount / envelopesPerPage) }, (_, pageIndex) => {
+          {Array.from({ length: Math.max(1, Math.ceil(totalPackagesCount / envelopesPerPage)) }, (_, pageIndex) => {
             const firstCase = casesList[pageIndex * envelopesPerPage] || casesList[0];
             const secondCase = casesList[pageIndex * envelopesPerPage + 1];
             return (

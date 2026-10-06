@@ -106,8 +106,11 @@ def get_case_breakdown_lines(
                 lines.append(format_case_breakdown_line(txt))
 
     if not lines and settings.get("show_case_number", True):
-        case_total = case_data.get("case_total", job_data.get("total_cases", 1))
-        if case_total and int(case_total) > 0:
+        case_total = case_data.get("case_total")
+        if case_total is None:
+            case_total = job_data.get("total_cases")
+        # Only append CASE line if case_total > 0 (0 means address only, no case)
+        if case_total is not None and int(case_total) > 0:
             lines.append(f"CASE: {case_total}")
 
     return lines
@@ -233,8 +236,16 @@ def render_single_envelope_html(
     # 3. Format Branching
     if template_format == "marg_grid_22":
         # Classic 22-row MARG ERP grid table layout (Previous Function restored)
-        case_badge = case_lines[0] if case_lines else "CASE: 1"
-        extra_cases_html = "".join([f'<div class="case-highlight-box" style="margin-top: 2px;">{c}</div>' for c in case_lines[1:]])
+        if case_lines:
+            case_badge = case_lines[0]
+            extra_cases_html = "".join([f'<div class="case-highlight-box" style="margin-top: 2px;">{c}</div>' for c in case_lines[1:]])
+            case_box_html = f"""
+                  <div class="case-highlight-box">{case_badge}</div>
+                  {extra_cases_html}
+                """
+        else:
+            # 0 cases: Print address only, no case highlight box
+            case_box_html = ""
 
         sender_addr_2_row = f"""
         <tr class="h-row">
@@ -263,8 +274,7 @@ def render_single_envelope_html(
                 <td></td>
                 <td></td>
                 <td class="cell-case font-bold">
-                  <div class="case-highlight-box">{case_badge}</div>
-                  {extra_cases_html}
+                  {case_box_html}
                 </td>
               </tr>
 
@@ -337,7 +347,16 @@ def render_single_envelope_html(
         """
     else:
         # Default: Attachment PDF 123 (Clean borderless format with large bold fonts)
-        case_items_html = "".join([f'<div class="case-item">{line}</div>' for line in case_lines])
+        if case_lines:
+            case_items_html = "".join([f'<div class="case-item">{line}</div>' for line in case_lines])
+            case_block_html = f"""
+            <div class="case-block">
+              {case_items_html}
+            </div>
+            """
+        else:
+            case_block_html = "<div></div>"
+
         sender_addr_2_html = f'<div class="sender-addr">{sender_addr_2}</div>' if sender_addr_2 else ""
         return f"""
         <div class="envelope-half">
@@ -351,9 +370,7 @@ def render_single_envelope_html(
             {f'<div class="mobile-no">{mob_label}{mobile}</div>' if mobile else ''}
           </div>
           <div class="right-col">
-            <div class="case-block">
-              {case_items_html}
-            </div>
+            {case_block_html}
             <div class="sender-block">
               <div class="from-title">{from_title}</div>
               <div class="sender-name">{sender_name}</div>
@@ -913,11 +930,13 @@ def generate_envelopes_pdf(
     Supports both Attachment PDF and Classic 22-Row Grid templates, in English or Gujarati.
     """
     if not cases_data:
+        raw_total = job_data.get("total_cases")
+        t_cases = int(raw_total) if raw_total is not None else 1
         cases_data = [{
-            "case_number": 1,
-            "case_total": job_data.get("total_cases", 1) or 1,
-            "weight": 1.0,
-            "barcode_value": f"{job_data.get('job_number', 'JOB')}-C1"
+            "case_number": 0 if t_cases == 0 else 1,
+            "case_total": t_cases,
+            "weight": 0.0 if t_cases == 0 else 1.0,
+            "barcode_value": f"{job_data.get('job_number', 'JOB')}-C{0 if t_cases == 0 else 1}"
         }]
 
     html_content = build_full_html_document(
