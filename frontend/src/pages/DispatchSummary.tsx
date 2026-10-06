@@ -14,11 +14,13 @@ import {
   Square,
   X,
   Languages,
-  Sparkles
+  Sparkles,
+  MessageSquare
 } from "lucide-react";
 import { fetchDispatchSummary, updateDispatchJobs, downloadDispatchSummaryPDF, printDispatchSummaryPDF } from "../api/client";
 import { DispatchSummaryData, DispatchSummaryJob } from "../types";
 import { formatCaseBreakdownItem } from "../print/EnvelopeTemplate";
+import { generateWhatsAppDispatchUrl } from "../utils/whatsapp";
 
 export const DispatchSummary: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState<string>(
@@ -477,6 +479,7 @@ export const DispatchSummary: React.FC = () => {
                 <th className="p-3">{isGu ? "ડ્રાઈવરનું નામ" : "Driver Name"}</th>
                 <th className="p-3">{isGu ? "રૂટ" : "Route"}</th>
                 <th className="p-3 text-center">{isGu ? "સ્થિતિ" : "Status"}</th>
+                <th className="p-3 text-center">{isGu ? "વોટ્સએપ" : "WhatsApp"}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 text-slate-800">
@@ -567,12 +570,41 @@ export const DispatchSummary: React.FC = () => {
                           <span>{job.status}</span>
                         </span>
                       </td>
+                      <td className="p-3 text-center">
+                        {(() => {
+                          const waUrl = generateWhatsAppDispatchUrl({
+                            partyName: job.party_name,
+                            partyNameGu: job.party_name_gu || undefined,
+                            phone: job.mobile,
+                            jobNumber: job.job_number,
+                            totalCases: job.total_cases,
+                            caseBreakdown: job.case_breakdown,
+                            driverName: job.delivery_boy_name,
+                            deliveryRoute: job.delivery_route,
+                            city: job.city
+                          }, isGu ? 'gu' : 'en');
+                          return waUrl ? (
+                            <a
+                              href={waUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 hover:text-emerald-800 rounded-md text-[11px] font-bold border border-emerald-300 transition-colors shadow-xs"
+                              title="Send WhatsApp Dispatch Notice"
+                            >
+                              <MessageSquare className="w-3 h-3 text-emerald-600" />
+                              <span>WA Alert</span>
+                            </a>
+                          ) : (
+                            <span className="text-slate-300 text-[10px]">-</span>
+                          );
+                        })()}
+                      </td>
                     </tr>
                   );
                 })
               ) : (
                 <tr>
-                  <td colSpan={10} className="p-12 text-center text-slate-400 font-semibold">
+                  <td colSpan={11} className="p-12 text-center text-slate-400 font-semibold">
                     {isLoading ? (
                       <div className="flex items-center justify-center gap-2 text-slate-500">
                         <RefreshCw className="w-4 h-4 animate-spin" />

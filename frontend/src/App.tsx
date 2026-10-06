@@ -9,6 +9,7 @@ import { DispatchSummary } from './pages/DispatchSummary';
 import { PrintHistory } from './pages/PrintHistory';
 import { Settings } from './pages/Settings';
 import { Users } from './pages/Users';
+import { DriverMode } from './pages/DriverMode';
 import { Login } from './pages/Login';
 import { Party } from './types';
 import { getAuthToken } from './api/client';
@@ -157,6 +158,7 @@ export const App: React.FC = () => {
           />
         )}
         {currentTab === 'history' && <PrintHistory onNavigate={navigateToTab} />}
+        {currentTab === 'driver' && <DriverMode />}
         {currentTab === 'dispatch' && <DispatchSummary />}
         {currentTab === 'users' && <Users />}
         {currentTab === 'settings' && <Settings />}

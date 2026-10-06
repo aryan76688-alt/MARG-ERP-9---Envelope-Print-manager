@@ -36,8 +36,14 @@ import {
   Unlock,
   History,
   X,
-  Brain
+  Brain,
+  Mic,
+  MicOff,
+  MessageSquare
 } from 'lucide-react';
+import { useVoiceInput, VoiceLanguage } from '../hooks/useVoiceInput';
+import { queueOfflineJob, searchPartiesOffline } from '../offline/db';
+import { generateWhatsAppDispatchUrl } from '../utils/whatsapp';
 import { 
   Party, 
   SenderSettings, 
@@ -159,9 +165,43 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
   const [isBatchTranslating, setIsBatchTranslating] = useState<boolean>(false);
   const [isEditingGujarati, setIsEditingGujarati] = useState<boolean>(false);
 
-  // Delivery Boy & Route Assignment (Optional)
-  const [deliveryBoyName, setDeliveryBoyName] = useState<string>('');
+  // Driver & Route Assignment (Optional)
+  const [driverName, setDriverName] = useState<string>('');
   const [deliveryRoute, setDeliveryRoute] = useState<string>('');
+
+  // Last Printed Job Info for Instant WhatsApp Alert
+  const [lastPrintedJobInfo, setLastPrintedJobInfo] = useState<{
+    partyName: string;
+    partyNameGu?: string;
+    phone?: string | null;
+    jobNumber?: string;
+    totalCases: number;
+    caseBreakdown?: any[];
+    driverName?: string | null;
+    deliveryRoute?: string | null;
+    city?: string | null;
+  } | null>(null);
+
+  // Voice Input Speech Recognition Hook
+  const { 
+    isListening, 
+    language: voiceLang, 
+    setLanguage: setVoiceLang, 
+    startListening, 
+    stopListening,
+    transcript: voiceTranscript,
+    isSupported: isVoiceSupported 
+  } = useVoiceInput({
+    defaultLang: 'gu-IN',
+    onResult: (text, parsed) => {
+      if (parsed?.query) {
+        setPartySearch(parsed.query);
+      }
+      if (parsed?.cases !== undefined) {
+        setStandardCasesCount(parsed.cases);
+      }
+    }
+  });
 
   // Print settings
   const [envelopeSize, setEnvelopeSize] = useState<string>('A4');
@@ -384,8 +424,8 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
         mobile_no: reprintJob.mobile || reprintJob.party_mobile_snap || prev?.mobile_no || null,
         gst_no: reprintJob.gst_no || reprintJob.party_gst_snap || prev?.gst_no || null,
       }));
-      if (reprintJob.delivery_boy_name) {
-        setDeliveryBoyName(reprintJob.delivery_boy_name);
+      if (reprintJob.driver_name || reprintJob.delivery_boy_name) {
+        setDriverName(reprintJob.driver_name || reprintJob.delivery_boy_name);
       }
       if (reprintJob.delivery_route) {
         setDeliveryRoute(reprintJob.delivery_route);
@@ -572,21 +612,48 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
     }
   }, []);
 
-  // Instant Autocomplete Search for Single Party
+  // Instant Autocomplete Search for Single Party (Online & Offline Support)
   useEffect(() => {
     if (!partySearch.trim()) {
-      autocompleteParties('J', 'contains').then(setMatchingParties);
+      if (!navigator.onLine) {
+        searchPartiesOffline('', 30).then(setMatchingParties);
+      } else {
+        autocompleteParties('J', 'contains')
+          .then(setMatchingParties)
+          .catch(() => {
+            searchPartiesOffline('', 30).then(setMatchingParties);
+          });
+      }
       return;
     }
 
     setIsSearching(true);
     const timer = setTimeout(() => {
-      autocompleteParties(partySearch, searchMode)
-        .then((res) => {
-          setMatchingParties(res);
-          setActiveSearchIndex(0);
-        })
-        .finally(() => setIsSearching(false));
+      if (!navigator.onLine) {
+        searchPartiesOffline(partySearch, 30)
+          .then((res) => {
+            setMatchingParties(res);
+            setActiveSearchIndex(0);
+          })
+          .finally(() => setIsSearching(false));
+      } else {
+        autocompleteParties(partySearch, searchMode)
+          .then((res) => {
+            if (res && res.length > 0) {
+              setMatchingParties(res);
+            } else {
+              searchPartiesOffline(partySearch, 30).then(setMatchingParties);
+            }
+            setActiveSearchIndex(0);
+          })
+          .catch(() => {
+            searchPartiesOffline(partySearch, 30).then((res) => {
+              setMatchingParties(res);
+              setActiveSearchIndex(0);
+            });
+          })
+          .finally(() => setIsSearching(false));
+      }
     }, 250);
 
     return () => clearTimeout(timer);
@@ -687,7 +754,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
       const currentCreator = currentUser.username || currentUser.full_name || 'Admin';
 
       const weights = casesList.map((c) => c.weight);
-      const res = await createPrintJob({
+      const jobPayload = {
         party_id: selectedParty.id,
         party_name: selectedParty.party_name,
         party_code: selectedParty.party_code,
@@ -708,7 +775,8 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
         status: 'Printed',
         sender: sender,
         case_breakdown: activeCaseBreakdown,
-        delivery_boy_name: deliveryBoyName.trim() || undefined,
+        driver_name: driverName.trim() || undefined,
+        delivery_boy_name: driverName.trim() || undefined,
         delivery_route: deliveryRoute.trim() || undefined,
         template_format: selectedTemplate,
         language: selectedLanguage,
@@ -720,41 +788,84 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
         state_gu: selectedParty.state_gu || undefined,
         allow_duplicate: allowDup,
         created_by: currentCreator,
+        client_uuid: `offline-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      };
+
+      let jobId: number | null = null;
+      let jobNumber: string = '';
+
+      if (!navigator.onLine) {
+        // Zero-internet offline print queuing
+        await queueOfflineJob(jobPayload);
+        jobNumber = 'OFFLINE-' + Math.floor(1000 + Math.random() * 9000);
+      } else {
+        try {
+          const res = await createPrintJob(jobPayload);
+          jobId = res.id;
+          jobNumber = res.job_number;
+          if (onJobCreated) onJobCreated(res.id);
+        } catch (apiErr) {
+          console.warn('Network print job creation failed, falling back to offline queue:', apiErr);
+          await queueOfflineJob(jobPayload);
+          jobNumber = 'OFFLINE-' + Math.floor(1000 + Math.random() * 9000);
+        }
+      }
+
+      // Record for instant WhatsApp notification
+      setLastPrintedJobInfo({
+        partyName: selectedParty.party_name,
+        partyNameGu: selectedParty.party_name_gu || undefined,
+        phone: selectedParty.mobile_no,
+        jobNumber: jobNumber,
+        totalCases: totalPackagesCount,
+        caseBreakdown: activeCaseBreakdown,
+        driverName: driverName.trim() || undefined,
+        deliveryRoute: deliveryRoute.trim() || undefined,
+        city: selectedParty.city
       });
 
-      if (onJobCreated) onJobCreated(res.id);
-
-      // Trigger high-resolution vector PDF print directly (eliminates blank pages issue completely)
-      try {
-        await printEnvelopePDF({
-          job_id: res.id,
-          party_name: selectedParty.party_name,
-          party_code: selectedParty.party_code || undefined,
-          address: selectedParty.address,
-          address_line_2: selectedParty.address_line_2 || undefined,
-          address_line_3: selectedParty.address_line_3 || undefined,
-          city: selectedParty.city,
-          state: selectedParty.state,
-          mobile_no: selectedParty.mobile_no || undefined,
-          gst_no: selectedParty.gst_no || undefined,
-          parcel_type: caseMode === 'standard' ? parcelType : 'Medicine',
-          total_cases: totalPackagesCount,
-          case_weights: weights,
-          sender: sender,
-          case_breakdown: activeCaseBreakdown,
-          envelopes_per_page: envelopesPerPage,
-          envelope_size: envelopeSize,
-          template_format: selectedTemplate,
-          language: selectedLanguage,
-          party_name_gu: selectedParty.party_name_gu || undefined,
-          address_gu: selectedParty.address_gu || undefined,
-          address_line_2_gu: selectedParty.address_line_2_gu || undefined,
-          address_line_3_gu: selectedParty.address_line_3_gu || undefined,
-          city_gu: selectedParty.city_gu || undefined,
-          state_gu: selectedParty.state_gu || undefined,
-        });
-      } catch (pdfErr) {
-        console.warn('Direct PDF print failed, falling back to browser print:', pdfErr);
+      // Trigger high-resolution vector PDF print directly or fallback to browser print
+      if (jobId && navigator.onLine) {
+        try {
+          await printEnvelopePDF({
+            job_id: jobId,
+            party_name: selectedParty.party_name,
+            party_code: selectedParty.party_code || undefined,
+            address: selectedParty.address,
+            address_line_2: selectedParty.address_line_2 || undefined,
+            address_line_3: selectedParty.address_line_3 || undefined,
+            city: selectedParty.city,
+            state: selectedParty.state,
+            mobile_no: selectedParty.mobile_no || undefined,
+            gst_no: selectedParty.gst_no || undefined,
+            parcel_type: caseMode === 'standard' ? parcelType : 'Medicine',
+            total_cases: totalPackagesCount,
+            case_weights: weights,
+            sender: sender,
+            case_breakdown: activeCaseBreakdown,
+            envelopes_per_page: envelopesPerPage,
+            envelope_size: envelopeSize,
+            template_format: selectedTemplate,
+            language: selectedLanguage,
+            party_name_gu: selectedParty.party_name_gu || undefined,
+            address_gu: selectedParty.address_gu || undefined,
+            address_line_2_gu: selectedParty.address_line_2_gu || undefined,
+            address_line_3_gu: selectedParty.address_line_3_gu || undefined,
+            city_gu: selectedParty.city_gu || undefined,
+            state_gu: selectedParty.state_gu || undefined,
+          });
+        } catch (pdfErr) {
+          console.warn('Direct PDF print failed, falling back to browser print:', pdfErr);
+          document.body.classList.add('printing-envelope');
+          setTimeout(() => {
+            window.print();
+            setTimeout(() => {
+              document.body.classList.remove('printing-envelope');
+            }, 1500);
+          }, 200);
+        }
+      } else {
+        // Zero-internet direct browser print execution
         document.body.classList.add('printing-envelope');
         setTimeout(() => {
           window.print();
@@ -833,7 +944,8 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
         case_breakdown: activeCaseBreakdown,
         total_cases: totalPackagesCount,
         parcel_type: caseMode === 'standard' ? parcelType : 'Medicine',
-        delivery_boy_name: deliveryBoyName.trim() || undefined,
+        driver_name: driverName.trim() || undefined,
+        delivery_boy_name: driverName.trim() || undefined,
         delivery_route: deliveryRoute.trim() || undefined,
         envelopes_per_page: envelopesPerPage,
         envelope_size: envelopeSize,
@@ -1068,14 +1180,14 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
             </div>
           </div>
 
-          {/* Optional Delivery Boy Assignment */}
+          {/* Optional Driver Assignment */}
           <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
             <div>
               <span className="font-bold text-slate-600 block mb-1">Assign Driver Name (Optional):</span>
               <input
                 type="text"
-                value={deliveryBoyName}
-                onChange={(e) => setDeliveryBoyName(e.target.value)}
+                value={driverName}
+                onChange={(e) => setDriverName(e.target.value)}
                 placeholder="e.g. Ramesh Bhai"
                 className="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-white font-bold"
               />
@@ -1176,7 +1288,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
 
           {/* Search Input & AI Smart Paste Button */}
           <div className="space-y-2">
-            <div className="relative">
+            <div className="relative flex items-center">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
               <input
                 ref={searchInputRef}
@@ -1184,10 +1296,46 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                 value={partySearch}
                 onChange={(e) => setPartySearch(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Type party name or city..."
-                className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-900 uppercase focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                placeholder="Type or speak party name..."
+                className="w-full pl-9 pr-16 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-900 uppercase focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
               />
+              <div className="absolute right-1.5 top-1.5 flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setVoiceLang(voiceLang === 'gu-IN' ? 'hi-IN' : voiceLang === 'hi-IN' ? 'en-IN' : 'gu-IN')}
+                  className="px-1.5 py-0.5 rounded text-[10px] font-black bg-slate-200 hover:bg-slate-300 text-slate-700 transition-colors"
+                  title="Voice Recognition Language (Click to toggle: Gujarati / Hindi / English)"
+                >
+                  {voiceLang === 'gu-IN' ? 'ગુજ' : voiceLang === 'hi-IN' ? 'हिं' : 'EN'}
+                </button>
+                <button
+                  type="button"
+                  onClick={isListening ? stopListening : startListening}
+                  className={`p-1 rounded-md transition-all ${
+                    isListening
+                      ? 'bg-rose-600 text-white animate-pulse ring-2 ring-rose-400'
+                      : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
+                  }`}
+                  title={isListening ? 'Listening... click to stop' : 'Click to Speak Party Name / Cases'}
+                >
+                  {isListening ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
+                </button>
+              </div>
             </div>
+
+            {/* Live Voice Transcript feedback */}
+            {isListening && (
+              <div className="p-1.5 bg-rose-50 border border-rose-200 rounded-lg text-[11px] text-rose-800 font-bold flex items-center gap-1.5 animate-pulse">
+                <span className="w-2 h-2 rounded-full bg-rose-600 animate-ping"></span>
+                <span>Listening in {voiceLang === 'gu-IN' ? 'ગુજરાતી' : voiceLang === 'hi-IN' ? 'हिंदी' : 'English'}... Speak now!</span>
+              </div>
+            )}
+            {!isListening && voiceTranscript && (
+              <div className="px-2 py-1 bg-blue-50 border border-blue-200 rounded-lg text-[11px] text-blue-900 font-semibold flex items-center justify-between">
+                <span>Heard: "{voiceTranscript}"</span>
+                <span className="text-[10px] text-blue-600">✓ Parsed</span>
+              </div>
+            )}
 
             {/* AI Smart Paste Button */}
             <button
@@ -1826,8 +1974,8 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                 <span className="text-[10px] font-bold text-slate-500 uppercase">Driver Name</span>
                 <input
                   type="text"
-                  value={deliveryBoyName}
-                  onChange={(e) => setDeliveryBoyName(e.target.value)}
+                  value={driverName}
+                  onChange={(e) => setDriverName(e.target.value)}
                   placeholder="e.g. Ramesh"
                   className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 font-bold text-slate-900"
                 />
@@ -2003,6 +2151,48 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
               Total Pages: {Math.max(1, Math.ceil(totalPackagesCount / 2))} Page(s)
             </span>
           </div>
+
+          {/* Instant WhatsApp Dispatch Notification Banner */}
+          {lastPrintedJobInfo && (
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between gap-3 text-xs animate-in fade-in slide-in-from-top-2">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                  <MessageSquare className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="font-extrabold text-emerald-950 flex items-center gap-1.5">
+                    <span>Dispatched: {lastPrintedJobInfo.partyName}</span>
+                    <span className="text-[10px] bg-emerald-200 text-emerald-900 px-1.5 py-0.2 rounded font-bold">
+                      Job #{lastPrintedJobInfo.jobNumber}
+                    </span>
+                  </div>
+                  <div className="text-emerald-700 text-[11px] font-medium">
+                    {lastPrintedJobInfo.totalCases} Case(s) ready • Send dispatch alert to party
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <a
+                  href={generateWhatsAppDispatchUrl(lastPrintedJobInfo, selectedLanguage === 'gu' ? 'gu' : 'en') || '#'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold flex items-center gap-1.5 shadow-sm transition-colors shrink-0"
+                >
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  <span>Send WhatsApp</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setLastPrintedJobInfo(null)}
+                  className="p-1 text-emerald-600 hover:text-emerald-800 text-xs font-bold"
+                  title="Dismiss"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Primary Action Buttons */}
           {hasPrintedToday && !isEditReprintMode ? (

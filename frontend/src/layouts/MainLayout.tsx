@@ -15,8 +15,12 @@ import {
   Clock,
   ChevronRight,
   ArrowLeft,
-  Truck
+  Truck,
+  Wifi,
+  WifiOff,
+  RefreshCw
 } from 'lucide-react';
+import { useNetworkSync } from '../offline/syncManager';
 
 interface MainLayoutProps {
   currentTab: string;
@@ -98,6 +102,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
     return () => clearInterval(interval);
   }, []);
 
+  const { isOnline, pendingCount, isSyncing, triggerSync } = useNetworkSync();
+
   let userRole = 'employee';
   try {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -109,7 +115,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
     { id: 'parties', label: 'Parties', icon: Users },
     { id: 'import', label: 'Import Excel', icon: FileSpreadsheet },
     { id: 'print', label: 'Print Envelope', icon: Printer },
-    { id: 'dispatch', label: 'Dispatch Summary', icon: Truck },
+    { id: 'driver', label: 'Driver Mode', icon: Truck },
+    { id: 'dispatch', label: 'Dispatch Summary', icon: Package },
     { id: 'history', label: 'Print History', icon: History },
     { id: 'settings', label: 'Settings', icon: SettingsIcon },
     ...(userRole === 'super_admin' ? [{ id: 'users', label: 'User Management', icon: User }] : [])
@@ -122,6 +129,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
     parties: 'Parties Management',
     import: 'Import Excel',
     print: 'Print Envelope',
+    driver: 'Driver Mode (POD)',
     dispatch: 'Dispatch Summary',
     history: 'Print History',
     settings: 'Settings',
@@ -271,6 +279,43 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
 
           {/* Right Controls: Date, Digital Clock, Notifications, Profile */}
           <div className="flex items-center gap-3 sm:gap-5">
+            {/* Offline & Sync Status Indicator */}
+            <button
+              onClick={() => triggerSync()}
+              title={isOnline ? (pendingCount > 0 ? `${pendingCount} offline actions pending sync` : 'All changes synced') : 'Offline mode active'}
+              className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition-all ${
+                isSyncing
+                  ? 'bg-blue-50 text-blue-700 border-blue-200'
+                  : !isOnline
+                  ? 'bg-amber-50 text-amber-800 border-amber-300'
+                  : pendingCount > 0
+                  ? 'bg-amber-50 text-amber-700 border-amber-200'
+                  : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              }`}
+            >
+              {isSyncing ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-blue-600" />
+                  <span className="hidden sm:inline">Syncing...</span>
+                </>
+              ) : !isOnline ? (
+                <>
+                  <WifiOff className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Offline{pendingCount > 0 ? ` (${pendingCount})` : ''}</span>
+                </>
+              ) : pendingCount > 0 ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Sync ({pendingCount})</span>
+                </>
+              ) : (
+                <>
+                  <Wifi className="w-3.5 h-3.5 text-emerald-600" />
+                  <span className="hidden sm:inline">Online</span>
+                </>
+              )}
+            </button>
+
             {/* Live Date */}
             <div className="hidden lg:flex items-center gap-1.5 text-xs text-slate-600 font-semibold bg-slate-50 px-2.5 py-1.5 rounded-md border border-slate-200">
               <Calendar className="w-3.5 h-3.5 text-blue-600" />

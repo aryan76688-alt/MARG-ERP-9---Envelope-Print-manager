@@ -141,11 +141,21 @@ class PrintJob(Base):
     envelopes_per_page = Column(Integer, default=2)
     status = Column(String(30), default="Printed") # Printed, Pending, Failed
     case_breakdown_json = Column(Text, nullable=True) # JSON list of case items with quantities and volumes
-    delivery_boy_name = Column(String(100), nullable=True)
+    delivery_boy_name = Column(String(100), nullable=True) # Legacy alias
+    driver_name = Column(String(100), nullable=True) # Active driver field
     delivery_route = Column(String(100), nullable=True)
     language = Column(String(10), default="en") # en or gu
     template_format = Column(String(50), default="attachment_pdf") # attachment_pdf or marg_grid_22
     created_by = Column(String(100), default="Admin") # User attribution
+    
+    # Driver Mode & Proof of Delivery (POD) fields
+    delivery_status = Column(String(30), default="Pending") # 'Pending', 'Delivered'
+    pod_signature = Column(Text, nullable=True) # Base64 signature data
+    pod_photo = Column(Text, nullable=True) # Base64 photo or image path
+    pod_notes = Column(Text, nullable=True) # Receiver name or delivery remarks
+    delivered_at = Column(DateTime, nullable=True) # Timestamp when marked delivered
+    client_uuid = Column(String(100), nullable=True, unique=True, index=True) # Offline sync idempotency
+    
     created_at = Column(DateTime, default=datetime.datetime.utcnow, index=True)
 
     # Relationships

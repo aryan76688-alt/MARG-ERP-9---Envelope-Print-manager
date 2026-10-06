@@ -119,10 +119,17 @@ def init_db():
             ("party_address_line_3_snap", "TEXT", None),
             ("case_breakdown_json", "TEXT", None),
             ("delivery_boy_name", "TEXT", None),
+            ("driver_name", "TEXT", None),
             ("delivery_route", "TEXT", None),
             ("language", "TEXT", "'en'"),
             ("template_format", "TEXT", "'attachment_pdf'"),
             ("created_by", "TEXT", "'Admin'"),
+            ("delivery_status", "TEXT", "'Pending'"),
+            ("pod_signature", "TEXT", None),
+            ("pod_photo", "TEXT", None),
+            ("pod_notes", "TEXT", None),
+            ("delivered_at", "TIMESTAMP", None),
+            ("client_uuid", "TEXT", None),
         ])
 
         ensure_columns("users", [

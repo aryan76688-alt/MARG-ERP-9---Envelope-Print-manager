@@ -14,11 +14,13 @@ import {
   Calendar,
   AlertTriangle,
   RefreshCw,
-  Edit3
+  Edit3,
+  MessageSquare
 } from 'lucide-react';
 import { PrintJob, PrintJobDetails } from '../types';
 import { fetchPrintJobs, fetchPrintJobDetails, deletePrintJob, downloadEnvelopePDF, getExportHistoryUrl } from '../api/client';
 import { JobDetailsModal } from '../components/JobDetailsModal';
+import { generateWhatsAppDispatchUrl } from '../utils/whatsapp';
 
 interface PrintHistoryProps {
   onNavigate: (tab: string, state?: any) => void;
@@ -360,6 +362,30 @@ export const PrintHistory: React.FC<PrintHistoryProps> = ({ onNavigate }) => {
                         >
                           <Download className="w-4 h-4" />
                         </button>
+
+                        {/* WhatsApp Dispatch Notification */}
+                        {(() => {
+                          const waUrl = generateWhatsAppDispatchUrl({
+                            partyName: j.party_name,
+                            phone: j.mobile,
+                            jobNumber: j.job_number,
+                            totalCases: j.total_cases,
+                            driverName: j.driver_name || j.delivery_boy_name,
+                            deliveryRoute: j.delivery_route,
+                            city: j.city
+                          }, 'en');
+                          return (
+                            <a
+                              href={waUrl || '#'}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-1.5 text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                              title="Send WhatsApp Dispatch Notice"
+                            >
+                              <MessageSquare className="w-4 h-4 text-emerald-600" />
+                            </a>
+                          );
+                        })()}
 
                         {/* Edit & Reprint */}
                         <button

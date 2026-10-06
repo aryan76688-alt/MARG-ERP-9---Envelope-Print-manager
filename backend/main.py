@@ -292,6 +292,7 @@ class CreatePrintJobRequest(BaseModel):
     sender: Optional[Dict[str, Any]] = None
     case_breakdown: Optional[List[Dict[str, Any]]] = None
     delivery_boy_name: Optional[str] = None
+    driver_name: Optional[str] = None
     delivery_route: Optional[str] = None
     template_format: Optional[str] = "attachment_pdf"
     language: Optional[str] = "en"
@@ -303,6 +304,7 @@ class CreatePrintJobRequest(BaseModel):
     state_gu: Optional[str] = None
     allow_duplicate: bool = False
     created_by: Optional[str] = "Admin"
+    client_uuid: Optional[str] = None
 
 class BackupSettingsRequest(BaseModel):
     auto_backup_enabled: bool = True
@@ -322,6 +324,7 @@ class BulkPrintJobsRequest(BaseModel):
     envelope_size: str = "A4"
     envelopes_per_page: int = 2
     delivery_boy_name: Optional[str] = None
+    driver_name: Optional[str] = None
     delivery_route: Optional[str] = None
     template_format: Optional[str] = "attachment_pdf"
     language: Optional[str] = "en"
@@ -329,8 +332,22 @@ class BulkPrintJobsRequest(BaseModel):
 class UpdateDispatchJobsRequest(BaseModel):
     job_ids: List[int]
     delivery_boy_name: Optional[str] = None
+    driver_name: Optional[str] = None
     delivery_route: Optional[str] = None
     status: Optional[str] = None
+
+class PODRecordRequest(BaseModel):
+    job_id: int
+    pod_signature: Optional[str] = None
+    pod_photo: Optional[str] = None
+    pod_notes: Optional[str] = None
+    client_uuid: Optional[str] = None
+
+class BatchPODSyncRequest(BaseModel):
+    items: List[PODRecordRequest]
+
+class BatchJobSyncRequest(BaseModel):
+    jobs: List[CreatePrintJobRequest]
 
 class BulkDeletePartiesRequest(BaseModel):
     party_ids: List[int]
@@ -1146,6 +1163,26 @@ def create_print_job(req: CreatePrintJobRequest, db: Session = Depends(get_db)):
     if req.total_cases < 0:
         raise HTTPException(status_code=400, detail="Number of cases cannot be negative")
 
+    # Idempotent offline sync check by client_uuid
+    if req.client_uuid:
+        existing_by_uuid = db.query(PrintJob).filter(PrintJob.client_uuid == req.client_uuid).first()
+        if existing_by_uuid:
+            return {
+                "id": existing_by_uuid.id,
+                "job_number": existing_by_uuid.job_number,
+                "status": existing_by_uuid.status,
+                "total_cases": existing_by_uuid.total_cases,
+                "created_at": existing_by_uuid.created_at.isoformat(),
+                "cases": [
+                    {
+                        "case_number": c.case_number,
+                        "case_total": c.case_total,
+                        "weight": c.weight,
+                        "barcode_value": c.barcode_value
+                    } for c in existing_by_uuid.cases
+                ]
+            }
+
     # 1-Time/Day Lock enforcement on single party print
     now_utc = datetime.datetime.now(datetime.timezone.utc)
     today_start = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -1194,6 +1231,8 @@ def create_print_job(req: CreatePrintJobRequest, db: Session = Depends(get_db)):
             weights = weights[:req.total_cases]
         total_weight = sum(weights)
 
+    active_driver = (req.driver_name or req.delivery_boy_name or "").strip() or None
+
     try:
         job = PrintJob(
             job_number=job_number,
@@ -1221,8 +1260,11 @@ def create_print_job(req: CreatePrintJobRequest, db: Session = Depends(get_db)):
             envelopes_per_page=req.envelopes_per_page,
             status=req.status,
             case_breakdown_json=case_breakdown_json,
-            delivery_boy_name=req.delivery_boy_name,
+            delivery_boy_name=active_driver,
+            driver_name=active_driver,
             delivery_route=req.delivery_route,
+            delivery_status="Pending",
+            client_uuid=req.client_uuid,
             language=req.language or "en",
             template_format=req.template_format or "attachment_pdf",
             created_by=(req.created_by.strip() if req.created_by else None) or "Admin",
@@ -2226,9 +2268,11 @@ def update_dispatch_jobs(req: UpdateDispatchJobsRequest, db: Session = Depends(g
         raise HTTPException(status_code=400, detail="job_ids cannot be empty")
 
     jobs = db.query(PrintJob).filter(PrintJob.id.in_(req.job_ids)).all()
+    driver_val = req.driver_name if req.driver_name is not None else req.delivery_boy_name
     for j in jobs:
-        if req.delivery_boy_name is not None:
-            j.delivery_boy_name = req.delivery_boy_name
+        if driver_val is not None:
+            j.delivery_boy_name = driver_val
+            j.driver_name = driver_val
         if req.delivery_route is not None:
             j.delivery_route = req.delivery_route
         if req.status is not None:
@@ -2236,6 +2280,168 @@ def update_dispatch_jobs(req: UpdateDispatchJobsRequest, db: Session = Depends(g
 
     db.commit()
     return {"success": True, "updated_count": len(jobs)}
+
+# ---------------------------------------------------------------------------
+# Driver Mode & Proof of Delivery (POD) Endpoints
+# ---------------------------------------------------------------------------
+
+@app.get("/api/driver/jobs")
+def get_driver_jobs(
+    date: Optional[str] = Query(None),
+    driver: Optional[str] = Query(None),
+    route: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+    db: Session = Depends(get_db)
+):
+    if not date:
+        date_obj = datetime.datetime.now(datetime.timezone.utc).date()
+    else:
+        try:
+            date_obj = datetime.datetime.strptime(date, "%Y-%m-%d").date()
+        except ValueError:
+            date_obj = datetime.datetime.now(datetime.timezone.utc).date()
+
+    start_dt = datetime.datetime.combine(date_obj, datetime.time.min)
+    end_dt = datetime.datetime.combine(date_obj, datetime.time.max)
+
+    query = db.query(PrintJob).filter(
+        PrintJob.created_at >= start_dt,
+        PrintJob.created_at <= end_dt
+    )
+
+    if driver and driver.strip() and driver.strip().lower() != "all":
+        driver_term = driver.strip()
+        query = query.filter(
+            or_(
+                PrintJob.driver_name.ilike(driver_term),
+                PrintJob.delivery_boy_name.ilike(driver_term)
+            )
+        )
+
+    if route and route.strip() and route.strip().lower() != "all":
+        query = query.filter(PrintJob.delivery_route.ilike(route.strip()))
+
+    if status and status.strip() and status.strip().lower() != "all":
+        query = query.filter(PrintJob.delivery_status.ilike(status.strip()))
+
+    jobs = query.order_by(PrintJob.id.asc()).all()
+
+    items = []
+    for j in jobs:
+        b_items = []
+        if j.case_breakdown_json:
+            try:
+                b_items = json.loads(j.case_breakdown_json)
+            except Exception:
+                b_items = []
+
+        items.append({
+            "id": j.id,
+            "job_number": j.job_number,
+            "party_id": j.party_id,
+            "party_name": j.party_name_snap,
+            "party_name_gu": j.party.party_name_gu if j.party and j.party.party_name_gu else None,
+            "address": j.party_address_snap,
+            "address_line_2": j.party_address_line_2_snap,
+            "address_line_3": j.party_address_line_3_snap,
+            "city": j.party_city_snap,
+            "state": j.party_state_snap,
+            "mobile": j.party_mobile_snap,
+            "total_cases": j.total_cases,
+            "case_breakdown": b_items,
+            "driver_name": j.driver_name or j.delivery_boy_name,
+            "delivery_route": j.delivery_route,
+            "delivery_status": j.delivery_status or "Pending",
+            "pod_signature": j.pod_signature,
+            "pod_photo": j.pod_photo,
+            "pod_notes": j.pod_notes,
+            "delivered_at": j.delivered_at.isoformat() if j.delivered_at else None,
+            "created_at": j.created_at.isoformat() if j.created_at else None
+        })
+
+    return {
+        "date": date_obj.isoformat(),
+        "total_stops": len(items),
+        "delivered_count": sum(1 for x in items if x["delivery_status"] == "Delivered"),
+        "pending_count": sum(1 for x in items if x["delivery_status"] != "Delivered"),
+        "stops": items
+    }
+
+@app.post("/api/driver/pod")
+def submit_proof_of_delivery(req: PODRecordRequest, db: Session = Depends(get_db)):
+    job = db.query(PrintJob).filter(PrintJob.id == req.job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Print job not found")
+
+    job.delivery_status = "Delivered"
+    job.delivered_at = datetime.datetime.now(datetime.timezone.utc)
+    if req.pod_signature:
+        job.pod_signature = req.pod_signature
+    if req.pod_photo:
+        job.pod_photo = req.pod_photo
+    if req.pod_notes:
+        job.pod_notes = req.pod_notes
+
+    db.commit()
+    return {
+        "success": True,
+        "job_id": job.id,
+        "delivery_status": job.delivery_status,
+        "delivered_at": job.delivered_at.isoformat()
+    }
+
+@app.post("/api/driver/pod/sync")
+def sync_batch_pod(req: BatchPODSyncRequest, db: Session = Depends(get_db)):
+    updated_ids = []
+    now = datetime.datetime.now(datetime.timezone.utc)
+    for item in req.items:
+        job = None
+        if item.client_uuid:
+            job = db.query(PrintJob).filter(PrintJob.client_uuid == item.client_uuid).first()
+        if not job and item.job_id:
+            job = db.query(PrintJob).filter(PrintJob.id == item.job_id).first()
+        if job:
+            job.delivery_status = "Delivered"
+            job.delivered_at = now
+            if item.pod_signature: job.pod_signature = item.pod_signature
+            if item.pod_photo: job.pod_photo = item.pod_photo
+            if item.pod_notes: job.pod_notes = item.pod_notes
+            updated_ids.append(job.id)
+
+    db.commit()
+    return {
+        "success": True,
+        "synced_count": len(updated_ids),
+        "job_ids": updated_ids
+    }
+
+@app.post("/api/sync/jobs")
+def sync_offline_jobs(req: BatchJobSyncRequest, db: Session = Depends(get_db)):
+    synced_jobs = []
+    for job_req in req.jobs:
+        try:
+            res = create_print_job(job_req, db)
+            synced_jobs.append(res)
+        except Exception as e:
+            print(f"Error syncing offline job {job_req.party_name}: {e}")
+    return {
+        "success": True,
+        "synced_count": len(synced_jobs),
+        "jobs": synced_jobs
+    }
+
+@app.get("/api/driver/list")
+def get_driver_list(db: Session = Depends(get_db)):
+    driver_rows = db.query(PrintJob.driver_name).filter(PrintJob.driver_name.isnot(None)).distinct().all()
+    legacy_rows = db.query(PrintJob.delivery_boy_name).filter(PrintJob.delivery_boy_name.isnot(None)).distinct().all()
+    all_drivers = set()
+    for (d,) in driver_rows:
+        if d and d.strip(): all_drivers.add(d.strip())
+    for (d,) in legacy_rows:
+        if d and d.strip(): all_drivers.add(d.strip())
+    return {
+        "drivers": sorted(list(all_drivers))
+    }
 
 @app.get("/api/dispatch-summary/pdf")
 def get_dispatch_summary_pdf(

@@ -76,6 +76,7 @@ export interface CaseItem {
 }
 
 export interface CaseBreakdownItem {
+  title?: string;
   type: string; // 'CASE' | 'NS CASE' | 'RL CASE' | 'DNS CASE' | 'METRO CASE' | 'PARCEL BAG'
   volume?: string; // '100ML' | '200ML' | '250ML' | '500ML' | '1LTR'
   qty: number;
@@ -105,7 +106,14 @@ export interface PrintJob {
   status: string;
   case_breakdown_json?: string | null;
   delivery_boy_name?: string | null;
+  driver_name?: string | null;
   delivery_route?: string | null;
+  delivery_status?: string | null;
+  pod_signature?: string | null;
+  pod_photo?: string | null;
+  pod_notes?: string | null;
+  delivered_at?: string | null;
+  client_uuid?: string | null;
   template_format?: 'attachment_pdf' | 'marg_grid_22';
   language?: 'en' | 'gu';
   party_name_gu?: string | null;
@@ -117,6 +125,40 @@ export interface PrintJob {
   created_at: string;
   created_by?: string;
   cases_count?: number;
+}
+
+export interface DriverStop {
+  id: number;
+  job_number: string;
+  party_id?: number | null;
+  party_name: string;
+  party_name_gu?: string | null;
+  address: string;
+  address_line_2?: string | null;
+  address_line_3?: string | null;
+  city: string;
+  state: string;
+  mobile?: string | null;
+  total_cases: number;
+  case_breakdown?: CaseBreakdownItem[];
+  driver_name?: string | null;
+  delivery_route?: string | null;
+  delivery_status: 'Pending' | 'Delivered' | string;
+  pod_signature?: string | null;
+  pod_photo?: string | null;
+  pod_notes?: string | null;
+  delivered_at?: string | null;
+  created_at?: string | null;
+}
+
+export interface PODSubmission {
+  id?: number;
+  job_id: number;
+  pod_signature?: string | null;
+  pod_photo?: string | null;
+  pod_notes?: string | null;
+  delivered_at?: string | null;
+  client_uuid?: string | null;
 }
 
 export interface TranslatePartyResponse {

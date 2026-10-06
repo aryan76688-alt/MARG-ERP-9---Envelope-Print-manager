@@ -13,7 +13,9 @@ import {
   ParseMargTextResponse,
   BigBrainUiControlResult,
   BigBrainDashboardInsights,
-  DualBrainStatus
+  DualBrainStatus,
+  DriverStop,
+  PODSubmission
 } from '../types';
 
 
@@ -275,6 +277,7 @@ export async function createBulkPrintJobs(payload: {
   envelope_size?: string;
   envelopes_per_page?: number;
   delivery_boy_name?: string;
+  driver_name?: string;
   delivery_route?: string;
   template_format?: string;
   language?: string;
@@ -906,5 +909,84 @@ export async function triggerManualBackup(): Promise<{ success: boolean; message
     const err = await res.json().catch(() => ({ detail: 'Failed to trigger backup' }));
     throw new Error(err.detail || 'Failed to trigger backup');
   }
+  return res.json();
+}
+
+// ==========================================
+// DRIVER MODE & OFFLINE SYNC APIs
+// ==========================================
+
+export async function fetchDriverJobs(params: {
+  date?: string;
+  driver?: string;
+  route?: string;
+  status?: string;
+}): Promise<{
+  date: string;
+  total_stops: number;
+  delivered_count: number;
+  pending_count: number;
+  stops: DriverStop[];
+}> {
+  const q = new URLSearchParams();
+  if (params.date) q.append('date', params.date);
+  if (params.driver) q.append('driver', params.driver);
+  if (params.route) q.append('route', params.route);
+  if (params.status) q.append('status', params.status);
+
+  const res = await fetchApi(`${API_BASE}/driver/jobs?${q.toString()}`);
+  if (!res.ok) throw new Error('Failed to load driver jobs');
+  return res.json();
+}
+
+export async function recordPOD(data: {
+  job_id: number;
+  pod_signature?: string;
+  pod_photo?: string;
+  pod_notes?: string;
+}): Promise<any> {
+  const res = await fetchApi(`${API_BASE}/driver/pod`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to record proof of delivery' }));
+    throw new Error(err.detail || 'Failed to record proof of delivery');
+  }
+  return res.json();
+}
+
+export async function syncBatchPOD(items: PODSubmission[]): Promise<{
+  success: boolean;
+  synced_count: number;
+  job_ids: number[];
+}> {
+  const res = await fetchApi(`${API_BASE}/driver/pod/sync`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ items }),
+  });
+  if (!res.ok) throw new Error('Failed to batch sync POD items');
+  return res.json();
+}
+
+export async function syncBatchPrintJobs(jobs: any[]): Promise<{
+  success: boolean;
+  synced_count: number;
+  jobs: any[];
+}> {
+  const res = await fetchApi(`${API_BASE}/sync/jobs`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ jobs }),
+  });
+  if (!res.ok) throw new Error('Failed to batch sync offline jobs');
+  return res.json();
+}
+
+export async function fetchDriverList(): Promise<{ drivers: string[] }> {
+  const res = await fetchApi(`${API_BASE}/driver/list`);
+  if (!res.ok) return { drivers: [] };
   return res.json();
 }
