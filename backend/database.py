@@ -170,6 +170,28 @@ def init_db():
             )
             db.add(first_admin)
 
+        owner_user = db.query(User).filter_by(username="owner").first()
+        if not owner_user:
+            owner_user = User(
+                username="owner",
+                password_hash=get_password_hash("Aryan@2007"),
+                role="super_admin",
+                permissions='["create_job", "save_job"]',
+                full_name="Owner"
+            )
+            db.add(owner_user)
+
+        driver_user = db.query(User).filter_by(username="driver").first()
+        if not driver_user:
+            driver_user = User(
+                username="driver",
+                password_hash=get_password_hash("driver123"),
+                role="driver",
+                permissions='["create_job"]',
+                full_name="Driver"
+            )
+            db.add(driver_user)
+
         # Drop old plain text admin if it exists just to be clean
         old_admin = db.query(User).filter_by(username="admin").first()
         if old_admin:

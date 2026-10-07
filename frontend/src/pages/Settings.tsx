@@ -35,7 +35,8 @@ import {
   fetchBrainStatus,
   fetchBackupSettings,
   updateBackupSettings,
-  triggerManualBackup
+  triggerManualBackup,
+  API_BASE
 } from '../api/client';
 
 
@@ -201,7 +202,7 @@ export const Settings: React.FC = () => {
     try {
       const text = await file.text();
       const json = JSON.parse(text);
-      const res = await fetch('/api/backup/import', {
+      const res = await fetch(`${API_BASE}/backup/import`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(json),

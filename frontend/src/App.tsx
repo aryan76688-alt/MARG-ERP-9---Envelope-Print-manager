@@ -18,8 +18,25 @@ const queryClient = new QueryClient();
 
 export const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(!!getAuthToken());
-  const [currentTab, setCurrentTab] = useState<string>('dashboard');
-  const [historyStack, setHistoryStack] = useState<string[]>(['dashboard']);
+  const [currentTab, setCurrentTab] = useState<string>(() => {
+    try {
+      const stored = localStorage.getItem('user');
+      if (stored && JSON.parse(stored).role === 'driver') {
+        return 'driver';
+      }
+    } catch {}
+    const hash = window.location.hash.replace('#', '');
+    return hash && hash !== 'login' ? hash : 'dashboard';
+  });
+  const [historyStack, setHistoryStack] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem('user');
+      if (stored && JSON.parse(stored).role === 'driver') {
+        return ['driver'];
+      }
+    } catch {}
+    return ['dashboard'];
+  });
   const [selectedPartyForPrint, setSelectedPartyForPrint] = useState<Party | null>(null);
   const [reprintJobData, setReprintJobData] = useState<any | null>(null);
   const [openAddPartyModal, setOpenAddPartyModal] = useState<boolean>(false);
@@ -36,14 +53,24 @@ export const App: React.FC = () => {
 
   const handleLogin = () => {
     setIsAuthenticated(true);
-    window.location.hash = 'dashboard';
-    setCurrentTab('dashboard');
+    let targetTab = 'dashboard';
+    try {
+      const stored = localStorage.getItem('user');
+      if (stored && JSON.parse(stored).role === 'driver') {
+        targetTab = 'driver';
+      }
+    } catch {}
+    window.location.hash = targetTab;
+    setCurrentTab(targetTab);
+    setHistoryStack([targetTab]);
   };
 
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setIsAuthenticated(false);
+    setCurrentTab('dashboard');
+    setHistoryStack(['dashboard']);
   };
 
   const navigateToTab = (tab: string, state?: any) => {

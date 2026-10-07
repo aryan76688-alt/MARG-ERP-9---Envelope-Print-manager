@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getAuthToken } from '../api/client';
+import { getAuthToken, API_BASE } from '../api/client';
 import { Plus, Edit2, Trash2, Shield, User as UserIcon, Check } from 'lucide-react';
 
 export const Users: React.FC = () => {
@@ -11,7 +11,7 @@ export const Users: React.FC = () => {
   const { data: users = [], isLoading } = useQuery({
     queryKey: ['users'],
     queryFn: async () => {
-      const res = await fetch('/api/users', {
+      const res = await fetch(`${API_BASE}/users`, {
         headers: { Authorization: `Bearer ${getAuthToken()}` }
       });
       if (!res.ok) throw new Error('Failed to load users');
@@ -22,7 +22,7 @@ export const Users: React.FC = () => {
   const saveUserMutation = useMutation({
     mutationFn: async (user: any) => {
       const isEdit = !!user.id;
-      const url = isEdit ? `/api/users/${user.id}` : '/api/users';
+      const url = isEdit ? `${API_BASE}/users/${user.id}` : `${API_BASE}/users`;
       const res = await fetch(url, {
         method: isEdit ? 'PUT' : 'POST',
         headers: {
@@ -46,7 +46,7 @@ export const Users: React.FC = () => {
 
   const deleteUserMutation = useMutation({
     mutationFn: async (id: number) => {
-      const res = await fetch(`/api/users/${id}`, {
+      const res = await fetch(`${API_BASE}/users/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${getAuthToken()}` }
       });

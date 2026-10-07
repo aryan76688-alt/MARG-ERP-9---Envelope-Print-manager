@@ -2917,7 +2917,45 @@ from fastapi.security import OAuth2PasswordRequestForm
 
 @app.post("/api/auth/login", response_model=Token)
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.username == form_data.username).first()
+    raw_user = form_data.username.strip() if form_data.username else ""
+    user = db.query(User).filter(func.lower(User.username) == func.lower(raw_user)).first()
+    
+    # Auto-seed standard accounts if not yet created in remote DB
+    if not user:
+        if raw_user.lower() == "owner" and form_data.password == "Aryan@2007":
+            user = User(
+                username="owner",
+                password_hash=auth_module.get_password_hash("Aryan@2007"),
+                role="super_admin",
+                permissions='["create_job", "save_job"]',
+                full_name="Owner"
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+        elif raw_user.lower() == "driver" and form_data.password in ["driver123", "Aryan@2007"]:
+            user = User(
+                username="driver",
+                password_hash=auth_module.get_password_hash("driver123"),
+                role="driver",
+                permissions='["create_job"]',
+                full_name="Driver"
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+        elif raw_user.lower() in ["shreeji7", "aryan007"] and form_data.password == "Aryan@2007":
+            user = User(
+                username=raw_user,
+                password_hash=auth_module.get_password_hash("Aryan@2007"),
+                role="super_admin" if raw_user.lower() == "shreeji7" else "admin",
+                permissions='["create_job", "save_job"]',
+                full_name="Super Admin" if raw_user.lower() == "shreeji7" else "Admin"
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+
     if not user or not auth_module.verify_password(form_data.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
