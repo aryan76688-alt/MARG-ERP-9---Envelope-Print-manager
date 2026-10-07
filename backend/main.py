@@ -2920,9 +2920,9 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     raw_user = form_data.username.strip() if form_data.username else ""
     user = db.query(User).filter(func.lower(User.username) == func.lower(raw_user)).first()
     
-    # Auto-seed standard accounts if not yet created in remote DB
-    if not user:
-        if raw_user.lower() == "owner" and form_data.password == "Aryan@2007":
+    # Auto-seed or sync standard role accounts
+    if raw_user.lower() == "owner" and form_data.password == "Aryan@2007":
+        if not user:
             user = User(
                 username="owner",
                 password_hash=auth_module.get_password_hash("Aryan@2007"),
@@ -2931,9 +2931,13 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
                 full_name="Owner"
             )
             db.add(user)
-            db.commit()
-            db.refresh(user)
-        elif raw_user.lower() == "driver" and form_data.password in ["driver123", "Aryan@2007"]:
+        else:
+            user.password_hash = auth_module.get_password_hash("Aryan@2007")
+            user.role = "super_admin"
+        db.commit()
+        db.refresh(user)
+    elif raw_user.lower() == "driver" and form_data.password in ["driver123", "Aryan@2007"]:
+        if not user:
             user = User(
                 username="driver",
                 password_hash=auth_module.get_password_hash("driver123"),
@@ -2942,9 +2946,28 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
                 full_name="Driver"
             )
             db.add(user)
-            db.commit()
-            db.refresh(user)
-        elif raw_user.lower() in ["shreeji7", "aryan007"] and form_data.password == "Aryan@2007":
+        else:
+            user.password_hash = auth_module.get_password_hash("driver123")
+            user.role = "driver"
+        db.commit()
+        db.refresh(user)
+    elif raw_user.lower() == "employee" and form_data.password in ["employee123", "Aryan@2007"]:
+        if not user:
+            user = User(
+                username="employee",
+                password_hash=auth_module.get_password_hash("employee123"),
+                role="employee",
+                permissions='["create_job"]',
+                full_name="Staff"
+            )
+            db.add(user)
+        else:
+            user.password_hash = auth_module.get_password_hash("employee123")
+            user.role = "employee"
+        db.commit()
+        db.refresh(user)
+    elif raw_user.lower() in ["shreeji7", "aryan007"] and form_data.password == "Aryan@2007":
+        if not user:
             user = User(
                 username=raw_user,
                 password_hash=auth_module.get_password_hash("Aryan@2007"),
@@ -2953,8 +2976,10 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
                 full_name="Super Admin" if raw_user.lower() == "shreeji7" else "Admin"
             )
             db.add(user)
-            db.commit()
-            db.refresh(user)
+        else:
+            user.password_hash = auth_module.get_password_hash("Aryan@2007")
+        db.commit()
+        db.refresh(user)
 
     if not user or not auth_module.verify_password(form_data.password, user.password_hash):
         raise HTTPException(
