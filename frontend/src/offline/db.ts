@@ -53,9 +53,44 @@ export function openEnvelopeDB(): Promise<IDBDatabase> {
   });
 }
 
+import initialPartiesData from './initialPartiesData.json';
+
+const BUNDLED_PARTIES: Party[] = (initialPartiesData as any[]) || [];
+
 // -------------------------------------------------------------
-// Parties Offline Cache
+// Parties Offline Cache & Auto-Seeding
 // -------------------------------------------------------------
+
+export async function ensureInitialPartiesLoaded(): Promise<number> {
+  try {
+    const db = await openEnvelopeDB();
+    return new Promise((resolve) => {
+      const tx = db.transaction('parties', 'readwrite');
+      const store = tx.objectStore('parties');
+      const countReq = store.count();
+
+      countReq.onsuccess = () => {
+        const count = countReq.result;
+        if (count < BUNDLED_PARTIES.length) {
+          console.log(`Seeding IndexedDB with ${BUNDLED_PARTIES.length} bundled parties...`);
+          for (const p of BUNDLED_PARTIES) {
+            if (p.id) {
+              store.put(p);
+            }
+          }
+          resolve(BUNDLED_PARTIES.length);
+        } else {
+          resolve(count);
+        }
+      };
+
+      countReq.onerror = () => resolve(BUNDLED_PARTIES.length);
+    });
+  } catch (err) {
+    console.warn('ensureInitialPartiesLoaded error:', err);
+    return BUNDLED_PARTIES.length;
+  }
+}
 
 export async function cachePartiesOffline(parties: Party[]): Promise<void> {
   try {
@@ -72,44 +107,158 @@ export async function cachePartiesOffline(parties: Party[]): Promise<void> {
   }
 }
 
-export async function searchPartiesOffline(query: string = '', limit: number = 30): Promise<Party[]> {
+export async function getAllOfflineParties(): Promise<Party[]> {
   try {
     const db = await openEnvelopeDB();
-    const tx = db.transaction('parties', 'readonly');
-    const store = tx.objectStore('parties');
-    const cleanQ = query.trim().toUpperCase();
-
     return new Promise((resolve) => {
-      const results: Party[] = [];
-      const cursorRequest = store.openCursor();
-
-      cursorRequest.onsuccess = (event) => {
-        const cursor = (event.target as IDBRequest).result as IDBCursorWithValue;
-        if (cursor) {
-          const party = cursor.value as Party;
-          const name = (party.party_name || '').toUpperCase();
-          const city = (party.city || '').toUpperCase();
-          const addr = (party.address || '').toUpperCase();
-          const code = (party.party_code || '').toUpperCase();
-
-          if (!cleanQ || name.includes(cleanQ) || city.includes(cleanQ) || addr.includes(cleanQ) || code.includes(cleanQ)) {
-            results.push(party);
-            if (results.length >= limit) {
-              resolve(results);
-              return;
-            }
-          }
-          cursor.continue();
+      const tx = db.transaction('parties', 'readonly');
+      const store = tx.objectStore('parties');
+      const request = store.getAll();
+      request.onsuccess = () => {
+        const list = request.result || [];
+        if (list.length === 0 && BUNDLED_PARTIES.length > 0) {
+          // Immediately trigger background seed
+          cachePartiesOffline(BUNDLED_PARTIES).catch(() => {});
+          resolve(BUNDLED_PARTIES);
         } else {
-          resolve(results);
+          resolve(list);
         }
       };
-
-      cursorRequest.onerror = () => resolve([]);
+      request.onerror = () => resolve(BUNDLED_PARTIES);
     });
   } catch {
-    return [];
+    return BUNDLED_PARTIES;
   }
+}
+
+export async function getPartiesOffline(params: {
+  page?: number;
+  limit?: number;
+  search?: string;
+  state?: string;
+  city?: string;
+  status?: string;
+  letter?: string;
+}): Promise<{
+  items: Party[];
+  total: number;
+  page: number;
+  limit: number;
+  pages: number;
+  states: string[];
+  cities: string[];
+}> {
+  const all = await getAllOfflineParties();
+  const searchQ = (params.search || '').trim().toUpperCase();
+  const stateF = (params.state || '').trim().toUpperCase();
+  const cityF = (params.city || '').trim().toUpperCase();
+  const statusF = (params.status || 'all').toLowerCase();
+  const letterF = (params.letter || 'ALL').toUpperCase();
+
+  // Extract unique states & cities from full dataset
+  const stateSet = new Set<string>();
+  const citySet = new Set<string>();
+  for (const p of all) {
+    if (p.state) stateSet.add(p.state.trim().toUpperCase());
+    if (p.city) citySet.add(p.city.trim().toUpperCase());
+  }
+  const states = Array.from(stateSet).sort();
+  const cities = Array.from(citySet).sort();
+
+  // Filter
+  const filtered = all.filter((p) => {
+    // Status filter
+    if (statusF === 'active' && !p.is_active) return false;
+    if (statusF === 'inactive' && p.is_active) return false;
+
+    // State filter
+    if (stateF && (p.state || '').trim().toUpperCase() !== stateF) return false;
+
+    // City filter
+    if (cityF && (p.city || '').trim().toUpperCase() !== cityF) return false;
+
+    // Letter filter
+    if (letterF && letterF !== 'ALL') {
+      const firstLetter = (p.party_name || '').trim().toUpperCase().charAt(0);
+      if (firstLetter !== letterF) return false;
+    }
+
+    // Search query
+    if (searchQ) {
+      const name = (p.party_name || '').toUpperCase();
+      const nameGu = (p.party_name_gu || '').toUpperCase();
+      const code = (p.party_code || '').toUpperCase();
+      const city = (p.city || '').toUpperCase();
+      const addr = (p.address || '').toUpperCase();
+      const mob = (p.mobile_no || '').toUpperCase();
+      const rt = (p.route || '').toUpperCase();
+
+      const matched =
+        name.includes(searchQ) ||
+        nameGu.includes(searchQ) ||
+        code.includes(searchQ) ||
+        city.includes(searchQ) ||
+        addr.includes(searchQ) ||
+        mob.includes(searchQ) ||
+        rt.includes(searchQ);
+
+      if (!matched) return false;
+    }
+
+    return true;
+  });
+
+  // Sort alphabetically by party_name
+  filtered.sort((a, b) => (a.party_name || '').localeCompare(b.party_name || ''));
+
+  const total = filtered.length;
+  const page = Math.max(1, params.page || 1);
+  const limit = params.limit === -1 ? total : (params.limit || 25);
+  const pages = limit > 0 ? Math.ceil(total / limit) || 1 : 1;
+
+  const start = limit === -1 ? 0 : (page - 1) * limit;
+  const items = limit === -1 ? filtered : filtered.slice(start, start + limit);
+
+  return {
+    items,
+    total,
+    page,
+    limit,
+    pages,
+    states,
+    cities,
+  };
+}
+
+export async function searchPartiesOffline(query: string = '', limit: number = 30): Promise<Party[]> {
+  const cleanQ = query.trim().toUpperCase();
+  const all = await getAllOfflineParties();
+
+  if (!cleanQ) {
+    return all.slice(0, limit);
+  }
+
+  const results: Party[] = [];
+  for (const p of all) {
+    const name = (p.party_name || '').toUpperCase();
+    const nameGu = (p.party_name_gu || '').toUpperCase();
+    const city = (p.city || '').toUpperCase();
+    const addr = (p.address || '').toUpperCase();
+    const code = (p.party_code || '').toUpperCase();
+
+    if (
+      name.includes(cleanQ) ||
+      nameGu.includes(cleanQ) ||
+      city.includes(cleanQ) ||
+      addr.includes(cleanQ) ||
+      code.includes(cleanQ)
+    ) {
+      results.push(p);
+      if (results.length >= limit) break;
+    }
+  }
+
+  return results;
 }
 
 // -------------------------------------------------------------

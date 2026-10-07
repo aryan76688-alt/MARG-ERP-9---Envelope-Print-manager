@@ -241,49 +241,49 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
       )}
 
       {/* 2. Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         {/* Top Header */}
-        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 sm:px-6 z-10 flex-shrink-0 shadow-sm no-print">
+        <header className="h-14 sm:h-16 bg-white border-b border-slate-200 flex items-center justify-between px-3 sm:px-6 z-10 flex-shrink-0 shadow-sm no-print">
           {/* Left Title & Mobile Hamburger & Back Button */}
-          <div className="flex items-center gap-2 sm:gap-3">
-            {canGoBack && onGoBack && (
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            {(canGoBack || currentTab !== 'dashboard') && (
               <button
-                onClick={onGoBack}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs transition-colors border border-slate-300"
-                title="Go back (or press Esc on desktop)"
+                onClick={handleMobileBack}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs transition-colors border border-slate-300 shrink-0"
+                title="Go back"
               >
                 <ArrowLeft className="w-4 h-4 text-blue-600" />
-                <span>Back</span>
-                <span className="hidden sm:inline text-[10px] text-slate-400 font-mono font-normal ml-0.5">[Esc]</span>
+                <span className="hidden sm:inline">Back</span>
               </button>
             )}
 
             <button
               onClick={() => setMobileMenuOpen(true)}
-              className="md:hidden p-2 rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+              className="md:hidden p-2 rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-900 shrink-0"
+              aria-label="Open navigation menu"
             >
               <Menu className="w-5 h-5" />
             </button>
 
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-base sm:text-lg font-black text-slate-900 tracking-tight flex items-center gap-1.5">
-                  <span className="text-slate-900 font-bold">{activeTitle}</span>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 truncate">
+                <h1 className="text-sm sm:text-lg font-black text-slate-900 tracking-tight truncate">
+                  {activeTitle}
                 </h1>
               </div>
-              <p className="text-xs text-slate-500 font-medium hidden sm:block">
+              <p className="text-xs text-slate-500 font-medium hidden sm:block truncate">
                 Professional Envelope Dispatch & Print Manager
               </p>
             </div>
           </div>
 
           {/* Right Controls: Date, Digital Clock, Notifications, Profile */}
-          <div className="flex items-center gap-3 sm:gap-5">
+          <div className="flex items-center gap-2 sm:gap-4 shrink-0">
             {/* Offline & Sync Status Indicator */}
             <button
               onClick={() => triggerSync()}
               title={isOnline ? (pendingCount > 0 ? `${pendingCount} offline actions pending sync` : 'All changes synced') : 'Offline mode active'}
-              className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition-all ${
+              className={`flex items-center gap-1.5 text-xs font-semibold px-2 sm:px-2.5 py-1.5 rounded-lg border transition-all ${
                 isSyncing
                   ? 'bg-blue-50 text-blue-700 border-blue-200'
                   : !isOnline
@@ -332,10 +332,10 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
             <div className="relative">
               <button
                 onClick={() => setNotificationsOpen(!notificationsOpen)}
-                className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 relative"
+                className="p-1.5 sm:p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 relative"
               >
                 <Bell className="w-4 h-4" />
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-blue-600 rounded-full"></span>
+                <span className="absolute top-1 right-1 w-2 h-2 bg-blue-600 rounded-full"></span>
               </button>
 
               {notificationsOpen && (
@@ -349,16 +349,16 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
                       🚀 System Ready: MARG ERP Envelope Manager online.
                     </div>
                     <div className="p-2 rounded bg-slate-50 text-slate-600">
-                      ℹ️ PIN code field permanently removed as per policy.
+                      ℹ️ All parties cached for offline and instant printing.
                     </div>
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Admin Profile */}
-            <div className="flex items-center gap-2 pl-2 border-l border-slate-200 group relative">
-              <div className="w-8 h-8 rounded-full bg-blue-900 text-white flex items-center justify-center font-bold text-xs shadow-inner cursor-pointer">
+            {/* User Profile */}
+            <div className="flex items-center gap-1.5 sm:gap-2 pl-1 sm:pl-2 border-l border-slate-200 group relative">
+              <div className="w-7 h-7 sm:w-8 h-8 rounded-full bg-blue-900 text-white flex items-center justify-center font-bold text-xs shadow-inner cursor-pointer">
                 {(() => {
                   try {
                     const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -396,107 +396,32 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
           </div>
         </header>
 
-        {/* Page Content Body */}
-        <main className={`flex-1 overflow-y-auto p-3 sm:p-6 bg-slate-100 ${isApk ? 'pb-28' : 'pb-6'}`}>
+        {/* Mobile Top Navigation Pills Bar (Replaces bottom buttons for clean 1-tap switching) */}
+        <div className="md:hidden flex items-center gap-1.5 px-2.5 py-2 bg-slate-900 border-b border-slate-800 overflow-x-auto no-scrollbar shadow-inner text-xs flex-shrink-0 z-10">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = currentTab === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => handleTabChange(item.id)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full font-bold whitespace-nowrap transition-all ${
+                  isActive
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30 ring-1 ring-white/20'
+                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white'
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Page Content Body (Fixed smooth touch scrolling with natural bottom padding) */}
+        <main className="flex-1 overflow-y-auto p-3 sm:p-6 bg-slate-100 pb-10 overscroll-contain">
           {children}
         </main>
-
-        {/* Mobile System Navigation Bar (Android System Navigation Buttons) - ONLY visible in APK */}
-        {isApk && (
-          <div className="fixed bottom-0 left-0 right-0 z-40 flex flex-col bg-slate-950/95 backdrop-blur-md border-t border-slate-800 select-none shadow-2xl no-print">
-            {/* Top Tier: Primary Mobile App Tabs */}
-            <div className="flex items-center justify-around px-2 py-1.5 border-b border-slate-800/60">
-              <button
-                type="button"
-                onClick={() => handleTabChange('dashboard')}
-                className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg transition-all ${
-                  currentTab === 'dashboard' ? 'text-blue-400 font-extrabold' : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <LayoutDashboard className="w-5 h-5" />
-                <span className="text-[10px]">Home</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleTabChange('parties')}
-                className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg transition-all ${
-                  currentTab === 'parties' ? 'text-blue-400 font-extrabold' : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <Users className="w-5 h-5" />
-                <span className="text-[10px]">Parties</span>
-              </button>
-
-              {/* Central Primary Print Action Button */}
-              <button
-                type="button"
-                onClick={() => handleTabChange('print')}
-                className={`flex flex-col items-center -mt-4 p-2.5 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-500 text-white shadow-lg shadow-blue-600/40 ring-4 ring-slate-950 transition-transform active:scale-95 ${
-                  currentTab === 'print' ? 'scale-105 from-blue-500 to-indigo-400 ring-blue-500/50' : ''
-                }`}
-                title="Print Envelope"
-              >
-                <Printer className="w-5 h-5" />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleTabChange('history')}
-                className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg transition-all ${
-                  currentTab === 'history' ? 'text-blue-400 font-extrabold' : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <History className="w-5 h-5" />
-                <span className="text-[10px]">History</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleTabChange('settings')}
-                className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg transition-all ${
-                  currentTab === 'settings' ? 'text-blue-400 font-extrabold' : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <SettingsIcon className="w-5 h-5" />
-                <span className="text-[10px]">Settings</span>
-              </button>
-            </div>
-
-            {/* Bottom Tier: Mobile System Navigation Buttons (◀ Back, ● Home, ≡ Menu) */}
-            <div className="flex items-center justify-around h-8 px-8 bg-black/50 text-slate-400">
-              <button
-                type="button"
-                onClick={handleMobileBack}
-                className="p-1 px-5 text-slate-400 hover:text-white active:scale-90 transition-transform flex items-center justify-center"
-                title="System Back Button"
-                aria-label="Back"
-              >
-                <span className="text-sm font-bold tracking-tighter">◀</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleTabChange('dashboard')}
-                className="p-1 px-5 text-slate-400 hover:text-white active:scale-90 transition-transform flex items-center justify-center"
-                title="System Home Button"
-                aria-label="Home"
-              >
-                <span className="text-lg leading-none">●</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setMobileMenuOpen(true)}
-                className="p-1 px-5 text-slate-400 hover:text-white active:scale-90 transition-transform flex items-center justify-center"
-                title="System Menu / Recents Button"
-                aria-label="Menu"
-              >
-                <span className="text-base font-bold leading-none">≡</span>
-              </button>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

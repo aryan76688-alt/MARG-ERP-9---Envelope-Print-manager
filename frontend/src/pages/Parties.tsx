@@ -21,7 +21,11 @@ import {
   MapPin,
   X,
   Languages,
-  RefreshCw
+  RefreshCw,
+  LayoutGrid,
+  List,
+  Phone,
+  MessageCircle
 } from 'lucide-react';
 import { Party } from '../types';
 import { 
@@ -38,6 +42,7 @@ import {
   triggerBackgroundTranslation,
   fetchTranslationStatus
 } from '../api/client';
+import { getPartiesOffline, ensureInitialPartiesLoaded } from '../offline/db';
 import { PartyModal } from '../components/PartyModal';
 
 interface PartiesProps {
@@ -125,24 +130,49 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
     };
   }, [translating]);
 
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+
   const loadParties = async () => {
     try {
       setLoading(true);
-      const res = await fetchParties({
-        page,
-        limit,
-        search,
-        state: stateFilter,
-        city: cityFilter,
-        status: statusFilter,
-      });
-      setParties(res.items);
-      setTotal(res.total);
-      setPages(res.pages);
-      setAvailableStates(res.states);
-      setAvailableCities(res.cities);
+      let res: any = null;
+      try {
+        res = await fetchParties({
+          page,
+          limit,
+          search,
+          state: stateFilter,
+          city: cityFilter,
+          status: statusFilter,
+        });
+      } catch (apiErr) {
+        console.warn('Online fetchParties failed, falling back to local database:', apiErr);
+      }
+
+      if (res && res.items && res.items.length > 0) {
+        setParties(res.items);
+        setTotal(res.total);
+        setPages(res.pages);
+        setAvailableStates(res.states || []);
+        setAvailableCities(res.cities || []);
+      } else {
+        const offlineData = await getPartiesOffline({
+          page,
+          limit,
+          search,
+          state: stateFilter,
+          city: cityFilter,
+          status: statusFilter,
+          letter: selectedLetter !== 'ALL' ? selectedLetter : undefined
+        });
+        setParties(offlineData.items);
+        setTotal(offlineData.total);
+        setPages(offlineData.pages);
+        setAvailableStates(offlineData.states);
+        setAvailableCities(offlineData.cities);
+      }
     } catch (err) {
-      console.error(err);
+      console.error('Failed to load parties:', err);
     } finally {
       setLoading(false);
     }
@@ -158,6 +188,9 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
   };
 
   useEffect(() => {
+    ensureInitialPartiesLoaded().then(() => {
+      loadParties();
+    });
     loadRoutes();
   }, []);
 
@@ -289,6 +322,36 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          {/* View Mode Toggle */}
+          <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
+            <button
+              type="button"
+              onClick={() => setViewMode('cards')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                viewMode === 'cards'
+                  ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/25'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+              title="Pop Button Cards View (Quick Tap & Mobile Friendly)"
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span>Pop Cards</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('table')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                viewMode === 'table'
+                  ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/25'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+              title="Classic Spreadsheet Table View"
+            >
+              <List className="w-3.5 h-3.5" />
+              <span>Table</span>
+            </button>
+          </div>
+
           <a
             href={getExportPartiesUrl()}
             download
@@ -512,192 +575,368 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
         </div>
       )}
 
-      {/* Main Parties Data Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-        <div className="overflow-x-auto flex-1">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 text-slate-600 font-extrabold border-b border-slate-200 uppercase tracking-wider text-[10px]">
-              <tr>
-                <th className="px-4 py-3 w-10 text-center">
-                  <button onClick={handleSelectAll} className="p-1">
-                    {selectedIds.length > 0 && selectedIds.length === parties.length ? (
-                      <CheckSquare className="w-4 h-4 text-blue-600" />
-                    ) : (
-                      <Square className="w-4 h-4 text-slate-400" />
-                    )}
-                  </button>
-                </th>
-                <th className="px-3 py-3 w-12">#</th>
-                <th className="px-4 py-3">Party Name</th>
-                <th className="px-3 py-3">Code</th>
-                <th className="px-3 py-3">Route</th>
-                <th className="px-4 py-3">City</th>
-                <th className="px-4 py-3">State</th>
-                <th className="px-4 py-3">Mobile No.</th>
-                <th className="px-4 py-3 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
-              {loading ? (
-                <tr>
-                  <td colSpan={9} className="px-4 py-12 text-center text-slate-500">
-                    <div className="inline-flex items-center gap-2">
-                      <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                      <span>Loading parties from database...</span>
-                    </div>
-                  </td>
-                </tr>
-              ) : parties.length > 0 ? (
-                parties.map((p, idx) => {
-                  const isSelected = selectedIds.includes(p.id!);
-                  return (
-                    <tr
-                      key={p.id}
-                      className={`hover:bg-blue-50/40 transition-colors ${
-                        isSelected ? 'bg-blue-50/60' : ''
-                      }`}
-                    >
-                      <td className="px-4 py-3 text-center">
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => handleToggleSelect(p.id!)}
-                          className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
-                        />
-                      </td>
-                      <td className="px-3 py-3 font-semibold text-slate-400">
-                        {limit === -1 ? idx + 1 : (page - 1) * limit + idx + 1}
-                      </td>
-                      <td className="px-4 py-3 font-bold text-slate-900 text-sm">
-                        <div className="flex items-center gap-2">
-                          <span className="capitalize">{p.party_name.toLowerCase()}</span>
-                          {!p.is_active && (
-                            <span className="text-xs bg-rose-100 text-rose-700 px-2 py-0.5 rounded font-bold">
-                              Inactive
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs font-normal text-slate-500 truncate max-w-xs mt-0.5">
-                          {p.address}
-                        </p>
-                      </td>
-                      <td className="px-3 py-3 font-mono font-medium text-slate-700">
-                        {p.party_code || '—'}
-                      </td>
-                      <td className="px-3 py-3">
-                        {p.route ? (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 capitalize">
-                            {p.route.toLowerCase()}
-                          </span>
-                        ) : (
-                          <span className="text-slate-400 font-mono text-xs italic">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 font-medium text-slate-800 capitalize">
-                        {p.city ? p.city.toLowerCase() : '—'}
-                      </td>
-                      <td className="px-4 py-3 font-medium text-slate-600 capitalize">
-                        {p.state ? p.state.toLowerCase() : '—'}
-                      </td>
-                      <td className="px-4 py-3 font-mono text-slate-700">
-                        {p.mobile_no || '—'}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {/* Print Envelope Directly */}
-                          <button
-                            onClick={() => onNavigate('print', { selectedParty: p, deliveryRoute: p.route })}
-                            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white font-bold text-xs transition-colors"
-                            title="Generate Envelope for this party"
-                            aria-label={`Print envelope for ${p.party_name}`}
-                          >
-                            <Printer className="w-3.5 h-3.5" />
-                            <span>Print</span>
-                          </button>
+      {/* Main Parties Data Display */}
+      {viewMode === 'cards' ? (
+        <div className="space-y-3">
+          {/* Quick Select Bar for Cards */}
+          <div className="flex items-center justify-between px-2 text-xs text-slate-500 font-semibold">
+            <button
+              onClick={handleSelectAll}
+              className="inline-flex items-center gap-1.5 hover:text-blue-600 transition-colors"
+            >
+              {selectedIds.length > 0 && selectedIds.length === parties.length ? (
+                <CheckSquare className="w-4 h-4 text-blue-600" />
+              ) : (
+                <Square className="w-4 h-4 text-slate-400" />
+              )}
+              <span>Select All on this page ({parties.length})</span>
+            </button>
+            <span>Showing {parties.length} of {total} parties</span>
+          </div>
 
-                          {/* Edit */}
+          {loading ? (
+            <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-500 shadow-sm">
+              <div className="inline-flex items-center gap-2">
+                <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                <span className="font-bold text-sm">Loading parties from database...</span>
+              </div>
+            </div>
+          ) : parties.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5">
+              {parties.map((p) => {
+                const isSelected = selectedIds.includes(p.id!);
+                return (
+                  <div
+                    key={p.id}
+                    className={`group bg-white rounded-2xl border transition-all duration-200 shadow-sm hover:shadow-md hover:border-blue-400 flex flex-col justify-between overflow-hidden relative ${
+                      isSelected
+                        ? 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-50/20'
+                        : 'border-slate-200'
+                    }`}
+                  >
+                    {/* Top Row: Select, Title, Gujarati, Badges */}
+                    <div className="p-4 pb-3 flex-1 flex flex-col">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-start gap-2.5 flex-1 min-w-0">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => handleToggleSelect(p.id!)}
+                            className="mt-0.5 w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer flex-shrink-0"
+                            aria-label={`Select ${p.party_name}`}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <h3 className="font-extrabold text-slate-900 text-sm sm:text-base leading-snug truncate capitalize">
+                                {p.party_name.toLowerCase()}
+                              </h3>
+                              {!p.is_active && (
+                                <span className="text-[10px] bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded font-black">
+                                  Inactive
+                                </span>
+                              )}
+                            </div>
+                            {p.party_name_gu && (
+                              <p className="text-xs font-bold text-indigo-700 mt-0.5 truncate">
+                                {p.party_name_gu}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Edit & Delete Mini-buttons */}
+                        <div className="flex items-center gap-1 flex-shrink-0">
                           <button
                             onClick={() => {
                               setEditingParty(p);
                               setPartyModalOpen(true);
                             }}
-                            className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-slate-100 transition-colors"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
                             title="Edit Party"
                             aria-label={`Edit ${p.party_name}`}
                           >
-                            <Edit className="w-4 h-4" />
+                            <Edit className="w-3.5 h-3.5" />
                           </button>
-
-                          {/* Delete */}
                           <button
                             onClick={() => setDeleteConfirmParty(p)}
-                            className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
                             title="Delete Party"
                             aria-label={`Delete ${p.party_name}`}
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              ) : (
-                <tr>
-                  <td colSpan={9} className="px-4 py-12 text-center text-slate-400">
-                    No parties found matching current search/filter.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+                      </div>
 
-        {/* Pagination & Records Selector Footer */}
-        <div className="px-5 py-3 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
-          <div className="flex items-center gap-2">
-            <span>Showing records per page:</span>
-            <select
-              value={limit}
-              onChange={(e) => {
-                setLimit(parseInt(e.target.value, 10));
-                setPage(1);
-              }}
-              className="px-2 py-1 bg-white border border-slate-300 rounded font-bold text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            >
-              <option value={10}>10</option>
-              <option value={25}>25</option>
-              <option value={50}>50</option>
-              <option value={100}>100</option>
-              <option value={-1}>All</option>
-            </select>
-            <span className="text-slate-400">|</span>
-            <span>Total: <strong>{total}</strong> records</span>
-          </div>
+                      {/* Code & Route Badges */}
+                      <div className="flex items-center gap-2 mt-2.5 flex-wrap">
+                        {p.party_code && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                            #{p.party_code}
+                          </span>
+                        )}
+                        {p.route ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                            <MapPin className="w-3 h-3" />
+                            <span className="capitalize">{p.route.toLowerCase()}</span>
+                          </span>
+                        ) : (
+                          <span className="text-[11px] text-slate-400 italic">No Route</span>
+                        )}
+                        {p.city && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 capitalize">
+                            {p.city.toLowerCase()}
+                          </span>
+                        )}
+                      </div>
 
-          {/* Page Navigation */}
-          {limit !== -1 && pages > 1 && (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-                disabled={page === 1}
-                className="p-1.5 rounded border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <span className="font-bold text-slate-800">
-                Page {page} of {pages}
-              </span>
-              <button
-                onClick={() => setPage((prev) => Math.min(pages, prev + 1))}
-                disabled={page === pages}
-                className="p-1.5 rounded border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
+                      {/* Address Snippet */}
+                      <div className="mt-2.5 text-xs text-slate-600 line-clamp-2 leading-relaxed bg-slate-50/70 p-2 rounded-xl border border-slate-100">
+                        {p.address_gu || p.address}
+                      </div>
+                    </div>
+
+                    {/* Pop-Action Bar Footer */}
+                    <div className="bg-slate-50/80 px-3 py-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
+                      {/* Phone & WhatsApp Quick Pop buttons */}
+                      <div className="flex items-center gap-1.5">
+                        {p.mobile_no ? (
+                          <>
+                            <a
+                              href={`tel:${p.mobile_no}`}
+                              className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-white hover:bg-emerald-50 text-emerald-600 border border-slate-200 hover:border-emerald-300 shadow-sm active:scale-95 transition-all"
+                              title={`Call ${p.mobile_no}`}
+                              aria-label={`Call ${p.mobile_no}`}
+                            >
+                              <Phone className="w-3.5 h-3.5" />
+                            </a>
+                            <a
+                              href={`https://wa.me/91${p.mobile_no.replace(/\D/g, '').slice(-10)}?text=${encodeURIComponent(
+                                `Hello ${p.party_name}, this is from dispatch.`
+                              )}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-white hover:bg-green-50 text-green-600 border border-slate-200 hover:border-green-300 shadow-sm active:scale-95 transition-all"
+                              title={`WhatsApp ${p.mobile_no}`}
+                              aria-label={`WhatsApp ${p.mobile_no}`}
+                            >
+                              <MessageCircle className="w-3.5 h-3.5" />
+                            </a>
+                          </>
+                        ) : (
+                          <span className="text-[11px] text-slate-400 italic pl-1">No mobile</span>
+                        )}
+                      </div>
+
+                      {/* Big Pop Print Envelope Button */}
+                      <button
+                        onClick={() => onNavigate('print', { selectedParty: p, deliveryRoute: p.route })}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 active:scale-95 text-white font-extrabold text-xs shadow-sm hover:shadow transition-all"
+                        title="Print envelope for this party"
+                        aria-label={`Print envelope for ${p.party_name}`}
+                      >
+                        <Printer className="w-3.5 h-3.5" />
+                        <span>Print Envelope</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-400 shadow-sm">
+              No parties found matching current search/filter.
             </div>
           )}
         </div>
+      ) : (
+        /* Main Parties Data Table */
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+          <div className="overflow-x-auto flex-1">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 text-slate-600 font-extrabold border-b border-slate-200 uppercase tracking-wider text-[10px]">
+                <tr>
+                  <th className="px-4 py-3 w-10 text-center">
+                    <button onClick={handleSelectAll} className="p-1">
+                      {selectedIds.length > 0 && selectedIds.length === parties.length ? (
+                        <CheckSquare className="w-4 h-4 text-blue-600" />
+                      ) : (
+                        <Square className="w-4 h-4 text-slate-400" />
+                      )}
+                    </button>
+                  </th>
+                  <th className="px-3 py-3 w-12">#</th>
+                  <th className="px-4 py-3">Party Name</th>
+                  <th className="px-3 py-3">Code</th>
+                  <th className="px-3 py-3">Route</th>
+                  <th className="px-4 py-3">City</th>
+                  <th className="px-4 py-3">State</th>
+                  <th className="px-4 py-3">Mobile No.</th>
+                  <th className="px-4 py-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
+                {loading ? (
+                  <tr>
+                    <td colSpan={9} className="px-4 py-12 text-center text-slate-500">
+                      <div className="inline-flex items-center gap-2">
+                        <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                        <span>Loading parties from database...</span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : parties.length > 0 ? (
+                  parties.map((p, idx) => {
+                    const isSelected = selectedIds.includes(p.id!);
+                    return (
+                      <tr
+                        key={p.id}
+                        className={`hover:bg-blue-50/40 transition-colors ${
+                          isSelected ? 'bg-blue-50/60' : ''
+                        }`}
+                      >
+                        <td className="px-4 py-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => handleToggleSelect(p.id!)}
+                            className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                          />
+                        </td>
+                        <td className="px-3 py-3 font-semibold text-slate-400">
+                          {limit === -1 ? idx + 1 : (page - 1) * limit + idx + 1}
+                        </td>
+                        <td className="px-4 py-3 font-bold text-slate-900 text-sm">
+                          <div className="flex items-center gap-2">
+                            <span className="capitalize">{p.party_name.toLowerCase()}</span>
+                            {!p.is_active && (
+                              <span className="text-xs bg-rose-100 text-rose-700 px-2 py-0.5 rounded font-bold">
+                                Inactive
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs font-normal text-slate-500 truncate max-w-xs mt-0.5">
+                            {p.address}
+                          </p>
+                        </td>
+                        <td className="px-3 py-3 font-mono font-medium text-slate-700">
+                          {p.party_code || '—'}
+                        </td>
+                        <td className="px-3 py-3">
+                          {p.route ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 capitalize">
+                              {p.route.toLowerCase()}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 font-mono text-xs italic">—</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 font-medium text-slate-800 capitalize">
+                          {p.city ? p.city.toLowerCase() : '—'}
+                        </td>
+                        <td className="px-4 py-3 font-medium text-slate-600 capitalize">
+                          {p.state ? p.state.toLowerCase() : '—'}
+                        </td>
+                        <td className="px-4 py-3 font-mono text-slate-700">
+                          {p.mobile_no || '—'}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {/* Print Envelope Directly */}
+                            <button
+                              onClick={() => onNavigate('print', { selectedParty: p, deliveryRoute: p.route })}
+                              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white font-bold text-xs transition-colors"
+                              title="Generate Envelope for this party"
+                              aria-label={`Print envelope for ${p.party_name}`}
+                            >
+                              <Printer className="w-3.5 h-3.5" />
+                              <span>Print</span>
+                            </button>
+
+                            {/* Edit */}
+                            <button
+                              onClick={() => {
+                                setEditingParty(p);
+                                setPartyModalOpen(true);
+                              }}
+                              className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-slate-100 transition-colors"
+                              title="Edit Party"
+                              aria-label={`Edit ${p.party_name}`}
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+
+                            {/* Delete */}
+                            <button
+                              onClick={() => setDeleteConfirmParty(p)}
+                              className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                              title="Delete Party"
+                              aria-label={`Delete ${p.party_name}`}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={9} className="px-4 py-12 text-center text-slate-400">
+                      No parties found matching current search/filter.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Pagination & Records Selector Footer (Shared) */}
+      <div className="px-5 py-3 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
+        <div className="flex items-center gap-2">
+          <span>Showing records per page:</span>
+          <select
+            value={limit}
+            onChange={(e) => {
+              setLimit(parseInt(e.target.value, 10));
+              setPage(1);
+            }}
+            className="px-2 py-1 bg-white border border-slate-300 rounded font-bold text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          >
+            <option value={10}>10</option>
+            <option value={25}>25</option>
+            <option value={50}>50</option>
+            <option value={100}>100</option>
+            <option value={-1}>All</option>
+          </select>
+          <span className="text-slate-400">|</span>
+          <span>Total: <strong>{total}</strong> records</span>
+        </div>
+
+        {/* Page Navigation */}
+        {limit !== -1 && pages > 1 && (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+              disabled={page === 1}
+              className="p-1.5 rounded border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="font-bold text-slate-800">
+              Page {page} of {pages}
+            </span>
+            <button
+              onClick={() => setPage((prev) => Math.min(pages, prev + 1))}
+              disabled={page === pages}
+              className="p-1.5 rounded border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Add / Edit Party Modal */}

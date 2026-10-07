@@ -65,37 +65,61 @@ export async function fetchParties(params: {
   city?: string;
   status?: string;
 }): Promise<{ items: Party[]; total: number; page: number; limit: number; pages: number; states: string[]; cities: string[] }> {
-  const query = new URLSearchParams();
-  if (params.page) query.append('page', params.page.toString());
-  if (params.limit) query.append('limit', params.limit.toString());
-  if (params.search) query.append('search', params.search);
-  if (params.state) query.append('state', params.state);
-  if (params.city) query.append('city', params.city);
-  if (params.status) query.append('status', params.status);
+  try {
+    const query = new URLSearchParams();
+    if (params.page) query.append('page', params.page.toString());
+    if (params.limit) query.append('limit', params.limit.toString());
+    if (params.search) query.append('search', params.search);
+    if (params.state) query.append('state', params.state);
+    if (params.city) query.append('city', params.city);
+    if (params.status) query.append('status', params.status);
 
-  const res = await fetchApi(`${API_BASE}/parties?${query.toString()}`);
-  if (!res.ok) throw new Error('Failed to load parties');
-  return res.json();
+    const res = await fetchApi(`${API_BASE}/parties?${query.toString()}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.items && data.items.length > 0) {
+        return data;
+      }
+    }
+  } catch (err) {
+    console.warn('fetchParties online failed, using offline bundled storage:', err);
+  }
+
+  // Robust fallback to bundled offline parties
+  const { getPartiesOffline } = await import('../offline/db');
+  return getPartiesOffline(params);
 }
 
 const _autocompleteCache = new Map<string, Party[]>();
 
 export async function autocompleteParties(q: string, mode: 'starts_with' | 'contains' = 'contains'): Promise<Party[]> {
   const cleanQ = q.trim();
-  if (!cleanQ) return [];
   const cacheKey = `${mode}:${cleanQ.toLowerCase()}`;
   if (_autocompleteCache.has(cacheKey)) {
     return _autocompleteCache.get(cacheKey)!;
   }
-  const res = await fetchApi(`${API_BASE}/parties/autocomplete?q=${encodeURIComponent(cleanQ)}&mode=${mode}`);
-  if (!res.ok) return [];
-  const data = await res.json();
-  if (_autocompleteCache.size > 200) {
-    const firstKey = _autocompleteCache.keys().next().value;
-    if (firstKey) _autocompleteCache.delete(firstKey);
+
+  try {
+    const res = await fetchApi(`${API_BASE}/parties/autocomplete?q=${encodeURIComponent(cleanQ)}&mode=${mode}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.length > 0) {
+        if (_autocompleteCache.size > 200) {
+          const firstKey = _autocompleteCache.keys().next().value;
+          if (firstKey) _autocompleteCache.delete(firstKey);
+        }
+        _autocompleteCache.set(cacheKey, data);
+        return data;
+      }
+    }
+  } catch (err) {
+    console.warn('autocompleteParties online failed, fallback to offline:', err);
   }
-  _autocompleteCache.set(cacheKey, data);
-  return data;
+
+  // Fallback to offline search
+  const { searchPartiesOffline } = await import('../offline/db');
+  const offlineData = await searchPartiesOffline(cleanQ, 30);
+  return offlineData;
 }
 
 export async function createParty(party: Party): Promise<Party> {
