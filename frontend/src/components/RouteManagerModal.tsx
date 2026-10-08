@@ -290,72 +290,91 @@ export const RouteManagerModal: React.FC<RouteManagerModalProps> = ({
           {/* TAB 1: GOOGLE SHEETS SYNC */}
           {activeTab === 'sheets' && (
             <div className="space-y-6 max-w-4xl mx-auto">
-              {/* Shortcut Banner: Direct Route Editor vs Google Sheets */}
-              <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-2xl p-4 shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+              {/* Quick Choice Banner: Google Sheets vs Direct Editor */}
+              <div className="bg-blue-50/70 border border-blue-200 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
                 <div>
-                  <h4 className="font-black text-sm flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-amber-300" />
-                    <span>Want to Edit Routes Directly on Website Without Google Sheets?</span>
+                  <h4 className="font-extrabold text-blue-950 text-sm flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-blue-600" />
+                    <span>Two Easy Ways to Edit Routes</span>
                   </h4>
-                  <p className="text-blue-100 mt-0.5">
-                    You can edit and set weekday routes directly on this page without creating a Google Sheet.
+                  <p className="text-blue-800 mt-0.5 leading-relaxed font-medium">
+                    You can sync from Google Sheets, <strong>OR</strong> simply use our built-in <strong>Direct Route Editor</strong> tab to edit routes right on this screen with zero setup!
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setActiveTab('editor')}
-                  className="px-4 py-2 bg-white text-blue-700 hover:bg-blue-50 font-black rounded-xl shadow-sm transition-all whitespace-nowrap cursor-pointer shrink-0"
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-extrabold rounded-xl shadow-sm hover:shadow transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5"
                 >
-                  Switch to Direct Route Editor &rarr;
+                  <Layers className="w-4 h-4" />
+                  <span>Open Direct Route Editor</span>
                 </button>
               </div>
 
-              {/* 3 Simple Steps Card */}
-              <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl p-5 text-xs space-y-3">
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <div className="flex items-center gap-2 font-black text-emerald-950 text-sm">
-                    <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-                    <span>How to Create & Link Your Google Sheet (3 Simple Steps)</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <a
-                      href={getExportRoutesTemplateUrl()}
-                      download
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg shadow-sm transition-colors text-xs"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      <span>Step 1: Download Parties CSV</span>
-                    </a>
-                    <a
-                      href="https://sheets.new"
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-emerald-300 hover:bg-emerald-100 text-emerald-800 font-bold rounded-lg shadow-sm transition-colors text-xs"
-                    >
-                      <ExternalLink className="w-3.5 h-3.5" />
-                      <span>Step 2: Open sheets.new</span>
-                    </a>
-                  </div>
-                </div>
+              {/* 3-Step Setup Guide */}
+              <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
+                <h4 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-indigo-600" />
+                  <span>How to Set Up & Sync Your Google Sheet (3 Simple Steps)</span>
+                </h4>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2 text-slate-700">
-                  <div className="bg-white p-3 rounded-xl border border-emerald-200 space-y-1">
-                    <strong className="text-emerald-800 block font-black">1. Upload CSV</strong>
-                    <p className="text-[11px] leading-relaxed">
-                      Download the CSV above, open <strong>sheets.new</strong>, and click <strong>File &rarr; Import &rarr; Upload</strong> to load all 1,836 parties.
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                  {/* Step 1 */}
+                  <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                    <div className="flex items-center gap-2 font-black text-slate-900">
+                      <span className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs">1</span>
+                      <span>Create & Download</span>
+                    </div>
+                    <p className="text-slate-600 leading-relaxed font-medium">
+                      Download the CSV template with all your parties, or open a blank Google Sheet.
                     </p>
+                    <div className="pt-1 flex flex-col gap-1.5">
+                      <a
+                        href={getExportRoutesTemplateUrl()}
+                        download
+                        className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg transition-colors"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Download CSV Template</span>
+                      </a>
+                      <a
+                        href="https://sheets.new"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-bold rounded-lg transition-colors"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        <span>Open sheets.new</span>
+                      </a>
+                    </div>
                   </div>
-                  <div className="bg-white p-3 rounded-xl border border-emerald-200 space-y-1">
-                    <strong className="text-emerald-800 block font-black">2. Set Access to Public</strong>
-                    <p className="text-[11px] leading-relaxed">
-                      In Google Sheets, click the blue <strong>Share</strong> button (top right) &rarr; change General access to <strong>"Anyone with the link" (Viewer)</strong>.
+
+                  {/* Step 2 */}
+                  <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                    <div className="flex items-center gap-2 font-black text-slate-900">
+                      <span className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs">2</span>
+                      <span>Share as "Anyone with link"</span>
+                    </div>
+                    <p className="text-slate-600 leading-relaxed font-medium">
+                      In your Google Sheet, click the blue <strong>"Share" (શેર)</strong> button in the top-right corner.
                     </p>
+                    <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 font-semibold text-[11px] leading-tight">
+                      ⚠️ Change General access from <strong>"Restricted"</strong> to <strong>"Anyone with the link can view"</strong> (Viewer).
+                    </div>
                   </div>
-                  <div className="bg-white p-3 rounded-xl border border-emerald-200 space-y-1">
-                    <strong className="text-emerald-800 block font-black">3. Paste Link & Sync</strong>
-                    <p className="text-[11px] leading-relaxed">
-                      Click <strong>Copy link</strong> in Google Sheets, paste it below, and click <strong>Sync Routes Now</strong>!
+
+                  {/* Step 3 */}
+                  <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                    <div className="flex items-center gap-2 font-black text-slate-900">
+                      <span className="w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs">3</span>
+                      <span>Paste Link & Sync</span>
+                    </div>
+                    <p className="text-slate-600 leading-relaxed font-medium">
+                      Copy your Google Sheet link, paste it in the box below, and click <strong>Sync Routes Now</strong>!
                     </p>
+                    <div className="p-2 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-900 font-bold text-[11px]">
+                      ✨ All English weekdays (Mon-Sun) auto-convert to Gujarati!
+                    </div>
                   </div>
                 </div>
               </div>
@@ -376,8 +395,11 @@ export const RouteManagerModal: React.FC<RouteManagerModalProps> = ({
                       <input
                         type="text"
                         value={sheetUrlOrId}
-                        onChange={(e) => setSheetUrlOrId(e.target.value)}
-                        placeholder="Paste your copied Google Sheet link here (e.g. https://docs.google.com/spreadsheets/d/...)"
+                        onChange={(e) => {
+                          setSheetUrlOrId(e.target.value);
+                          if (syncError) setSyncError(null);
+                        }}
+                        placeholder="Paste link: https://docs.google.com/spreadsheets/d/.../edit"
                         className="w-full pl-3 pr-24 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-xs font-mono"
                       />
                       {sheetUrlOrId && (
@@ -392,8 +414,8 @@ export const RouteManagerModal: React.FC<RouteManagerModalProps> = ({
                         </a>
                       )}
                     </div>
-                    <p className="text-[11px] text-slate-500 mt-1">
-                      ⚠️ If you get <strong>HTTP 404</strong>, make sure you clicked <strong>Share</strong> in your Google Sheet &rarr; changed from <em>Restricted</em> to <strong>"Anyone with the link can view"</strong>!
+                    <p className="text-[11px] text-slate-500 mt-1 font-medium">
+                      Ensure General access is set to <strong>"Anyone with the link can view"</strong> so Google's server allows importing.
                     </p>
                   </div>
 
@@ -414,11 +436,22 @@ export const RouteManagerModal: React.FC<RouteManagerModalProps> = ({
                   </div>
                 </div>
 
-                {/* Error Banner */}
+                {/* Error Banner with Guided Solution */}
                 {syncError && (
-                  <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-start gap-2">
-                    <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
-                    <span>{syncError}</span>
+                  <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs space-y-2">
+                    <div className="flex items-start gap-2 font-bold">
+                      <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
+                      <span>{syncError}</span>
+                    </div>
+                    <div className="pt-1 text-[11px] text-rose-900 bg-white/70 p-2.5 rounded-lg border border-rose-200 leading-relaxed">
+                      <strong>How to solve this:</strong>
+                      <ol className="list-decimal pl-4 space-y-1 mt-1 font-medium">
+                        <li>Make sure you created a Google Sheet and copied its actual link.</li>
+                        <li>In your Google Sheet, click the blue <strong>"Share"</strong> button in the top right.</li>
+                        <li>Under <em>General access</em>, change <strong>"Restricted"</strong> to <strong>"Anyone with the link" (Viewer)</strong>.</li>
+                        <li>Or simply click the <strong>"Direct Route Editor"</strong> tab above to edit routes on the website without a Google Sheet!</li>
+                      </ol>
+                    </div>
                   </div>
                 )}
 

@@ -1103,10 +1103,7 @@ def sync_google_sheet_routes(req: SyncGoogleSheetRequest, db: Session = Depends(
     """
     raw_sheet = req.sheet_url_or_id.strip().strip("'\"<> ")
     if not raw_sheet:
-        raise HTTPException(
-            status_code=400, 
-            detail="Google Sheet URL or ID is required. Please paste your Google Sheet link or spreadsheet ID."
-        )
+        raise HTTPException(status_code=400, detail="Please enter your Google Sheet URL or Spreadsheet ID.")
 
     # Extract Spreadsheet ID
     match = re.search(r"/spreadsheets/(?:u/\d+/)?d/([a-zA-Z0-9-_]+)", raw_sheet)
@@ -1114,7 +1111,7 @@ def sync_google_sheet_routes(req: SyncGoogleSheetRequest, db: Session = Depends(
         spreadsheet_id = match.group(1)
     else:
         id_match = re.search(r"([a-zA-Z0-9-_]{20,})", raw_sheet)
-        spreadsheet_id = id_match.group(1) if id_match else raw_sheet.split("/")[0].split("?")[0]
+        spreadsheet_id = id_match.group(1) if id_match else raw_sheet
 
     # Determine API key
     api_key = req.api_key.strip() if req.api_key and req.api_key.strip() else None
@@ -1127,34 +1124,26 @@ def sync_google_sheet_routes(req: SyncGoogleSheetRequest, db: Session = Depends(
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) MARG-Envelope-Manager/1.0"}
     values = []
 
-    # Strategy A: Google Sheets API v4
-    sheet_title = req.sheet_name.strip() if req.sheet_name and req.sheet_name.strip() else None
-    api_succeeded = False
-
+    # 1. Attempt Fetch via Google Sheets API v4
     try:
+        sheet_title = req.sheet_name.strip() if req.sheet_name and req.sheet_name.strip() else None
         if not sheet_title:
-            try:
-                meta_url = f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}?fields=sheets.properties.title&key={api_key}"
-                req_meta = urllib.request.Request(meta_url, headers=headers)
-                with urllib.request.urlopen(req_meta, timeout=12) as resp:
-                    meta_json = json.loads(resp.read().decode("utf-8"))
-                    sheets_list = meta_json.get("sheets", [])
-                    sheet_title = sheets_list[0].get("properties", {}).get("title", "Sheet1") if sheets_list else "Sheet1"
-            except Exception:
-                sheet_title = "Sheet1"
+            meta_url = f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}?fields=sheets.properties.title&key={api_key}"
+            req_meta = urllib.request.Request(meta_url, headers=headers)
+            with urllib.request.urlopen(req_meta, timeout=12) as resp:
+                meta_json = json.loads(resp.read().decode("utf-8"))
+                sheets_list = meta_json.get("sheets", [])
+                sheet_title = sheets_list[0].get("properties", {}).get("title", "Sheet1") if sheets_list else "Sheet1"
 
         range_q = urllib.parse.quote(f"{sheet_title}!A1:Z")
         values_url = f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}/values/{range_q}?key={api_key}"
         req_val = urllib.request.Request(values_url, headers=headers)
         with urllib.request.urlopen(req_val, timeout=15) as resp:
             val_json = json.loads(resp.read().decode("utf-8"))
-            values = val_json.get("values", [])
-            api_succeeded = True
+        values = val_json.get("values", [])
     except Exception as api_err:
-        logger.warning(f"Google Sheets API v4 request failed ({str(api_err)}), attempting direct CSV export fallback...")
-
-    # Strategy B Fallback: Direct Google Sheets CSV Export / GViz
-    if not api_succeeded or not values:
+        # 2. Resilient Fallback: Direct Google Sheets CSV Export / GViz
+        csv_fetched = False
         try:
             csv_urls = [
                 f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/export?format=csv",
@@ -1162,32 +1151,49 @@ def sync_google_sheet_routes(req: SyncGoogleSheetRequest, db: Session = Depends(
             ]
             for c_url in csv_urls:
                 try:
-                    c_req = urllib.request.Request(c_url, headers=headers)
-                    with urllib.request.urlopen(c_req, timeout=15) as c_resp:
-                        csv_text = c_resp.read().decode("utf-8")
-                        csv_reader = csv.reader(io.StringIO(csv_text))
-                        csv_rows = list(csv_reader)
+                    req_csv = urllib.request.Request(c_url, headers=headers)
+                    with urllib.request.urlopen(req_csv, timeout=15) as resp:
+                        csv_text = resp.read().decode("utf-8")
+                        csv_rows = list(csv.reader(io.StringIO(csv_text)))
                         if csv_rows and len(csv_rows) > 0:
                             values = csv_rows
+                            csv_fetched = True
                             break
                 except Exception:
                     continue
-        except Exception as csv_err:
-            logger.warning(f"CSV export fallback failed: {csv_err}")
+        except Exception:
+            pass
 
-    if not values:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"Could not open Google Sheet (ID: {spreadsheet_id}). "
-                "Please make sure:\n"
-                "1. You created your Google Sheet or uploaded the downloaded CSV.\n"
-                "2. In Google Sheets, click the blue 'Share' button in the top right.\n"
-                "3. Change General Access from 'Restricted' to 'Anyone with the link' (Viewer or Editor).\n"
-                "4. Copy that link and paste it here.\n\n"
-                "Tip: You can also use the 'Direct Route Editor' tab above to edit routes directly on this website with 1 click without needing Google Sheets!"
-            )
-        )
+        if not csv_fetched:
+            # Check the original error
+            if isinstance(api_err, urllib.error.HTTPError):
+                if api_err.code == 404:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=(
+                            "Google Sheets Error (HTTP 404): Spreadsheet not found or link is private. "
+                            "How to fix: 1. Paste your actual Google Sheet URL. "
+                            "2. In Google Sheets, click the blue 'Share' button (top-right) and change General Access from 'Restricted' to 'Anyone with the link can view'."
+                        )
+                    )
+                elif api_err.code == 403:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=(
+                            "Google Sheets Error (HTTP 403): Access denied. "
+                            "Please open your Google Sheet, click the blue 'Share' button (top-right), and change General Access from 'Restricted' to 'Anyone with the link can view'."
+                        )
+                    )
+                else:
+                    raise HTTPException(status_code=400, detail=f"Google Sheets error (HTTP {api_err.code}): {api_err.reason}")
+            else:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "Could not connect to Google Sheet. "
+                        "Please verify your Google Sheet URL and ensure it is shared as 'Anyone with the link can view', or use the 'Direct Route Editor' tab to edit routes directly."
+                    )
+                )
 
     if not values or len(values) < 2:
         return {
