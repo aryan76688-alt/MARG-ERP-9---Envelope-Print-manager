@@ -99,6 +99,12 @@ def init_db():
             ("address_line_2_gu", "TEXT", None),
             ("address_line_3_gu", "TEXT", None),
             ("route", "TEXT", None),
+            ("route_1", "TEXT", None),
+            ("route_2", "TEXT", None),
+            ("route_3", "TEXT", None),
+            ("route_1_gu", "TEXT", None),
+            ("route_2_gu", "TEXT", None),
+            ("route_3_gu", "TEXT", None),
         ])
 
         ensure_columns("app_settings", [
@@ -114,6 +120,8 @@ def init_db():
             ("last_backup_status", "TEXT", None),
             ("iv_fluids_json", "TEXT", None),
             ("iv_volumes_json", "TEXT", None),
+            ("google_sheets_api_key", "TEXT", "'AIzaSyBqmmiMRBWeV1s7Kpie1DlE6HIHKSnVuLg'"),
+            ("google_sheet_id", "TEXT", "''"),
         ])
 
         ensure_columns("print_jobs", [
@@ -242,12 +250,16 @@ def init_db():
                 gemini_api_key="AQ." + "Ab8RN6KJLjFrTyGJh1Xw6SaEta7FexKhNkghpTvTH7CsHJJ-Tg",
                 openai_api_key="AQ." + "Ab8RN6K29_vEWc7D16MIequ-fe7FArRV6b96moxHRJotJE7nJA",
                 iv_fluids_json='["NS", "RL", "DNS", "METRO"]',
-                iv_volumes_json='["100ML", "250ML", "500ML", "1LTR"]'
+                iv_volumes_json='["100ML", "250ML", "500ML", "1LTR"]',
+                google_sheets_api_key="AIzaSyBqmmiMRBWeV1s7Kpie1DlE6HIHKSnVuLg",
+                google_sheet_id=""
             )
             db.add(app_settings)
         else:
             # Update existing settings with new keys if they are blank or old
             app_settings.gemini_api_key = "AQ." + "Ab8RN6KJLjFrTyGJh1Xw6SaEta7FexKhNkghpTvTH7CsHJJ-Tg"
+            if not getattr(app_settings, "google_sheets_api_key", None):
+                app_settings.google_sheets_api_key = "AIzaSyBqmmiMRBWeV1s7Kpie1DlE6HIHKSnVuLg"
             if not getattr(app_settings, "iv_fluids_json", None):
                 app_settings.iv_fluids_json = '["NS", "RL", "DNS", "METRO"]'
             if not getattr(app_settings, "iv_volumes_json", None):

@@ -385,8 +385,19 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
     }
 
     // Auto-populate route from selected party if route is assigned and not in reprint mode
-    if (selectedParty?.route && !isEditReprintMode) {
-      setDeliveryRoute(selectedParty.route);
+    if (selectedParty && !isEditReprintMode) {
+      const weekdayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const todayName = weekdayNames[new Date().getDay()].toLowerCase();
+      
+      const partyRoutes = [selectedParty.route_1, selectedParty.route_2, selectedParty.route_3].filter(Boolean) as string[];
+      const todayRoute = partyRoutes.find(r => r.toLowerCase().includes(todayName));
+      if (todayRoute) {
+        setDeliveryRoute(todayRoute);
+      } else if (selectedParty.route_1) {
+        setDeliveryRoute(selectedParty.route_1);
+      } else if (selectedParty.route) {
+        setDeliveryRoute(selectedParty.route);
+      }
     }
 
     const now = new Date();
@@ -2130,14 +2141,58 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                 />
               </div>
               <div>
-                <span className="text-[10px] font-bold text-slate-500 uppercase">Route / Area</span>
+                <div className="flex items-center justify-between mb-0.5">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase">Route / Area</span>
+                  {selectedParty && (selectedParty.route_1 || selectedParty.route_2 || selectedParty.route_3) && (
+                    <span className="text-[9px] text-indigo-600 font-bold">Party Routes</span>
+                  )}
+                </div>
                 <input
                   type="text"
                   value={deliveryRoute}
                   onChange={(e) => setDeliveryRoute(e.target.value)}
-                  placeholder="e.g. Modasa Road"
+                  placeholder="e.g. Modasa Road / Monday"
                   className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 font-bold text-slate-900"
                 />
+                {selectedParty && (selectedParty.route_1 || selectedParty.route_2 || selectedParty.route_3) && (
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {[
+                      { key: 'R1', val: selectedParty.route_1, valGu: selectedParty.route_1_gu },
+                      { key: 'R2', val: selectedParty.route_2, valGu: selectedParty.route_2_gu },
+                      { key: 'R3', val: selectedParty.route_3, valGu: selectedParty.route_3_gu },
+                    ]
+                      .filter((r) => Boolean(r.val))
+                      .map((r) => {
+                        const weekdayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                        const todayName = weekdayNames[new Date().getDay()];
+                        const isToday = (r.val || '').toLowerCase().includes(todayName.toLowerCase());
+                        const isSelected = deliveryRoute.trim().toLowerCase() === (r.val || '').trim().toLowerCase();
+
+                        return (
+                          <button
+                            key={r.key}
+                            type="button"
+                            onClick={() => setDeliveryRoute(r.val || '')}
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-black transition-all flex items-center gap-1 cursor-pointer ${
+                              isSelected
+                                ? 'bg-blue-600 text-white shadow-sm ring-1 ring-blue-500'
+                                : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+                            }`}
+                            title={`Select ${r.key}: ${r.val}`}
+                          >
+                            <span className="text-[8px] uppercase px-1 rounded bg-black/10 font-black">{r.key}</span>
+                            <span>{r.val}</span>
+                            {r.valGu && <span className="font-normal opacity-75">({r.valGu})</span>}
+                            {isToday && (
+                              <span className="text-[8px] bg-emerald-500 text-white px-1 rounded font-black">
+                                Today
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                  </div>
+                )}
               </div>
             </div>
           </div>

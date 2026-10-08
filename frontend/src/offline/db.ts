@@ -139,6 +139,7 @@ export async function getPartiesOffline(params: {
   city?: string;
   status?: string;
   letter?: string;
+  route?: string;
 }): Promise<{
   items: Party[];
   total: number;
@@ -154,6 +155,7 @@ export async function getPartiesOffline(params: {
   const cityF = (params.city || '').trim().toUpperCase();
   const statusF = (params.status || 'all').toLowerCase();
   const letterF = (params.letter || 'ALL').toUpperCase();
+  const routeF = (params.route || '').trim().toUpperCase();
 
   // Extract unique states & cities from full dataset
   const stateSet = new Set<string>();
@@ -177,6 +179,16 @@ export async function getPartiesOffline(params: {
     // City filter
     if (cityF && (p.city || '').trim().toUpperCase() !== cityF) return false;
 
+    // Route filter
+    if (routeF) {
+      const rAll = [
+        p.route, p.route_1, p.route_2, p.route_3,
+        p.route_1_gu, p.route_2_gu, p.route_3_gu
+      ].map((r) => (r || '').trim().toUpperCase());
+      const hasRoute = rAll.some((r) => r.includes(routeF));
+      if (!hasRoute) return false;
+    }
+
     // Letter filter
     if (letterF && letterF !== 'ALL') {
       const firstLetter = (p.party_name || '').trim().toUpperCase().charAt(0);
@@ -192,6 +204,12 @@ export async function getPartiesOffline(params: {
       const addr = (p.address || '').toUpperCase();
       const mob = (p.mobile_no || '').toUpperCase();
       const rt = (p.route || '').toUpperCase();
+      const r1 = (p.route_1 || '').toUpperCase();
+      const r2 = (p.route_2 || '').toUpperCase();
+      const r3 = (p.route_3 || '').toUpperCase();
+      const r1g = (p.route_1_gu || '').toUpperCase();
+      const r2g = (p.route_2_gu || '').toUpperCase();
+      const r3g = (p.route_3_gu || '').toUpperCase();
 
       const matched =
         name.includes(searchQ) ||
@@ -200,7 +218,13 @@ export async function getPartiesOffline(params: {
         city.includes(searchQ) ||
         addr.includes(searchQ) ||
         mob.includes(searchQ) ||
-        rt.includes(searchQ);
+        rt.includes(searchQ) ||
+        r1.includes(searchQ) ||
+        r2.includes(searchQ) ||
+        r3.includes(searchQ) ||
+        r1g.includes(searchQ) ||
+        r2g.includes(searchQ) ||
+        r3g.includes(searchQ);
 
       if (!matched) return false;
     }

@@ -19,6 +19,12 @@ export interface Party {
   city_gu?: string | null;
   state_gu?: string | null;
   route?: string | null;
+  route_1?: string | null;
+  route_2?: string | null;
+  route_3?: string | null;
+  route_1_gu?: string | null;
+  route_2_gu?: string | null;
+  route_3_gu?: string | null;
   is_active?: boolean;
   created_at?: string;
 }
@@ -67,6 +73,30 @@ export interface AppSettings {
   last_backup_status?: string;
   iv_fluids_json?: string;
   iv_volumes_json?: string;
+  google_sheets_api_key?: string;
+  google_sheet_id?: string;
+}
+
+export interface RouteBatchUpdateItem {
+  id?: number;
+  party_code?: string;
+  route_1?: string;
+  route_2?: string;
+  route_3?: string;
+  route_1_gu?: string;
+  route_2_gu?: string;
+  route_3_gu?: string;
+}
+
+export interface GoogleSheetsSyncResult {
+  success: boolean;
+  spreadsheet_id: string;
+  sheet_title?: string;
+  total_rows: number;
+  updated_count: number;
+  not_found: string[];
+  not_found_count: number;
+  message: string;
 }
 
 

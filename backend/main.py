@@ -24,6 +24,11 @@ import shutil
 import threading
 import time
 import base64
+import re
+import csv
+import urllib.request
+import urllib.parse
+import urllib.error
 import auth as auth_module
 from pathlib import Path
 
@@ -198,6 +203,60 @@ def startup_event():
     except Exception as e:
         print("Startup backup scheduler notice:", e)
 
+WEEKDAY_GUJARATI_MAP = {
+    "MONDAY": "સોમવાર",
+    "TUESDAY": "મંગળવાર",
+    "WEDNESDAY": "બુધવાર",
+    "THURSDAY": "ગુરુવાર",
+    "FRIDAY": "શુક્રવાર",
+    "SATURDAY": "શનિવાર",
+    "SUNDAY": "રવિવાર",
+    "MON": "સોમવાર",
+    "TUE": "મંગળવાર",
+    "WED": "બુધવાર",
+    "THU": "ગુરુવાર",
+    "FRI": "શુક્રવાર",
+    "SAT": "શનિવાર",
+    "SUN": "રવિવાર"
+}
+
+def translate_route_to_gujarati(route_name: Optional[str]) -> Optional[str]:
+    if not route_name or not str(route_name).strip():
+        return None
+    r_raw = str(route_name).strip()
+    r_upper = r_raw.upper()
+
+    # 1. Exact weekday match
+    if r_upper in WEEKDAY_GUJARATI_MAP:
+        return WEEKDAY_GUJARATI_MAP[r_upper]
+
+    # 2. Weekday prefix match like "Monday - Dehgam"
+    for eng_day, gu_day in [
+        ("MONDAY", "સોમવાર"),
+        ("TUESDAY", "મંગળવાર"),
+        ("WEDNESDAY", "બુધવાર"),
+        ("THURSDAY", "ગુરુવાર"),
+        ("FRIDAY", "શુક્રવાર"),
+        ("SATURDAY", "શનિવાર"),
+        ("SUNDAY", "રવિવાર"),
+    ]:
+        if r_upper.startswith(eng_day):
+            remainder = r_upper[len(eng_day):].strip(" -:,/|")
+            if remainder:
+                try:
+                    gu_rem = ai_service.fast_translate_phrase(remainder)
+                    return f"{gu_day} - {gu_rem}" if gu_rem else gu_day
+                except Exception:
+                    return f"{gu_day} - {remainder}"
+            return gu_day
+
+    # 3. Custom route or city name (translate/transliterate)
+    try:
+        translated = ai_service.fast_translate_phrase(r_raw)
+        return translated if translated else r_raw
+    except Exception:
+        return r_raw
+
 # ==========================================
 # PYDANTIC SCHEMAS
 # ==========================================
@@ -222,6 +281,12 @@ class PartyBase(BaseModel):
     city_gu: Optional[str] = None
     state_gu: Optional[str] = None
     route: Optional[str] = None
+    route_1: Optional[str] = None
+    route_2: Optional[str] = None
+    route_3: Optional[str] = None
+    route_1_gu: Optional[str] = None
+    route_2_gu: Optional[str] = None
+    route_3_gu: Optional[str] = None
     is_active: bool = True
 
 class PartyCreate(PartyBase):
@@ -229,6 +294,24 @@ class PartyCreate(PartyBase):
 
 class PartyUpdate(PartyBase):
     pass
+
+class RouteUpdateItem(BaseModel):
+    id: Optional[int] = None
+    party_code: Optional[str] = None
+    route_1: Optional[str] = None
+    route_2: Optional[str] = None
+    route_3: Optional[str] = None
+    route_1_gu: Optional[str] = None
+    route_2_gu: Optional[str] = None
+    route_3_gu: Optional[str] = None
+
+class BatchUpdateRoutesRequest(BaseModel):
+    updates: List[RouteUpdateItem]
+
+class SyncGoogleSheetRequest(BaseModel):
+    sheet_url_or_id: str
+    sheet_name: Optional[str] = None
+    api_key: Optional[str] = None
 
 class SenderSettingsSchema(BaseModel):
     business_name: str
@@ -265,6 +348,10 @@ class AppSettingsSchema(BaseModel):
     gemini_api_key: Optional[str] = ""
     default_language: str = "en"
     envelope_template_format: str = "attachment_pdf"
+    iv_fluids_json: Optional[str] = None
+    iv_volumes_json: Optional[str] = None
+    google_sheets_api_key: Optional[str] = "AIzaSyBqmmiMRBWeV1s7Kpie1DlE6HIHKSnVuLg"
+    google_sheet_id: Optional[str] = ""
 
 class CaseWeightItem(BaseModel):
     case_number: int
@@ -523,6 +610,7 @@ def list_parties(
     state: Optional[str] = None,
     city: Optional[str] = None,
     status: str = "all",
+    route: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
     query = db.query(Party)
@@ -536,6 +624,19 @@ def list_parties(
         query = query.filter(Party.state.ilike(f"%{state.strip()}%"))
     if city:
         query = query.filter(Party.city.ilike(f"%{city.strip()}%"))
+    if route and route.strip():
+        rt = f"%{route.strip()}%"
+        query = query.filter(
+            or_(
+                Party.route.ilike(rt),
+                Party.route_1.ilike(rt),
+                Party.route_2.ilike(rt),
+                Party.route_3.ilike(rt),
+                Party.route_1_gu.ilike(rt),
+                Party.route_2_gu.ilike(rt),
+                Party.route_3_gu.ilike(rt),
+            )
+        )
 
     if search:
         s = f"%{search.strip()}%"
@@ -543,9 +644,18 @@ def list_parties(
             or_(
                 Party.party_name.ilike(s),
                 Party.party_code.ilike(s),
+                Party.party_name_gu.ilike(s),
                 Party.mobile_no.ilike(s),
                 Party.city.ilike(s),
-                Party.address.ilike(s)
+                Party.city_gu.ilike(s),
+                Party.address.ilike(s),
+                Party.route.ilike(s),
+                Party.route_1.ilike(s),
+                Party.route_2.ilike(s),
+                Party.route_3.ilike(s),
+                Party.route_1_gu.ilike(s),
+                Party.route_2_gu.ilike(s),
+                Party.route_3_gu.ilike(s),
             )
         )
 
@@ -587,6 +697,12 @@ def list_parties(
             "city_gu": p.city_gu,
             "state_gu": p.state_gu,
             "route": p.route,
+            "route_1": p.route_1,
+            "route_2": p.route_2,
+            "route_3": p.route_3,
+            "route_1_gu": p.route_1_gu,
+            "route_2_gu": p.route_2_gu,
+            "route_3_gu": p.route_3_gu,
             "is_active": p.is_active,
             "created_at": p.created_at.isoformat() if p.created_at else None
         })
@@ -625,7 +741,11 @@ def autocomplete_parties(
             Party.party_code.ilike(pattern),
             Party.mobile_no.ilike(f"%{clean_q}%"),
             Party.city.ilike(pattern),
-            Party.city_gu.ilike(pattern)
+            Party.city_gu.ilike(pattern),
+            Party.route.ilike(pattern),
+            Party.route_1.ilike(pattern),
+            Party.route_2.ilike(pattern),
+            Party.route_3.ilike(pattern)
         )
     ).order_by(Party.party_name.asc()).limit(25).all()
 
@@ -650,7 +770,13 @@ def autocomplete_parties(
             "address_line_3_gu": p.address_line_3_gu,
             "city_gu": p.city_gu,
             "state_gu": p.state_gu,
-            "route": p.route
+            "route": p.route,
+            "route_1": p.route_1,
+            "route_2": p.route_2,
+            "route_3": p.route_3,
+            "route_1_gu": p.route_1_gu,
+            "route_2_gu": p.route_2_gu,
+            "route_3_gu": p.route_3_gu
         }
         for p in results
     ]
@@ -698,6 +824,12 @@ def get_unprinted_parties_today(
             "city_gu": p.city_gu,
             "state_gu": p.state_gu,
             "route": p.route,
+            "route_1": p.route_1,
+            "route_2": p.route_2,
+            "route_3": p.route_3,
+            "route_1_gu": p.route_1_gu,
+            "route_2_gu": p.route_2_gu,
+            "route_3_gu": p.route_3_gu,
             "printed_today": is_printed
         })
 
@@ -725,6 +857,14 @@ def create_party(party_in: PartyCreate, db: Session = Depends(get_db)):
         if dup:
             raise HTTPException(status_code=400, detail=f"Party Code '{party_in.party_code}' already exists")
 
+    r1 = party_in.route_1.strip().upper() if party_in.route_1 else None
+    r2 = party_in.route_2.strip().upper() if party_in.route_2 else None
+    r3 = party_in.route_3.strip().upper() if party_in.route_3 else None
+    r1_gu = party_in.route_1_gu.strip() if party_in.route_1_gu else translate_route_to_gujarati(r1)
+    r2_gu = party_in.route_2_gu.strip() if party_in.route_2_gu else translate_route_to_gujarati(r2)
+    r3_gu = party_in.route_3_gu.strip() if party_in.route_3_gu else translate_route_to_gujarati(r3)
+    active_route = party_in.route.strip().upper() if party_in.route else (r1 or r2 or r3)
+
     party = Party(
         party_name=party_in.party_name.strip().upper(),
         party_code=party_in.party_code.strip().upper() if party_in.party_code else None,
@@ -744,7 +884,13 @@ def create_party(party_in: PartyCreate, db: Session = Depends(get_db)):
         address_line_3_gu=ai_service.clean_gujarati_text(party_in.address_line_3_gu) if party_in.address_line_3_gu else None,
         city_gu=ai_service.clean_gujarati_text(party_in.city_gu) if party_in.city_gu else None,
         state_gu=ai_service.clean_gujarati_text(party_in.state_gu) if party_in.state_gu else None,
-        route=party_in.route.strip().upper() if party_in.route else None,
+        route=active_route,
+        route_1=r1,
+        route_2=r2,
+        route_3=r3,
+        route_1_gu=r1_gu,
+        route_2_gu=r2_gu,
+        route_3_gu=r3_gu,
         is_active=party_in.is_active
     )
     db.add(party)
@@ -755,9 +901,13 @@ def create_party(party_in: PartyCreate, db: Session = Depends(get_db)):
 @app.get("/api/parties/routes")
 def get_all_routes(db: Session = Depends(get_db)):
     """Returns sorted unique routes assigned across parties and print jobs."""
-    party_routes = [r[0].strip() for r in db.query(Party.route).distinct().filter(Party.route != None).all() if r[0] and r[0].strip()]
+    party_routes = set()
+    for col in [Party.route, Party.route_1, Party.route_2, Party.route_3]:
+        for r in db.query(col).distinct().filter(col != None).all():
+            if r[0] and r[0].strip():
+                party_routes.add(r[0].strip())
     job_routes = [r[0].strip() for r in db.query(PrintJob.delivery_route).distinct().filter(PrintJob.delivery_route != None).all() if r[0] and r[0].strip()]
-    return sorted(list(set(party_routes + job_routes)))
+    return sorted(list(party_routes.union(job_routes)))
 
 @app.post("/api/parties/bulk-route")
 def bulk_assign_party_route(req: BulkRouteRequest, db: Session = Depends(get_db)):
@@ -768,12 +918,17 @@ def bulk_assign_party_route(req: BulkRouteRequest, db: Session = Depends(get_db)
     if not route_clean:
         raise HTTPException(status_code=400, detail="Route name cannot be empty")
 
+    gu_route = translate_route_to_gujarati(route_clean)
     updated = db.query(Party).filter(Party.id.in_(req.party_ids)).update(
-        {"route": route_clean},
+        {
+            "route": route_clean,
+            "route_1": route_clean,
+            "route_1_gu": gu_route
+        },
         synchronize_session=False
     )
     db.commit()
-    return {"success": True, "updated_count": updated, "route": route_clean}
+    return {"success": True, "updated_count": updated, "route": route_clean, "route_gu": gu_route}
 
 @app.post("/api/parties/bulk-delete")
 def bulk_delete_parties(req: BulkDeletePartiesRequest, db: Session = Depends(get_db)):
@@ -843,7 +998,21 @@ def update_party(party_id: int, party_in: PartyUpdate, db: Session = Depends(get
     party.address_line_3_gu = ai_service.clean_gujarati_text(party_in.address_line_3_gu) if party_in.address_line_3_gu else None
     party.city_gu = ai_service.clean_gujarati_text(party_in.city_gu) if party_in.city_gu else None
     party.state_gu = ai_service.clean_gujarati_text(party_in.state_gu) if party_in.state_gu else None
-    party.route = party_in.route.strip().upper() if party_in.route else None
+    
+    if party_in.route_1 is not None:
+        party.route_1 = party_in.route_1.strip().upper() if party_in.route_1 else None
+        party.route_1_gu = party_in.route_1_gu.strip() if party_in.route_1_gu else translate_route_to_gujarati(party.route_1)
+    if party_in.route_2 is not None:
+        party.route_2 = party_in.route_2.strip().upper() if party_in.route_2 else None
+        party.route_2_gu = party_in.route_2_gu.strip() if party_in.route_2_gu else translate_route_to_gujarati(party.route_2)
+    if party_in.route_3 is not None:
+        party.route_3 = party_in.route_3.strip().upper() if party_in.route_3 else None
+        party.route_3_gu = party_in.route_3_gu.strip() if party_in.route_3_gu else translate_route_to_gujarati(party.route_3)
+    if party_in.route is not None and party_in.route.strip():
+        party.route = party_in.route.strip().upper()
+    else:
+        party.route = party.route_1 or party.route_2 or party.route_3 or party.route
+
     party.is_active = party_in.is_active
 
     db.commit()
@@ -858,6 +1027,245 @@ def delete_party(party_id: int, db: Session = Depends(get_db)):
     db.delete(party)
     db.commit()
     return {"message": f"Party '{party.party_name}' deleted successfully"}
+
+# -------------------------------------------------------------
+# GOOGLE SHEETS ROUTE INTEGRATION & BATCH ROUTE EDITING
+# -------------------------------------------------------------
+
+@app.get("/api/routes/export-template")
+def export_routes_template(db: Session = Depends(get_db)):
+    """
+    Exports a CSV template with columns:
+    party_code, party_name, primary_route_1, secondary_route_2, third_route_3
+    pre-filled with all parties for easy editing in Google Sheets.
+    """
+    parties = db.query(Party).filter(Party.is_active == True).order_by(Party.party_name.asc()).all()
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["party_code", "party_name", "primary_route_1", "secondary_route_2", "third_route_3"])
+    for p in parties:
+        writer.writerow([
+            p.party_code or "",
+            p.party_name,
+            p.route_1 or p.route or "",
+            p.route_2 or "",
+            p.route_3 or ""
+        ])
+    csv_bytes = output.getvalue().encode("utf-8")
+    return Response(
+        content=csv_bytes,
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="MARG_Party_Routes.csv"'}
+    )
+
+@app.post("/api/routes/batch-update")
+def batch_update_routes(req: BatchUpdateRoutesRequest, db: Session = Depends(get_db)):
+    """
+    Allows direct inline route updates for multiple parties from the website table.
+    """
+    updated_count = 0
+    for item in req.updates:
+        party = None
+        if item.id:
+            party = db.query(Party).filter(Party.id == item.id).first()
+        elif item.party_code:
+            party = db.query(Party).filter(func.upper(Party.party_code) == item.party_code.strip().upper()).first()
+        
+        if not party:
+            continue
+
+        r1 = item.route_1.strip().upper() if item.route_1 else None
+        r2 = item.route_2.strip().upper() if item.route_2 else None
+        r3 = item.route_3.strip().upper() if item.route_3 else None
+
+        r1_gu = item.route_1_gu.strip() if item.route_1_gu else translate_route_to_gujarati(r1)
+        r2_gu = item.route_2_gu.strip() if item.route_2_gu else translate_route_to_gujarati(r2)
+        r3_gu = item.route_3_gu.strip() if item.route_3_gu else translate_route_to_gujarati(r3)
+
+        party.route_1 = r1
+        party.route_2 = r2
+        party.route_3 = r3
+        party.route_1_gu = r1_gu
+        party.route_2_gu = r2_gu
+        party.route_3_gu = r3_gu
+        party.route = r1 or r2 or r3 or party.route
+        updated_count += 1
+
+    db.commit()
+    return {"success": True, "updated_count": updated_count, "message": f"Successfully updated routes for {updated_count} parties."}
+
+@app.post("/api/routes/sync-google-sheet")
+def sync_google_sheet_routes(req: SyncGoogleSheetRequest, db: Session = Depends(get_db)):
+    """
+    Fetches route mappings from a Google Sheet using Google Sheets API v4.
+    Matches columns: party_code, party_name, primary_route_1, secondary_route_2, third_route_3.
+    Auto-translates English route names to Gujarati and updates the database.
+    """
+    raw_sheet = req.sheet_url_or_id.strip()
+    if not raw_sheet:
+        raise HTTPException(status_code=400, detail="Google Sheet URL or ID is required")
+
+    # Extract Spreadsheet ID
+    match = re.search(r"/spreadsheets/d/([a-zA-Z0-9-_]+)", raw_sheet)
+    spreadsheet_id = match.group(1) if match else raw_sheet
+
+    # Determine API key
+    api_key = req.api_key.strip() if req.api_key and req.api_key.strip() else None
+    if not api_key:
+        app_set = db.query(AppSettings).first()
+        api_key = getattr(app_set, "google_sheets_api_key", "") if app_set else ""
+    if not api_key:
+        api_key = "AIzaSyBqmmiMRBWeV1s7Kpie1DlE6HIHKSnVuLg"
+
+    headers = {"User-Agent": "MARG-Envelope-Manager/1.0"}
+
+    # 1. Determine sheet name / title
+    sheet_title = req.sheet_name.strip() if req.sheet_name and req.sheet_name.strip() else None
+    if not sheet_title:
+        try:
+            meta_url = f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}?fields=sheets.properties.title&key={api_key}"
+            req_meta = urllib.request.Request(meta_url, headers=headers)
+            with urllib.request.urlopen(req_meta, timeout=15) as resp:
+                meta_json = json.loads(resp.read().decode("utf-8"))
+                sheets_list = meta_json.get("sheets", [])
+                if sheets_list:
+                    sheet_title = sheets_list[0].get("properties", {}).get("title", "Sheet1")
+                else:
+                    sheet_title = "Sheet1"
+        except urllib.error.HTTPError as he:
+            err_msg = f"Google Sheets API Error (HTTP {he.code}): "
+            if he.code == 403:
+                err_msg += "Access denied. Ensure the Google Sheet is shared with 'Anyone with the link can view'."
+            elif he.code == 404:
+                err_msg += "Spreadsheet not found. Please check your Google Sheet ID or URL."
+            else:
+                err_msg += he.reason
+            raise HTTPException(status_code=400, detail=err_msg)
+        except Exception as e:
+            sheet_title = "Sheet1"
+
+    # 2. Fetch Values from Google Sheets
+    try:
+        range_q = urllib.parse.quote(f"{sheet_title}!A1:Z")
+        values_url = f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}/values/{range_q}?key={api_key}"
+        req_val = urllib.request.Request(values_url, headers=headers)
+        with urllib.request.urlopen(req_val, timeout=20) as resp:
+            val_json = json.loads(resp.read().decode("utf-8"))
+        values = val_json.get("values", [])
+    except urllib.error.HTTPError as he:
+        err_msg = f"Google Sheets fetch error (HTTP {he.code}): "
+        if he.code == 403:
+            err_msg += "Permission denied. Please ensure the Google Sheet is set to 'Anyone with the link can view'."
+        else:
+            err_msg += he.reason
+        raise HTTPException(status_code=400, detail=err_msg)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch Google Sheet data: {str(e)}")
+
+    if not values or len(values) < 2:
+        return {
+            "success": True,
+            "spreadsheet_id": spreadsheet_id,
+            "total_rows": 0,
+            "updated_count": 0,
+            "not_found": [],
+            "message": "Sheet is empty or contains no data rows."
+        }
+
+    # 3. Detect column indices from header
+    header = values[0]
+    code_idx = None
+    name_idx = None
+    r1_idx = None
+    r2_idx = None
+    r3_idx = None
+
+    for idx, col in enumerate(header):
+        norm = re.sub(r"[^a-z0-9]", "", str(col).lower())
+        if norm in ["partycode", "code", "pcode", "customercode", "id"]:
+            code_idx = idx
+        elif norm in ["partyname", "name", "customername", "party"]:
+            name_idx = idx
+        elif norm in ["primaryroute1", "primaryroute", "route1", "r1", "routeone", "firstroute", "route"]:
+            r1_idx = idx
+        elif norm in ["secondaryroute2", "secondaryroute", "route2", "r2", "routetwo", "secondroute"]:
+            r2_idx = idx
+        elif norm in ["thirdroute3", "thirdroute", "route3", "r3", "routethree"]:
+            r3_idx = idx
+
+    # Positional fallback
+    if code_idx is None and len(header) >= 1:
+        code_idx = 0
+    if name_idx is None and len(header) >= 2:
+        name_idx = 1
+    if r1_idx is None and len(header) >= 3:
+        r1_idx = 2
+    if r2_idx is None and len(header) >= 4:
+        r2_idx = 3
+    if r3_idx is None and len(header) >= 5:
+        r3_idx = 4
+
+    updated_count = 0
+    not_found_list = []
+    data_rows = values[1:]
+
+    for r_idx, row in enumerate(data_rows):
+        if not row or not any(str(c).strip() for c in row):
+            continue
+
+        raw_code = str(row[code_idx]).strip() if code_idx is not None and code_idx < len(row) else ""
+        raw_name = str(row[name_idx]).strip() if name_idx is not None and name_idx < len(row) else ""
+        raw_r1 = str(row[r1_idx]).strip() if r1_idx is not None and r1_idx < len(row) else ""
+        raw_r2 = str(row[r2_idx]).strip() if r2_idx is not None and r2_idx < len(row) else ""
+        raw_r3 = str(row[r3_idx]).strip() if r3_idx is not None and r3_idx < len(row) else ""
+
+        # Match party
+        party = None
+        if raw_code:
+            party = db.query(Party).filter(func.upper(Party.party_code) == raw_code.upper()).first()
+        if not party and raw_name:
+            party = db.query(Party).filter(func.upper(Party.party_name) == raw_name.upper()).first()
+        if not party and raw_name:
+            party = db.query(Party).filter(Party.party_name.ilike(f"%{raw_name}%")).first()
+
+        if not party:
+            not_found_list.append(f"{raw_code or 'NO_CODE'} - {raw_name or 'NO_NAME'}")
+            continue
+
+        # Set routes
+        p_r1 = raw_r1.upper() if raw_r1 else None
+        p_r2 = raw_r2.upper() if raw_r2 else None
+        p_r3 = raw_r3.upper() if raw_r3 else None
+
+        party.route_1 = p_r1
+        party.route_2 = p_r2
+        party.route_3 = p_r3
+        party.route_1_gu = translate_route_to_gujarati(p_r1)
+        party.route_2_gu = translate_route_to_gujarati(p_r2)
+        party.route_3_gu = translate_route_to_gujarati(p_r3)
+        party.route = p_r1 or p_r2 or p_r3 or party.route
+
+        updated_count += 1
+
+    # Persist sheet ID in settings for future quick sync
+    app_set = db.query(AppSettings).first()
+    if app_set:
+        app_set.google_sheet_id = spreadsheet_id
+        if req.api_key and req.api_key.strip():
+            app_set.google_sheets_api_key = req.api_key.strip()
+
+    db.commit()
+
+    return {
+        "success": True,
+        "spreadsheet_id": spreadsheet_id,
+        "sheet_title": sheet_title,
+        "total_rows": len(data_rows),
+        "updated_count": updated_count,
+        "not_found": not_found_list[:25],
+        "not_found_count": len(not_found_list),
+        "message": f"Successfully updated routes for {updated_count} parties from Google Sheet '{sheet_title}'."
+    }
 
 # ==========================================
 # 3. EXCEL IMPORT & VALIDATION
@@ -1829,7 +2237,9 @@ def get_settings(db: Session = Depends(get_db)):
             "default_language": getattr(app_set, "default_language", "en") or "en",
             "envelope_template_format": getattr(app_set, "envelope_template_format", "attachment_pdf") or "attachment_pdf",
             "iv_fluids_json": getattr(app_set, "iv_fluids_json", None) or '["NS", "RL", "DNS", "METRO"]',
-            "iv_volumes_json": getattr(app_set, "iv_volumes_json", None) or '["100ML", "250ML", "500ML", "1LTR"]'
+            "iv_volumes_json": getattr(app_set, "iv_volumes_json", None) or '["100ML", "250ML", "500ML", "1LTR"]',
+            "google_sheets_api_key": getattr(app_set, "google_sheets_api_key", None) or "AIzaSyBqmmiMRBWeV1s7Kpie1DlE6HIHKSnVuLg",
+            "google_sheet_id": getattr(app_set, "google_sheet_id", None) or ""
         }
     }
 
@@ -1888,6 +2298,10 @@ def update_settings(payload: Dict[str, Any], db: Session = Depends(get_db)):
             app_set.iv_fluids_json = str(a_data["iv_fluids_json"]).strip()
         if "iv_volumes_json" in a_data:
             app_set.iv_volumes_json = str(a_data["iv_volumes_json"]).strip()
+        if "google_sheets_api_key" in a_data:
+            app_set.google_sheets_api_key = str(a_data["google_sheets_api_key"]).strip()
+        if "google_sheet_id" in a_data:
+            app_set.google_sheet_id = str(a_data["google_sheet_id"]).strip()
 
     db.commit()
     return {"message": "Settings updated successfully"}

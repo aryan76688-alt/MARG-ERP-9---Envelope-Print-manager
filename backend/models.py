@@ -42,6 +42,12 @@ class Party(Base):
     city_gu = Column(String(100), nullable=True)
     state_gu = Column(String(100), nullable=True)
     route = Column(String(100), nullable=True, index=True)
+    route_1 = Column(String(100), nullable=True, index=True) # Primary Route 1
+    route_2 = Column(String(100), nullable=True, index=True) # Secondary Route 2
+    route_3 = Column(String(100), nullable=True, index=True) # Third Route 3
+    route_1_gu = Column(String(100), nullable=True) # Primary Route 1 Gujarati
+    route_2_gu = Column(String(100), nullable=True) # Secondary Route 2 Gujarati
+    route_3_gu = Column(String(100), nullable=True) # Third Route 3 Gujarati
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
@@ -106,6 +112,8 @@ class AppSettings(Base):
     last_backup_status = Column(String(255), nullable=True)
     iv_fluids_json = Column(Text, nullable=True, default='["NS", "RL", "DNS", "METRO"]')
     iv_volumes_json = Column(Text, nullable=True, default='["100ML", "250ML", "500ML", "1LTR"]')
+    google_sheets_api_key = Column(String(200), default="AIzaSyBqmmiMRBWeV1s7Kpie1DlE6HIHKSnVuLg")
+    google_sheet_id = Column(String(200), default="")
 
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 

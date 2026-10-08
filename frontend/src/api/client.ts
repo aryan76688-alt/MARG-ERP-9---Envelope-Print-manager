@@ -15,7 +15,9 @@ import {
   BigBrainDashboardInsights,
   DualBrainStatus,
   DriverStop,
-  PODSubmission
+  PODSubmission,
+  RouteBatchUpdateItem,
+  GoogleSheetsSyncResult
 } from '../types';
 
 
@@ -64,6 +66,7 @@ export async function fetchParties(params: {
   state?: string;
   city?: string;
   status?: string;
+  route?: string;
 }): Promise<{ items: Party[]; total: number; page: number; limit: number; pages: number; states: string[]; cities: string[] }> {
   try {
     const query = new URLSearchParams();
@@ -73,6 +76,7 @@ export async function fetchParties(params: {
     if (params.state) query.append('state', params.state);
     if (params.city) query.append('city', params.city);
     if (params.status) query.append('status', params.status);
+    if (params.route) query.append('route', params.route);
 
     const res = await fetchApi(`${API_BASE}/parties?${query.toString()}`);
     if (res.ok) {
@@ -1032,5 +1036,43 @@ export async function syncBatchPrintJobs(jobs: any[]): Promise<{
 export async function fetchDriverList(): Promise<{ drivers: string[] }> {
   const res = await fetchApi(`${API_BASE}/driver/list`);
   if (!res.ok) return { drivers: [] };
+  return res.json();
+}
+
+export async function syncGoogleSheetRoutes(params: {
+  sheet_url_or_id: string;
+  sheet_name?: string;
+  api_key?: string;
+}): Promise<GoogleSheetsSyncResult> {
+  const res = await fetchApi(`${API_BASE}/routes/sync-google-sheet`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to sync Google Sheet' }));
+    throw new Error(err.detail || 'Failed to sync Google Sheet');
+  }
+  return res.json();
+}
+
+export function getExportRoutesTemplateUrl(): string {
+  return `${API_BASE}/routes/export-template`;
+}
+
+export async function batchUpdateRoutes(updates: RouteBatchUpdateItem[]): Promise<{
+  success: boolean;
+  updated_count: number;
+  message: string;
+}> {
+  const res = await fetchApi(`${API_BASE}/routes/batch-update`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ updates }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to update routes' }));
+    throw new Error(err.detail || 'Failed to update routes');
+  }
   return res.json();
 }

@@ -25,7 +25,8 @@ import {
   LayoutGrid,
   List,
   Phone,
-  MessageCircle
+  MessageCircle,
+  Calendar
 } from 'lucide-react';
 import { Party } from '../types';
 import { 
@@ -45,6 +46,7 @@ import {
 } from '../api/client';
 import { getPartiesOffline, ensureInitialPartiesLoaded } from '../offline/db';
 import { PartyModal } from '../components/PartyModal';
+import { RouteManagerModal } from '../components/RouteManagerModal';
 
 interface PartiesProps {
   onNavigate: (tab: string, state?: any) => void;
@@ -63,6 +65,7 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
   const [search, setSearch] = useState<string>('');
   const [stateFilter, setStateFilter] = useState<string>('');
   const [cityFilter, setCityFilter] = useState<string>('');
+  const [routeFilter, setRouteFilter] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedLetter, setSelectedLetter] = useState<string>('ALL');
   const [availableStates, setAvailableStates] = useState<string[]>([]);
@@ -73,6 +76,7 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
 
   // Modals & Operations
   const [partyModalOpen, setPartyModalOpen] = useState<boolean>(initialAddModal);
+  const [routeManagerOpen, setRouteManagerOpen] = useState<boolean>(false);
   const [editingParty, setEditingParty] = useState<Party | null>(null);
   const [deleteConfirmParty, setDeleteConfirmParty] = useState<Party | null>(null);
   const [bulkDeleteModalOpen, setBulkDeleteModalOpen] = useState<boolean>(false);
@@ -145,6 +149,7 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
           state: stateFilter,
           city: cityFilter,
           status: statusFilter,
+          route: routeFilter || undefined,
         });
       } catch (apiErr) {
         console.warn('Online fetchParties failed, falling back to local database:', apiErr);
@@ -164,6 +169,7 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
           state: stateFilter,
           city: cityFilter,
           status: statusFilter,
+          route: routeFilter || undefined,
           letter: selectedLetter !== 'ALL' ? selectedLetter : undefined
         });
         setParties(offlineData.items);
@@ -200,7 +206,7 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
       loadParties();
     }, 200);
     return () => clearTimeout(timer);
-  }, [search, stateFilter, cityFilter, statusFilter, page, limit]);
+  }, [search, stateFilter, cityFilter, statusFilter, routeFilter, page, limit]);
 
   const handleBulkAssignRoute = async () => {
     if (selectedIds.length === 0) return;
@@ -372,6 +378,16 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
             </button>
           </div>
 
+          <button
+            type="button"
+            onClick={() => setRouteManagerOpen(true)}
+            className="btn-secondary text-indigo-700 bg-indigo-50/80 border-indigo-200 hover:bg-indigo-100 hover:border-indigo-300 transition-all font-bold"
+            title="3-Route System (Max 3 routes/party), Weekdays & Direct Google Sheets Sync"
+          >
+            <MapPin className="w-4 h-4 text-indigo-600" />
+            <span>3-Route & Sheets</span>
+          </button>
+
           <a
             href={getExportPartiesUrl()}
             download
@@ -436,8 +452,8 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
         </div>
       </div>
 
-      {/* Filter Controls Row (Standardized Grid) */}
-      <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
+      {/* Filter Controls Row (Standardized Grid with 3-Route & Weekdays) */}
+      <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 text-xs">
         {/* Search (Spans 2 columns on desktop) */}
         <div className="relative sm:col-span-2">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
@@ -453,22 +469,37 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
           />
         </div>
 
-        {/* State Filter */}
+        {/* Route / Weekday Filter */}
         <div>
           <select
-            value={stateFilter}
+            value={routeFilter}
             onChange={(e) => {
-              setStateFilter(e.target.value);
+              setRouteFilter(e.target.value);
               setPage(1);
             }}
-            className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700 bg-white"
+            className="w-full px-3 py-2 rounded-lg border border-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-indigo-950 bg-indigo-50/40"
           >
-            <option value="">All States ({availableStates.length})</option>
-            {availableStates.map((st) => (
-              <option key={st} value={st}>
-                {st}
-              </option>
-            ))}
+            <option value="">All Routes (Weekdays & Custom)</option>
+            <optgroup label="Weekday Delivery Schedules">
+              <option value="Monday">Monday (સોમવાર)</option>
+              <option value="Tuesday">Tuesday (મંગળવાર)</option>
+              <option value="Wednesday">Wednesday (બુધવાર)</option>
+              <option value="Thursday">Thursday (ગુરુવાર)</option>
+              <option value="Friday">Friday (શુક્રવાર)</option>
+              <option value="Saturday">Saturday (શનિવાર)</option>
+              <option value="Sunday">Sunday (રવિવાર)</option>
+            </optgroup>
+            {existingRoutes.filter((r) => !['MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY','SUNDAY'].includes(r.toUpperCase())).length > 0 && (
+              <optgroup label="Other Custom Routes">
+                {existingRoutes
+                  .filter((r) => !['MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY','SUNDAY'].includes(r.toUpperCase()))
+                  .map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+              </optgroup>
+            )}
           </select>
         </div>
 
@@ -486,6 +517,25 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
             {availableCities.map((ct) => (
               <option key={ct} value={ct}>
                 {ct}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* State Filter */}
+        <div>
+          <select
+            value={stateFilter}
+            onChange={(e) => {
+              setStateFilter(e.target.value);
+              setPage(1);
+            }}
+            className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700 bg-white"
+          >
+            <option value="">All States ({availableStates.length})</option>
+            {availableStates.map((st) => (
+              <option key={st} value={st}>
+                {st}
               </option>
             ))}
           </select>
@@ -698,23 +748,51 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
                         </div>
                       </div>
 
-                      {/* Code & Route Badges */}
-                      <div className="flex items-center gap-2 mt-2.5 flex-wrap">
-                        {p.party_code && (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                      {/* Code & 3-Route Badges */}
+                      <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
+                        {p.party_code ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-mono font-black bg-blue-50 text-blue-800 border border-blue-200">
                             #{p.party_code}
                           </span>
-                        )}
-                        {p.route ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                            <MapPin className="w-3 h-3" />
-                            <span className="capitalize">{p.route.toLowerCase()}</span>
+                        ) : null}
+
+                        {p.route_1 ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-200" title={`Primary Route 1: ${p.route_1}`}>
+                            <span className="text-[8px] bg-indigo-200 text-indigo-900 px-1 rounded font-black">R1</span>
+                            <span>{p.route_1}</span>
+                            {p.route_1_gu && <span className="text-indigo-500 font-normal">({p.route_1_gu})</span>}
                           </span>
-                        ) : (
-                          <span className="text-[11px] text-slate-400 italic">No Route</span>
+                        ) : null}
+
+                        {p.route_2 ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-purple-50 text-purple-700 border border-purple-200" title={`Secondary Route 2: ${p.route_2}`}>
+                            <span className="text-[8px] bg-purple-200 text-purple-900 px-1 rounded font-black">R2</span>
+                            <span>{p.route_2}</span>
+                            {p.route_2_gu && <span className="text-purple-500 font-normal">({p.route_2_gu})</span>}
+                          </span>
+                        ) : null}
+
+                        {p.route_3 ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-teal-50 text-teal-700 border border-teal-200" title={`Third Route 3: ${p.route_3}`}>
+                            <span className="text-[8px] bg-teal-200 text-teal-900 px-1 rounded font-black">R3</span>
+                            <span>{p.route_3}</span>
+                            {p.route_3_gu && <span className="text-teal-500 font-normal">({p.route_3_gu})</span>}
+                          </span>
+                        ) : null}
+
+                        {!p.route_1 && !p.route_2 && !p.route_3 && (
+                          p.route ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                              <MapPin className="w-2.5 h-2.5 text-slate-500" />
+                              <span>{p.route}</span>
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-slate-400 italic">No Route</span>
+                          )
                         )}
+
                         {p.city && (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 capitalize">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 capitalize">
                             {p.city.toLowerCase()}
                           </span>
                         )}
@@ -760,7 +838,7 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
 
                       {/* Big Pop Print Envelope Button */}
                       <button
-                        onClick={() => onNavigate('print', { selectedParty: p, deliveryRoute: p.route })}
+                        onClick={() => onNavigate('print', { selectedParty: p, deliveryRoute: p.route_1 || p.route })}
                         className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 active:scale-95 text-white font-extrabold text-xs shadow-sm hover:shadow transition-all"
                         title="Print envelope for this party"
                         aria-label={`Print envelope for ${p.party_name}`}
@@ -798,7 +876,7 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
                   <th className="px-3 py-3 w-12">#</th>
                   <th className="px-4 py-3">Party Name</th>
                   <th className="px-3 py-3">Code</th>
-                  <th className="px-3 py-3">Route</th>
+                  <th className="px-4 py-3">Assigned Routes (1 / 2 / 3)</th>
                   <th className="px-4 py-3">City</th>
                   <th className="px-4 py-3">State</th>
                   <th className="px-4 py-3">Mobile No.</th>
@@ -849,17 +927,48 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
                             {p.address}
                           </p>
                         </td>
-                        <td className="px-3 py-3 font-mono font-medium text-slate-700">
-                          {p.party_code || '—'}
-                        </td>
-                        <td className="px-3 py-3">
-                          {p.route ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 capitalize">
-                              {p.route.toLowerCase()}
+                        <td className="px-3 py-3 font-mono font-bold text-slate-800">
+                          {p.party_code ? (
+                            <span className="px-1.5 py-0.5 bg-slate-100 rounded text-slate-700 border border-slate-200">
+                              #{p.party_code}
                             </span>
                           ) : (
-                            <span className="text-slate-400 font-mono text-xs italic">—</span>
+                            <span className="text-slate-400">—</span>
                           )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex flex-wrap gap-1 max-w-xs">
+                            {p.route_1 ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200" title={`Primary Route 1: ${p.route_1}`}>
+                                <span className="text-[9px] bg-indigo-200 text-indigo-900 px-1 rounded font-black">R1</span>
+                                <span>{p.route_1}</span>
+                                {p.route_1_gu && <span className="text-indigo-500 font-normal">({p.route_1_gu})</span>}
+                              </span>
+                            ) : null}
+                            {p.route_2 ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200" title={`Secondary Route 2: ${p.route_2}`}>
+                                <span className="text-[9px] bg-purple-200 text-purple-900 px-1 rounded font-black">R2</span>
+                                <span>{p.route_2}</span>
+                                {p.route_2_gu && <span className="text-purple-500 font-normal">({p.route_2_gu})</span>}
+                              </span>
+                            ) : null}
+                            {p.route_3 ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-teal-50 text-teal-700 border border-teal-200" title={`Third Route 3: ${p.route_3}`}>
+                                <span className="text-[9px] bg-teal-200 text-teal-900 px-1 rounded font-black">R3</span>
+                                <span>{p.route_3}</span>
+                                {p.route_3_gu && <span className="text-teal-500 font-normal">({p.route_3_gu})</span>}
+                              </span>
+                            ) : null}
+                            {!p.route_1 && !p.route_2 && !p.route_3 && (
+                              p.route ? (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                                  {p.route}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400 font-mono text-[11px] italic">—</span>
+                              )
+                            )}
+                          </div>
                         </td>
                         <td className="px-4 py-3 font-medium text-slate-800 capitalize">
                           {p.city ? p.city.toLowerCase() : '—'}
@@ -874,7 +983,7 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
                           <div className="flex items-center justify-end gap-1.5">
                             {/* Print Envelope Directly */}
                             <button
-                              onClick={() => onNavigate('print', { selectedParty: p, deliveryRoute: p.route })}
+                              onClick={() => onNavigate('print', { selectedParty: p, deliveryRoute: p.route_1 || p.route })}
                               className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white font-bold text-xs transition-colors"
                               title="Generate Envelope for this party"
                               aria-label={`Print envelope for ${p.party_name}`}
@@ -978,6 +1087,21 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
         }}
         onSave={handleSaveParty}
         initialParty={editingParty}
+      />
+
+      {/* 3-Route System & Google Sheets Manager Modal */}
+      <RouteManagerModal
+        isOpen={routeManagerOpen}
+        onClose={() => setRouteManagerOpen(false)}
+        parties={parties}
+        onPartiesUpdated={() => {
+          loadParties();
+          loadRoutes();
+        }}
+        onRoutesUpdated={() => {
+          loadParties();
+          loadRoutes();
+        }}
       />
 
       {/* Delete Confirmation Modal */}

@@ -1,6 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, AlertCircle, Building2 } from 'lucide-react';
+import { X, Save, AlertCircle, Building2, Calendar, MapPin } from 'lucide-react';
 import { Party } from '../types';
+
+const WEEKDAYS = [
+  { en: 'Monday', gu: 'સોમવાર', short: 'Mon' },
+  { en: 'Tuesday', gu: 'મંગળવાર', short: 'Tue' },
+  { en: 'Wednesday', gu: 'બુધવાર', short: 'Wed' },
+  { en: 'Thursday', gu: 'ગુરુવાર', short: 'Thu' },
+  { en: 'Friday', gu: 'શુક્રવાર', short: 'Fri' },
+  { en: 'Saturday', gu: 'શનિવાર', short: 'Sat' },
+  { en: 'Sunday', gu: 'રવિવાર', short: 'Sun' }
+];
 
 interface PartyModalProps {
   isOpen: boolean;
@@ -49,6 +59,12 @@ export const PartyModal: React.FC<PartyModalProps> = ({
         gst_no: initialParty.gst_no || '',
         notes: initialParty.notes || '',
         route: initialParty.route || '',
+        route_1: initialParty.route_1 || initialParty.route || '',
+        route_2: initialParty.route_2 || '',
+        route_3: initialParty.route_3 || '',
+        route_1_gu: initialParty.route_1_gu || '',
+        route_2_gu: initialParty.route_2_gu || '',
+        route_3_gu: initialParty.route_3_gu || '',
         party_name_gu: initialParty.party_name_gu || '',
         address_gu: initialParty.address_gu || '',
         address_line_2_gu: initialParty.address_line_2_gu || '',
@@ -72,6 +88,12 @@ export const PartyModal: React.FC<PartyModalProps> = ({
         gst_no: '',
         notes: '',
         route: '',
+        route_1: '',
+        route_2: '',
+        route_3: '',
+        route_1_gu: '',
+        route_2_gu: '',
+        route_3_gu: '',
         party_name_gu: '',
         address_gu: '',
         address_line_2_gu: '',
@@ -407,18 +429,165 @@ export const PartyModal: React.FC<PartyModalProps> = ({
               {errors.email && <p className="text-red-500 text-[11px] mt-1">{errors.email}</p>}
             </div>
 
-            {/* Delivery Route */}
-            <div>
-              <label className="block font-bold text-slate-700 mb-1">
-                Delivery Route (Optional)
-              </label>
-              <input
-                type="text"
-                value={formData.route || ''}
-                onChange={(e) => setFormData({ ...formData, route: e.target.value })}
-                placeholder="e.g. Route 1, Ring Road, Market"
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs font-bold uppercase"
-              />
+            {/* Delivery Route System (Max 3 Routes) */}
+            <div className="sm:col-span-2 p-3.5 bg-blue-50/60 border border-blue-200 rounded-xl space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="font-extrabold text-xs text-blue-900 flex items-center gap-1.5">
+                  <Calendar className="w-4 h-4 text-blue-600" />
+                  <span>Delivery Route System (Max 3 Routes / Weekdays)</span>
+                </span>
+                <span className="text-[10px] text-blue-700 font-bold bg-blue-100 px-2 py-0.5 rounded">
+                  Max 3 Routes Allowed
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {/* Route 1 */}
+                <div className="space-y-1.5 bg-white p-2.5 rounded-lg border border-blue-200">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-blue-900 text-[11px]">Primary Route 1 (મુખ્ય)</label>
+                    {formData.route_1_gu && (
+                      <span className="text-[10px] text-purple-700 font-bold bg-purple-50 px-1.5 py-0.2 rounded border border-purple-200">
+                        {formData.route_1_gu}
+                      </span>
+                    )}
+                  </div>
+                  <input
+                    type="text"
+                    value={formData.route_1 || ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const wMatch = WEEKDAYS.find((w) => w.en.toLowerCase() === val.trim().toLowerCase());
+                      setFormData({
+                        ...formData,
+                        route_1: val,
+                        route_1_gu: wMatch ? wMatch.gu : formData.route_1_gu,
+                        route: val || formData.route_2 || formData.route_3
+                      });
+                    }}
+                    placeholder="e.g. Monday or Dehgam"
+                    className="w-full px-2 py-1.5 rounded border border-slate-300 text-xs font-bold uppercase focus:ring-1 focus:ring-blue-500"
+                  />
+                  <div className="flex flex-wrap gap-1 pt-0.5">
+                    {WEEKDAYS.map((w) => (
+                      <button
+                        key={w.short}
+                        type="button"
+                        onClick={() => setFormData({
+                          ...formData,
+                          route_1: w.en,
+                          route_1_gu: w.gu,
+                          route: w.en
+                        })}
+                        className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded transition-all cursor-pointer ${
+                          (formData.route_1 || '').toUpperCase() === w.en.toUpperCase()
+                            ? 'bg-blue-600 text-white shadow-xs'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                        }`}
+                        title={`${w.en} (${w.gu})`}
+                      >
+                        {w.short}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Route 2 */}
+                <div className="space-y-1.5 bg-white p-2.5 rounded-lg border border-purple-200">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-purple-900 text-[11px]">Secondary Route 2 (બીજો)</label>
+                    {formData.route_2_gu && (
+                      <span className="text-[10px] text-purple-700 font-bold bg-purple-50 px-1.5 py-0.2 rounded border border-purple-200">
+                        {formData.route_2_gu}
+                      </span>
+                    )}
+                  </div>
+                  <input
+                    type="text"
+                    value={formData.route_2 || ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const wMatch = WEEKDAYS.find((w) => w.en.toLowerCase() === val.trim().toLowerCase());
+                      setFormData({
+                        ...formData,
+                        route_2: val,
+                        route_2_gu: wMatch ? wMatch.gu : formData.route_2_gu
+                      });
+                    }}
+                    placeholder="e.g. Thursday or Talod"
+                    className="w-full px-2 py-1.5 rounded border border-slate-300 text-xs font-bold uppercase focus:ring-1 focus:ring-purple-500"
+                  />
+                  <div className="flex flex-wrap gap-1 pt-0.5">
+                    {WEEKDAYS.map((w) => (
+                      <button
+                        key={w.short}
+                        type="button"
+                        onClick={() => setFormData({
+                          ...formData,
+                          route_2: w.en,
+                          route_2_gu: w.gu
+                        })}
+                        className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded transition-all cursor-pointer ${
+                          (formData.route_2 || '').toUpperCase() === w.en.toUpperCase()
+                            ? 'bg-purple-600 text-white shadow-xs'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                        }`}
+                        title={`${w.en} (${w.gu})`}
+                      >
+                        {w.short}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Route 3 */}
+                <div className="space-y-1.5 bg-white p-2.5 rounded-lg border border-amber-200">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-amber-900 text-[11px]">Third Route 3 (ત્રીજો)</label>
+                    {formData.route_3_gu && (
+                      <span className="text-[10px] text-purple-700 font-bold bg-purple-50 px-1.5 py-0.2 rounded border border-purple-200">
+                        {formData.route_3_gu}
+                      </span>
+                    )}
+                  </div>
+                  <input
+                    type="text"
+                    value={formData.route_3 || ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const wMatch = WEEKDAYS.find((w) => w.en.toLowerCase() === val.trim().toLowerCase());
+                      setFormData({
+                        ...formData,
+                        route_3: val,
+                        route_3_gu: wMatch ? wMatch.gu : formData.route_3_gu
+                      });
+                    }}
+                    placeholder="e.g. Saturday or Market"
+                    className="w-full px-2 py-1.5 rounded border border-slate-300 text-xs font-bold uppercase focus:ring-1 focus:ring-amber-500"
+                  />
+                  <div className="flex flex-wrap gap-1 pt-0.5">
+                    {WEEKDAYS.map((w) => (
+                      <button
+                        key={w.short}
+                        type="button"
+                        onClick={() => setFormData({
+                          ...formData,
+                          route_3: w.en,
+                          route_3_gu: w.gu
+                        })}
+                        className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded transition-all cursor-pointer ${
+                          (formData.route_3 || '').toUpperCase() === w.en.toUpperCase()
+                            ? 'bg-amber-600 text-white shadow-xs'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                        }`}
+                        title={`${w.en} (${w.gu})`}
+                      >
+                        {w.short}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Active Status */}
