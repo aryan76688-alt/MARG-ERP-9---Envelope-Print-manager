@@ -993,6 +993,10 @@ export async function recordPOD(data: {
   pod_signature?: string;
   pod_photo?: string;
   pod_notes?: string;
+  delivered_latitude?: number | null;
+  delivered_longitude?: number | null;
+  accuracy_meters?: number | null;
+  pin_shop_geofence?: boolean;
 }): Promise<any> {
   const res = await fetchApi(`${API_BASE}/driver/pod`, {
     method: 'POST',
@@ -1002,6 +1006,31 @@ export async function recordPOD(data: {
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Failed to record proof of delivery' }));
     throw new Error(err.detail || 'Failed to record proof of delivery');
+  }
+  return res.json();
+}
+
+export async function updatePartyGeofence(partyId: number, data: {
+  latitude: number;
+  longitude: number;
+  radius_meters?: number;
+}): Promise<{
+  success: boolean;
+  party_id: number;
+  party_name: string;
+  latitude: number;
+  longitude: number;
+  geofence_radius_meters: number;
+  geofence_set_at?: string;
+}> {
+  const res = await fetchApi(`${API_BASE}/parties/${partyId}/geofence`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to update pharmacy GPS pin' }));
+    throw new Error(err.detail || 'Failed to update pharmacy GPS pin');
   }
   return res.json();
 }

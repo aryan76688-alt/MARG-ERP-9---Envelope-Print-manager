@@ -25,6 +25,10 @@ export interface Party {
   route_1_gu?: string | null;
   route_2_gu?: string | null;
   route_3_gu?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  geofence_radius_meters?: number;
+  geofence_set_at?: string | null;
   is_active?: boolean;
   created_at?: string;
 }
@@ -193,6 +197,13 @@ export interface DriverStop {
   pod_notes?: string | null;
   delivered_at?: string | null;
   created_at?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  geofence_radius_meters?: number;
+  delivered_latitude?: number | null;
+  delivered_longitude?: number | null;
+  distance_from_geofence_meters?: number | null;
+  geofence_verified?: boolean | null;
 }
 
 export interface PODSubmission {
@@ -203,6 +214,16 @@ export interface PODSubmission {
   pod_notes?: string | null;
   delivered_at?: string | null;
   client_uuid?: string | null;
+  delivered_latitude?: number | null;
+  delivered_longitude?: number | null;
+  accuracy_meters?: number | null;
+  pin_shop_geofence?: boolean;
+}
+
+export interface PartyGeofenceUpdatePayload {
+  latitude: number;
+  longitude: number;
+  radius_meters?: number;
 }
 
 export interface TranslatePartyResponse {

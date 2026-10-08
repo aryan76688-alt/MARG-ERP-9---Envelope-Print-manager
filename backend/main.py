@@ -31,6 +31,25 @@ import urllib.parse
 import urllib.error
 import auth as auth_module
 from pathlib import Path
+import math
+
+def calculate_haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Calculates distance in meters between two GPS coordinates using Haversine formula."""
+    try:
+        r = 6371000.0  # Earth's radius in meters
+        phi1 = math.radians(lat1)
+        phi2 = math.radians(lat2)
+        delta_phi = math.radians(lat2 - lat1)
+        delta_lambda = math.radians(lon2 - lon1)
+
+        a = math.sin(delta_phi / 2.0) ** 2 + \
+            math.cos(phi1) * math.cos(phi2) * \
+            math.sin(delta_lambda / 2.0) ** 2
+        c = 2.0 * math.atan2(math.sqrt(a), math.sqrt(1.0 - a))
+
+        return round(r * c, 2)
+    except Exception:
+        return 0.0
 
 # Load .env file
 try:
@@ -291,6 +310,10 @@ class PartyBase(BaseModel):
     route_1_gu: Optional[str] = None
     route_2_gu: Optional[str] = None
     route_3_gu: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    geofence_radius_meters: Optional[int] = 75
+    geofence_set_at: Optional[datetime.datetime] = None
     is_active: bool = True
 
 class PartyCreate(PartyBase):
@@ -298,6 +321,11 @@ class PartyCreate(PartyBase):
 
 class PartyUpdate(PartyBase):
     pass
+
+class PartyGeofenceUpdateRequest(BaseModel):
+    latitude: float
+    longitude: float
+    radius_meters: Optional[int] = 75
 
 class RouteUpdateItem(BaseModel):
     id: Optional[int] = None
@@ -433,6 +461,10 @@ class PODRecordRequest(BaseModel):
     pod_photo: Optional[str] = None
     pod_notes: Optional[str] = None
     client_uuid: Optional[str] = None
+    delivered_latitude: Optional[float] = None
+    delivered_longitude: Optional[float] = None
+    accuracy_meters: Optional[float] = None
+    pin_shop_geofence: Optional[bool] = False
 
 class BatchPODSyncRequest(BaseModel):
     items: List[PODRecordRequest]
@@ -707,6 +739,10 @@ def list_parties(
             "route_1_gu": p.route_1_gu,
             "route_2_gu": p.route_2_gu,
             "route_3_gu": p.route_3_gu,
+            "latitude": p.latitude,
+            "longitude": p.longitude,
+            "geofence_radius_meters": p.geofence_radius_meters or 75,
+            "geofence_set_at": p.geofence_set_at.isoformat() if p.geofence_set_at else None,
             "is_active": p.is_active,
             "created_at": p.created_at.isoformat() if p.created_at else None
         })
@@ -1049,9 +1085,40 @@ def update_party(party_id: int, party_in: PartyUpdate, db: Session = Depends(get
 
     party.is_active = party_in.is_active
 
+    if party_in.latitude is not None:
+        party.latitude = party_in.latitude
+    if party_in.longitude is not None:
+        party.longitude = party_in.longitude
+    if party_in.geofence_radius_meters is not None:
+        party.geofence_radius_meters = party_in.geofence_radius_meters
+    if party_in.latitude is not None and party_in.longitude is not None and not party.geofence_set_at:
+        party.geofence_set_at = datetime.datetime.now(datetime.timezone.utc)
+
     db.commit()
     db.refresh(party)
     return party
+
+@app.post("/api/parties/{party_id}/geofence")
+def update_party_geofence(party_id: int, req: PartyGeofenceUpdateRequest, db: Session = Depends(get_db)):
+    party = db.query(Party).filter(Party.id == party_id).first()
+    if not party:
+        raise HTTPException(status_code=404, detail="Party not found")
+    party.latitude = req.latitude
+    party.longitude = req.longitude
+    if req.radius_meters:
+        party.geofence_radius_meters = req.radius_meters
+    party.geofence_set_at = datetime.datetime.now(datetime.timezone.utc)
+    db.commit()
+    db.refresh(party)
+    return {
+        "success": True,
+        "party_id": party.id,
+        "party_name": party.party_name,
+        "latitude": party.latitude,
+        "longitude": party.longitude,
+        "geofence_radius_meters": party.geofence_radius_meters,
+        "geofence_set_at": party.geofence_set_at.isoformat() if party.geofence_set_at else None
+    }
 
 @app.delete("/api/parties/{party_id}")
 def delete_party(party_id: int, db: Session = Depends(get_db)):
@@ -3090,7 +3157,14 @@ def get_driver_jobs(
             "pod_photo": j.pod_photo,
             "pod_notes": j.pod_notes,
             "delivered_at": j.delivered_at.isoformat() if j.delivered_at else None,
-            "created_at": j.created_at.isoformat() if j.created_at else None
+            "created_at": j.created_at.isoformat() if j.created_at else None,
+            "latitude": j.party.latitude if j.party else None,
+            "longitude": j.party.longitude if j.party else None,
+            "geofence_radius_meters": (j.party.geofence_radius_meters if j.party else None) or 75,
+            "delivered_latitude": j.delivered_latitude,
+            "delivered_longitude": j.delivered_longitude,
+            "distance_from_geofence_meters": j.distance_from_geofence_meters,
+            "geofence_verified": j.geofence_verified,
         })
 
     return {
@@ -3116,12 +3190,43 @@ def submit_proof_of_delivery(req: PODRecordRequest, db: Session = Depends(get_db
     if req.pod_notes:
         job.pod_notes = req.pod_notes
 
+    # Geofence location validation & 1-tap pinning
+    if req.delivered_latitude is not None and req.delivered_longitude is not None:
+        job.delivered_latitude = req.delivered_latitude
+        job.delivered_longitude = req.delivered_longitude
+
+        party = job.party
+        if party:
+            # If auto-pinning requested or if pharmacy has no coordinates yet
+            if req.pin_shop_geofence or (party.latitude is None and party.longitude is None):
+                party.latitude = req.delivered_latitude
+                party.longitude = req.delivered_longitude
+                if not party.geofence_radius_meters:
+                    party.geofence_radius_meters = 75
+                party.geofence_set_at = datetime.datetime.now(datetime.timezone.utc)
+
+            # Calculate Haversine distance
+            if party.latitude is not None and party.longitude is not None:
+                dist = calculate_haversine_distance(
+                    req.delivered_latitude, req.delivered_longitude,
+                    party.latitude, party.longitude
+                )
+                job.distance_from_geofence_meters = dist
+                allowed_radius = party.geofence_radius_meters or 75
+                job.geofence_verified = (dist <= allowed_radius)
+
     db.commit()
+    db.refresh(job)
     return {
         "success": True,
         "job_id": job.id,
         "delivery_status": job.delivery_status,
-        "delivered_at": job.delivered_at.isoformat()
+        "delivered_at": job.delivered_at.isoformat() if job.delivered_at else None,
+        "delivered_latitude": job.delivered_latitude,
+        "delivered_longitude": job.delivered_longitude,
+        "distance_from_geofence_meters": job.distance_from_geofence_meters,
+        "geofence_verified": job.geofence_verified,
+        "geofence_pinned": bool(req.pin_shop_geofence)
     }
 
 @app.post("/api/driver/pod/sync")
@@ -3140,6 +3245,26 @@ def sync_batch_pod(req: BatchPODSyncRequest, db: Session = Depends(get_db)):
             if item.pod_signature: job.pod_signature = item.pod_signature
             if item.pod_photo: job.pod_photo = item.pod_photo
             if item.pod_notes: job.pod_notes = item.pod_notes
+
+            if item.delivered_latitude is not None and item.delivered_longitude is not None:
+                job.delivered_latitude = item.delivered_latitude
+                job.delivered_longitude = item.delivered_longitude
+                party = job.party
+                if party:
+                    if item.pin_shop_geofence or (party.latitude is None and party.longitude is None):
+                        party.latitude = item.delivered_latitude
+                        party.longitude = item.delivered_longitude
+                        if not party.geofence_radius_meters:
+                            party.geofence_radius_meters = 75
+                        party.geofence_set_at = now
+                    if party.latitude is not None and party.longitude is not None:
+                        dist = calculate_haversine_distance(
+                            item.delivered_latitude, item.delivered_longitude,
+                            party.latitude, party.longitude
+                        )
+                        job.distance_from_geofence_meters = dist
+                        job.geofence_verified = (dist <= (party.geofence_radius_meters or 75))
+
             updated_ids.append(job.id)
 
     db.commit()

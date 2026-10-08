@@ -15,7 +15,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { Party } from '../types';
-import { fetchParties, createParty, updateParty } from '../api/client';
+import { fetchParties, createParty, updateParty, updatePartyGeofence } from '../api/client';
 import { getPartiesOffline, ensureInitialPartiesLoaded } from '../offline/db';
 import { PartyModal } from '../components/PartyModal';
 import { RouteManagerModal } from '../components/RouteManagerModal';
@@ -42,6 +42,44 @@ export const MobileParties: React.FC<MobilePartiesProps> = ({
   const [partyModalOpen, setPartyModalOpen] = useState<boolean>(initialAddModal);
   const [editingParty, setEditingParty] = useState<Party | null>(null);
   const [routeModalOpen, setRouteModalOpen] = useState<boolean>(initialRouteModal);
+  const [pinningPartyId, setPinningPartyId] = useState<number | null>(null);
+
+  // 1-Tap Pin Party GPS from device
+  const handlePinPartyGPS = (party: Party) => {
+    if (!party.id) return;
+    if (!navigator.geolocation) {
+      alert("આ ડિવાઇસ પર GPS સપોર્ટ નથી (GPS not supported)");
+      return;
+    }
+    setPinningPartyId(party.id);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const res = await updatePartyGeofence(party.id!, {
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+            radius_meters: party.geofence_radius_meters || 75
+          });
+          setParties(prev => prev.map(p => p.id === party.id ? {
+            ...p,
+            latitude: res.latitude,
+            longitude: res.longitude,
+            geofence_radius_meters: res.geofence_radius_meters,
+            geofence_set_at: res.geofence_set_at
+          } : p));
+        } catch (err: any) {
+          alert(err.message || "GPS પિન કરવામાં ભૂલ આવી");
+        } finally {
+          setPinningPartyId(null);
+        }
+      },
+      (err) => {
+        alert("GPS પરમિશન/લોકેશન ભૂલ: " + err.message);
+        setPinningPartyId(null);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
 
   const weekdays = [
     { id: 'all', label: 'બધા (All)' },
@@ -271,6 +309,29 @@ export const MobileParties: React.FC<MobilePartiesProps> = ({
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-purple-500/10 text-purple-300 border border-purple-500/20">
                       3: {party.route_3_gu || party.route_3}
                     </span>
+                  )}
+                  {party.latitude && party.longitude ? (
+                    <a
+                      href={`https://www.google.com/maps/dir/?api=1&destination=${party.latitude},${party.longitude}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 flex items-center gap-1 active:scale-95 transition-all"
+                      title="Open Chemist Geofence in Google Maps"
+                    >
+                      <MapPin className="w-3 h-3 text-emerald-400" />
+                      <span>જિયોફેન્સ ({party.geofence_radius_meters || 75}m)</span>
+                    </a>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handlePinPartyGPS(party)}
+                      disabled={pinningPartyId === party.id}
+                      className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 flex items-center gap-1 active:scale-95 transition-all"
+                      title="Pin current GPS coordinates to this pharmacy"
+                    >
+                      <MapPin className="w-3 h-3 text-amber-400" />
+                      <span>{pinningPartyId === party.id ? 'પિન થાય છે...' : '📍 GPS પિન કરો'}</span>
+                    </button>
                   )}
                 </div>
 

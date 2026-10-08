@@ -48,6 +48,13 @@ class Party(Base):
     route_1_gu = Column(String(100), nullable=True) # Primary Route 1 Gujarati
     route_2_gu = Column(String(100), nullable=True) # Secondary Route 2 Gujarati
     route_3_gu = Column(String(100), nullable=True) # Third Route 3 Gujarati
+    
+    # Geofence location boundaries
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
+    geofence_radius_meters = Column(Integer, default=75) # Safety zone radius in meters (default 75m)
+    geofence_set_at = Column(DateTime, nullable=True)
+
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
@@ -169,6 +176,12 @@ class PrintJob(Base):
     pod_notes = Column(Text, nullable=True) # Receiver name or delivery remarks
     delivered_at = Column(DateTime, nullable=True) # Timestamp when marked delivered
     client_uuid = Column(String(100), nullable=True, unique=True, index=True) # Offline sync idempotency
+    
+    # Geofence verification fields
+    delivered_latitude = Column(Float, nullable=True)
+    delivered_longitude = Column(Float, nullable=True)
+    distance_from_geofence_meters = Column(Float, nullable=True)
+    geofence_verified = Column(Boolean, nullable=True)
     
     created_at = Column(DateTime, default=datetime.datetime.utcnow, index=True)
 

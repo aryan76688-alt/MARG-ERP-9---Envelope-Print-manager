@@ -111,6 +111,10 @@ def init_db():
             ("route_1_gu", "TEXT", None),
             ("route_2_gu", "TEXT", None),
             ("route_3_gu", "TEXT", None),
+            ("latitude", "FLOAT", None),
+            ("longitude", "FLOAT", None),
+            ("geofence_radius_meters", "INTEGER", "75"),
+            ("geofence_set_at", "TIMESTAMP", None),
         ])
 
         ensure_columns("app_settings", [
@@ -150,6 +154,10 @@ def init_db():
             ("pod_notes", "TEXT", None),
             ("delivered_at", "TIMESTAMP", None),
             ("client_uuid", "TEXT", None),
+            ("delivered_latitude", "FLOAT", None),
+            ("delivered_longitude", "FLOAT", None),
+            ("distance_from_geofence_meters", "FLOAT", None),
+            ("geofence_verified", "BOOLEAN", None),
         ])
 
         ensure_columns("users", [

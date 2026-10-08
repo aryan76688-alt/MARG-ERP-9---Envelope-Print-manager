@@ -13,10 +13,13 @@ import {
   Search, 
   Calendar, 
   RefreshCw,
-  AlertCircle
+  AlertCircle,
+  Navigation,
+  ShieldCheck,
+  Compass
 } from 'lucide-react';
 import { DriverStop, PODSubmission } from '../types';
-import { fetchDriverJobs, recordPOD, fetchDriverList } from '../api/client';
+import { fetchDriverJobs, recordPOD, fetchDriverList, updatePartyGeofence } from '../api/client';
 import { queueOfflinePOD } from '../offline/db';
 import { useNetworkSync } from '../offline/syncManager';
 import { generateWhatsAppDispatchUrl } from '../utils/whatsapp';
@@ -33,6 +36,17 @@ export const DriverMode: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [driversList, setDriversList] = useState<string[]>([]);
 
+  // Live GPS tracking state
+  const [driverLocation, setDriverLocation] = useState<{
+    lat: number;
+    lng: number;
+    accuracy?: number;
+  } | null>(null);
+  const [gpsLoading, setGpsLoading] = useState<boolean>(true);
+  const [gpsError, setGpsError] = useState<string | null>(null);
+  const [pinShopGeofence, setPinShopGeofence] = useState<boolean>(false);
+  const [pinningPartyId, setPinningPartyId] = useState<number | null>(null);
+
   // POD Modal state
   const [selectedStop, setSelectedStop] = useState<DriverStop | null>(null);
   const [podNotes, setPodNotes] = useState<string>('');
@@ -44,6 +58,98 @@ export const DriverMode: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [isDrawing, setIsDrawing] = useState<boolean>(false);
   const [hasSignature, setHasSignature] = useState<boolean>(false);
+
+  // Watch Driver GPS Location
+  useEffect(() => {
+    if (typeof window === 'undefined' || !navigator.geolocation) {
+      setGpsError('GPS not supported');
+      setGpsLoading(false);
+      return;
+    }
+
+    const updatePos = (pos: GeolocationPosition) => {
+      setDriverLocation({
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+        accuracy: Math.round(pos.coords.accuracy)
+      });
+      setGpsLoading(false);
+      setGpsError(null);
+    };
+
+    const handleErr = (err: GeolocationPositionError) => {
+      console.warn('GPS notice:', err.message);
+      setGpsLoading(false);
+      if (!driverLocation) {
+        setGpsError(err.message || 'GPS location unavailable');
+      }
+    };
+
+    navigator.geolocation.getCurrentPosition(updatePos, handleErr, {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 10000
+    });
+
+    const watchId = navigator.geolocation.watchPosition(updatePos, handleErr, {
+      enableHighAccuracy: true,
+      timeout: 15000,
+      maximumAge: 10000
+    });
+
+    return () => {
+      navigator.geolocation.clearWatch(watchId);
+    };
+  }, []);
+
+  // Calculate distance in meters using Haversine formula
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 6371000;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return Math.round(R * c);
+  };
+
+  // 1-Tap Pin Current GPS to Chemist
+  const handleQuickPinLocation = async (stop: DriverStop, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (!stop.party_id) return;
+    if (!driverLocation) {
+      alert('Please wait for GPS coordinates to be acquired before pinning.');
+      return;
+    }
+
+    setPinningPartyId(stop.party_id);
+    try {
+      await updatePartyGeofence(stop.party_id, {
+        latitude: driverLocation.lat,
+        longitude: driverLocation.lng,
+        radius_meters: stop.geofence_radius_meters || 75
+      });
+      setStops(prev => prev.map(s => s.party_id === stop.party_id ? {
+        ...s,
+        latitude: driverLocation.lat,
+        longitude: driverLocation.lng,
+        geofence_radius_meters: stop.geofence_radius_meters || 75
+      } : s));
+    } catch (err: any) {
+      alert(err.message || 'Failed to pin pharmacy GPS location');
+    } finally {
+      setPinningPartyId(null);
+    }
+  };
+
+  // Open modal and prep pin toggle
+  const openPODModal = (stop: DriverStop) => {
+    setSelectedStop(stop);
+    // If party has no GPS coordinates yet, default auto-pin to true
+    setPinShopGeofence(!stop.latitude || !stop.longitude);
+  };
 
   // Load available drivers
   useEffect(() => {
@@ -176,17 +282,39 @@ export const DriverMode: React.FC = () => {
       pod_signature: signatureData,
       pod_photo: podPhotoBase64 || undefined,
       pod_notes: podNotes.trim() || undefined,
-      delivered_at: new Date().toISOString()
+      delivered_at: new Date().toISOString(),
+      delivered_latitude: driverLocation?.lat ?? null,
+      delivered_longitude: driverLocation?.lng ?? null,
+      accuracy_meters: driverLocation?.accuracy ?? null,
+      pin_shop_geofence: pinShopGeofence
     };
+
+    let geofenceVerified: boolean | null = null;
+    let distMeters: number | null = null;
+
+    if (driverLocation && (selectedStop.latitude || pinShopGeofence) && (selectedStop.longitude || pinShopGeofence)) {
+      const targetLat = pinShopGeofence ? driverLocation.lat : selectedStop.latitude!;
+      const targetLng = pinShopGeofence ? driverLocation.lng : selectedStop.longitude!;
+      distMeters = calculateDistance(driverLocation.lat, driverLocation.lng, targetLat, targetLng);
+      geofenceVerified = distMeters <= (selectedStop.geofence_radius_meters || 75);
+    }
 
     try {
       if (isOnline) {
-        await recordPOD({
+        const res = await recordPOD({
           job_id: selectedStop.id,
           pod_signature: signatureData,
           pod_photo: podPhotoBase64 || undefined,
-          pod_notes: podNotes.trim() || undefined
+          pod_notes: podNotes.trim() || undefined,
+          delivered_latitude: driverLocation?.lat ?? null,
+          delivered_longitude: driverLocation?.lng ?? null,
+          accuracy_meters: driverLocation?.accuracy ?? null,
+          pin_shop_geofence: pinShopGeofence
         });
+        if (res && res.geofence_verified !== undefined) {
+          geofenceVerified = res.geofence_verified;
+          distMeters = res.distance_from_geofence_meters;
+        }
       } else {
         // Save to offline outbox
         await queueOfflinePOD(podPayload);
@@ -200,17 +328,24 @@ export const DriverMode: React.FC = () => {
         delivered_at: new Date().toISOString(),
         pod_signature: signatureData,
         pod_photo: podPhotoBase64 || undefined,
-        pod_notes: podNotes.trim() || undefined
+        pod_notes: podNotes.trim() || undefined,
+        delivered_latitude: driverLocation?.lat ?? null,
+        delivered_longitude: driverLocation?.lng ?? null,
+        latitude: pinShopGeofence && driverLocation?.lat ? driverLocation.lat : s.latitude,
+        longitude: pinShopGeofence && driverLocation?.lng ? driverLocation.lng : s.longitude,
+        geofence_verified: geofenceVerified,
+        distance_from_geofence_meters: distMeters
       } : s));
 
-      setPodSuccessMsg(`Delivery recorded for ${selectedStop.party_name}!`);
+      const pinNotice = pinShopGeofence ? ' (📍 GPS Pinned to Shop)' : '';
+      setPodSuccessMsg(`Delivery recorded for ${selectedStop.party_name}!${pinNotice}`);
       setTimeout(() => {
         setSelectedStop(null);
         setPodSuccessMsg(null);
         setPodNotes('');
         setPodPhotoBase64(null);
         setHasSignature(false);
-      }, 1200);
+      }, 1300);
 
     } catch (err: any) {
       // Fallback to offline queue if server returned error
@@ -219,7 +354,13 @@ export const DriverMode: React.FC = () => {
       setStops(prev => prev.map(s => s.id === selectedStop.id ? {
         ...s,
         delivery_status: 'Delivered',
-        delivered_at: new Date().toISOString()
+        delivered_at: new Date().toISOString(),
+        delivered_latitude: driverLocation?.lat ?? null,
+        delivered_longitude: driverLocation?.lng ?? null,
+        latitude: pinShopGeofence && driverLocation?.lat ? driverLocation.lat : s.latitude,
+        longitude: pinShopGeofence && driverLocation?.lng ? driverLocation.lng : s.longitude,
+        geofence_verified: geofenceVerified,
+        distance_from_geofence_meters: distMeters
       } : s));
       setSelectedStop(null);
     } finally {
@@ -383,8 +524,10 @@ export const DriverMode: React.FC = () => {
               city: stop.city
             });
 
-            const mapsQuery = encodeURIComponent(`${stop.address || ''} ${stop.city || ''}`);
-            const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${mapsQuery}`;
+            const hasCoordinates = Boolean(stop.latitude && stop.longitude);
+            const mapsUrl = hasCoordinates 
+              ? `https://www.google.com/maps/dir/?api=1&destination=${stop.latitude},${stop.longitude}`
+              : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${stop.address || ''} ${stop.city || ''}`)}`;
 
             return (
               <div 
@@ -422,6 +565,65 @@ export const DriverMode: React.FC = () => {
                         }`}>
                           {isDelivered ? 'Delivered' : 'Pending'}
                         </span>
+                      </div>
+
+                      {/* Geofence and Live Distance status pill */}
+                      <div className="flex flex-wrap items-center gap-2 pt-1 pb-0.5">
+                        {hasCoordinates && driverLocation ? (() => {
+                          const dist = calculateDistance(driverLocation.lat, driverLocation.lng, stop.latitude!, stop.longitude!);
+                          const radius = stop.geofence_radius_meters || 75;
+                          if (dist <= 35) {
+                            return (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                📍 {dist}m • At Store Counter
+                              </span>
+                            );
+                          } else if (dist <= radius) {
+                            return (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                                <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                                📍 {dist}m • In Safety Zone (≤{radius}m)
+                              </span>
+                            );
+                          } else {
+                            return (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-300">
+                                <Navigation className="w-3 h-3 text-slate-500" />
+                                📍 {dist >= 1000 ? `${(dist / 1000).toFixed(1)} km` : `${dist}m`} away
+                              </span>
+                            );
+                          }
+                        })() : null}
+
+                        {hasCoordinates ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                            <ShieldCheck className="w-3 h-3 text-blue-600" />
+                            <span>Geofence: {stop.geofence_radius_meters || 75}m</span>
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={(e) => handleQuickPinLocation(stop, e)}
+                            disabled={pinningPartyId === stop.party_id}
+                            className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 active:scale-95 transition-all"
+                            title="Tap to pin driver's current GPS to this pharmacy"
+                          >
+                            <MapPin className="w-3 h-3 text-amber-600" />
+                            <span>{pinningPartyId === stop.party_id ? 'Pinning...' : '📍 GPS Unpinned • 1-Tap Pin'}</span>
+                          </button>
+                        )}
+
+                        {isDelivered && stop.geofence_verified !== null && stop.geofence_verified !== undefined && (
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold border ${
+                            stop.geofence_verified 
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-300' 
+                              : 'bg-rose-50 text-rose-800 border-rose-300'
+                          }`}>
+                            {stop.geofence_verified ? '✅ Counter Verified' : '⚠️ Flagged Off-site'}
+                            {stop.distance_from_geofence_meters !== null ? ` (${Math.round(stop.distance_from_geofence_meters)}m)` : ''}
+                          </span>
+                        )}
                       </div>
 
                       <p className="text-sm text-slate-600 flex items-start gap-1.5 pt-0.5">
@@ -489,14 +691,14 @@ export const DriverMode: React.FC = () => {
                         target="_blank"
                         rel="noopener noreferrer"
                         className="p-2 rounded-lg border border-blue-200 text-blue-700 hover:bg-blue-50 transition-colors shadow-xs"
-                        title="Open in Maps"
+                        title={hasCoordinates ? "Turn-by-turn Directions" : "Search in Maps"}
                       >
-                        <MapPin className="w-4 h-4" />
+                        <Navigation className="w-4 h-4" />
                       </a>
 
                       {!isDelivered ? (
                         <button
-                          onClick={() => setSelectedStop(stop)}
+                          onClick={() => openPODModal(stop)}
                           className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold flex items-center gap-1.5 shadow-sm transition-colors"
                         >
                           <PenTool className="w-4 h-4" />
@@ -504,7 +706,7 @@ export const DriverMode: React.FC = () => {
                         </button>
                       ) : (
                         <button
-                          onClick={() => setSelectedStop(stop)}
+                          onClick={() => openPODModal(stop)}
                           className="px-3 py-2 bg-emerald-100 text-emerald-800 rounded-lg text-xs font-semibold flex items-center gap-1 border border-emerald-200"
                         >
                           <CheckCircle className="w-4 h-4" />
@@ -562,8 +764,159 @@ export const DriverMode: React.FC = () => {
                   <CheckCircle className="w-6 h-6 text-emerald-600 shrink-0" />
                   <p className="font-semibold text-sm">{podSuccessMsg}</p>
                 </div>
+              ) : selectedStop.delivery_status === 'Delivered' ? (
+                /* View Recorded POD */
+                <div className="space-y-4">
+                  {/* Geofence Verification Status Card */}
+                  <div className={`p-4 rounded-xl border flex items-start gap-3 ${
+                    selectedStop.geofence_verified
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                      : selectedStop.geofence_verified === false
+                      ? 'bg-rose-50 border-rose-200 text-rose-900'
+                      : 'bg-slate-50 border-slate-200 text-slate-800'
+                  }`}>
+                    {selectedStop.geofence_verified ? (
+                      <ShieldCheck className="w-6 h-6 text-emerald-600 shrink-0 mt-0.5" />
+                    ) : selectedStop.geofence_verified === false ? (
+                      <AlertCircle className="w-6 h-6 text-rose-600 shrink-0 mt-0.5" />
+                    ) : (
+                      <MapPin className="w-6 h-6 text-blue-600 shrink-0 mt-0.5" />
+                    )}
+                    <div>
+                      <h4 className="font-bold text-sm">
+                        {selectedStop.geofence_verified
+                          ? '📍 Counter Verified Delivery'
+                          : selectedStop.geofence_verified === false
+                          ? '⚠️ Off-site Delivery Logged'
+                          : '📍 Delivery Recorded'}
+                      </h4>
+                      <p className="text-xs mt-1">
+                        {selectedStop.distance_from_geofence_meters !== null && selectedStop.distance_from_geofence_meters !== undefined
+                          ? `Delivered ${Math.round(selectedStop.distance_from_geofence_meters)}m from chemist counter (Safety limit: ${selectedStop.geofence_radius_meters || 75}m).`
+                          : 'Delivery location recorded.'}
+                      </p>
+                      {selectedStop.delivered_latitude && selectedStop.delivered_longitude && (
+                        <a
+                          href={`https://www.google.com/maps/search/?api=1&query=${selectedStop.delivered_latitude},${selectedStop.delivered_longitude}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 mt-2 text-xs font-bold text-blue-700 hover:underline"
+                        >
+                          <Navigation className="w-3.5 h-3.5" /> View Recorded GPS Coordinates ({selectedStop.delivered_latitude.toFixed(5)}, {selectedStop.delivered_longitude.toFixed(5)})
+                        </a>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Recorded Timestamp & Receiver Details */}
+                  <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs text-slate-700 space-y-1.5">
+                    {selectedStop.delivered_at && (
+                      <div><span className="font-semibold text-slate-900">Delivered At:</span> {new Date(selectedStop.delivered_at).toLocaleString()}</div>
+                    )}
+                    {selectedStop.pod_notes && (
+                      <div><span className="font-semibold text-slate-900">Received By / Notes:</span> {selectedStop.pod_notes}</div>
+                    )}
+                    <div><span className="font-semibold text-slate-900">Total Cases:</span> {selectedStop.total_cases}</div>
+                    {selectedStop.driver_name && (
+                      <div><span className="font-semibold text-slate-900">Driver:</span> {selectedStop.driver_name}</div>
+                    )}
+                  </div>
+
+                  {/* Customer Signature Display */}
+                  {selectedStop.pod_signature && (
+                    <div>
+                      <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1.5">
+                        Customer Signature
+                      </label>
+                      <div className="border border-slate-200 rounded-xl bg-white p-2">
+                        <img 
+                          src={selectedStop.pod_signature} 
+                          alt="Customer Signature" 
+                          className="h-28 mx-auto object-contain"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Delivery Photo Display */}
+                  {selectedStop.pod_photo && (
+                    <div>
+                      <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1.5">
+                        Parcel Delivery Photo
+                      </label>
+                      <div className="border border-slate-200 rounded-xl overflow-hidden">
+                        <img 
+                          src={selectedStop.pod_photo} 
+                          alt="Parcel Delivery Photo" 
+                          className="w-full h-48 object-cover" 
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
               ) : (
                 <>
+                  {/* Live Geofence Assessment Banner */}
+                  {selectedStop.latitude && selectedStop.longitude && driverLocation ? (() => {
+                    const dist = calculateDistance(driverLocation.lat, driverLocation.lng, selectedStop.latitude, selectedStop.longitude);
+                    const radius = selectedStop.geofence_radius_meters || 75;
+                    const isInside = dist <= radius;
+                    return (
+                      <div className={`p-3.5 rounded-xl border text-xs flex items-start gap-2.5 ${
+                        isInside 
+                          ? 'bg-emerald-50 border-emerald-200 text-emerald-900' 
+                          : 'bg-amber-50 border-amber-200 text-amber-900'
+                      }`}>
+                        {isInside ? (
+                          <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                        ) : (
+                          <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                        )}
+                        <div>
+                          <div className="font-bold text-sm">
+                            {isInside ? '📍 Verified Counter Location' : '⚠️ Outside Chemist Safety Zone'}
+                          </div>
+                          <div className="mt-0.5 leading-relaxed">
+                            Driver is <span className="font-extrabold">{dist}m</span> away from chemist counter. 
+                            {isInside ? ` Inside the ${radius}m geofence safety boundary.` : ` Exceeds ${radius}m geofence boundary. Delivery coordinates will be flagged for review.`}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })() : !selectedStop.latitude || !selectedStop.longitude ? (
+                    <div className="p-3.5 rounded-xl border border-blue-200 bg-blue-50/70 text-blue-900 text-xs flex items-start gap-2.5">
+                      <Compass className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+                      <div>
+                        <div className="font-bold text-sm">📍 First Delivery Auto-Pinning</div>
+                        <div className="mt-0.5 leading-relaxed">
+                          This pharmacy does not have a GPS boundary yet. Submitting delivery will automatically calibrate and pin this chemist's counter location!
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {/* Chemist Auto-Pin Toggle */}
+                  {driverLocation && (
+                    <label className="flex items-center gap-2.5 p-3 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-100/70 cursor-pointer transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={pinShopGeofence}
+                        onChange={e => setPinShopGeofence(e.target.checked)}
+                        className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                      />
+                      <div className="text-xs">
+                        <span className="font-bold text-slate-800 block">
+                          {(!selectedStop.latitude || !selectedStop.longitude) 
+                            ? '📍 Auto-Pin Chemist GPS Location' 
+                            : '🔄 Re-calibrate Chemist GPS Pin to Current Location'}
+                        </span>
+                        <span className="text-slate-500">
+                          Save GPS ({driverLocation.lat.toFixed(5)}, {driverLocation.lng.toFixed(5)}) as the official boundary
+                        </span>
+                      </div>
+                    </label>
+                  )}
+
                   {/* Delivery Stop Details Recap */}
                   <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs text-slate-600 space-y-1">
                     <div><span className="font-semibold text-slate-800">Address:</span> {selectedStop.address}, {selectedStop.city}</div>
@@ -676,24 +1029,26 @@ export const DriverMode: React.FC = () => {
                   onClick={() => setSelectedStop(null)}
                   className="px-4 py-2 border border-slate-300 text-slate-700 rounded-xl text-sm font-semibold hover:bg-slate-100 transition-colors"
                 >
-                  Cancel
+                  {selectedStop.delivery_status === 'Delivered' ? 'Close' : 'Cancel'}
                 </button>
-                <button
-                  type="button"
-                  onClick={handleRecordPOD}
-                  disabled={submittingPOD}
-                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-semibold flex items-center gap-1.5 shadow-sm transition-colors disabled:opacity-50"
-                >
-                  {submittingPOD ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 animate-spin" /> Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Check className="w-4 h-4" /> Save Proof of Delivery
-                    </>
-                  )}
-                </button>
+                {selectedStop.delivery_status !== 'Delivered' && (
+                  <button
+                    type="button"
+                    onClick={handleRecordPOD}
+                    disabled={submittingPOD}
+                    className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-semibold flex items-center gap-1.5 shadow-sm transition-colors disabled:opacity-50"
+                  >
+                    {submittingPOD ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" /> Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-4 h-4" /> Save Proof of Delivery
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
             )}
           </div>

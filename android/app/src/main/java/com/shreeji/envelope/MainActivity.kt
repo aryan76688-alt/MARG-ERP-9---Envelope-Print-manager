@@ -40,6 +40,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var assetLoader: WebViewAssetLoader
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
     private lateinit var fileChooserLauncher: ActivityResultLauncher<Intent>
+    private lateinit var locationPermissionLauncher: ActivityResultLauncher<Array<String>>
 
     class WebAppInterface(private val mContext: Context) {
         @JavascriptInterface
@@ -81,7 +82,9 @@ class MainActivity : AppCompatActivity() {
             .build()
 
         initFileChooserLauncher()
+        initLocationPermissionLauncher()
         initWebView()
+        requestLocationPermissions()
 
         swipeRefreshLayout.setColorSchemeColors(0xFF2563EB.toInt(), 0xFF4F46E5.toInt())
         swipeRefreshLayout.setOnRefreshListener { webView.reload() }
@@ -103,6 +106,31 @@ class MainActivity : AppCompatActivity() {
         })
 
         webView.loadUrl(LOCAL_APP_URL)
+    }
+
+    private fun initLocationPermissionLauncher() {
+        locationPermissionLauncher = registerForActivityResult(
+            ActivityResultContracts.RequestMultiplePermissions()
+        ) { permissions ->
+            val fineGranted = permissions[android.Manifest.permission.ACCESS_FINE_LOCATION] == true
+            val coarseGranted = permissions[android.Manifest.permission.ACCESS_COARSE_LOCATION] == true
+            if (!fineGranted && !coarseGranted) {
+                Toast.makeText(
+                    this,
+                    "Location permission needed for chemist geofencing & proof of delivery",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+
+    private fun requestLocationPermissions() {
+        locationPermissionLauncher.launch(
+            arrayOf(
+                android.Manifest.permission.ACCESS_FINE_LOCATION,
+                android.Manifest.permission.ACCESS_COARSE_LOCATION
+            )
+        )
     }
 
     private fun initFileChooserLauncher() {
@@ -138,6 +166,7 @@ class MainActivity : AppCompatActivity() {
         settings.displayZoomControls = false
         settings.allowFileAccess = true
         settings.allowContentAccess = true
+        settings.setGeolocationEnabled(true)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
@@ -151,6 +180,13 @@ class MainActivity : AppCompatActivity() {
         webView.addJavascriptInterface(WebAppInterface(this), "AndroidBridge")
 
         webView.webChromeClient = object : WebChromeClient() {
+            override fun onGeolocationPermissionsShowPrompt(
+                origin: String?,
+                callback: GeolocationPermissions.Callback?
+            ) {
+                callback?.invoke(origin, true, false)
+            }
+
             override fun onProgressChanged(view: WebView?, newProgress: Int) {
                 if (newProgress < 100) {
                     progressBar.visibility = View.VISIBLE

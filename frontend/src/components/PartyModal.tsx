@@ -73,6 +73,9 @@ export const PartyModal: React.FC<PartyModalProps> = ({
         address_line_3_gu: initialParty.address_line_3_gu || '',
         city_gu: initialParty.city_gu || '',
         state_gu: initialParty.state_gu || '',
+        latitude: initialParty.latitude ?? null,
+        longitude: initialParty.longitude ?? null,
+        geofence_radius_meters: initialParty.geofence_radius_meters ?? 75,
         is_active: initialParty.is_active ?? true,
       });
     } else {
@@ -102,6 +105,9 @@ export const PartyModal: React.FC<PartyModalProps> = ({
         address_line_3_gu: '',
         city_gu: '',
         state_gu: '',
+        latitude: null,
+        longitude: null,
+        geofence_radius_meters: 75,
         is_active: true,
       });
       if (isOpen) {
@@ -118,6 +124,32 @@ export const PartyModal: React.FC<PartyModalProps> = ({
     }
     setErrors({});
   }, [initialParty, isOpen]);
+
+  const [capturingGPS, setCapturingGPS] = useState(false);
+
+  const handleCaptureGPS = () => {
+    if (!navigator.geolocation) {
+      alert("GPS not supported on this device");
+      return;
+    }
+    setCapturingGPS(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setFormData(prev => ({
+          ...prev,
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+          geofence_radius_meters: prev.geofence_radius_meters || 75
+        }));
+        setCapturingGPS(false);
+      },
+      (err) => {
+        alert("GPS Error: " + err.message);
+        setCapturingGPS(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
 
   if (!isOpen) return null;
 
@@ -412,6 +444,93 @@ export const PartyModal: React.FC<PartyModalProps> = ({
                   />
                 </div>
               </div>
+            </div>
+
+            {/* GPS Geofence Boundaries Section */}
+            <div className="bg-blue-50/60 border border-blue-200/80 rounded-xl p-3.5 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <h4 className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
+                    <MapPin className="w-4 h-4 text-blue-600" />
+                    GPS Geofence Location (જિયોફેન્સ લોકેશન)
+                  </h4>
+                  <p className="text-[11px] text-blue-700/80">
+                    Exact chemist counter coordinates for delivery verification and live distance calculation
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCaptureGPS}
+                  disabled={capturingGPS}
+                  className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1 shadow-xs active:scale-95 transition-all disabled:opacity-50 shrink-0 self-start sm:self-auto"
+                >
+                  <MapPin className="w-3.5 h-3.5" />
+                  <span>{capturingGPS ? 'મેળવાય છે...' : '📍 Capture Current GPS'}</span>
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <div>
+                  <label className="block font-bold text-blue-900 mb-1 text-[11px]">
+                    Latitude (અક્ષાંશ)
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={formData.latitude !== null && formData.latitude !== undefined ? formData.latitude : ''}
+                    onChange={(e) => setFormData({ ...formData, latitude: e.target.value ? parseFloat(e.target.value) : null })}
+                    placeholder="e.g. 23.16782"
+                    className="w-full px-3 py-1.5 rounded-lg border border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs font-mono bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-blue-900 mb-1 text-[11px]">
+                    Longitude (રેખાંશ)
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={formData.longitude !== null && formData.longitude !== undefined ? formData.longitude : ''}
+                    onChange={(e) => setFormData({ ...formData, longitude: e.target.value ? parseFloat(e.target.value) : null })}
+                    placeholder="e.g. 72.81234"
+                    className="w-full px-3 py-1.5 rounded-lg border border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs font-mono bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-blue-900 mb-1 text-[11px]">
+                    Geofence Radius (મીટર)
+                  </label>
+                  <select
+                    value={formData.geofence_radius_meters || 75}
+                    onChange={(e) => setFormData({ ...formData, geofence_radius_meters: parseInt(e.target.value, 10) || 75 })}
+                    className="w-full px-3 py-1.5 rounded-lg border border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs font-bold bg-white"
+                  >
+                    <option value={35}>35 Meters (Strict Counter)</option>
+                    <option value={50}>50 Meters (Small Pharmacy)</option>
+                    <option value={75}>75 Meters (Standard Default)</option>
+                    <option value={100}>100 Meters (Medium Hospital/Street)</option>
+                    <option value={150}>150 Meters (Large Complex)</option>
+                  </select>
+                </div>
+              </div>
+
+              {formData.latitude && formData.longitude && (
+                <div className="flex items-center justify-between text-[11px] pt-1 border-t border-blue-200/60">
+                  <span className="text-emerald-700 font-bold flex items-center gap-1">
+                    ✓ Pinned: {Number(formData.latitude).toFixed(5)}, {Number(formData.longitude).toFixed(5)}
+                  </span>
+                  <a
+                    href={`https://www.google.com/maps/dir/?api=1&destination=${formData.latitude},${formData.longitude}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-700 font-bold hover:underline"
+                  >
+                    Preview in Google Maps →
+                  </a>
+                </div>
+              )}
             </div>
 
             {/* Mobile No. */}
