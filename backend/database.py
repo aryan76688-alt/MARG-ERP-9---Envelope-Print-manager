@@ -79,15 +79,21 @@ def init_db():
                 existing = {c["name"] for c in inspector.get_columns(table_name)}
             except Exception:
                 existing = set()
-            with engine.connect() as conn:
-                for col_name, col_type, default_val in columns_spec:
-                    if col_name not in existing:
-                        try:
-                            default_clause = f" DEFAULT {default_val}" if default_val is not None else ""
+            for col_name, col_type, default_val in columns_spec:
+                if col_name not in existing:
+                    try:
+                        with engine.begin() as conn:
+                            val_to_use = default_val
+                            if col_type.upper() == "BOOLEAN" and val_to_use is not None:
+                                s = str(val_to_use).strip("'\"").lower()
+                                if not is_sqlite:
+                                    val_to_use = "TRUE" if s in ("1", "true") else ("FALSE" if s in ("0", "false") else val_to_use)
+                                else:
+                                    val_to_use = "1" if s in ("1", "true") else ("0" if s in ("0", "false") else val_to_use)
+                            default_clause = f" DEFAULT {val_to_use}" if val_to_use is not None else ""
                             conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_type}{default_clause}"))
-                            conn.commit()
-                        except Exception as e:
-                            print(f"Migration note for {table_name}.{col_name}: {e}")
+                    except Exception as e:
+                        print(f"Migration note for {table_name}.{col_name}: {e}")
 
         ensure_columns("parties", [
             ("address_line_2", "TEXT", None),
