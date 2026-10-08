@@ -136,16 +136,35 @@ export async function createParty(party: Party): Promise<Party> {
 }
 
 export async function updateParty(id: number, party: Party): Promise<Party> {
-  const res = await fetchApi(`${API_BASE}/parties/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(party),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: 'Failed to update party' }));
-    throw new Error(err.detail || 'Failed to update party');
+  let updatedParty: Party;
+  try {
+    const res = await fetchApi(`${API_BASE}/parties/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(party),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to update party' }));
+      throw new Error(err.detail || 'Failed to update party');
+    }
+    updatedParty = await res.json();
+  } catch (err: any) {
+    if (!navigator.onLine) {
+      updatedParty = { ...party, id };
+    } else {
+      throw err;
+    }
   }
-  return res.json();
+
+  // Synchronize to offline IndexedDB store immediately
+  try {
+    const { cachePartiesOffline } = await import('../offline/db');
+    await cachePartiesOffline([updatedParty]);
+  } catch (dbErr) {
+    console.warn('Could not cache updated party offline:', dbErr);
+  }
+
+  return updatedParty;
 }
 
 export async function deleteParty(id: number): Promise<void> {
@@ -783,6 +802,7 @@ export async function printDispatchSummaryPDF(params?: {
 export async function printEnvelopePDF(payload: {
   job_id?: number;
   job_ids?: number[];
+  party_ids?: number[];
   case_breakdown?: CaseBreakdownItem[];
   party_name?: string;
   party_code?: string;

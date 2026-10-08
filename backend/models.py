@@ -104,6 +104,8 @@ class AppSettings(Base):
     rclone_backup_path = Column(String(200), default="MARG_Backups")
     last_backup_time = Column(DateTime, nullable=True)
     last_backup_status = Column(String(255), nullable=True)
+    iv_fluids_json = Column(Text, nullable=True, default='["NS", "RL", "DNS", "METRO"]')
+    iv_volumes_json = Column(Text, nullable=True, default='["100ML", "250ML", "500ML", "1LTR"]')
 
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 

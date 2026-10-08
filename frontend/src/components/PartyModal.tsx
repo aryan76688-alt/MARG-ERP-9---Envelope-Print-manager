@@ -49,6 +49,12 @@ export const PartyModal: React.FC<PartyModalProps> = ({
         gst_no: initialParty.gst_no || '',
         notes: initialParty.notes || '',
         route: initialParty.route || '',
+        party_name_gu: initialParty.party_name_gu || '',
+        address_gu: initialParty.address_gu || '',
+        address_line_2_gu: initialParty.address_line_2_gu || '',
+        address_line_3_gu: initialParty.address_line_3_gu || '',
+        city_gu: initialParty.city_gu || '',
+        state_gu: initialParty.state_gu || '',
         is_active: initialParty.is_active ?? true,
       });
     } else {
@@ -66,6 +72,12 @@ export const PartyModal: React.FC<PartyModalProps> = ({
         gst_no: '',
         notes: '',
         route: '',
+        party_name_gu: '',
+        address_gu: '',
+        address_line_2_gu: '',
+        address_line_3_gu: '',
+        city_gu: '',
+        state_gu: '',
         is_active: true,
       });
     }
@@ -256,6 +268,98 @@ export const PartyModal: React.FC<PartyModalProps> = ({
                 } focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs font-bold uppercase`}
               />
               {errors.state && <p className="text-red-500 text-[11px] mt-1">{errors.state}</p>}
+            </div>
+
+            {/* Gujarati Address Details Section */}
+            <div className="sm:col-span-2 p-3 bg-purple-50/70 border border-purple-200 rounded-xl space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="font-extrabold text-xs text-purple-900 flex items-center gap-1.5">
+                  <span>ગુજરાતી સરનામું અને વિગતો (Gujarati Address & Details)</span>
+                </span>
+                <span className="text-[10px] text-purple-700 font-semibold bg-purple-100 px-2 py-0.5 rounded">
+                  For Gujarati Envelopes
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="sm:col-span-2">
+                  <label className="block font-bold text-purple-900 mb-1 text-[11px]">
+                    પાર્ટી નામ (Gujarati Party Name)
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.party_name_gu || ''}
+                    onChange={(e) => setFormData({ ...formData, party_name_gu: e.target.value })}
+                    placeholder="દા.ત. જોધપુર મેડિકોઝ"
+                    className="w-full px-3 py-1.5 rounded-lg border border-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-500 text-xs font-bold bg-white"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block font-bold text-purple-900 mb-1 text-[11px]">
+                    સરનામું લાઇન 1 (Gujarati Address Line 1)
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.address_gu || ''}
+                    onChange={(e) => setFormData({ ...formData, address_gu: e.target.value })}
+                    placeholder="દુકાન નં. / મકાન / શેરી / માર્ગ"
+                    className="w-full px-3 py-1.5 rounded-lg border border-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-500 text-xs bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-purple-900 mb-1 text-[11px]">
+                    સરનામું લાઇન 2 (Gujarati Address Line 2)
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.address_line_2_gu || ''}
+                    onChange={(e) => setFormData({ ...formData, address_line_2_gu: e.target.value })}
+                    placeholder="વિસ્તાર / લેન્ડમાર્ક (વૈકલ્પિક)"
+                    className="w-full px-3 py-1.5 rounded-lg border border-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-500 text-xs bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-purple-900 mb-1 text-[11px]">
+                    સરનામું લાઇન 3 (Gujarati Address Line 3)
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.address_line_3_gu || ''}
+                    onChange={(e) => setFormData({ ...formData, address_line_3_gu: e.target.value })}
+                    placeholder="વધારાની વિગત (વૈકલ્પિક)"
+                    className="w-full px-3 py-1.5 rounded-lg border border-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-500 text-xs bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-purple-900 mb-1 text-[11px]">
+                    શહેર / ગામ (Gujarati City)
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.city_gu || ''}
+                    onChange={(e) => setFormData({ ...formData, city_gu: e.target.value })}
+                    placeholder="દા.ત. જેસલમેર / દહેગામ"
+                    className="w-full px-3 py-1.5 rounded-lg border border-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-500 text-xs font-bold bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-purple-900 mb-1 text-[11px]">
+                    રાજ્ય (Gujarati State)
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.state_gu || ''}
+                    onChange={(e) => setFormData({ ...formData, state_gu: e.target.value })}
+                    placeholder="દા.ત. ગુજરાત / રાજસ્થાન"
+                    className="w-full px-3 py-1.5 rounded-lg border border-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-500 text-xs font-bold bg-white"
+                  />
+                </div>
+              </div>
             </div>
 
             {/* Mobile No. */}

@@ -65,7 +65,8 @@ import {
   translatePartyToGujarati,
   parseMargTextWithAI,
   batchTranslateParties,
-  fetchBigBrainUiControl
+  fetchBigBrainUiControl,
+  updateParty
 } from '../api/client';
 
 import { EnvelopeTemplate, formatCaseBreakdownItem } from '../print/EnvelopeTemplate';
@@ -78,7 +79,8 @@ interface PrintEnvelopeProps {
   onJobCreated?: (jobId: number) => void;
 }
 
-const FLUID_VOLUMES = ['100ML', '200ML', '250ML', '500ML', '1LTR'] as const;
+const DEFAULT_FLUID_VOLUMES = ['100ML', '250ML', '500ML', '1LTR'];
+const DEFAULT_FLUID_TYPES = ['NS', 'RL', 'DNS', 'METRO'];
 
 export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, reprintJob, onNavigate, onJobCreated }) => {
   // Mode: Single Party vs Bulk Daily Select All
@@ -99,6 +101,23 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
   const [bulkSearch, setBulkSearch] = useState<string>('');
   const [isBulkLoading, setIsBulkLoading] = useState<boolean>(false);
   const [isBulkPrinting, setIsBulkPrinting] = useState<boolean>(false);
+
+  // Dynamic IV Fluids & Volumes Configuration (loaded from settings / localStorage, 200ML removed)
+  const [fluidTypes, setFluidTypes] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('iv_fluid_types');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return DEFAULT_FLUID_TYPES;
+  });
+
+  const [fluidVolumes, setFluidVolumes] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('iv_fluid_volumes');
+      if (saved) return JSON.parse(saved).filter((v: string) => v !== '200ML');
+    } catch {}
+    return DEFAULT_FLUID_VOLUMES;
+  });
 
   // Settings & Sender state
   const [sender, setSender] = useState<SenderSettings>({
@@ -126,21 +145,11 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
   const [standardCaseQty, setStandardCaseQty] = useState<number>(0);
   const [parcelBagQty, setParcelBagQty] = useState<number>(0);
 
-  const [nsCaseVolumes, setNsCaseVolumes] = useState<Record<string, number>>({
-    '100ML': 0, '200ML': 0, '250ML': 0, '500ML': 0, '1LTR': 0,
-  });
-  const [rlCaseVolumes, setRlCaseVolumes] = useState<Record<string, number>>({
-    '100ML': 0, '200ML': 0, '250ML': 0, '500ML': 0, '1LTR': 0,
-  });
-  const [dnsCaseVolumes, setDnsCaseVolumes] = useState<Record<string, number>>({
-    '100ML': 0, '200ML': 0, '250ML': 0, '500ML': 0, '1LTR': 0,
-  });
-  const [metroCaseVolumes, setMetroCaseVolumes] = useState<Record<string, number>>({
-    '100ML': 0, '200ML': 0, '250ML': 0, '500ML': 0, '1LTR': 0,
-  });
+  // Dynamic fluid matrix: { [fluidType]: { [volume]: quantity } }
+  const [fluidCaseVolumes, setFluidCaseVolumes] = useState<Record<string, Record<string, number>>>({});
 
   // Active IV Fluid Tab in Case Builder
-  const [activeFluidTab, setActiveFluidTab] = useState<'NS' | 'RL' | 'DNS' | 'METRO'>('NS');
+  const [activeFluidTab, setActiveFluidTab] = useState<string>('NS');
 
   // Language & Template Format selections
   const [selectedLanguage, setSelectedLanguage] = useState<'en' | 'gu'>('en');
@@ -164,8 +173,37 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
   const [aiParseError, setAiParseError] = useState<string | null>(null);
   const [isBatchTranslating, setIsBatchTranslating] = useState<boolean>(false);
   const [isEditingGujarati, setIsEditingGujarati] = useState<boolean>(false);
+  const [isSavingGujarati, setIsSavingGujarati] = useState<boolean>(false);
+  const [gujaratiSavedNotice, setGujaratiSavedNotice] = useState<boolean>(false);
 
-  // Driver & Route Assignment (Optional)
+  // Permanently save Gujarati address edits to PostgreSQL and IndexedDB
+  const handleSaveGujaratiDetails = async () => {
+    if (!selectedParty) return;
+    setIsSavingGujarati(true);
+    try {
+      if (selectedParty.id) {
+        const payload = {
+          ...selectedParty,
+          party_name_gu: selectedParty.party_name_gu || null,
+          address_gu: selectedParty.address_gu || null,
+          address_line_2_gu: selectedParty.address_line_2_gu || null,
+          address_line_3_gu: selectedParty.address_line_3_gu || null,
+          city_gu: selectedParty.city_gu || null,
+          state_gu: selectedParty.state_gu || null,
+        };
+        const updated = await updateParty(selectedParty.id, payload);
+        setSelectedParty((prev) => ({ ...prev, ...updated }));
+      }
+      setIsEditingGujarati(false);
+      setGujaratiSavedNotice(true);
+      setTimeout(() => setGujaratiSavedNotice(false), 3000);
+    } catch (err: any) {
+      console.error('Failed to save Gujarati details:', err);
+      alert('Failed to save Gujarati address: ' + (err.message || 'Unknown error'));
+    } finally {
+      setIsSavingGujarati(false);
+    }
+  };
   const [driverName, setDriverName] = useState<string>('');
   const [deliveryRoute, setDeliveryRoute] = useState<string>('');
 
@@ -263,6 +301,17 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
   const searchInputRef = useRef<HTMLInputElement>(null);
 
 
+  // Helper to update fluid volume count dynamically
+  const handleSetFluidVolumeQty = (fluid: string, vol: string, qty: number) => {
+    setFluidCaseVolumes((prev) => ({
+      ...prev,
+      [fluid]: {
+        ...(prev[fluid] || {}),
+        [vol]: Math.max(0, qty)
+      }
+    }));
+  };
+
   // Compute Active Non-Zero Breakdown Items (0 quantities excluded)
   const activeCaseBreakdown = useMemo<CaseBreakdownItem[]>(() => {
     if (caseMode === 'standard') {
@@ -273,25 +322,18 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
     if (standardCaseQty > 0) list.push({ type: 'CASE', qty: standardCaseQty });
     if (parcelBagQty > 0) list.push({ type: 'PARCEL BAG', qty: parcelBagQty });
 
-    FLUID_VOLUMES.forEach((vol) => {
-      const q = nsCaseVolumes[vol] || 0;
-      if (q > 0) list.push({ type: 'NS CASE', volume: vol, qty: q });
-    });
-    FLUID_VOLUMES.forEach((vol) => {
-      const q = rlCaseVolumes[vol] || 0;
-      if (q > 0) list.push({ type: 'RL CASE', volume: vol, qty: q });
-    });
-    FLUID_VOLUMES.forEach((vol) => {
-      const q = dnsCaseVolumes[vol] || 0;
-      if (q > 0) list.push({ type: 'DNS CASE', volume: vol, qty: q });
-    });
-    FLUID_VOLUMES.forEach((vol) => {
-      const q = metroCaseVolumes[vol] || 0;
-      if (q > 0) list.push({ type: 'METRO CASE', volume: vol, qty: q });
+    fluidTypes.forEach((fluid) => {
+      const volMap = fluidCaseVolumes[fluid] || {};
+      fluidVolumes.forEach((vol) => {
+        const q = volMap[vol] || 0;
+        if (q > 0) {
+          list.push({ type: `${fluid} CASE`, volume: vol, qty: q });
+        }
+      });
     });
 
     return list;
-  }, [caseMode, standardCasesCount, standardCaseQty, parcelBagQty, nsCaseVolumes, rlCaseVolumes, dnsCaseVolumes, metroCaseVolumes]);
+  }, [caseMode, standardCasesCount, standardCaseQty, parcelBagQty, fluidTypes, fluidVolumes, fluidCaseVolumes]);
 
   // Total Packages Count (0 when no cases/standard count is 0)
   const totalPackagesCount = useMemo<number>(() => {
@@ -331,10 +373,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
   const handleResetQuantities = () => {
     setStandardCaseQty(0);
     setParcelBagQty(0);
-    setNsCaseVolumes({ '100ML': 0, '200ML': 0, '250ML': 0, '500ML': 0, '1LTR': 0 });
-    setRlCaseVolumes({ '100ML': 0, '200ML': 0, '250ML': 0, '500ML': 0, '1LTR': 0 });
-    setDnsCaseVolumes({ '100ML': 0, '200ML': 0, '250ML': 0, '500ML': 0, '1LTR': 0 });
-    setMetroCaseVolumes({ '100ML': 0, '200ML': 0, '250ML': 0, '500ML': 0, '1LTR': 0 });
+    setFluidCaseVolumes({});
   };
 
   // Check if selected party was printed today and auto-populate party route
@@ -445,24 +484,37 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
 
       if (bList && Array.isArray(bList) && bList.length > 0) {
         handleResetQuantities();
+        const newFluidMatrix: Record<string, Record<string, number>> = {};
+        let standardSum = 0;
+        let parcelSum = 0;
+
         bList.forEach((b: any) => {
           const qty = Number(b.qty) || 0;
-          const type = (b.type || '').toUpperCase();
-          const vol = (b.volume || '').toUpperCase();
-          if (type.includes('NS')) {
-            setNsCaseVolumes((prev) => ({ ...prev, [vol]: qty }));
-          } else if (type.includes('RL')) {
-            setRlCaseVolumes((prev) => ({ ...prev, [vol]: qty }));
-          } else if (type.includes('DNS')) {
-            setDnsCaseVolumes((prev) => ({ ...prev, [vol]: qty }));
-          } else if (type.includes('METRO')) {
-            setMetroCaseVolumes((prev) => ({ ...prev, [vol]: qty }));
-          } else if (type.includes('BAG') || type.includes('PARCEL')) {
-            setParcelBagQty(qty);
+          const rawType = (b.type || '').toUpperCase().trim();
+          const vol = (b.volume || '').toUpperCase().trim();
+          if (rawType.includes('BAG') || rawType.includes('PARCEL')) {
+            parcelSum += qty;
           } else {
-            setStandardCaseQty((q) => q + qty);
+            let matchedFluid: string | undefined = fluidTypes.find((f) =>
+              rawType.includes(f.toUpperCase())
+            );
+            if (!matchedFluid) {
+              const parts = rawType.split(' ');
+              if (parts[0] && parts[0] !== 'CASE') {
+                matchedFluid = parts[0];
+              }
+            }
+            if (matchedFluid && vol) {
+              if (!newFluidMatrix[matchedFluid]) newFluidMatrix[matchedFluid] = {};
+              newFluidMatrix[matchedFluid][vol] = (newFluidMatrix[matchedFluid][vol] || 0) + qty;
+            } else {
+              standardSum += qty;
+            }
           }
         });
+        setParcelBagQty(parcelSum);
+        setStandardCaseQty(standardSum);
+        setFluidCaseVolumes(newFluidMatrix);
         setCaseMode('fluid');
       }
     }
@@ -482,6 +534,24 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
           }
           if (data.app.envelope_template_format) {
             setSelectedTemplate(data.app.envelope_template_format as any);
+          }
+          if (data.app.iv_fluids_json) {
+            try {
+              const list = JSON.parse(data.app.iv_fluids_json);
+              if (Array.isArray(list) && list.length > 0) {
+                setFluidTypes(list);
+                localStorage.setItem('iv_fluid_types', JSON.stringify(list));
+              }
+            } catch {}
+          }
+          if (data.app.iv_volumes_json) {
+            try {
+              const list = JSON.parse(data.app.iv_volumes_json).filter((v: string) => v !== '200ML');
+              if (Array.isArray(list) && list.length > 0) {
+                setFluidVolumes(list);
+                localStorage.setItem('iv_fluid_volumes', JSON.stringify(list));
+              }
+            } catch {}
           }
         }
       })
@@ -549,24 +619,32 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
       // Populate detected cases
       if (d.cases_breakdown && d.cases_breakdown.length > 0) {
         handleResetQuantities();
+        const newFluidMatrix: Record<string, Record<string, number>> = {};
+        let standardSum = 0;
+        let parcelSum = 0;
         d.cases_breakdown.forEach((b) => {
           const qty = Number(b.qty) || 0;
-          const type = (b.type || '').toUpperCase();
-          const vol = (b.volume || '').toUpperCase();
-          if (type.includes('NS')) {
-            setNsCaseVolumes((prev) => ({ ...prev, [vol]: qty }));
-          } else if (type.includes('RL')) {
-            setRlCaseVolumes((prev) => ({ ...prev, [vol]: qty }));
-          } else if (type.includes('DNS')) {
-            setDnsCaseVolumes((prev) => ({ ...prev, [vol]: qty }));
-          } else if (type.includes('METRO')) {
-            setMetroCaseVolumes((prev) => ({ ...prev, [vol]: qty }));
-          } else if (type.includes('PARCEL')) {
-            setParcelBagQty(qty);
+          const rawType = (b.type || '').toUpperCase().trim();
+          const vol = (b.volume || '').toUpperCase().trim();
+          if (rawType.includes('PARCEL') || rawType.includes('BAG')) {
+            parcelSum += qty;
           } else {
-            setStandardCaseQty((q) => q + qty);
+            let matchedFluid = fluidTypes.find((f) => rawType.includes(f.toUpperCase()));
+            if (!matchedFluid) {
+              const parts = rawType.split(' ');
+              if (parts[0] && parts[0] !== 'CASE') matchedFluid = parts[0];
+            }
+            if (matchedFluid && vol) {
+              if (!newFluidMatrix[matchedFluid]) newFluidMatrix[matchedFluid] = {};
+              newFluidMatrix[matchedFluid][vol] = (newFluidMatrix[matchedFluid][vol] || 0) + qty;
+            } else {
+              standardSum += qty;
+            }
           }
         });
+        setParcelBagQty(parcelSum);
+        setStandardCaseQty(standardSum);
+        setFluidCaseVolumes(newFluidMatrix);
         setCaseMode('fluid');
       } else if (d.total_cases && d.total_cases > 0) {
         setStandardCasesCount(d.total_cases);
@@ -734,13 +812,70 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
       return;
     }
 
-    if (hasPrintedToday && !isEditReprintMode) {
+    const isAddressOnly = totalPackagesCount === 0;
+
+    // Party is only locked for actual dispatch printing (totalPackagesCount > 0)
+    if (!isAddressOnly && hasPrintedToday && !isEditReprintMode) {
       alert('This party has already been printed today and is locked to prevent duplicate dispatches. Please use Print History to reprint or edit.');
       return;
     }
 
     setIsPrinting(true);
     try {
+      // If 0 cases (Address only): Direct print without saving to DB or offline queue, and without locking party!
+      if (isAddressOnly) {
+        if (navigator.onLine) {
+          try {
+            await printEnvelopePDF({
+              party_name: selectedParty.party_name,
+              party_code: selectedParty.party_code || undefined,
+              address: selectedParty.address,
+              address_line_2: selectedParty.address_line_2 || undefined,
+              address_line_3: selectedParty.address_line_3 || undefined,
+              city: selectedParty.city,
+              state: selectedParty.state,
+              mobile_no: selectedParty.mobile_no || undefined,
+              gst_no: selectedParty.gst_no || undefined,
+              parcel_type: 'Address',
+              total_cases: 0,
+              case_weights: [0],
+              sender: sender,
+              case_breakdown: [],
+              envelopes_per_page: envelopesPerPage,
+              envelope_size: envelopeSize,
+              template_format: selectedTemplate,
+              language: selectedLanguage,
+              party_name_gu: selectedParty.party_name_gu || undefined,
+              address_gu: selectedParty.address_gu || undefined,
+              address_line_2_gu: selectedParty.address_line_2_gu || undefined,
+              address_line_3_gu: selectedParty.address_line_3_gu || undefined,
+              city_gu: selectedParty.city_gu || undefined,
+              state_gu: selectedParty.state_gu || undefined,
+              auto_print: true
+            });
+          } catch (pdfErr) {
+            console.warn('Direct PDF print failed, falling back to browser print:', pdfErr);
+            document.body.classList.add('printing-envelope');
+            setTimeout(() => {
+              window.print();
+              setTimeout(() => {
+                document.body.classList.remove('printing-envelope');
+              }, 1500);
+            }, 200);
+          }
+        } else {
+          // Zero-internet direct browser print execution
+          document.body.classList.add('printing-envelope');
+          setTimeout(() => {
+            window.print();
+            setTimeout(() => {
+              document.body.classList.remove('printing-envelope');
+            }, 1500);
+          }, 200);
+        }
+        return;
+      }
+
       let allowDup = isEditReprintMode;
       if (hasPrintedToday && !isEditReprintMode) {
         if (!window.confirm(`Notice: "${selectedParty.party_name}" has already been printed today.\n\nDo you want to print another envelope anyway?`)) {
@@ -1416,14 +1551,25 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                       <Languages className="w-3.5 h-3.5" />
                       <span>ગુજરાતી વિગતો (Gujarati Details)</span>
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => setIsEditingGujarati(!isEditingGujarati)}
-                      className="text-[10px] text-purple-700 hover:text-purple-900 font-bold flex items-center gap-0.5"
-                    >
-                      <Edit3 className="w-3 h-3" />
-                      <span>{isEditingGujarati ? 'Done' : 'Edit'}</span>
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {gujaratiSavedNotice && (
+                        <span className="text-[10px] text-emerald-600 font-bold">✓ Saved</span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (isEditingGujarati) {
+                            handleSaveGujaratiDetails();
+                          } else {
+                            setIsEditingGujarati(true);
+                          }
+                        }}
+                        className="text-[10px] text-purple-700 hover:text-purple-900 font-bold flex items-center gap-0.5"
+                      >
+                        <Edit3 className="w-3 h-3" />
+                        <span>{isEditingGujarati ? 'Done' : 'Edit'}</span>
+                      </button>
+                    </div>
                   </div>
 
                   {isEditingGujarati ? (
@@ -1486,6 +1632,24 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                           />
                         </div>
                       </div>
+                      <div className="flex items-center justify-between pt-2 border-t border-purple-200">
+                        <button
+                          type="button"
+                          onClick={() => setIsEditingGujarati(false)}
+                          className="text-[10px] text-slate-500 hover:text-slate-700 font-bold"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleSaveGujaratiDetails}
+                          disabled={isSavingGujarati}
+                          className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-black shadow-sm flex items-center gap-1.5 transition-all"
+                        >
+                          <Save className="w-3 h-3" />
+                          <span>{isSavingGujarati ? 'Saving...' : 'Save Changes (સાચવો)'}</span>
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     <div className="text-[12px] font-bold leading-snug space-y-0.5">
@@ -1509,7 +1673,17 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
               )}
 
               {/* Party Lock Status */}
-              {hasPrintedToday && !isEditReprintMode ? (
+              {totalPackagesCount === 0 ? (
+                <div className="p-2.5 bg-blue-50 border border-blue-200 rounded-xl text-blue-900 font-bold space-y-1">
+                  <div className="flex items-center gap-1.5 text-xs font-black text-blue-800">
+                    <Info className="w-4 h-4 text-blue-600" />
+                    <span>ADDRESS-ONLY PRINT MODE (0 CASES)</span>
+                  </div>
+                  <p className="text-[10px] text-blue-700 leading-tight">
+                    Printing address only with 0 cases does not create a print job in history and does not lock this party for future dispatches.
+                  </p>
+                </div>
+              ) : hasPrintedToday && !isEditReprintMode ? (
                 <div className="p-3 bg-amber-50 border-2 border-amber-300 rounded-xl text-amber-950 font-bold space-y-1.5">
                   <div className="flex items-center gap-1.5 text-xs font-black text-amber-800">
                     <Lock className="w-4 h-4 text-amber-600" />
@@ -1690,11 +1864,11 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                   </div>
                 </div>
 
-                {/* Section B: IV Fluid Case Types (NS, RL, DNS, METRO) */}
+                {/* Section B: Dynamic IV Fluid Case Types (Configured from Settings) */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-black text-slate-900 uppercase tracking-tight">
-                      IV Fluids (NS, RL, DNS, METRO)
+                      IV Fluids ({fluidTypes.join(', ')})
                     </span>
                     <span className="text-[10px] font-extrabold text-blue-700">
                       Select Multiple Volumes
@@ -1702,23 +1876,16 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                   </div>
 
                   {/* Tabs for Fluid Types */}
-                  <div className="grid grid-cols-4 gap-1 p-1 bg-slate-100 rounded-xl">
-                    {(['NS', 'RL', 'DNS', 'METRO'] as const).map((tab) => {
-                      const count =
-                        tab === 'NS'
-                          ? Object.values(nsCaseVolumes).reduce((a, b) => a + b, 0)
-                          : tab === 'RL'
-                          ? Object.values(rlCaseVolumes).reduce((a, b) => a + b, 0)
-                          : tab === 'DNS'
-                          ? Object.values(dnsCaseVolumes).reduce((a, b) => a + b, 0)
-                          : Object.values(metroCaseVolumes).reduce((a, b) => a + b, 0);
+                  <div className="flex flex-wrap gap-1 p-1 bg-slate-100 rounded-xl">
+                    {fluidTypes.map((tab) => {
+                      const count = Object.values(fluidCaseVolumes[tab] || {}).reduce((a, b) => a + b, 0);
 
                       return (
                         <button
                           key={tab}
                           type="button"
                           onClick={() => setActiveFluidTab(tab)}
-                          className={`py-1.5 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1 ${
+                          className={`py-1.5 px-3 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1 ${
                             activeFluidTab === tab
                               ? 'bg-blue-600 text-white shadow'
                               : 'text-slate-700 hover:bg-slate-200'
@@ -1726,7 +1893,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                         >
                           <span>{tab}</span>
                           {count > 0 && (
-                            <span className="bg-amber-400 text-slate-950 text-[10px] px-1 py-0.2 rounded-full font-black">
+                            <span className="bg-amber-400 text-slate-950 text-[10px] px-1.5 py-0.2 rounded-full font-black">
                               {count}
                             </span>
                           )}
@@ -1744,27 +1911,9 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-5 gap-1.5 text-center">
-                      {FLUID_VOLUMES.map((vol) => {
-                        const currentMap =
-                          activeFluidTab === 'NS'
-                            ? nsCaseVolumes
-                            : activeFluidTab === 'RL'
-                            ? rlCaseVolumes
-                            : activeFluidTab === 'DNS'
-                            ? dnsCaseVolumes
-                            : metroCaseVolumes;
-
-                        const setMap =
-                          activeFluidTab === 'NS'
-                            ? setNsCaseVolumes
-                            : activeFluidTab === 'RL'
-                            ? setRlCaseVolumes
-                            : activeFluidTab === 'DNS'
-                            ? setDnsCaseVolumes
-                            : setMetroCaseVolumes;
-
-                        const val = currentMap[vol] || 0;
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-center">
+                      {fluidVolumes.map((vol) => {
+                        const val = (fluidCaseVolumes[activeFluidTab] || {})[vol] || 0;
 
                         return (
                           <div
@@ -1783,22 +1932,22 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                               value={val}
                               onChange={(e) => {
                                 const newQ = Math.max(0, parseInt(e.target.value || '0', 10));
-                                setMap({ ...currentMap, [vol]: newQ });
+                                handleSetFluidVolumeQty(activeFluidTab, vol, newQ);
                               }}
                               className="w-full text-center font-black text-xs text-blue-950 py-1 bg-transparent border-none focus:outline-none"
                             />
                             <div className="flex items-center justify-center gap-1 pt-1">
                               <button
                                 type="button"
-                                onClick={() => setMap({ ...currentMap, [vol]: Math.max(0, val - 1) })}
-                                className="w-4 h-4 rounded bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-[10px] flex items-center justify-center"
+                                onClick={() => handleSetFluidVolumeQty(activeFluidTab, vol, Math.max(0, val - 1))}
+                                className="w-5 h-5 rounded bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-[10px] flex items-center justify-center"
                               >
                                 -
                               </button>
                               <button
                                 type="button"
-                                onClick={() => setMap({ ...currentMap, [vol]: val + 1 })}
-                                className="w-4 h-4 rounded bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-[10px] flex items-center justify-center"
+                                onClick={() => handleSetFluidVolumeQty(activeFluidTab, vol, val + 1)}
+                                className="w-5 h-5 rounded bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-[10px] flex items-center justify-center"
                               >
                                 +
                               </button>
@@ -2195,7 +2344,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
           )}
 
           {/* Primary Action Buttons */}
-          {hasPrintedToday && !isEditReprintMode ? (
+          {hasPrintedToday && !isEditReprintMode && totalPackagesCount > 0 ? (
             <div className="pt-2 space-y-2">
               <div className="p-3.5 bg-amber-50 border-2 border-amber-300 rounded-xl text-center space-y-2">
                 <div className="flex items-center justify-center gap-1.5 text-xs font-black text-amber-900">
@@ -2248,11 +2397,21 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                         <button
                           onClick={handlePrintEnvelope}
                           disabled={!isValidToPrint || isPrinting}
-                          className="flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-sm shadow-lg shadow-blue-600/30 transition-all hover:scale-102 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className={`flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-extrabold text-sm shadow-lg transition-all hover:scale-102 disabled:opacity-50 disabled:cursor-not-allowed ${
+                            totalPackagesCount === 0
+                              ? 'bg-gradient-to-r from-blue-700 to-indigo-700 hover:from-blue-600 hover:to-indigo-600 text-white shadow-blue-700/30 ring-1 ring-blue-400/40'
+                              : 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/30'
+                          }`}
                         >
                           <Printer className="w-5 h-5" />
                           <span>
-                            {isPrinting ? 'Preparing Print...' : isEditReprintMode ? 'UPDATE & REPRINT' : 'PRINT ENVELOPE'}
+                            {isPrinting
+                              ? 'Preparing Print...'
+                              : isEditReprintMode
+                              ? 'UPDATE & REPRINT'
+                              : totalPackagesCount === 0
+                              ? 'PRINT ADDRESS (0 CASES)'
+                              : 'PRINT ENVELOPE'}
                           </span>
                         </button>
 

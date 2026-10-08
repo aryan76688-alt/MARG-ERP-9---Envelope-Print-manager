@@ -65,6 +65,8 @@ export interface AppSettings {
   rclone_backup_path?: string;
   last_backup_time?: string;
   last_backup_status?: string;
+  iv_fluids_json?: string;
+  iv_volumes_json?: string;
 }
 
 
@@ -77,8 +79,8 @@ export interface CaseItem {
 
 export interface CaseBreakdownItem {
   title?: string;
-  type: string; // 'CASE' | 'NS CASE' | 'RL CASE' | 'DNS CASE' | 'METRO CASE' | 'PARCEL BAG'
-  volume?: string; // '100ML' | '200ML' | '250ML' | '500ML' | '1LTR'
+  type: string; // 'CASE' | 'NS CASE' | 'RL CASE' | 'DNS CASE' | 'METRO CASE' | 'PARCEL BAG' | custom fluid
+  volume?: string; // '100ML' | '250ML' | '500ML' | '1LTR'
   qty: number;
 }
 

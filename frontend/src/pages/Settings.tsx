@@ -21,7 +21,10 @@ import {
   ShieldCheck,
   RefreshCw,
   Mail,
-  Smartphone
+  Smartphone,
+  Plus,
+  Trash2,
+  Droplets
 } from 'lucide-react';
 import { SenderSettings, AppSettings, DualBrainStatus } from '../types';
 import { 
@@ -111,6 +114,29 @@ export const Settings: React.FC = () => {
   const [backupRunning, setBackupRunning] = useState<boolean>(false);
   const [backupMessage, setBackupMessage] = useState<string | null>(null);
 
+  // IV Fluids & Volumes Configuration
+  const [ivFluids, setIvFluids] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('iv_fluid_types');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return ['NS', 'RL', 'DNS', 'METRO'];
+  });
+
+  const [ivVolumes, setIvVolumes] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('iv_fluid_volumes');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed.filter((v: string) => v !== '200ML');
+      }
+    } catch {}
+    return ['100ML', '250ML', '500ML', '1LTR'];
+  });
+
+  const [newFluidName, setNewFluidName] = useState<string>('');
+  const [newVolumeName, setNewVolumeName] = useState<string>('');
+
   const loadBackupSettings = () => {
     fetchBackupSettings()
       .then((b) => {
@@ -129,7 +155,27 @@ export const Settings: React.FC = () => {
     fetchSettings()
       .then((res) => {
         if (res.sender) setSender(res.sender);
-        if (res.app) setApp(res.app);
+        if (res.app) {
+          setApp(res.app);
+          if (res.app.iv_fluids_json) {
+            try {
+              const list = JSON.parse(res.app.iv_fluids_json);
+              if (Array.isArray(list) && list.length > 0) {
+                setIvFluids(list);
+                localStorage.setItem('iv_fluid_types', JSON.stringify(list));
+              }
+            } catch {}
+          }
+          if (res.app.iv_volumes_json) {
+            try {
+              const list = JSON.parse(res.app.iv_volumes_json).filter((v: string) => v !== '200ML');
+              if (Array.isArray(list) && list.length > 0) {
+                setIvVolumes(list);
+                localStorage.setItem('iv_fluid_volumes', JSON.stringify(list));
+              }
+            } catch {}
+          }
+        }
       })
       .catch(console.error);
 
@@ -139,6 +185,59 @@ export const Settings: React.FC = () => {
 
     loadBackupSettings();
   }, []);
+
+  const handleAddFluid = () => {
+    const clean = newFluidName.trim().toUpperCase();
+    if (!clean) return;
+    if (ivFluids.includes(clean)) {
+      alert(`IV Fluid "${clean}" already exists!`);
+      return;
+    }
+    const updated = [...ivFluids, clean];
+    setIvFluids(updated);
+    setNewFluidName('');
+    localStorage.setItem('iv_fluid_types', JSON.stringify(updated));
+  };
+
+  const handleRemoveFluid = (fluid: string) => {
+    if (ivFluids.length <= 1) {
+      alert('You must have at least one IV fluid configured.');
+      return;
+    }
+    const updated = ivFluids.filter((f) => f !== fluid);
+    setIvFluids(updated);
+    localStorage.setItem('iv_fluid_types', JSON.stringify(updated));
+  };
+
+  const handleAddVolume = () => {
+    let clean = newVolumeName.trim().toUpperCase();
+    if (!clean) return;
+    if (clean === '200ML') {
+      alert('200ML has been permanently removed.');
+      return;
+    }
+    if (!clean.endsWith('ML') && !clean.endsWith('LTR')) {
+      clean = `${clean}ML`;
+    }
+    if (ivVolumes.includes(clean)) {
+      alert(`Volume "${clean}" already exists!`);
+      return;
+    }
+    const updated = [...ivVolumes, clean];
+    setIvVolumes(updated);
+    setNewVolumeName('');
+    localStorage.setItem('iv_fluid_volumes', JSON.stringify(updated));
+  };
+
+  const handleRemoveVolume = (vol: string) => {
+    if (ivVolumes.length <= 1) {
+      alert('You must have at least one volume size configured.');
+      return;
+    }
+    const updated = ivVolumes.filter((v) => v !== vol);
+    setIvVolumes(updated);
+    localStorage.setItem('iv_fluid_volumes', JSON.stringify(updated));
+  };
 
   const handleSaveBackupSchedule = async () => {
     if (!canEditBackup) {
@@ -182,13 +281,19 @@ export const Settings: React.FC = () => {
     }
   };
 
-
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     setSuccessMsg('');
     try {
-      await saveSettings({ sender, app });
+      const appWithFluids: AppSettings = {
+        ...app,
+        iv_fluids_json: JSON.stringify(ivFluids),
+        iv_volumes_json: JSON.stringify(ivVolumes.filter((v) => v !== '200ML')),
+      };
+      await saveSettings({ sender, app: appWithFluids });
+      localStorage.setItem('iv_fluid_types', JSON.stringify(ivFluids));
+      localStorage.setItem('iv_fluid_volumes', JSON.stringify(ivVolumes.filter((v) => v !== '200ML')));
       setSuccessMsg('Settings updated and saved successfully!');
       setTimeout(() => setSuccessMsg(''), 4000);
     } catch (err: any) {
@@ -218,6 +323,7 @@ export const Settings: React.FC = () => {
   const tabs = [
     { id: 'company', label: 'COMPANY DETAILS', icon: Building },
     { id: 'general', label: 'GENERAL', icon: SettingsIcon },
+    { id: 'fluids', label: 'IV FLUIDS & PACKAGING', icon: Droplets },
     { id: 'printer', label: 'PRINTER', icon: Printer },
     { id: 'layout', label: 'LAYOUT & MARGINS', icon: Layout },
     { id: 'template', label: 'TEMPLATE TOGGLES', icon: FileText },
@@ -621,6 +727,134 @@ export const Settings: React.FC = () => {
           </div>
         )}
 
+        {/* TAB: IV FLUIDS & PACKAGING */}
+        {activeTab === 'fluids' && (
+          <div className="space-y-6">
+            <div className="border-b border-slate-200 pb-2">
+              <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+                <Droplets className="w-4 h-4 text-blue-600" />
+                <span>IV Fluids & Packaging Sizes</span>
+              </h3>
+              <p className="text-slate-500">
+                Configure IV fluid medicines and bottle volumes available during envelope dispatch. (Note: 200ML is permanently removed).
+              </p>
+            </div>
+
+            {/* 1. IV Fluids List */}
+            <div className="bg-slate-50/70 p-4 rounded-xl border border-slate-200 space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                  <span>Available IV Fluids ({ivFluids.length})</span>
+                </label>
+                <span className="text-[11px] text-blue-700 bg-blue-100 px-2 py-0.5 rounded font-bold">
+                  Shows in Envelope Case Builder
+                </span>
+              </div>
+
+              {/* Chips Grid */}
+              <div className="flex flex-wrap items-center gap-2">
+                {ivFluids.map((fluid) => (
+                  <div
+                    key={fluid}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white border border-slate-300 text-slate-900 font-black text-xs shadow-sm hover:border-blue-400 transition-colors"
+                  >
+                    <span>{fluid}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveFluid(fluid)}
+                      className="text-slate-400 hover:text-red-600 transition-colors p-0.5 rounded"
+                      title={`Remove ${fluid}`}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Add IV Fluid Input Bar */}
+              <div className="pt-2 flex items-center gap-2 max-w-md">
+                <input
+                  type="text"
+                  value={newFluidName}
+                  onChange={(e) => setNewFluidName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddFluid();
+                    }
+                  }}
+                  placeholder="Enter IV Fluid (e.g. D5, ISOLYTE, CIPRO)"
+                  className="flex-1 px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs font-bold uppercase bg-white"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddFluid}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-extrabold shadow-sm transition-all flex items-center gap-1.5"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add IV Fluid</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 2. Fluid Volumes List (200ML permanently removed) */}
+            <div className="bg-slate-50/70 p-4 rounded-xl border border-slate-200 space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                  <span>Bottle / Packaging Volumes ({ivVolumes.length})</span>
+                </label>
+                <span className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded font-bold">
+                  200ML Permanently Removed
+                </span>
+              </div>
+
+              {/* Chips Grid */}
+              <div className="flex flex-wrap items-center gap-2">
+                {ivVolumes.map((vol) => (
+                  <div
+                    key={vol}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white border border-blue-200 text-blue-950 font-black text-xs shadow-sm hover:border-blue-400 transition-colors"
+                  >
+                    <span>{vol}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveVolume(vol)}
+                      className="text-slate-400 hover:text-red-600 transition-colors p-0.5 rounded"
+                      title={`Remove ${vol}`}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Add Volume Input Bar */}
+              <div className="pt-2 flex items-center gap-2 max-w-md">
+                <input
+                  type="text"
+                  value={newVolumeName}
+                  onChange={(e) => setNewVolumeName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddVolume();
+                    }
+                  }}
+                  placeholder="Enter Volume (e.g. 50ML, 2LTR)"
+                  className="flex-1 px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs font-bold uppercase bg-white"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddVolume}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-extrabold shadow-sm transition-all flex items-center gap-1.5"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add Volume</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* TAB 3: PRINTER */}
         {activeTab === 'printer' && (

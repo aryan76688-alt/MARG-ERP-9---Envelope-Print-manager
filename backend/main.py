@@ -1827,7 +1827,9 @@ def get_settings(db: Session = Depends(get_db)):
             "gemini_api_key": app_set.gemini_api_key or os.environ.get("GEMINI_API_KEY", ""),
             "openai_api_key": getattr(app_set, "openai_api_key", "") or os.environ.get("OPENAI_API_KEY", ""),
             "default_language": getattr(app_set, "default_language", "en") or "en",
-            "envelope_template_format": getattr(app_set, "envelope_template_format", "attachment_pdf") or "attachment_pdf"
+            "envelope_template_format": getattr(app_set, "envelope_template_format", "attachment_pdf") or "attachment_pdf",
+            "iv_fluids_json": getattr(app_set, "iv_fluids_json", None) or '["NS", "RL", "DNS", "METRO"]',
+            "iv_volumes_json": getattr(app_set, "iv_volumes_json", None) or '["100ML", "250ML", "500ML", "1LTR"]'
         }
     }
 
@@ -1882,6 +1884,10 @@ def update_settings(payload: Dict[str, Any], db: Session = Depends(get_db)):
             app_set.default_language = a_data["default_language"].strip()
         if "envelope_template_format" in a_data:
             app_set.envelope_template_format = a_data["envelope_template_format"].strip()
+        if "iv_fluids_json" in a_data:
+            app_set.iv_fluids_json = str(a_data["iv_fluids_json"]).strip()
+        if "iv_volumes_json" in a_data:
+            app_set.iv_volumes_json = str(a_data["iv_volumes_json"]).strip()
 
     db.commit()
     return {"message": "Settings updated successfully"}
@@ -1893,6 +1899,7 @@ def update_settings(payload: Dict[str, Any], db: Session = Depends(get_db)):
 class GeneratePDFRequest(BaseModel):
     job_id: Optional[int] = None
     job_ids: Optional[List[int]] = None
+    party_ids: Optional[List[int]] = None
     case_breakdown: Optional[List[Dict[str, Any]]] = None
     party_name: Optional[str] = None
     party_code: Optional[str] = None
@@ -2017,6 +2024,64 @@ def generate_pdf(req: GeneratePDFRequest, db: Session = Depends(get_db)):
             raise HTTPException(status_code=500, detail=f"PDF generation failed: {str(e)}")
 
         filename = f"MARG_Envelopes_Bulk_{len(req.job_ids)}.pdf"
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Access-Control-Expose-Headers": "Content-Disposition"
+            }
+        )
+
+    # Case 1B: Bulk Party IDs (Address Only - 0 Cases, No History, No Lock)
+    if req.party_ids:
+        parties = db.query(Party).filter(Party.id.in_(req.party_ids)).all()
+        party_map = {p.id: p for p in parties}
+        ordered_parties = [party_map[pid] for pid in req.party_ids if pid in party_map]
+
+        jobs_cases_list = []
+        for party in ordered_parties:
+            temp_job_number = f"ADDR-{party.id}"
+            j_data = {
+                "job_number": temp_job_number,
+                "party_name_snap": party.party_name,
+                "party_code_snap": party.party_code or "",
+                "party_address_snap": party.address,
+                "party_address_line_2_snap": party.address_line_2 or "",
+                "party_address_line_3_snap": party.address_line_3 or "",
+                "party_city_snap": party.city,
+                "party_state_snap": party.state,
+                "party_mobile_snap": party.mobile_no or "",
+                "party_gst_snap": party.gst_no or "",
+                "party_notes_snap": party.notes or "",
+                "party_name_gu": party.party_name_gu,
+                "address_gu": party.address_gu,
+                "address_line_2_gu": party.address_line_2_gu,
+                "address_line_3_gu": party.address_line_3_gu,
+                "city_gu": party.city_gu,
+                "state_gu": party.state_gu,
+                "parcel_type": "Address",
+                "total_cases": 0,
+                "case_breakdown": None
+            }
+            c_data = {
+                "case_number": 0,
+                "case_total": 0,
+                "weight": 0.0,
+                "barcode_value": f"{temp_job_number}-C0"
+            }
+            jobs_cases_list.append({"job": j_data, "case": c_data})
+
+        try:
+            pdf_bytes = pdf_service.generate_bulk_envelopes_pdf(
+                jobs_cases_list, sender_dict, settings_dict,
+                template_format=active_format, language=active_lang,
+                auto_print=bool(req.auto_print)
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"PDF generation failed: {str(e)}")
+
+        filename = f"MARG_Envelopes_Addresses_{len(req.party_ids)}.pdf"
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",

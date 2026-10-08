@@ -40,7 +40,8 @@ import {
   bulkAssignPartyRoute,
   fetchPartyRoutes,
   triggerBackgroundTranslation,
-  fetchTranslationStatus
+  fetchTranslationStatus,
+  printEnvelopePDF
 } from '../api/client';
 import { getPartiesOffline, ensureInitialPartiesLoaded } from '../offline/db';
 import { PartyModal } from '../components/PartyModal';
@@ -292,6 +293,25 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
       await exportSelectedParties(selectedIds);
     } catch (err: any) {
       alert('Failed to export selected parties: ' + err.message);
+    }
+  };
+
+  const [isBulkPrintingAddresses, setIsBulkPrintingAddresses] = useState<boolean>(false);
+
+  const handleBulkPrintAddresses = async () => {
+    if (selectedIds.length === 0) return;
+    setIsBulkPrintingAddresses(true);
+    try {
+      await printEnvelopePDF({
+        party_ids: selectedIds,
+        total_cases: 0,
+        auto_print: true
+      });
+    } catch (err: any) {
+      console.error('Failed to print addresses in bulk:', err);
+      alert('Failed to print addresses: ' + (err.message || 'Unknown error'));
+    } finally {
+      setIsBulkPrintingAddresses(false);
     }
   };
 
@@ -555,6 +575,16 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
             >
               <Printer className="w-3.5 h-3.5" />
               <span>Print Envelope ({selectedIds.length})</span>
+            </button>
+
+            <button
+              onClick={handleBulkPrintAddresses}
+              disabled={isBulkPrintingAddresses}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-black text-xs shadow-sm transition-colors disabled:opacity-50"
+              title="Print address envelopes in bulk (0 cases) without saving to history or locking parties"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>{isBulkPrintingAddresses ? 'Printing Addresses...' : `Print Addresses Bulk (${selectedIds.length})`}</span>
             </button>
 
             <button
