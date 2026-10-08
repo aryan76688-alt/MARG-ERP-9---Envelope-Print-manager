@@ -88,6 +88,16 @@ export interface RouteBatchUpdateItem {
   route_3_gu?: string;
 }
 
+export interface RouteSyncErrorItem {
+  row: number;
+  party_code?: string;
+  party_name: string;
+  route_1?: string;
+  route_2?: string;
+  route_3?: string;
+  reason: string;
+}
+
 export interface GoogleSheetsSyncResult {
   success: boolean;
   spreadsheet_id: string;
@@ -97,6 +107,8 @@ export interface GoogleSheetsSyncResult {
   not_found: string[];
   not_found_count: number;
   message: string;
+  errors_count?: number;
+  errors?: RouteSyncErrorItem[];
 }
 
 

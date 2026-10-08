@@ -121,7 +121,11 @@ def init_db():
             ("iv_fluids_json", "TEXT", None),
             ("iv_volumes_json", "TEXT", None),
             ("google_sheets_api_key", "TEXT", "'AIzaSyBqmmiMRBWeV1s7Kpie1DlE6HIHKSnVuLg'"),
-            ("google_sheet_id", "TEXT", "''"),
+            ("google_sheet_id", "TEXT", "'1nZ_B6HBDjTDcLey5x1784b2o8r0nKweafWVUY8JW0wg'"),
+            ("auto_sync_google_sheet", "BOOLEAN", "1"),
+            ("google_sheet_sync_interval_minutes", "INTEGER", "5"),
+            ("last_google_sheet_sync_time", "TIMESTAMP", None),
+            ("last_google_sheet_sync_status", "TEXT", None),
         ])
 
         ensure_columns("print_jobs", [
@@ -272,6 +276,10 @@ def init_db():
                     app_settings.iv_volumes_json = json.dumps(vols)
                 except Exception:
                     pass
+            if not getattr(app_settings, "google_sheet_id", None):
+                app_settings.google_sheet_id = "1nZ_B6HBDjTDcLey5x1784b2o8r0nKweafWVUY8JW0wg"
+            if not getattr(app_settings, "auto_sync_google_sheet", None):
+                app_settings.auto_sync_google_sheet = True
             db.commit()
         # 4. Check if migrating existing SQLite database to PostgreSQL
         sqlite_file = os.path.join(os.path.dirname(__file__), "envelope_manager.db")
@@ -510,7 +518,17 @@ def init_db():
                     barcode_value="MRG-2026-000002-C1",
                     status="Printed"
                 )
-                db.add(case)
+        # 6. Ensure all parties have standard MARG codes: MARG000001, MARG000002...
+        all_parties = db.query(Party).order_by(Party.id.asc()).all()
+        needs_commit = False
+        for p in all_parties:
+            expected_code = f"MARG{p.id:06d}"
+            if not p.party_code or not (p.party_code.startswith("MARG") and len(p.party_code) == 10 and p.party_code[4:].isdigit()):
+                p.party_code = expected_code
+                needs_commit = True
+        if needs_commit:
+            db.commit()
+            print(f"[DB] Standardized MARG party codes (e.g. MARG000001..MARG{len(all_parties):06d})")
 
         db.commit()
     finally:

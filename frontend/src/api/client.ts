@@ -17,7 +17,8 @@ import {
   DriverStop,
   PODSubmission,
   RouteBatchUpdateItem,
-  GoogleSheetsSyncResult
+  GoogleSheetsSyncResult,
+  RouteSyncErrorItem
 } from '../types';
 
 
@@ -1076,3 +1077,46 @@ export async function batchUpdateRoutes(updates: RouteBatchUpdateItem[]): Promis
   }
   return res.json();
 }
+
+export async function fetchNextPartyCode(): Promise<{ next_code: string }> {
+  const res = await fetchApi(`${API_BASE}/parties/next-code`);
+  if (!res.ok) {
+    return { next_code: 'MARG000001' };
+  }
+  return res.json();
+}
+
+export async function uploadRoutesFile(file: File): Promise<GoogleSheetsSyncResult> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await fetchApi(`${API_BASE}/routes/upload-file`, {
+    method: 'POST',
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to upload route file' }));
+    throw new Error(err.detail || 'Failed to upload route file');
+  }
+  return res.json();
+}
+
+export async function downloadRouteErrorReport(errors: RouteSyncErrorItem[]): Promise<void> {
+  const res = await fetchApi(`${API_BASE}/routes/export-error-report`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ errors }),
+  });
+  if (!res.ok) {
+    throw new Error('Failed to download error report');
+  }
+  const blob = await res.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `Route_Sync_Error_Report_${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  window.URL.revokeObjectURL(url);
+}
+

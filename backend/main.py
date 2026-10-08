@@ -202,6 +202,10 @@ def startup_event():
         start_backup_scheduler()
     except Exception as e:
         print("Startup backup scheduler notice:", e)
+    try:
+        start_google_sheets_auto_sync(SessionLocal)
+    except Exception as e:
+        print("Startup Google Sheets auto-sync notice:", e)
 
 WEEKDAY_GUJARATI_MAP = {
     "MONDAY": "સોમવાર",
@@ -840,6 +844,33 @@ def get_unprinted_parties_today(
         "total_printed_today": len(printed_today_parties)
     }
 
+def get_next_party_code(db: Session) -> str:
+    """
+    Generates the next sequential MARG party code: MARG000001, MARG000002, etc.
+    Finds the maximum numeric suffix among all parties with codes starting with 'MARG',
+    or uses max(Party.id).
+    """
+    max_num = 0
+    codes = db.query(Party.party_code).filter(Party.party_code.like("MARG%")).all()
+    for (code,) in codes:
+        if code and code.startswith("MARG"):
+            suffix = code[4:]
+            if suffix.isdigit():
+                val = int(suffix)
+                if val > max_num:
+                    max_num = val
+
+    max_id = db.query(func.max(Party.id)).scalar() or 0
+    next_num = max(max_num, max_id) + 1
+    return f"MARG{next_num:06d}"
+
+@app.get("/api/parties/next-code")
+def get_party_next_code(db: Session = Depends(get_db)):
+    """
+    Returns the next auto-assignable party code (e.g. MARG001837).
+    """
+    return {"next_code": get_next_party_code(db)}
+
 @app.post("/api/parties", status_code=status.HTTP_201_CREATED)
 def create_party(party_in: PartyCreate, db: Session = Depends(get_db)):
     if not party_in.party_name.strip():
@@ -851,11 +882,14 @@ def create_party(party_in: PartyCreate, db: Session = Depends(get_db)):
     if not party_in.state.strip():
         raise HTTPException(status_code=400, detail="State is required")
 
-    # Check for duplicate code
-    if party_in.party_code:
-        dup = db.query(Party).filter(func.upper(Party.party_code) == party_in.party_code.strip().upper()).first()
+    # Auto-assign or check code
+    code_to_use = party_in.party_code.strip().upper() if party_in.party_code and party_in.party_code.strip() else None
+    if not code_to_use:
+        code_to_use = get_next_party_code(db)
+    else:
+        dup = db.query(Party).filter(func.upper(Party.party_code) == code_to_use).first()
         if dup:
-            raise HTTPException(status_code=400, detail=f"Party Code '{party_in.party_code}' already exists")
+            raise HTTPException(status_code=400, detail=f"Party Code '{code_to_use}' already exists")
 
     r1 = party_in.route_1.strip().upper() if party_in.route_1 else None
     r2 = party_in.route_2.strip().upper() if party_in.route_2 else None
@@ -867,7 +901,7 @@ def create_party(party_in: PartyCreate, db: Session = Depends(get_db)):
 
     party = Party(
         party_name=party_in.party_name.strip().upper(),
-        party_code=party_in.party_code.strip().upper() if party_in.party_code else None,
+        party_code=code_to_use,
         address=party_in.address.strip().upper(),
         address_line_2=party_in.address_line_2.strip().upper() if party_in.address_line_2 else None,
         address_line_3=party_in.address_line_3.strip().upper() if party_in.address_line_3 else None,
@@ -1195,17 +1229,34 @@ def sync_google_sheet_routes(req: SyncGoogleSheetRequest, db: Session = Depends(
                     )
                 )
 
+    result = process_route_matrix(values, db, spreadsheet_id=spreadsheet_id, sheet_title=sheet_title or "Google Sheet")
+
+    # Persist sheet ID in settings for future quick sync
+    app_set = db.query(AppSettings).first()
+    if app_set:
+        app_set.google_sheet_id = spreadsheet_id
+        if req.api_key and req.api_key.strip():
+            app_set.google_sheets_api_key = req.api_key.strip()
+    db.commit()
+
+    return result
+
+def process_route_matrix(values: List[List[Any]], db: Session, spreadsheet_id: Optional[str] = None, sheet_title: str = "Routes"):
     if not values or len(values) < 2:
         return {
             "success": True,
             "spreadsheet_id": spreadsheet_id,
+            "sheet_title": sheet_title,
             "total_rows": 0,
             "updated_count": 0,
+            "errors": [],
+            "errors_count": 0,
             "not_found": [],
-            "message": "Sheet is empty or contains no data rows."
+            "not_found_count": 0,
+            "message": "File / Sheet is empty or contains no data rows."
         }
 
-    # 3. Detect column indices from header
+    # 1. Detect column indices from header
     header = values[0]
     code_idx = None
     name_idx = None
@@ -1239,8 +1290,19 @@ def sync_google_sheet_routes(req: SyncGoogleSheetRequest, db: Session = Depends(
         r3_idx = 4
 
     updated_count = 0
-    not_found_list = []
+    errors = []
     data_rows = values[1:]
+
+    # Pre-index all database parties into memory for super-fast O(1) matching
+    all_parties = db.query(Party).all()
+    parties_by_norm_name = {}
+    parties_by_code = {}
+    for p in all_parties:
+        if p.party_name:
+            n_name = re.sub(r"\s+", " ", p.party_name.strip().upper())
+            parties_by_norm_name[n_name] = p
+        if p.party_code:
+            parties_by_code[p.party_code.strip().upper()] = p
 
     for r_idx, row in enumerate(data_rows):
         if not row or not any(str(c).strip() for c in row):
@@ -1252,18 +1314,36 @@ def sync_google_sheet_routes(req: SyncGoogleSheetRequest, db: Session = Depends(
         raw_r2 = str(row[r2_idx]).strip() if r2_idx is not None and r2_idx < len(row) else ""
         raw_r3 = str(row[r3_idx]).strip() if r3_idx is not None and r3_idx < len(row) else ""
 
-        # Match party
+        norm_name = re.sub(r"\s+", " ", raw_name.strip().upper()) if raw_name else ""
+        norm_code = raw_code.strip().upper() if raw_code else ""
+
+        # Match party: first by normalized name, then by code, then substring
         party = None
-        if raw_code:
-            party = db.query(Party).filter(func.upper(Party.party_code) == raw_code.upper()).first()
-        if not party and raw_name:
-            party = db.query(Party).filter(func.upper(Party.party_name) == raw_name.upper()).first()
-        if not party and raw_name:
-            party = db.query(Party).filter(Party.party_name.ilike(f"%{raw_name}%")).first()
+        if norm_name and norm_name in parties_by_norm_name:
+            party = parties_by_norm_name[norm_name]
+        elif norm_code and norm_code in parties_by_code:
+            party = parties_by_code[norm_code]
+        elif norm_name:
+            for k, p in parties_by_norm_name.items():
+                if norm_name and (norm_name in k or k in norm_name):
+                    party = p
+                    break
 
         if not party:
-            not_found_list.append(f"{raw_code or 'NO_CODE'} - {raw_name or 'NO_NAME'}")
+            errors.append({
+                "row": r_idx + 2,
+                "party_code": raw_code or "-",
+                "party_name": raw_name or "-",
+                "route_1": raw_r1 or "-",
+                "route_2": raw_r2 or "-",
+                "route_3": raw_r3 or "-",
+                "reason": f"Party '{raw_name or raw_code}' not found in database"
+            })
             continue
+
+        # If sheet supplies a MARG party code, align party code to the sheet!
+        if norm_code and norm_code.startswith("MARG"):
+            party.party_code = norm_code
 
         # Set routes
         p_r1 = raw_r1.upper() if raw_r1 else None
@@ -1280,13 +1360,6 @@ def sync_google_sheet_routes(req: SyncGoogleSheetRequest, db: Session = Depends(
 
         updated_count += 1
 
-    # Persist sheet ID in settings for future quick sync
-    app_set = db.query(AppSettings).first()
-    if app_set:
-        app_set.google_sheet_id = spreadsheet_id
-        if req.api_key and req.api_key.strip():
-            app_set.google_sheets_api_key = req.api_key.strip()
-
     db.commit()
 
     return {
@@ -1295,10 +1368,156 @@ def sync_google_sheet_routes(req: SyncGoogleSheetRequest, db: Session = Depends(
         "sheet_title": sheet_title,
         "total_rows": len(data_rows),
         "updated_count": updated_count,
-        "not_found": not_found_list[:25],
-        "not_found_count": len(not_found_list),
-        "message": f"Successfully updated routes for {updated_count} parties from Google Sheet '{sheet_title}'."
+        "errors": errors,
+        "errors_count": len(errors),
+        "not_found": [f"{e['party_code']} - {e['party_name']}" for e in errors[:50]],
+        "not_found_count": len(errors),
+        "message": f"Successfully updated routes for {updated_count} parties." + (f" ({len(errors)} unmatched rows)" if errors else "")
     }
+
+def start_google_sheets_auto_sync(session_factory):
+    """
+    Background worker that runs continuously in a daemon thread.
+    Periodically checks Google Sheet and auto-syncs route updates to the database
+    whenever anyone edits or updates the sheet.
+    """
+    def _loop():
+        # Wait 5 seconds after startup before initial sync
+        time.sleep(5)
+        while True:
+            try:
+                db = session_factory()
+                try:
+                    app_set = db.query(AppSettings).first()
+                    if app_set and getattr(app_set, "auto_sync_google_sheet", True):
+                        sheet_id = getattr(app_set, "google_sheet_id", None) or "1nZ_B6HBDjTDcLey5x1784b2o8r0nKweafWVUY8JW0wg"
+                        api_key = getattr(app_set, "google_sheets_api_key", None) or "AIzaSyBqmmiMRBWeV1s7Kpie1DlE6HIHKSnVuLg"
+                        if sheet_id and sheet_id.strip():
+                            clean_id = sheet_id.strip()
+                            if "spreadsheets/d/" in clean_id:
+                                try:
+                                    clean_id = clean_id.split("spreadsheets/d/")[1].split("/")[0]
+                                except Exception:
+                                    pass
+
+                            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) MARG-Envelope-Manager/1.0"}
+                            values = []
+                            sheet_title = "Sheet1"
+
+                            # 1. API
+                            if api_key:
+                                try:
+                                    meta_url = f"https://sheets.googleapis.com/v4/spreadsheets/{clean_id}?fields=sheets.properties.title&key={api_key}"
+                                    req_meta = urllib.request.Request(meta_url, headers=headers)
+                                    with urllib.request.urlopen(req_meta, timeout=12) as resp:
+                                        meta_json = json.loads(resp.read().decode("utf-8"))
+                                        s_list = meta_json.get("sheets", [])
+                                        sheet_title = s_list[0].get("properties", {}).get("title", "Sheet1") if s_list else "Sheet1"
+                                    range_q = urllib.parse.quote(f"{sheet_title}!A1:Z")
+                                    v_url = f"https://sheets.googleapis.com/v4/spreadsheets/{clean_id}/values/{range_q}?key={api_key}"
+                                    req_val = urllib.request.Request(v_url, headers=headers)
+                                    with urllib.request.urlopen(req_val, timeout=15) as resp:
+                                        val_json = json.loads(resp.read().decode("utf-8"))
+                                        values = val_json.get("values", [])
+                                except Exception:
+                                    pass
+
+                            # 2. Public CSV fallback
+                            if not values:
+                                for c_url in [
+                                    f"https://docs.google.com/spreadsheets/d/{clean_id}/export?format=csv",
+                                    f"https://docs.google.com/spreadsheets/d/{clean_id}/gviz/tq?tqx=out:csv"
+                                ]:
+                                    try:
+                                        req_csv = urllib.request.Request(c_url, headers=headers)
+                                        with urllib.request.urlopen(req_csv, timeout=15) as resp:
+                                            csv_text = resp.read().decode("utf-8", errors="replace")
+                                            csv_rows = list(csv.reader(io.StringIO(csv_text)))
+                                            if csv_rows and len(csv_rows) >= 2:
+                                                values = csv_rows
+                                                break
+                                    except Exception:
+                                        continue
+
+                            if values and len(values) >= 2:
+                                res = process_route_matrix(values, db, spreadsheet_id=clean_id, sheet_title=sheet_title)
+                                if res.get("success"):
+                                    app_set.last_google_sheet_sync_time = datetime.datetime.utcnow()
+                                    app_set.last_google_sheet_sync_status = f"Success: updated {res.get('updated_count')} parties"
+                                    db.commit()
+                                    print(f"[AutoSync GoogleSheet] Background auto-synced {res.get('updated_count')} parties from {clean_id}")
+                finally:
+                    db.close()
+            except Exception as e:
+                print("[AutoSync GoogleSheet] Auto-sync loop notice:", e)
+
+            # Sleep 180 seconds (3 minutes) before next check
+            time.sleep(180)
+
+    t = threading.Thread(target=_loop, daemon=True)
+    t.start()
+
+@app.get("/api/routes/auto-sync-status")
+def get_auto_sync_status(db: Session = Depends(get_db)):
+    app_set = db.query(AppSettings).first()
+    return {
+        "auto_sync_enabled": getattr(app_set, "auto_sync_google_sheet", True),
+        "sheet_id": getattr(app_set, "google_sheet_id", "1nZ_B6HBDjTDcLey5x1784b2o8r0nKweafWVUY8JW0wg"),
+        "last_sync_time": getattr(app_set, "last_google_sheet_sync_time", None),
+        "last_sync_status": getattr(app_set, "last_google_sheet_sync_status", None),
+        "interval_seconds": 180
+    }
+
+@app.post("/api/routes/upload-file")
+async def upload_routes_file(file: UploadFile = File(...), db: Session = Depends(get_db)):
+    """Upload an Excel (.xlsx/.xls) or CSV file directly to sync party routes (like myBillBook)."""
+    filename = file.filename or "upload.csv"
+    content = await file.read()
+    values = []
+
+    if filename.lower().endswith(".csv") or not filename.lower().endswith((".xlsx", ".xls")):
+        try:
+            text = content.decode("utf-8", errors="replace")
+            reader = csv.reader(io.StringIO(text))
+            values = list(reader)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Failed to read CSV file: {str(e)}")
+    else:
+        try:
+            wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True)
+            sheet = wb.active
+            for row in sheet.iter_rows(values_only=True):
+                values.append([str(c or "").strip() for c in row])
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Failed to read Excel file: {str(e)}")
+
+    return process_route_matrix(values, db, sheet_title=filename)
+
+class ErrorReportRequest(BaseModel):
+    errors: List[Dict[str, Any]]
+
+@app.post("/api/routes/export-error-report")
+def export_route_error_report(req: ErrorReportRequest):
+    """Download a CSV error report for unmatched or failed route sync rows."""
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Row Number", "Party Code", "Party Name", "Primary Route 1", "Secondary Route 2", "Third Route 3", "Error Reason"])
+    for e in req.errors:
+        writer.writerow([
+            e.get("row", ""),
+            e.get("party_code", ""),
+            e.get("party_name", ""),
+            e.get("route_1", ""),
+            e.get("route_2", ""),
+            e.get("route_3", ""),
+            e.get("reason", "")
+        ])
+    output.seek(0)
+    return Response(
+        content=output.getvalue().encode("utf-8"),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="Route_Sync_Error_Report.csv"'}
+    )
 
 # ==========================================
 # 3. EXCEL IMPORT & VALIDATION
@@ -1480,6 +1699,9 @@ def confirm_import(req: ConfirmImportRequest, db: Session = Depends(get_db)):
                         "status": "Updated"
                     })
                     continue
+
+        if not code:
+            code = get_next_party_code(db)
 
         new_party = Party(
             party_name=name,

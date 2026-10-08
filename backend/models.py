@@ -113,7 +113,11 @@ class AppSettings(Base):
     iv_fluids_json = Column(Text, nullable=True, default='["NS", "RL", "DNS", "METRO"]')
     iv_volumes_json = Column(Text, nullable=True, default='["100ML", "250ML", "500ML", "1LTR"]')
     google_sheets_api_key = Column(String(200), default="AIzaSyBqmmiMRBWeV1s7Kpie1DlE6HIHKSnVuLg")
-    google_sheet_id = Column(String(200), default="")
+    google_sheet_id = Column(String(200), default="1nZ_B6HBDjTDcLey5x1784b2o8r0nKweafWVUY8JW0wg")
+    auto_sync_google_sheet = Column(Boolean, default=True)
+    google_sheet_sync_interval_minutes = Column(Integer, default=5)
+    last_google_sheet_sync_time = Column(DateTime, nullable=True)
+    last_google_sheet_sync_status = Column(String(255), nullable=True)
 
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 

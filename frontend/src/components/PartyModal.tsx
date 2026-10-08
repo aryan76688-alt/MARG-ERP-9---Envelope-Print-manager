@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save, AlertCircle, Building2, Calendar, MapPin } from 'lucide-react';
 import { Party } from '../types';
+import { fetchNextPartyCode } from '../api/client';
 
 const WEEKDAYS = [
   { en: 'Monday', gu: 'સોમવાર', short: 'Mon' },
@@ -41,6 +42,7 @@ export const PartyModal: React.FC<PartyModalProps> = ({
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loadingNextCode, setLoadingNextCode] = useState(false);
 
   useEffect(() => {
     if (initialParty) {
@@ -102,6 +104,17 @@ export const PartyModal: React.FC<PartyModalProps> = ({
         state_gu: '',
         is_active: true,
       });
+      if (isOpen) {
+        setLoadingNextCode(true);
+        fetchNextPartyCode()
+          .then((res) => {
+            if (res && res.next_code) {
+              setFormData((prev) => ({ ...prev, party_code: res.next_code }));
+            }
+          })
+          .catch(console.error)
+          .finally(() => setLoadingNextCode(false));
+      }
     }
     setErrors({});
   }, [initialParty, isOpen]);
@@ -187,16 +200,33 @@ export const PartyModal: React.FC<PartyModalProps> = ({
 
             {/* Party Code */}
             <div>
-              <label className="block font-bold text-slate-700 mb-1">
-                Party Code (Optional)
-              </label>
-              <input
-                type="text"
-                value={formData.party_code || ''}
-                onChange={(e) => setFormData({ ...formData, party_code: e.target.value })}
-                placeholder="e.g. P0001"
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs font-mono uppercase"
-              />
+              <div className="flex items-center justify-between mb-1">
+                <label className="block font-bold text-slate-700">
+                  Party Code
+                </label>
+                {!initialParty && (
+                  <span className="text-[10px] font-extrabold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+                    Auto-Assigned
+                  </span>
+                )}
+              </div>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={formData.party_code || ''}
+                  onChange={(e) => setFormData({ ...formData, party_code: e.target.value })}
+                  placeholder="e.g. MARG000001"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs font-mono font-bold uppercase tracking-wide text-slate-900 bg-slate-50/80"
+                />
+                {loadingNextCode && (
+                  <span className="absolute right-2.5 top-2 text-[10px] text-blue-600 font-bold animate-pulse">
+                    Generating...
+                  </span>
+                )}
+              </div>
+              <p className="text-[10px] text-slate-500 mt-1">
+                Format: <span className="font-mono font-bold text-slate-700">MARG000001</span>. Auto-assigned if left blank.
+              </p>
             </div>
 
             {/* GST Number */}
