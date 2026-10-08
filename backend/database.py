@@ -112,6 +112,8 @@ def init_db():
             ("rclone_backup_path", "TEXT", "'MARG_Backups'"),
             ("last_backup_time", "TIMESTAMP", None),
             ("last_backup_status", "TEXT", None),
+            ("iv_fluids_json", "TEXT", None),
+            ("iv_volumes_json", "TEXT", None),
         ])
 
         ensure_columns("print_jobs", [
@@ -238,12 +240,27 @@ def init_db():
                 show_gst=False,
                 show_pan=False,
                 gemini_api_key="AQ." + "Ab8RN6KJLjFrTyGJh1Xw6SaEta7FexKhNkghpTvTH7CsHJJ-Tg",
-                openai_api_key="AQ." + "Ab8RN6K29_vEWc7D16MIequ-fe7FArRV6b96moxHRJotJE7nJA"
+                openai_api_key="AQ." + "Ab8RN6K29_vEWc7D16MIequ-fe7FArRV6b96moxHRJotJE7nJA",
+                iv_fluids_json='["NS", "RL", "DNS", "METRO"]',
+                iv_volumes_json='["100ML", "250ML", "500ML", "1LTR"]'
             )
             db.add(app_settings)
         else:
             # Update existing settings with new keys if they are blank or old
             app_settings.gemini_api_key = "AQ." + "Ab8RN6KJLjFrTyGJh1Xw6SaEta7FexKhNkghpTvTH7CsHJJ-Tg"
+            if not getattr(app_settings, "iv_fluids_json", None):
+                app_settings.iv_fluids_json = '["NS", "RL", "DNS", "METRO"]'
+            if not getattr(app_settings, "iv_volumes_json", None):
+                app_settings.iv_volumes_json = '["100ML", "250ML", "500ML", "1LTR"]'
+            elif "200ML" in str(app_settings.iv_volumes_json):
+                try:
+                    import json
+                    vols = json.loads(app_settings.iv_volumes_json)
+                    vols = [v for v in vols if v != "200ML"]
+                    app_settings.iv_volumes_json = json.dumps(vols)
+                except Exception:
+                    pass
+            db.commit()
         # 4. Check if migrating existing SQLite database to PostgreSQL
         sqlite_file = os.path.join(os.path.dirname(__file__), "envelope_manager.db")
         if not is_sqlite and os.path.exists(sqlite_file) and db.query(Party).count() == 0:
