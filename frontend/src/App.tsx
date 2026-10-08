@@ -13,6 +13,10 @@ import { DriverMode } from './pages/DriverMode';
 import { Login } from './pages/Login';
 import { Party } from './types';
 import { getAuthToken } from './api/client';
+import { MobileApkLayout } from './mobile/MobileApkLayout';
+import { MobileHome } from './mobile/MobileHome';
+import { MobilePrint } from './mobile/MobilePrint';
+import { MobileParties } from './mobile/MobileParties';
 
 const queryClient = new QueryClient();
 
@@ -159,37 +163,79 @@ export const App: React.FC = () => {
     return <Login onLogin={handleLogin} />;
   }
 
+  const isApk = typeof window !== 'undefined' && (
+    navigator.userAgent.includes('ShreejiEnvelopeApp') ||
+    window.location.search.includes('mode=apk') ||
+    (window as any).isAndroidApp === true ||
+    (window as any).AndroidBridge !== undefined
+  );
+
   return (
     <QueryClientProvider client={queryClient}>
-      <MainLayout 
-        currentTab={currentTab} 
-        setCurrentTab={navigateToTab}
-        canGoBack={currentTab !== 'dashboard'}
-        onGoBack={handleGoBack}
-        onLogout={handleLogout}
-      >
-        {currentTab === 'dashboard' && <Dashboard onNavigate={navigateToTab} />}
-        {currentTab === 'parties' && (
-          <Parties onNavigate={navigateToTab} initialAddModal={openAddPartyModal} />
-        )}
-        {currentTab === 'import' && <ImportExcel onNavigate={navigateToTab} />}
-        {currentTab === 'print' && (
-          <PrintEnvelope 
-            initialParty={selectedPartyForPrint} 
-            reprintJob={reprintJobData}
-            onNavigate={navigateToTab}
-            onJobCreated={() => {
-              queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-              setReprintJobData(null);
-            }}
-          />
-        )}
-        {currentTab === 'history' && <PrintHistory onNavigate={navigateToTab} />}
-        {currentTab === 'driver' && <DriverMode />}
-        {currentTab === 'dispatch' && <DispatchSummary />}
-        {currentTab === 'users' && <Users />}
-        {currentTab === 'settings' && <Settings />}
-      </MainLayout>
+      {isApk ? (
+        <MobileApkLayout
+          currentTab={currentTab}
+          setCurrentTab={navigateToTab}
+          canGoBack={currentTab !== 'dashboard'}
+          onGoBack={handleGoBack}
+          onLogout={handleLogout}
+        >
+          {currentTab === 'dashboard' && <MobileHome onNavigate={navigateToTab} />}
+          {currentTab === 'print' && (
+            <MobilePrint
+              initialParty={selectedPartyForPrint}
+              reprintJob={reprintJobData}
+              onNavigate={navigateToTab}
+              onJobCreated={() => {
+                queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+                setReprintJobData(null);
+              }}
+            />
+          )}
+          {currentTab === 'parties' && (
+            <MobileParties
+              onNavigate={navigateToTab}
+              initialAddModal={openAddPartyModal}
+            />
+          )}
+          {currentTab === 'driver' && <DriverMode />}
+          {currentTab === 'dispatch' && <DispatchSummary />}
+          {currentTab === 'history' && <PrintHistory onNavigate={navigateToTab} />}
+          {currentTab === 'import' && <ImportExcel onNavigate={navigateToTab} />}
+          {currentTab === 'settings' && <Settings />}
+          {currentTab === 'users' && <Users />}
+        </MobileApkLayout>
+      ) : (
+        <MainLayout 
+          currentTab={currentTab} 
+          setCurrentTab={navigateToTab}
+          canGoBack={currentTab !== 'dashboard'}
+          onGoBack={handleGoBack}
+          onLogout={handleLogout}
+        >
+          {currentTab === 'dashboard' && <Dashboard onNavigate={navigateToTab} />}
+          {currentTab === 'parties' && (
+            <Parties onNavigate={navigateToTab} initialAddModal={openAddPartyModal} />
+          )}
+          {currentTab === 'import' && <ImportExcel onNavigate={navigateToTab} />}
+          {currentTab === 'print' && (
+            <PrintEnvelope 
+              initialParty={selectedPartyForPrint} 
+              reprintJob={reprintJobData}
+              onNavigate={navigateToTab}
+              onJobCreated={() => {
+                queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+                setReprintJobData(null);
+              }}
+            />
+          )}
+          {currentTab === 'history' && <PrintHistory onNavigate={navigateToTab} />}
+          {currentTab === 'driver' && <DriverMode />}
+          {currentTab === 'dispatch' && <DispatchSummary />}
+          {currentTab === 'users' && <Users />}
+          {currentTab === 'settings' && <Settings />}
+        </MainLayout>
+      )}
     </QueryClientProvider>
   );
 };

@@ -17,6 +17,9 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updatePadding
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import androidx.webkit.WebViewAssetLoader
 
@@ -27,6 +30,7 @@ class MainActivity : AppCompatActivity() {
         const val REMOTE_FALLBACK_URL = "https://marg-envelope-manager-production.up.railway.app/?mode=apk"
     }
 
+    private lateinit var rootLayout: View
     private lateinit var webView: WebView
     private lateinit var swipeRefreshLayout: SwipeRefreshLayout
     private lateinit var progressBar: ProgressBar
@@ -51,11 +55,26 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        rootLayout = findViewById(R.id.rootLayout)
         webView = findViewById(R.id.webView)
         swipeRefreshLayout = findViewById(R.id.swipeRefreshLayout)
         progressBar = findViewById(R.id.progressBar)
         errorLayout = findViewById(R.id.errorLayout)
         retryButton = findViewById(R.id.retryButton)
+
+        // Fix Upper UI: Ensure camera notch/punch-hole cutout & status bar panel never clip web content
+        ViewCompat.setOnApplyWindowInsetsListener(rootLayout) { view, windowInsets ->
+            val insets = windowInsets.getInsets(
+                WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
+            )
+            view.updatePadding(
+                left = insets.left,
+                top = insets.top,
+                right = insets.right,
+                bottom = insets.bottom
+            )
+            windowInsets
+        }
 
         assetLoader = WebViewAssetLoader.Builder()
             .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
