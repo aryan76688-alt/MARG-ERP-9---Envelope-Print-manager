@@ -6,6 +6,4 @@ node_modules/
 frontend/node_modules/
 backend/envelope_manager.db
 backend/backups/
-downloads/*.apk
-frontend/public/downloads/*.apk
-android/app/src/main/assets/downloads/*.apk
+!backend/static/downloads/EnvelopeManager.apk
