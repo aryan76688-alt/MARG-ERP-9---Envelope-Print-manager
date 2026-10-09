@@ -12,6 +12,7 @@ import json
 import urllib.request
 import urllib.parse
 import urllib.error
+import bcrypt
 try:
     import requests
 except ImportError:
