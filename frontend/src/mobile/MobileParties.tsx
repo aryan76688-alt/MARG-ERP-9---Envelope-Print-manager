@@ -334,8 +334,13 @@ export const MobileParties: React.FC<MobilePartiesProps> = ({
                       <div className="flex items-center gap-1.5 min-w-0">
                         <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse flex-shrink-0"></span>
                         <div className="truncate">
-                          <span className="text-[10px] font-black text-emerald-300">મેપ પિન સેટ</span>
-                          <span className="text-[9px] text-slate-400 ml-1">({party.geofence_radius_meters || 75}m)</span>
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] font-black text-emerald-300">મેપ પિન સેટ</span>
+                            <span className="text-[9px] text-slate-400">({party.geofence_radius_meters || 75}m)</span>
+                          </div>
+                          <div className="text-[9px] font-mono text-slate-400 truncate">
+                            {Number(party.latitude).toFixed(5)}, {Number(party.longitude).toFixed(5)}
+                          </div>
                         </div>
                       </div>
                       <div className="flex items-center gap-1.5 flex-shrink-0">

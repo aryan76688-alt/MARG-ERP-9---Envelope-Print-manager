@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, AlertCircle, Building2, Calendar, MapPin, Map } from 'lucide-react';
+import { X, Save, AlertCircle, Building2, Calendar, MapPin, Map, Clipboard } from 'lucide-react';
 import { Party } from '../types';
 import { fetchNextPartyCode } from '../api/client';
 import { PartyMapPickerModal } from './PartyMapPickerModal';
@@ -151,6 +151,34 @@ export const PartyModal: React.FC<PartyModalProps> = ({
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
+  };
+
+  const handlePasteCoordinates = async () => {
+    let input = '';
+    try {
+      if (navigator.clipboard && navigator.clipboard.readText) {
+        input = await navigator.clipboard.readText();
+      }
+    } catch {
+      // Ignore clipboard permission error
+    }
+    if (!input) {
+      input = window.prompt('અક્ષાંશ અને રેખાંશ પેસ્ટ કરો (દા.ત. 23.0338, 72.5850):') || '';
+    }
+    if (input) {
+      const match = input.match(/([-+]?\d{1,2}\.\d+)[,\s]+([-+]?\d{1,3}\.\d+)/);
+      if (match) {
+        const parsedLat = parseFloat(match[1]);
+        const parsedLng = parseFloat(match[2]);
+        setFormData((prev) => ({
+          ...prev,
+          latitude: parsedLat,
+          longitude: parsedLng,
+        }));
+      } else {
+        alert('અમાન્ય કોઓર્ડિનેટ્સ. સાચું ફોર્મેટ: "23.0225, 72.5714"');
+      }
+    }
   };
 
   if (!isOpen) return null;
@@ -478,6 +506,15 @@ export const PartyModal: React.FC<PartyModalProps> = ({
                   >
                     <MapPin className="w-3.5 h-3.5" />
                     <span>{capturingGPS ? 'મેળવાય છે...' : '📍 Device GPS'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handlePasteCoordinates}
+                    className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold flex items-center gap-1 shadow-xs active:scale-95 transition-all"
+                    title="વોટ્સએપ અથવા ગૂગલ મેપ પરથી કોપી કરેલા Lat, Lng પેસ્ટ કરો"
+                  >
+                    <Clipboard className="w-3.5 h-3.5" />
+                    <span>📋 Paste Lat, Lng</span>
                   </button>
                 </div>
               </div>

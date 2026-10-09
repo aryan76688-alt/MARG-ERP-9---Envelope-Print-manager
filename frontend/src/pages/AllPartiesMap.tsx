@@ -14,7 +14,11 @@ import {
   Layers, 
   RefreshCw,
   Users,
-  Compass
+  Compass,
+  Copy,
+  Check,
+  Crosshair,
+  Loader2
 } from 'lucide-react';
 import { Party } from '../types';
 import { fetchParties } from '../api/client';
@@ -76,10 +80,51 @@ const createPartyMarkerIcon = (code: string = '', isSelected: boolean = false) =
   });
 };
 
+// Google Maps Style Live Pulsing Location Dot
+const createUserLocationIcon = () => {
+  return L.divIcon({
+    className: 'user-location-marker',
+    html: `
+      <div style="position: relative; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">
+        <div style="
+          position: absolute; 
+          width: 32px; 
+          height: 32px; 
+          border-radius: 50%; 
+          background: rgba(37, 99, 235, 0.35); 
+          animation: user-ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+        "></div>
+        <div style="
+          width: 16px; 
+          height: 16px; 
+          border-radius: 50%; 
+          background: #2563eb; 
+          border: 3px solid #ffffff; 
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5); 
+          position: relative; 
+          z-index: 2;
+        "></div>
+      </div>
+      <style>
+        @keyframes user-ping {
+          0% { transform: scale(0.6); opacity: 0.9; }
+          75% { transform: scale(2.2); opacity: 0; }
+          100% { transform: scale(2.2); opacity: 0; }
+        }
+      </style>
+    `,
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
+  });
+};
+
 export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markersLayerRef = useRef<L.LayerGroup | null>(null);
+  const userMarkerRef = useRef<L.Marker | null>(null);
+  const userAccuracyCircleRef = useRef<L.Circle | null>(null);
+  const tileLayerRef = useRef<L.TileLayer | null>(null);
 
   const [parties, setParties] = useState<Party[]>([]);
   const [totalPartiesCount, setTotalPartiesCount] = useState<number>(0);
@@ -88,7 +133,11 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
   const [selectedRoute, setSelectedRoute] = useState<string>('all');
   const [selectedParty, setSelectedParty] = useState<Party | null>(null);
   const [pickerModalParty, setPickerModalParty] = useState<Party | null>(null);
-  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number; accuracy?: number } | null>(null);
+  const [mapMode, setMapMode] = useState<'streets' | 'satellite'>('streets');
+  const [copiedCoords, setCopiedCoords] = useState<boolean>(false);
+  const [isLocating, setIsLocating] = useState<boolean>(false);
+  const [gpsMessage, setGpsMessage] = useState<string | null>(null);
 
   // Load parties from API or offline DB
   const loadParties = async () => {
@@ -113,22 +162,86 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
     }
   };
 
+  // Switch between Google Detailed Roadmap (Hotels, Petrol Pumps, POIs) and Google Satellite Hybrid tiles
+  const switchTileLayer = (mode: 'streets' | 'satellite') => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    if (tileLayerRef.current) {
+      map.removeLayer(tileLayerRef.current);
+    }
+    const layer = mode === 'satellite'
+      ? L.tileLayer('https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+          subdomains: ['0', '1', '2', '3'],
+          attribution: '&copy; Google Satellite & POIs',
+          maxZoom: 20,
+        })
+      : L.tileLayer('https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+          subdomains: ['0', '1', '2', '3'],
+          attribution: '&copy; Google Maps (Hotels, Petrol Pumps & Landmarks)',
+          maxZoom: 20,
+        });
+    layer.addTo(map);
+    tileLayerRef.current = layer;
+    setMapMode(mode);
+  };
+
+  // Acquire high-accuracy live GPS location
+  const handleLocateMe = (flyToUser: boolean = true) => {
+    if (!navigator.geolocation) {
+      setGpsMessage('આ ઉપકરણમાં GPS ઉપલબ્ધ નથી');
+      return;
+    }
+
+    setIsLocating(true);
+    setGpsMessage(null);
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setIsLocating(false);
+        const { latitude, longitude, accuracy } = pos.coords;
+        const newLocation = { lat: latitude, lng: longitude, accuracy };
+        setUserLocation(newLocation);
+
+        if (flyToUser && mapInstanceRef.current) {
+          mapInstanceRef.current.flyTo([latitude, longitude], 17, { duration: 1 });
+        }
+      },
+      (err) => {
+        setIsLocating(false);
+        setGpsMessage(`GPS મેળવી શકાયું નથી: ${err.message}`);
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  };
+
+  // Initial load and continuous GPS watching
   useEffect(() => {
     loadParties();
 
-    // Acquire user location for distance reference
+    let watchId: number | null = null;
     if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
+      // Immediate high-accuracy fetch
+      handleLocateMe(false);
+
+      // Continuous tracking
+      watchId = navigator.geolocation.watchPosition(
         (pos) => {
           setUserLocation({
             lat: pos.coords.latitude,
             lng: pos.coords.longitude,
+            accuracy: pos.coords.accuracy,
           });
         },
         () => {},
-        { enableHighAccuracy: false, timeout: 10000 }
+        { enableHighAccuracy: true, timeout: 20000, maximumAge: 10000 }
       );
     }
+
+    return () => {
+      if (watchId !== null && navigator.geolocation) {
+        navigator.geolocation.clearWatch(watchId);
+      }
+    };
   }, []);
 
   // Filter ONLY parties with valid map coordinates ("SHOW ONLY SET MAP PARTIES")
@@ -176,6 +289,26 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
     });
   }, [setMapParties, search, selectedRoute]);
 
+  // Calculate live distance between user and destination
+  const getDistanceFromUser = (targetLat?: number | null, targetLng?: number | null) => {
+    if (!userLocation || !targetLat || !targetLng) return null;
+    const R = 6371; // km
+    const dLat = (Number(targetLat) - userLocation.lat) * (Math.PI / 180);
+    const dLon = (Number(targetLng) - userLocation.lng) * (Math.PI / 180);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(userLocation.lat * (Math.PI / 180)) *
+        Math.cos(Number(targetLat) * (Math.PI / 180)) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const dist = R * c;
+    if (dist < 1) {
+      return `${Math.round(dist * 1000)} મીટર`;
+    }
+    return `${dist.toFixed(1)} કિમી`;
+  };
+
   // Initialize Leaflet Map
   useEffect(() => {
     if (!mapContainerRef.current) return;
@@ -190,10 +323,19 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
         zoomControl: true,
       });
 
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap contributors',
-        maxZoom: 19,
-      }).addTo(map);
+      const initialLayer = mapMode === 'satellite'
+        ? L.tileLayer('https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+            subdomains: ['0', '1', '2', '3'],
+            attribution: '&copy; Google Satellite & POIs',
+            maxZoom: 20,
+          })
+        : L.tileLayer('https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+            subdomains: ['0', '1', '2', '3'],
+            attribution: '&copy; Google Maps (Hotels, Petrol Pumps & Landmarks)',
+            maxZoom: 20,
+          });
+      initialLayer.addTo(map);
+      tileLayerRef.current = initialLayer;
 
       const markersLayer = L.layerGroup().addTo(map);
       markersLayerRef.current = markersLayer;
@@ -211,6 +353,44 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
       }
     };
   }, []);
+
+  // Update user location blue dot on map
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !userLocation) return;
+
+    if (userMarkerRef.current) {
+      userMarkerRef.current.setLatLng([userLocation.lat, userLocation.lng]);
+    } else {
+      const marker = L.marker([userLocation.lat, userLocation.lng], {
+        icon: createUserLocationIcon(),
+        zIndexOffset: 1000,
+      }).addTo(map);
+
+      marker.bindTooltip('📍 તમારું વર્તમાન લોકેશન (Your Location)', {
+        direction: 'top',
+        offset: [0, -16],
+      });
+
+      userMarkerRef.current = marker;
+    }
+
+    if (userLocation.accuracy) {
+      if (userAccuracyCircleRef.current) {
+        userAccuracyCircleRef.current.setLatLng([userLocation.lat, userLocation.lng]);
+        userAccuracyCircleRef.current.setRadius(userLocation.accuracy);
+      } else {
+        const circle = L.circle([userLocation.lat, userLocation.lng], {
+          radius: userLocation.accuracy,
+          color: '#3b82f6',
+          fillColor: '#93c5fa',
+          fillOpacity: 0.12,
+          weight: 1,
+        }).addTo(map);
+        userAccuracyCircleRef.current = circle;
+      }
+    }
+  }, [userLocation]);
 
   // Plot and update markers whenever filtered parties or selection changes
   useEffect(() => {
@@ -379,11 +559,108 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
             </div>
           )}
         </div>
+
+        {/* Quick POI Shortcuts: Petrol Pumps, Hotels & Food, Hospitals */}
+        <div className="flex items-center gap-1.5 overflow-x-auto text-[11px] pt-0.5 pb-0.5">
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0">નજીકના સ્થળો:</span>
+          <a
+            href={
+              userLocation
+                ? `https://www.google.com/maps/search/petrol+pump/@${userLocation.lat},${userLocation.lng},14z`
+                : 'https://www.google.com/maps/search/petrol+pump+near+me'
+            }
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 font-bold flex items-center gap-1 shrink-0 active:scale-95 transition-all shadow-xs"
+            title="નજીકના પેટ્રોલ પંપ ગૂગલ મેપમાં શોધો"
+          >
+            <span>⛽ પેટ્રોલ પંપ (Petrol Pumps)</span>
+          </a>
+          <a
+            href={
+              userLocation
+                ? `https://www.google.com/maps/search/hotels+restaurants/@${userLocation.lat},${userLocation.lng},14z`
+                : 'https://www.google.com/maps/search/hotels+and+restaurants+near+me'
+            }
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-blue-300 border border-blue-500/30 font-bold flex items-center gap-1 shrink-0 active:scale-95 transition-all shadow-xs"
+            title="નજીકની હોટેલ અને જમવાનું ગૂગલ મેપમાં શોધો"
+          >
+            <span>🏨 હોટેલ્સ & જમવાનું (Hotels)</span>
+          </a>
+          <a
+            href={
+              userLocation
+                ? `https://www.google.com/maps/search/hospital+medical/@${userLocation.lat},${userLocation.lng},14z`
+                : 'https://www.google.com/maps/search/hospital+near+me'
+            }
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-rose-300 border border-rose-500/30 font-bold flex items-center gap-1 shrink-0 active:scale-95 transition-all shadow-xs"
+            title="નજીકની હોસ્પિટલ ગૂગલ મેપમાં શોધો"
+          >
+            <span>🏥 હોસ્પિટલ (Hospitals)</span>
+          </a>
+        </div>
       </div>
 
       {/* 2. MAP VIEW CONTAINER */}
       <div className="relative flex-1 w-full bg-slate-950 overflow-hidden">
         <div ref={mapContainerRef} className="absolute inset-0 w-full h-full z-10" />
+
+        {/* Map View Mode Switcher: Street vs Google Satellite Hybrid */}
+        <div className="absolute top-3 right-3 z-20 flex items-center bg-slate-950/90 backdrop-blur-md rounded-xl p-1 border border-slate-700/80 shadow-xl">
+          <button
+            type="button"
+            onClick={() => switchTileLayer('streets')}
+            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all ${
+              mapMode === 'streets'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Layers className="w-3 h-3" />
+            <span>સામાન્ય (Street)</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => switchTileLayer('satellite')}
+            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all ${
+              mapMode === 'satellite'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <span>🛰️ સેટેલાઇટ (Satellite)</span>
+          </button>
+        </div>
+
+        {/* Google Maps Style Floating "Locate Me" Button */}
+        <button
+          type="button"
+          onClick={() => handleLocateMe(true)}
+          className={`absolute ${selectedParty ? 'bottom-80 sm:bottom-72' : 'bottom-6'} right-3 z-20 w-11 h-11 rounded-full bg-slate-900/95 hover:bg-slate-800 text-white shadow-2xl border border-slate-700/80 flex items-center justify-center active:scale-90 transition-all ${
+            isLocating ? 'ring-2 ring-blue-500' : ''
+          }`}
+          title="મારું લોકેશન બતાવો (Center on My Location)"
+        >
+          {isLocating ? (
+            <Loader2 className="w-5 h-5 text-blue-400 animate-spin" />
+          ) : (
+            <Crosshair className={`w-5 h-5 ${userLocation ? 'text-blue-400' : 'text-slate-300'}`} />
+          )}
+        </button>
+
+        {/* GPS Error Message Toast */}
+        {gpsMessage && (
+          <div className="absolute top-14 left-3 right-3 sm:left-auto sm:right-3 sm:max-w-sm z-30 p-2.5 rounded-xl bg-amber-950/90 border border-amber-700/80 text-amber-200 text-xs font-bold flex items-center justify-between shadow-xl">
+            <span>⚠️ {gpsMessage}</span>
+            <button onClick={() => setGpsMessage(null)} className="p-1 hover:text-white">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
 
         {/* Empty state overlay when no parties have locations set */}
         {setMapParties.length === 0 && !loading && (
@@ -415,7 +692,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
             <div className="bg-slate-900/95 backdrop-blur-md border border-slate-700/90 rounded-3xl p-4 shadow-2xl text-white space-y-3">
               {/* Header: Code, City, Close */}
               <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
+                <div className="flex items-center gap-2 min-w-0 flex-wrap">
                   <span className="text-[11px] font-mono font-black px-2 py-0.5 rounded-md bg-blue-500/20 text-blue-300 border border-blue-500/30">
                     {selectedParty.party_code || 'MARG'}
                   </span>
@@ -427,6 +704,11 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                   <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
                     {selectedParty.geofence_radius_meters || 75}m
                   </span>
+                  {getDistanceFromUser(selectedParty.latitude, selectedParty.longitude) && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                      🚗 {getDistanceFromUser(selectedParty.latitude, selectedParty.longitude)}
+                    </span>
+                  )}
                 </div>
                 <button
                   onClick={() => setSelectedParty(null)}
@@ -446,6 +728,28 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                     {selectedParty.party_name}
                   </p>
                 )}
+              </div>
+
+              {/* Exact Latitude & Longitude with Copy Button */}
+              <div className="flex items-center justify-between p-2 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] font-mono">
+                <div className="flex items-center gap-1.5 text-slate-300">
+                  <MapPin className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                  <span className="text-slate-400 font-sans font-bold text-[10px]">Lat, Lng:</span>
+                  <span>{Number(selectedParty.latitude).toFixed(6)}, {Number(selectedParty.longitude).toFixed(6)}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(`${selectedParty.latitude}, ${selectedParty.longitude}`);
+                    setCopiedCoords(true);
+                    setTimeout(() => setCopiedCoords(false), 2000);
+                  }}
+                  className="px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-[10px] font-sans font-bold flex items-center gap-1 transition-all active:scale-95"
+                  title="કોઓર્ડિનેટ્સ કોપી કરો"
+                >
+                  {copiedCoords ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3 text-slate-400" />}
+                  <span>{copiedCoords ? 'કોપી થયું!' : 'કોપી'}</span>
+                </button>
               </div>
 
               {/* Address */}
@@ -478,10 +782,10 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                   target="_blank"
                   rel="noopener noreferrer"
                   className="col-span-2 py-2.5 px-3 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 active:scale-95 transition-all"
-                  title="ગૂગલ મેપ નેવિગેશન શરૂ કરો"
+                  title="લાઇવ ટ્રાફિક અને સૌથી ઝડપી રૂટ સાથે ગૂગલ મેપ નેવિગેશન શરૂ કરો"
                 >
                   <ExternalLink className="w-4 h-4" />
-                  <span>🚗 સીધા જાઓ (Go Directly in Google Maps)</span>
+                  <span>🚗 સીધા જાઓ (લાઈવ ટ્રાફિક & બેસ્ટ રૂટ નેવિગેશન)</span>
                 </a>
 
                 {/* 2. PRINT ENVELOPE */}

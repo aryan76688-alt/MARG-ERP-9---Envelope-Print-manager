@@ -10,7 +10,10 @@ import {
   ExternalLink, 
   Check, 
   AlertCircle,
-  Loader2
+  Loader2,
+  Layers,
+  Clipboard,
+  Copy
 } from 'lucide-react';
 import { Party } from '../types';
 import { updatePartyGeofence } from '../api/client';
@@ -64,6 +67,44 @@ const createPinIcon = (label: string = '') => {
   });
 };
 
+// Google Maps Style Live Pulsing Location Dot
+const createUserLocationIcon = () => {
+  return L.divIcon({
+    className: 'user-location-marker',
+    html: `
+      <div style="position: relative; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;">
+        <div style="
+          position: absolute; 
+          width: 30px; 
+          height: 30px; 
+          border-radius: 50%; 
+          background: rgba(37, 99, 235, 0.35); 
+          animation: user-ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+        "></div>
+        <div style="
+          width: 15px; 
+          height: 15px; 
+          border-radius: 50%; 
+          background: #2563eb; 
+          border: 3px solid #ffffff; 
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5); 
+          position: relative; 
+          z-index: 2;
+        "></div>
+      </div>
+      <style>
+        @keyframes user-ping {
+          0% { transform: scale(0.6); opacity: 0.9; }
+          75% { transform: scale(2.2); opacity: 0; }
+          100% { transform: scale(2.2); opacity: 0; }
+        }
+      </style>
+    `,
+    iconSize: [30, 30],
+    iconAnchor: [15, 15],
+  });
+};
+
 export const PartyMapPickerModal: React.FC<PartyMapPickerModalProps> = ({
   isOpen,
   onClose,
@@ -74,6 +115,7 @@ export const PartyMapPickerModal: React.FC<PartyMapPickerModalProps> = ({
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markerRef = useRef<L.Marker | null>(null);
   const circleRef = useRef<L.Circle | null>(null);
+  const userMarkerRef = useRef<L.Marker | null>(null);
 
   // Default coordinate (Ahmedabad / Gujarat region)
   const defaultLat = 23.0225;
@@ -81,6 +123,12 @@ export const PartyMapPickerModal: React.FC<PartyMapPickerModalProps> = ({
 
   const [lat, setLat] = useState<number>(defaultLat);
   const [lng, setLng] = useState<number>(defaultLng);
+  const [latInput, setLatInput] = useState<string>(String(defaultLat));
+  const [lngInput, setLngInput] = useState<string>(String(defaultLng));
+  const [mapMode, setMapMode] = useState<'streets' | 'satellite'>('streets');
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const tileLayerRef = useRef<L.TileLayer | null>(null);
+
   const [radius, setRadius] = useState<number>(75);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isSearching, setIsSearching] = useState<boolean>(false);
@@ -88,6 +136,34 @@ export const PartyMapPickerModal: React.FC<PartyMapPickerModalProps> = ({
   const [isLocating, setIsLocating] = useState<boolean>(false);
   const [searchResults, setSearchResults] = useState<Array<{ display_name: string; lat: string; lon: string }>>([]);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  // Coordinate parser from text, comma/space separation, or Google Maps URLs
+  const extractCoordinates = (text: string): { lat: number; lng: number } | null => {
+    if (!text) return null;
+    const trimmed = text.trim();
+
+    // Pattern 1: URL with query q=lat,lng or @lat,lng e.g. https://maps.google.com/?q=23.0225,72.5714
+    const urlMatch = trimmed.match(/[@?&]q?=?([-+]?\d{1,2}\.\d+)[,\s]+([-+]?\d{1,3}\.\d+)/);
+    if (urlMatch) {
+      const parsedLat = parseFloat(urlMatch[1]);
+      const parsedLng = parseFloat(urlMatch[2]);
+      if (parsedLat >= -90 && parsedLat <= 90 && parsedLng >= -180 && parsedLng <= 180) {
+        return { lat: parsedLat, lng: parsedLng };
+      }
+    }
+
+    // Pattern 2: Standard comma or space separated "23.0225, 72.5714" or "23.0225 72.5714"
+    const coordsMatch = trimmed.match(/([-+]?\d{1,2}\.\d+)[,\s]+([-+]?\d{1,3}\.\d+)/);
+    if (coordsMatch) {
+      const parsedLat = parseFloat(coordsMatch[1]);
+      const parsedLng = parseFloat(coordsMatch[2]);
+      if (parsedLat >= -90 && parsedLat <= 90 && parsedLng >= -180 && parsedLng <= 180) {
+        return { lat: parsedLat, lng: parsedLng };
+      }
+    }
+
+    return null;
+  };
 
   // Initialize or reset state when modal opens with a party
   useEffect(() => {
@@ -99,11 +175,36 @@ export const PartyMapPickerModal: React.FC<PartyMapPickerModalProps> = ({
 
     setLat(initialLat);
     setLng(initialLng);
+    setLatInput(initialLat.toFixed(6));
+    setLngInput(initialLng.toFixed(6));
     setRadius(initialRadius);
     setSearchQuery(party.city || party.address || '');
     setSearchResults([]);
     setFeedback(null);
   }, [isOpen, party]);
+
+  // Switch between Google Detailed Roadmap (Hotels, Petrol Pumps, POIs) and Google Satellite Hybrid tiles
+  const switchTileLayer = (mode: 'streets' | 'satellite') => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    if (tileLayerRef.current) {
+      map.removeLayer(tileLayerRef.current);
+    }
+    const layer = mode === 'satellite'
+      ? L.tileLayer('https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+          subdomains: ['0', '1', '2', '3'],
+          attribution: '&copy; Google Satellite & POIs',
+          maxZoom: 20,
+        })
+      : L.tileLayer('https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+          subdomains: ['0', '1', '2', '3'],
+          attribution: '&copy; Google Maps (Hotels, Petrol Pumps & Landmarks)',
+          maxZoom: 20,
+        });
+    layer.addTo(map);
+    tileLayerRef.current = layer;
+    setMapMode(mode);
+  };
 
   // Initialize Leaflet map
   useEffect(() => {
@@ -125,10 +226,19 @@ export const PartyMapPickerModal: React.FC<PartyMapPickerModalProps> = ({
       zoomControl: true,
     });
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors',
-      maxZoom: 19,
-    }).addTo(map);
+    const initialLayer = mapMode === 'satellite'
+      ? L.tileLayer('https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+          subdomains: ['0', '1', '2', '3'],
+          attribution: '&copy; Google Satellite & POIs',
+          maxZoom: 20,
+        })
+      : L.tileLayer('https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+          subdomains: ['0', '1', '2', '3'],
+          attribution: '&copy; Google Maps (Hotels, Petrol Pumps & Landmarks)',
+          maxZoom: 20,
+        });
+    initialLayer.addTo(map);
+    tileLayerRef.current = initialLayer;
 
     // Draggable Marker
     const marker = L.marker([currentLat, currentLng], {
@@ -148,18 +258,26 @@ export const PartyMapPickerModal: React.FC<PartyMapPickerModalProps> = ({
     // Update coordinates when marker is dragged
     marker.on('dragend', () => {
       const position = marker.getLatLng();
-      setLat(Number(position.lat.toFixed(6)));
-      setLng(Number(position.lng.toFixed(6)));
+      const newLat = Number(position.lat.toFixed(6));
+      const newLng = Number(position.lng.toFixed(6));
+      setLat(newLat);
+      setLng(newLng);
+      setLatInput(newLat.toFixed(6));
+      setLngInput(newLng.toFixed(6));
       circle.setLatLng(position);
     });
 
     // Move marker and circle when user clicks anywhere on map
     map.on('click', (e: L.LeafletMouseEvent) => {
       const { lat: clickLat, lng: clickLng } = e.latlng;
-      marker.setLatLng([clickLat, clickLng]);
-      circle.setLatLng([clickLat, clickLng]);
-      setLat(Number(clickLat.toFixed(6)));
-      setLng(Number(clickLng.toFixed(6)));
+      const newLat = Number(clickLat.toFixed(6));
+      const newLng = Number(clickLng.toFixed(6));
+      marker.setLatLng([newLat, newLng]);
+      circle.setLatLng([newLat, newLng]);
+      setLat(newLat);
+      setLng(newLng);
+      setLatInput(newLat.toFixed(6));
+      setLngInput(newLng.toFixed(6));
     });
 
     mapInstanceRef.current = map;
@@ -179,6 +297,45 @@ export const PartyMapPickerModal: React.FC<PartyMapPickerModalProps> = ({
     };
   }, [isOpen]);
 
+  // Fetch user location when modal opens
+  useEffect(() => {
+    if (!isOpen) return;
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setUserLocation({
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+          });
+        },
+        () => {},
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    }
+  }, [isOpen]);
+
+  // Update user's live pulsing blue dot on map
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !userLocation) return;
+
+    if (userMarkerRef.current) {
+      userMarkerRef.current.setLatLng([userLocation.lat, userLocation.lng]);
+    } else {
+      const marker = L.marker([userLocation.lat, userLocation.lng], {
+        icon: createUserLocationIcon(),
+        zIndexOffset: 1000,
+      }).addTo(map);
+
+      marker.bindTooltip('📍 તમારું વર્તમાન લોકેશન (Your Location)', {
+        direction: 'top',
+        offset: [0, -15],
+      });
+
+      userMarkerRef.current = marker;
+    }
+  }, [userLocation]);
+
   // Sync circle radius when changed
   useEffect(() => {
     if (circleRef.current) {
@@ -188,23 +345,104 @@ export const PartyMapPickerModal: React.FC<PartyMapPickerModalProps> = ({
 
   // Helper to move pin to specific coordinates
   const movePinTo = (newLat: number, newLng: number, zoomLevel: number = 17) => {
-    setLat(Number(newLat.toFixed(6)));
-    setLng(Number(newLng.toFixed(6)));
+    const fixedLat = Number(newLat.toFixed(6));
+    const fixedLng = Number(newLng.toFixed(6));
+    setLat(fixedLat);
+    setLng(fixedLng);
+    setLatInput(fixedLat.toFixed(6));
+    setLngInput(fixedLng.toFixed(6));
 
     if (markerRef.current) {
-      markerRef.current.setLatLng([newLat, newLng]);
+      markerRef.current.setLatLng([fixedLat, fixedLng]);
     }
     if (circleRef.current) {
-      circleRef.current.setLatLng([newLat, newLng]);
+      circleRef.current.setLatLng([fixedLat, fixedLng]);
     }
     if (mapInstanceRef.current) {
-      mapInstanceRef.current.flyTo([newLat, newLng], zoomLevel, { duration: 1 });
+      mapInstanceRef.current.flyTo([fixedLat, fixedLng], zoomLevel, { duration: 1 });
     }
   };
 
-  // Search Address or Locality via OpenStreetMap Nominatim
+  // Handle manual typing in Latitude input
+  const handleLatInputChange = (val: string) => {
+    setLatInput(val);
+    const parsed = parseFloat(val);
+    if (!isNaN(parsed) && parsed >= -90 && parsed <= 90) {
+      setLat(parsed);
+      if (markerRef.current) markerRef.current.setLatLng([parsed, lng]);
+      if (circleRef.current) circleRef.current.setLatLng([parsed, lng]);
+      if (mapInstanceRef.current) mapInstanceRef.current.panTo([parsed, lng]);
+    }
+  };
+
+  // Handle manual typing in Longitude input
+  const handleLngInputChange = (val: string) => {
+    setLngInput(val);
+    const parsed = parseFloat(val);
+    if (!isNaN(parsed) && parsed >= -180 && parsed <= 180) {
+      setLng(parsed);
+      if (markerRef.current) markerRef.current.setLatLng([lat, parsed]);
+      if (circleRef.current) circleRef.current.setLatLng([lat, parsed]);
+      if (mapInstanceRef.current) mapInstanceRef.current.panTo([lat, parsed]);
+    }
+  };
+
+  // Helper to apply pasted coordinate string
+  const handleApplyPastedCoordinates = (pastedText: string) => {
+    const coords = extractCoordinates(pastedText);
+    if (coords) {
+      movePinTo(coords.lat, coords.lng, 17);
+      setFeedback({
+        type: 'success',
+        message: `ચોક્કસ લેટ/લોન્ગ (${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}) લાગુ થયા!`,
+      });
+      return true;
+    }
+    return false;
+  };
+
+  // Paste from clipboard or prompt
+  const handlePasteFromClipboard = async () => {
+    try {
+      if (navigator.clipboard && navigator.clipboard.readText) {
+        const text = await navigator.clipboard.readText();
+        if (text && handleApplyPastedCoordinates(text)) {
+          return;
+        }
+      }
+    } catch {
+      // Ignore clipboard permission failure, proceed to prompt
+    }
+
+    const userInput = window.prompt(
+      'અક્ષાંશ અને રેખાંશ પેસ્ટ કરો (દા.ત. 23.0338, 72.5850 અથવા ગૂગલ મેપ લિંક):'
+    );
+    if (userInput) {
+      const ok = handleApplyPastedCoordinates(userInput);
+      if (!ok) {
+        setFeedback({
+          type: 'error',
+          message: 'અમાન્ય કોઓર્ડિનેટ્સ. સાચું ફોર્મેટ: "23.0225, 72.5714" અથવા Google Maps લિંક',
+        });
+      }
+    }
+  };
+
+  // Search Address or Locality via OpenStreetMap Nominatim, or detect raw coordinates
   const handleSearchAddress = async () => {
     if (!searchQuery.trim()) return;
+
+    // Check if user entered coordinates directly into the search bar
+    const directCoords = extractCoordinates(searchQuery);
+    if (directCoords) {
+      movePinTo(directCoords.lat, directCoords.lng, 17);
+      setFeedback({
+        type: 'success',
+        message: `કોઓર્ડિનેટ્સથી લોકેશન મળ્યું: (${directCoords.lat.toFixed(5)}, ${directCoords.lng.toFixed(5)})`,
+      });
+      return;
+    }
+
     setIsSearching(true);
     setSearchResults([]);
 
@@ -445,12 +683,39 @@ export const PartyMapPickerModal: React.FC<PartyMapPickerModalProps> = ({
             <div className="bg-slate-950/85 backdrop-blur-md border border-slate-700/80 text-slate-200 text-[11px] font-medium px-3 py-1.5 rounded-xl shadow-lg flex items-center justify-between gap-2">
               <span className="flex items-center gap-1.5 truncate">
                 <span className="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
-                <span>નકશા પર કોઈપણ જગ્યાએ ક્લિક કરો અથવા લાલ પિનને દુકાન પર ડ્રેગ કરો.</span>
+                <span>નકશા પર ક્લિક કરો અથવા લાલ પિનને ડ્રેગ કરીને ચોક્કસ દુકાન પર મૂકો.</span>
               </span>
               <span className="text-blue-400 font-bold flex-shrink-0">
                 {radius}m સર્કલ
               </span>
             </div>
+          </div>
+
+          {/* Map View Mode Switcher: Street vs Google Satellite Hybrid */}
+          <div className="absolute top-11 right-2 z-20 flex items-center bg-slate-950/90 backdrop-blur-md rounded-xl p-1 border border-slate-700/80 shadow-xl">
+            <button
+              type="button"
+              onClick={() => switchTileLayer('streets')}
+              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all ${
+                mapMode === 'streets'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Layers className="w-3 h-3" />
+              <span>સામાન્ય (Street)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => switchTileLayer('satellite')}
+              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all ${
+                mapMode === 'satellite'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <span>🛰️ સેટેલાઇટ (Satellite)</span>
+            </button>
           </div>
         </div>
 
@@ -475,37 +740,91 @@ export const PartyMapPickerModal: React.FC<PartyMapPickerModalProps> = ({
         {/* Bottom Configuration & Save Row */}
         <div className="p-3 bg-slate-950/90 border-t border-slate-800 space-y-3">
           {/* Coordinates & Radius Settings */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-            {/* Live Lat/Lng readout */}
-            <div className="flex items-center gap-2 font-mono text-[11px] text-slate-300 bg-slate-900 px-2.5 py-1.5 rounded-xl border border-slate-800">
-              <MapPin className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />
-              <span>Lat: <strong>{lat.toFixed(5)}</strong></span>
-              <span>•</span>
-              <span>Lng: <strong>{lng.toFixed(5)}</strong></span>
+          <div className="flex flex-col gap-2.5 text-xs bg-slate-900/90 p-2.5 rounded-2xl border border-slate-800/80">
+            {/* Latitude, Longitude & Paste Controls */}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Latitude Input */}
+                <div className="flex items-center gap-1.5 bg-slate-950 px-2.5 py-1.5 rounded-xl border border-slate-800 focus-within:border-blue-500 transition-colors">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase">Lat:</span>
+                  <input
+                    type="text"
+                    value={latInput}
+                    onChange={(e) => handleLatInputChange(e.target.value)}
+                    placeholder="23.0225"
+                    className="w-24 bg-transparent text-xs font-mono font-bold text-blue-300 focus:outline-none"
+                    title="Latitude (અક્ષાંશ)"
+                  />
+                </div>
+
+                {/* Longitude Input */}
+                <div className="flex items-center gap-1.5 bg-slate-950 px-2.5 py-1.5 rounded-xl border border-slate-800 focus-within:border-blue-500 transition-colors">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase">Lng:</span>
+                  <input
+                    type="text"
+                    value={lngInput}
+                    onChange={(e) => handleLngInputChange(e.target.value)}
+                    placeholder="72.5714"
+                    className="w-24 bg-transparent text-xs font-mono font-bold text-blue-300 focus:outline-none"
+                    title="Longitude (રેખાંશ)"
+                  />
+                </div>
+
+                {/* Paste Coordinates Button */}
+                <button
+                  type="button"
+                  onClick={handlePasteFromClipboard}
+                  className="px-2.5 py-1.5 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 text-[11px] font-bold flex items-center gap-1 active:scale-95 transition-all"
+                  title="વોટ્સએપ અથવા ગૂગલ મેપ પરથી કોપી કરેલા Lat, Lng પેસ્ટ કરો"
+                >
+                  <Clipboard className="w-3.5 h-3.5 text-purple-400" />
+                  <span>📋 પેસ્ટ Lat,Lng</span>
+                </button>
+
+                {/* Copy Coordinates Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+                    setFeedback({
+                      type: 'success',
+                      message: `કોઓર્ડિનેટ્સ કોપી થયા: ${lat.toFixed(6)}, ${lng.toFixed(6)}`,
+                    });
+                  }}
+                  className="px-2 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[11px] font-medium flex items-center gap-1 active:scale-95 transition-all"
+                  title="કોઓર્ડિનેટ્સ કોપી કરો"
+                >
+                  <Copy className="w-3.5 h-3.5 text-slate-400" />
+                  <span>કોપી</span>
+                </button>
+              </div>
+
               {isAlreadyPinned && (
-                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.2 rounded font-sans font-bold border border-emerald-500/30">
-                  પહેલેથી સેટ
+                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full font-bold border border-emerald-500/30 shrink-0">
+                  ✓ પહેલેથી સેટ
                 </span>
               )}
             </div>
 
-            {/* Radius selector */}
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] text-slate-400 font-medium">રેડિયસ:</span>
-              {[35, 50, 75, 100, 150].map((r) => (
-                <button
-                  key={r}
-                  type="button"
-                  onClick={() => setRadius(r)}
-                  className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border transition-all ${
-                    radius === r
-                      ? 'bg-blue-600 text-white border-blue-500 shadow-sm'
-                      : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white'
-                  }`}
-                >
-                  {r}m
-                </button>
-              ))}
+            {/* Geofence Radius Selector */}
+            <div className="flex items-center justify-between pt-1 border-t border-slate-800/60">
+              <span className="text-[11px] text-slate-400 font-medium">સુરક્ષા રેડિયસ (Geofence):</span>
+              <div className="flex items-center gap-1.5">
+                {[35, 50, 75, 100, 150].map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => setRadius(r)}
+                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border transition-all ${
+                      radius === r
+                        ? 'bg-blue-600 text-white border-blue-500 shadow-sm'
+                        : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white'
+                    }`}
+                  >
+                    {r}m
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
