@@ -12,13 +12,17 @@ import {
   Filter, 
   Sparkles,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  ExternalLink,
+  Edit3,
+  Navigation
 } from 'lucide-react';
 import { Party } from '../types';
 import { fetchParties, createParty, updateParty, updatePartyGeofence } from '../api/client';
-import { getPartiesOffline, ensureInitialPartiesLoaded } from '../offline/db';
+import { getPartiesOffline, ensureInitialPartiesLoaded, updatePartyInOfflineCache } from '../offline/db';
 import { PartyModal } from '../components/PartyModal';
 import { RouteManagerModal } from '../components/RouteManagerModal';
+import { PartyMapPickerModal } from '../components/PartyMapPickerModal';
 
 interface MobilePartiesProps {
   onNavigate: (tab: string, state?: any) => void;
@@ -43,6 +47,7 @@ export const MobileParties: React.FC<MobilePartiesProps> = ({
   const [editingParty, setEditingParty] = useState<Party | null>(null);
   const [routeModalOpen, setRouteModalOpen] = useState<boolean>(initialRouteModal);
   const [pinningPartyId, setPinningPartyId] = useState<number | null>(null);
+  const [mapPickerParty, setMapPickerParty] = useState<Party | null>(null);
 
   // 1-Tap Pin Party GPS from device
   const handlePinPartyGPS = (party: Party) => {
@@ -195,6 +200,16 @@ export const MobileParties: React.FC<MobilePartiesProps> = ({
           )}
         </div>
 
+        {/* All Parties Map Shortcut */}
+        <button
+          onClick={() => onNavigate('map')}
+          className="p-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md active:scale-95 transition-all flex items-center gap-1.5 flex-shrink-0"
+          title="All Parties Map (પાર્ટી મેપ)"
+        >
+          <MapPin className="w-4 h-4" />
+          <span className="hidden sm:inline">મેપ</span>
+        </button>
+
         {/* Route Manager Trigger */}
         <button
           onClick={() => setRouteModalOpen(true)}
@@ -310,28 +325,67 @@ export const MobileParties: React.FC<MobilePartiesProps> = ({
                       3: {party.route_3_gu || party.route_3}
                     </span>
                   )}
+                </div>
+
+                {/* Dedicated Location & Go Directly Row */}
+                <div className="flex items-center justify-between gap-1.5 p-2 rounded-xl bg-slate-950/70 border border-slate-800/80">
                   {party.latitude && party.longitude ? (
-                    <a
-                      href={`https://www.google.com/maps/dir/?api=1&destination=${party.latitude},${party.longitude}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 flex items-center gap-1 active:scale-95 transition-all"
-                      title="Open Chemist Geofence in Google Maps"
-                    >
-                      <MapPin className="w-3 h-3 text-emerald-400" />
-                      <span>જિયોફેન્સ ({party.geofence_radius_meters || 75}m)</span>
-                    </a>
+                    <>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse flex-shrink-0"></span>
+                        <div className="truncate">
+                          <span className="text-[10px] font-black text-emerald-300">મેપ પિન સેટ</span>
+                          <span className="text-[9px] text-slate-400 ml-1">({party.geofence_radius_meters || 75}m)</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <a
+                          href={`https://www.google.com/maps/dir/?api=1&destination=${party.latitude},${party.longitude}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-[11px] shadow-sm flex items-center gap-1 active:scale-95 transition-all"
+                          title="Google Maps Go Directly"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          <span>🚗 સીધા જાઓ (Go Directly)</span>
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => setMapPickerParty(party)}
+                          className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 active:scale-95 transition-all"
+                          title="મેપ પર પિન બદલો (Change Pin)"
+                        >
+                          <Edit3 className="w-3.5 h-3.5 text-amber-400" />
+                        </button>
+                      </div>
+                    </>
                   ) : (
-                    <button
-                      type="button"
-                      onClick={() => handlePinPartyGPS(party)}
-                      disabled={pinningPartyId === party.id}
-                      className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 flex items-center gap-1 active:scale-95 transition-all"
-                      title="Pin current GPS coordinates to this pharmacy"
-                    >
-                      <MapPin className="w-3 h-3 text-amber-400" />
-                      <span>{pinningPartyId === party.id ? 'પિન થાય છે...' : '📍 GPS પિન કરો'}</span>
-                    </button>
+                    <>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="w-2 h-2 rounded-full bg-amber-400/80 flex-shrink-0"></span>
+                        <span className="text-[10px] font-bold text-amber-400/90 truncate">મેપ લોકેશન બાકી</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setMapPickerParty(party)}
+                          className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] shadow-sm flex items-center gap-1 active:scale-95 transition-all"
+                          title="મેપ પર ક્લિક કરીને દુકાનનું લોકેશન પિન કરો"
+                        >
+                          <MapPin className="w-3 h-3 text-white" />
+                          <span>📍 મેપ પર પિન કરો</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handlePinPartyGPS(party)}
+                          disabled={pinningPartyId === party.id}
+                          className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[10px] font-bold active:scale-95 transition-all"
+                          title="મારું વર્તમાન GPS સેવ કરો"
+                        >
+                          {pinningPartyId === party.id ? '...' : 'GPS'}
+                        </button>
+                      </div>
+                    </>
                   )}
                 </div>
 
@@ -435,6 +489,21 @@ export const MobileParties: React.FC<MobilePartiesProps> = ({
           onClose={() => {
             setRouteModalOpen(false);
             loadParties();
+          }}
+        />
+      )}
+
+      {/* Party Map Pinpoint Picker Modal */}
+      {mapPickerParty && (
+        <PartyMapPickerModal
+          isOpen={true}
+          party={mapPickerParty}
+          onClose={() => setMapPickerParty(null)}
+          onSaved={(updated) => {
+            setParties(prev => prev.map(p => p.id === updated.id ? updated : p));
+            if (editingParty?.id === updated.id) {
+              setEditingParty(updated);
+            }
           }}
         />
       )}

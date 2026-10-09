@@ -13,6 +13,7 @@ import {
   Clock,
   Sparkles,
   MapPin,
+  Map,
   FileSpreadsheet
 } from 'lucide-react';
 import { DashboardData, PrintJob } from '../types';
@@ -236,6 +237,18 @@ export const MobileHome: React.FC<MobileHomeProps> = ({ onNavigate }) => {
             </div>
             <span className="text-xs font-bold">રૂટ મેનેજર</span>
             <span className="text-[9px] text-slate-400">Routes</span>
+          </button>
+
+          {/* All Parties Map */}
+          <button
+            onClick={() => onNavigate('map')}
+            className="flex flex-col items-center justify-center p-3 rounded-2xl bg-slate-900 border border-slate-800 text-slate-200 active:bg-emerald-600 active:text-white transition-all shadow-sm"
+          >
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center mb-1.5">
+              <Map className="w-5 h-5" />
+            </div>
+            <span className="text-xs font-bold">પાર્ટી મેપ</span>
+            <span className="text-[9px] text-emerald-400 font-semibold">Map</span>
           </button>
 
           {/* History */}

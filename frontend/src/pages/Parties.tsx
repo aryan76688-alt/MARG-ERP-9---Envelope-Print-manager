@@ -26,7 +26,8 @@ import {
   List,
   Phone,
   MessageCircle,
-  Calendar
+  Calendar,
+  ExternalLink
 } from 'lucide-react';
 import { Party } from '../types';
 import { 
@@ -47,6 +48,7 @@ import {
 import { getPartiesOffline, ensureInitialPartiesLoaded } from '../offline/db';
 import { PartyModal } from '../components/PartyModal';
 import { RouteManagerModal } from '../components/RouteManagerModal';
+import { PartyMapPickerModal } from '../components/PartyMapPickerModal';
 
 interface PartiesProps {
   onNavigate: (tab: string, state?: any) => void;
@@ -78,6 +80,7 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
   const [partyModalOpen, setPartyModalOpen] = useState<boolean>(initialAddModal);
   const [routeManagerOpen, setRouteManagerOpen] = useState<boolean>(false);
   const [editingParty, setEditingParty] = useState<Party | null>(null);
+  const [mapPickerParty, setMapPickerParty] = useState<Party | null>(null);
   const [deleteConfirmParty, setDeleteConfirmParty] = useState<Party | null>(null);
   const [bulkDeleteModalOpen, setBulkDeleteModalOpen] = useState<boolean>(false);
   const [deleteAllModalOpen, setDeleteAllModalOpen] = useState<boolean>(false);
@@ -377,6 +380,16 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
               <span>Table</span>
             </button>
           </div>
+
+          <button
+            type="button"
+            onClick={() => onNavigate('map')}
+            className="btn-secondary text-emerald-700 bg-emerald-50/80 border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300 transition-all font-bold"
+            title="Open Interactive Map with All Pinned Parties"
+          >
+            <MapPin className="w-4 h-4 text-emerald-600" />
+            <span>Parties Map</span>
+          </button>
 
           <button
             type="button"
@@ -802,6 +815,54 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
                       <div className="mt-2.5 text-xs text-slate-600 line-clamp-2 leading-relaxed bg-slate-50/70 p-2 rounded-xl border border-slate-100">
                         {p.address_gu || p.address}
                       </div>
+
+                      {/* Location & Navigation Bar on Card */}
+                      <div className="mt-2 flex items-center justify-between gap-1 p-1.5 rounded-lg bg-slate-50 border border-slate-200/80 text-[11px]">
+                        {p.latitude && p.longitude ? (
+                          <>
+                            <div className="flex items-center gap-1 min-w-0">
+                              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+                              <span className="font-bold text-emerald-700 truncate">Pinned ({p.geofence_radius_meters || 75}m)</span>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <a
+                                href={`https://www.google.com/maps/dir/?api=1&destination=${p.latitude},${p.longitude}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[10px] shadow-sm transition-all"
+                                title="Go Directly in Google Maps"
+                              >
+                                <ExternalLink className="w-2.5 h-2.5" />
+                                <span>Go Directly</span>
+                              </a>
+                              <button
+                                type="button"
+                                onClick={() => setMapPickerParty(p)}
+                                className="px-1.5 py-0.5 rounded bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-bold text-[10px] transition-all"
+                                title="Adjust Pin on Map"
+                              >
+                                Pin
+                              </button>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="flex items-center gap-1 min-w-0">
+                              <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0"></span>
+                              <span className="font-medium text-slate-500 truncate">No GPS Pin</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setMapPickerParty(p)}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] shadow-sm transition-all"
+                              title="Set Exact Party Location on Map"
+                            >
+                              <MapPin className="w-2.5 h-2.5" />
+                              <span>Set Pin on Map</span>
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </div>
 
                     {/* Pop-Action Bar Footer */}
@@ -981,6 +1042,40 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
                         </td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex items-center justify-end gap-1.5">
+                            {/* Map Location Actions */}
+                            {p.latitude && p.longitude ? (
+                              <div className="inline-flex items-center gap-1">
+                                <a
+                                  href={`https://www.google.com/maps/dir/?api=1&destination=${p.latitude},${p.longitude}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center justify-center h-8 px-2.5 rounded-lg bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white font-bold text-xs transition-colors"
+                                  title="Go Directly in Google Maps"
+                                >
+                                  <ExternalLink className="w-3 h-3 mr-1" />
+                                  <span>Map</span>
+                                </a>
+                                <button
+                                  type="button"
+                                  onClick={() => setMapPickerParty(p)}
+                                  className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-slate-100 transition-colors"
+                                  title="Adjust Pin on Map"
+                                >
+                                  <MapPin className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setMapPickerParty(p)}
+                                className="inline-flex items-center justify-center h-8 px-2 rounded-lg bg-slate-50 hover:bg-blue-50 text-slate-500 hover:text-blue-700 font-bold text-xs border border-slate-200 transition-colors"
+                                title="Pin Location on Map"
+                              >
+                                <MapPin className="w-3.5 h-3.5 mr-1 text-slate-400" />
+                                <span>Pin</span>
+                              </button>
+                            )}
+
                             {/* Print Envelope Directly */}
                             <button
                               onClick={() => onNavigate('print', { selectedParty: p, deliveryRoute: p.route_1 || p.route })}
@@ -1331,6 +1426,21 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
             </div>
           </div>
         </div>
+      )}
+
+      {/* Party Map Pinpoint Picker Modal */}
+      {mapPickerParty && (
+        <PartyMapPickerModal
+          isOpen={true}
+          party={mapPickerParty}
+          onClose={() => setMapPickerParty(null)}
+          onSaved={(updated) => {
+            setParties((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+            if (editingParty?.id === updated.id) {
+              setEditingParty(updated);
+            }
+          }}
+        />
       )}
     </div>
   );

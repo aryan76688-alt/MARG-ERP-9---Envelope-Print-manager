@@ -107,6 +107,12 @@ export async function cachePartiesOffline(parties: Party[]): Promise<void> {
   }
 }
 
+export async function updatePartyInOfflineCache(party: Party): Promise<void> {
+  if (party.id) {
+    await cachePartiesOffline([party]);
+  }
+}
+
 export async function getAllOfflineParties(): Promise<Party[]> {
   try {
     const db = await openEnvelopeDB();

@@ -17,6 +17,7 @@ import { MobileApkLayout } from './mobile/MobileApkLayout';
 import { MobileHome } from './mobile/MobileHome';
 import { MobilePrint } from './mobile/MobilePrint';
 import { MobileParties } from './mobile/MobileParties';
+import { AllPartiesMap } from './pages/AllPartiesMap';
 
 const queryClient = new QueryClient();
 
@@ -198,6 +199,7 @@ export const App: React.FC = () => {
               initialAddModal={openAddPartyModal}
             />
           )}
+          {currentTab === 'map' && <AllPartiesMap onNavigate={navigateToTab} />}
           {currentTab === 'driver' && <DriverMode />}
           {currentTab === 'dispatch' && <DispatchSummary />}
           {currentTab === 'history' && <PrintHistory onNavigate={navigateToTab} />}
@@ -217,6 +219,7 @@ export const App: React.FC = () => {
           {currentTab === 'parties' && (
             <Parties onNavigate={navigateToTab} initialAddModal={openAddPartyModal} />
           )}
+          {currentTab === 'map' && <AllPartiesMap onNavigate={navigateToTab} />}
           {currentTab === 'import' && <ImportExcel onNavigate={navigateToTab} />}
           {currentTab === 'print' && (
             <PrintEnvelope 

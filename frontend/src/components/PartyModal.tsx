@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, AlertCircle, Building2, Calendar, MapPin } from 'lucide-react';
+import { X, Save, AlertCircle, Building2, Calendar, MapPin, Map } from 'lucide-react';
 import { Party } from '../types';
 import { fetchNextPartyCode } from '../api/client';
+import { PartyMapPickerModal } from './PartyMapPickerModal';
 
 const WEEKDAYS = [
   { en: 'Monday', gu: 'સોમવાર', short: 'Mon' },
@@ -42,6 +43,7 @@ export const PartyModal: React.FC<PartyModalProps> = ({
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [mapPickerOpen, setMapPickerOpen] = useState(false);
   const [loadingNextCode, setLoadingNextCode] = useState(false);
 
   useEffect(() => {
@@ -458,15 +460,26 @@ export const PartyModal: React.FC<PartyModalProps> = ({
                     Exact chemist counter coordinates for delivery verification and live distance calculation
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleCaptureGPS}
-                  disabled={capturingGPS}
-                  className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1 shadow-xs active:scale-95 transition-all disabled:opacity-50 shrink-0 self-start sm:self-auto"
-                >
-                  <MapPin className="w-3.5 h-3.5" />
-                  <span>{capturingGPS ? 'મેળવાય છે...' : '📍 Capture Current GPS'}</span>
-                </button>
+                <div className="flex items-center gap-1.5 flex-wrap shrink-0 self-start sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => setMapPickerOpen(true)}
+                    className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1 shadow-xs active:scale-95 transition-all"
+                    title="મેપ પર ક્લિક કરીને અથવા ડ્રેગ કરીને પિન સેટ કરો"
+                  >
+                    <Map className="w-3.5 h-3.5" />
+                    <span>🗺️ Pick on Map</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCaptureGPS}
+                    disabled={capturingGPS}
+                    className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1 shadow-xs active:scale-95 transition-all disabled:opacity-50"
+                  >
+                    <MapPin className="w-3.5 h-3.5" />
+                    <span>{capturingGPS ? 'મેળવાય છે...' : '📍 Device GPS'}</span>
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
@@ -788,6 +801,25 @@ export const PartyModal: React.FC<PartyModalProps> = ({
           </div>
         </form>
       </div>
+
+      {/* Interactive Map Pinpoint Picker Modal */}
+      {mapPickerOpen && (
+        <PartyMapPickerModal
+          isOpen={true}
+          party={formData}
+          onClose={() => setMapPickerOpen(false)}
+          onSaved={(updated) => {
+            setFormData((prev) => ({
+              ...prev,
+              latitude: updated.latitude,
+              longitude: updated.longitude,
+              geofence_radius_meters: updated.geofence_radius_meters,
+              geofence_set_at: updated.geofence_set_at,
+            }));
+            setMapPickerOpen(false);
+          }}
+        />
+      )}
     </div>
   );
 };

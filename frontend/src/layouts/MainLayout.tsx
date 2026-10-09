@@ -18,7 +18,8 @@ import {
   Truck,
   Wifi,
   WifiOff,
-  RefreshCw
+  RefreshCw,
+  MapPin
 } from 'lucide-react';
 import { useNetworkSync } from '../offline/syncManager';
 
@@ -113,6 +114,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
   const navItemsRaw = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'parties', label: 'Parties', icon: Users },
+    { id: 'map', label: 'Parties Map', icon: MapPin },
     { id: 'import', label: 'Import Excel', icon: FileSpreadsheet },
     { id: 'print', label: 'Print Envelope', icon: Printer },
     { id: 'driver', label: 'Driver Mode', icon: Truck },
@@ -127,6 +129,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
   const pageTitles: Record<string, string> = {
     dashboard: 'Dispatch Dashboard',
     parties: 'Parties Management',
+    map: 'All Parties Map (પાર્ટી મેપ)',
     import: 'Import Excel',
     print: 'Print Envelope',
     driver: 'Driver Mode (POD)',

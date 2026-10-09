@@ -17,7 +17,8 @@ import {
   LogOut,
   Calendar,
   Layers,
-  Sparkles
+  Sparkles,
+  MapPin
 } from 'lucide-react';
 import { useNetworkSync } from '../offline/syncManager';
 
@@ -74,6 +75,7 @@ export const MobileApkLayout: React.FC<MobileApkLayoutProps> = ({
   ];
 
   const secondaryNav = [
+    { id: 'map', label: 'પાર્ટી મેપ', subLabel: 'All Parties Map', icon: MapPin },
     { id: 'dispatch', label: 'ડિસ્પેચ સમરી', subLabel: 'Dispatch Summary', icon: Package },
     { id: 'history', label: 'પ્રિન્ટ હિસ્ટ્રી', subLabel: 'Print History', icon: History },
     { id: 'import', label: 'એક્સેલ આયાત', subLabel: 'Import Excel', icon: FileSpreadsheet },
