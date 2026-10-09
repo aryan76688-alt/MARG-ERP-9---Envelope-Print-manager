@@ -8,8 +8,14 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from database import get_db
 from models import User
-import requests
-import bcrypt
+import json
+import urllib.request
+import urllib.parse
+import urllib.error
+try:
+    import requests
+except ImportError:
+    requests = None
 
 SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "b304c000e3cf14a1a9a83ebfc481358a9e701a238622fba5e808c160")
 ALGORITHM = "HS256"
@@ -25,6 +31,7 @@ def verify_google_id_token(id_token: str, expected_client_id: Optional[str] = No
     """
     Verifies a Google ID Token using Google's public tokeninfo endpoint.
     Validates audience, issuer, expiry, and returns decoded token profile.
+    Uses standard library urllib with zero third-party dependencies.
     """
     if not id_token or not id_token.strip():
         raise HTTPException(
@@ -33,22 +40,25 @@ def verify_google_id_token(id_token: str, expected_client_id: Optional[str] = No
         )
     target_client_id = (expected_client_id or GOOGLE_CLIENT_ID).strip()
     
+    query = urllib.parse.urlencode({"id_token": id_token.strip()})
+    url = f"https://oauth2.googleapis.com/tokeninfo?{query}"
+    
     try:
-        url = "https://oauth2.googleapis.com/tokeninfo"
-        res = requests.get(url, params={"id_token": id_token.strip()}, timeout=10)
-        if res.status_code != 200:
-            error_data = {}
-            try:
-                error_data = res.json()
-            except Exception:
-                pass
-            err_msg = error_data.get("error_description") or error_data.get("error") or "Failed to verify token with Google"
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail=f"Google token verification failed: {err_msg}"
-            )
-        payload = res.json()
-    except requests.exceptions.RequestException as e:
+        req = urllib.request.Request(url, headers={"User-Agent": "ShreejiEnvelopeManager/1.0"})
+        with urllib.request.urlopen(req, timeout=10) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        error_data = {}
+        try:
+            error_data = json.loads(e.read().decode("utf-8"))
+        except Exception:
+            pass
+        err_msg = error_data.get("error_description") or error_data.get("error") or f"HTTP {e.code}"
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Google token verification failed: {err_msg}"
+        )
+    except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"Unable to reach Google OAuth verification servers: {str(e)}"
