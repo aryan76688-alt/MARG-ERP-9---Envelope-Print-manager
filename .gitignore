@@ -18,3 +18,5 @@ android/build/
 android/app/build/
 android/local.properties
 .gradle/
+*.apk
+backend/envelope_manager.db

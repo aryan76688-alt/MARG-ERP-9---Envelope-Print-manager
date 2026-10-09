@@ -79,6 +79,7 @@ export interface AppSettings {
   iv_volumes_json?: string;
   google_sheets_api_key?: string;
   google_sheet_id?: string;
+  google_oauth_client_id?: string;
 }
 
 export interface RouteBatchUpdateItem {

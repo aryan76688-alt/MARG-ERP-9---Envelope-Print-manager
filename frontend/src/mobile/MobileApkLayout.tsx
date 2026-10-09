@@ -83,9 +83,11 @@ export const MobileApkLayout: React.FC<MobileApkLayoutProps> = ({
   ];
 
   let username = 'User';
+  let userAvatar: string | null = null;
   try {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     username = user.full_name || user.username || 'User';
+    userAvatar = user.avatar_url || null;
   } catch {}
 
   return (
@@ -298,8 +300,12 @@ export const MobileApkLayout: React.FC<MobileApkLayoutProps> = ({
             {/* User Profile & Sign Out Card */}
             <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-700 to-indigo-600 text-white font-black text-base flex items-center justify-center shadow-md">
-                  {username[0]?.toUpperCase() || 'U'}
+                <div className="w-10 h-10 rounded-xl overflow-hidden bg-gradient-to-tr from-blue-700 to-indigo-600 text-white font-black text-base flex items-center justify-center shadow-md border border-slate-700">
+                  {userAvatar ? (
+                    <img src={userAvatar} alt={username} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  ) : (
+                    username[0]?.toUpperCase() || 'U'
+                  )}
                 </div>
                 <div className="flex flex-col">
                   <span className="font-extrabold text-sm text-white">{username}</span>

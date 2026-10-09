@@ -385,10 +385,13 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
 
             {/* User Profile */}
             <div className="flex items-center gap-1.5 sm:gap-2 pl-1 sm:pl-2 border-l border-slate-200 group relative">
-              <div className="w-7 h-7 sm:w-8 h-8 rounded-full bg-blue-900 text-white flex items-center justify-center font-bold text-xs shadow-inner cursor-pointer">
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full overflow-hidden bg-blue-900 text-white flex items-center justify-center font-bold text-xs shadow-inner cursor-pointer border border-blue-400/40">
                 {(() => {
                   try {
                     const user = JSON.parse(localStorage.getItem('user') || '{}');
+                    if (user.avatar_url) {
+                      return <img src={user.avatar_url} alt={user.full_name || 'User'} className="w-full h-full object-cover" referrerPolicy="no-referrer" />;
+                    }
                     return (user.username?.[0] || 'U').toUpperCase();
                   } catch { return 'U'; }
                 })()}

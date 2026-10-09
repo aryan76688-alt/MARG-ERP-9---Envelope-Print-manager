@@ -15,6 +15,9 @@ class User(Base):
     role = Column(String(50), nullable=False, default="employee") # super_admin, admin, employee
     permissions = Column(Text, nullable=True) # JSON list of features
     full_name = Column(String(150), default="Administrator")
+    email = Column(String(150), unique=True, nullable=True, index=True)
+    google_id = Column(String(100), unique=True, nullable=True, index=True)
+    avatar_url = Column(String(500), nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
@@ -125,6 +128,7 @@ class AppSettings(Base):
     google_sheet_sync_interval_minutes = Column(Integer, default=5)
     last_google_sheet_sync_time = Column(DateTime, nullable=True)
     last_google_sheet_sync_status = Column(String(255), nullable=True)
+    google_oauth_client_id = Column(String(255), default="58565275888-4juppeh2cdeo6v4tn1qc81e8ngpnevsu.apps.googleusercontent.com")
 
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 

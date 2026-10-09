@@ -136,6 +136,7 @@ def init_db():
             ("google_sheet_sync_interval_minutes", "INTEGER", "5"),
             ("last_google_sheet_sync_time", "TIMESTAMP", None),
             ("last_google_sheet_sync_status", "TEXT", None),
+            ("google_oauth_client_id", "TEXT", "'58565275888-4juppeh2cdeo6v4tn1qc81e8ngpnevsu.apps.googleusercontent.com'"),
         ])
 
         ensure_columns("print_jobs", [
@@ -164,6 +165,9 @@ def init_db():
             ("role", "TEXT", "'employee'"),
             ("permissions", "TEXT", None),
             ("is_active", "BOOLEAN", "1"),
+            ("email", "TEXT", None),
+            ("google_id", "TEXT", None),
+            ("avatar_url", "TEXT", None),
         ])
     except Exception as mig_err:
         print(f"Column inspector migration notice: {mig_err}")
@@ -294,6 +298,8 @@ def init_db():
                 app_settings.google_sheet_id = "1nZ_B6HBDjTDcLey5x1784b2o8r0nKweafWVUY8JW0wg"
             if not getattr(app_settings, "auto_sync_google_sheet", None):
                 app_settings.auto_sync_google_sheet = True
+            if not getattr(app_settings, "google_oauth_client_id", None):
+                app_settings.google_oauth_client_id = "58565275888-4juppeh2cdeo6v4tn1qc81e8ngpnevsu.apps.googleusercontent.com"
             db.commit()
         # 4. Check if migrating existing SQLite database to PostgreSQL
         sqlite_file = os.path.join(os.path.dirname(__file__), "envelope_manager.db")
