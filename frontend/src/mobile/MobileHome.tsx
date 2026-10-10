@@ -55,15 +55,21 @@ export const MobileHome: React.FC<MobileHomeProps> = ({ onNavigate }) => {
 
   return (
     <div className="p-4 space-y-4 max-w-lg mx-auto pb-8">
-      {/* 1. TOP HERO GREETING & QUICK REFRESH */}
-      <div className="flex items-center justify-between bg-gradient-to-r from-blue-900/40 via-indigo-900/30 to-slate-900 border border-blue-500/20 rounded-2xl p-4 shadow-lg">
+      {/* 1. TOP HERO GREETING & LIVE ERP SYNC */}
+      <div className="flex items-center justify-between bg-gradient-to-r from-blue-950/80 via-slate-900 to-indigo-950/70 border border-blue-500/30 rounded-2xl p-4 shadow-xl">
         <div>
-          <h2 className="text-lg font-black text-white flex items-center gap-1.5">
-            <span>શ્રીજી ડિસ્પેચ હબ</span>
-            <Sparkles className="w-4 h-4 text-amber-400" />
-          </h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-base font-black text-white font-display flex items-center gap-1.5">
+              <span>શ્રીજી ડિસ્પેચ હબ</span>
+              <Sparkles className="w-4 h-4 text-amber-400" />
+            </h2>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              LIVE 8089
+            </span>
+          </div>
           <p className="text-xs font-semibold text-slate-300 mt-0.5">
-            કવર પ્રિન્ટ અને રૂટ મેનેજમેન્ટ
+            કવર પ્રિન્ટ, રૂટ ટ્રેકિંગ અને ડિસ્પેચ
           </p>
         </div>
         <button
@@ -76,74 +82,98 @@ export const MobileHome: React.FC<MobileHomeProps> = ({ onNavigate }) => {
         </button>
       </div>
 
-      {/* 2. STATS ROW */}
+      {/* 2. STATS ROW (2x2 GRID WITH GLOWING ACCENTS) */}
       <div className="grid grid-cols-2 gap-2.5">
         {/* Parties Card */}
         <div 
           onClick={() => onNavigate('parties')}
-          className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 shadow-md flex items-center gap-3 active:scale-95 transition-all cursor-pointer"
+          className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 shadow-md flex items-center gap-3 active:scale-95 transition-all cursor-pointer hover:border-blue-500/40"
         >
           <div className="w-11 h-11 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 flex-shrink-0">
             <Users className="w-6 h-6" />
           </div>
           <div>
             <div className="text-[11px] font-bold text-slate-400">કુલ પાર્ટીઓ</div>
-            <div className="text-xl font-black text-white">
+            <div className="text-xl font-black text-white font-display">
               {data?.metrics?.total_parties?.toLocaleString('en-IN') ?? '1,836'}
             </div>
-            <div className="text-[10px] text-blue-400 font-semibold">100% સિંક</div>
+            <div className="text-[10px] text-blue-400 font-semibold font-mono">100% સિંક</div>
           </div>
         </div>
 
         {/* Envelopes Printed */}
         <div 
           onClick={() => onNavigate('history')}
-          className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 shadow-md flex items-center gap-3 active:scale-95 transition-all cursor-pointer"
+          className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 shadow-md flex items-center gap-3 active:scale-95 transition-all cursor-pointer hover:border-emerald-500/40"
         >
           <div className="w-11 h-11 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 flex-shrink-0">
             <Printer className="w-6 h-6" />
           </div>
           <div>
             <div className="text-[11px] font-bold text-slate-400">પ્રિન્ટેડ કવર</div>
-            <div className="text-xl font-black text-emerald-400">
+            <div className="text-xl font-black text-emerald-400 font-display">
               {data?.metrics?.total_envelopes_printed ?? 0}
             </div>
-            <div className="text-[10px] text-emerald-300 font-semibold">કુલ ડિસ્પેચ</div>
+            <div className="text-[10px] text-emerald-300 font-semibold font-mono">કુલ ડિસ્પેચ</div>
           </div>
         </div>
 
         {/* Today's Cases */}
         <div 
           onClick={() => onNavigate('dispatch')}
-          className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 shadow-md flex items-center gap-3 active:scale-95 transition-all cursor-pointer"
+          className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 shadow-md flex items-center gap-3 active:scale-95 transition-all cursor-pointer hover:border-amber-500/40"
         >
           <div className="w-11 h-11 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 flex-shrink-0">
             <Package className="w-6 h-6" />
           </div>
           <div>
             <div className="text-[11px] font-bold text-slate-400">આજના કેસ</div>
-            <div className="text-xl font-black text-amber-300">
+            <div className="text-xl font-black text-amber-300 font-display">
               {data?.metrics?.total_cases ?? 0}
             </div>
-            <div className="text-[10px] text-amber-400 font-semibold">દવા અને બોટલ</div>
+            <div className="text-[10px] text-amber-400 font-semibold font-mono">દવા અને બોટલ</div>
           </div>
         </div>
 
         {/* Pending POD */}
         <div 
           onClick={() => onNavigate('driver')}
-          className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 shadow-md flex items-center gap-3 active:scale-95 transition-all cursor-pointer"
+          className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 shadow-md flex items-center gap-3 active:scale-95 transition-all cursor-pointer hover:border-purple-500/40"
         >
           <div className="w-11 h-11 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 flex-shrink-0">
             <Truck className="w-6 h-6" />
           </div>
           <div>
             <div className="text-[11px] font-bold text-slate-400">ડ્રાઈવર POD</div>
-            <div className="text-xl font-black text-purple-300">
+            <div className="text-xl font-black text-purple-300 font-display">
               {data?.print_summary?.pending ?? 0}
             </div>
-            <div className="text-[10px] text-purple-400 font-semibold">ડિલિવરી ટ્રેક</div>
+            <div className="text-[10px] text-purple-400 font-semibold font-mono">ડિલિવરી ટ્રેક</div>
           </div>
+        </div>
+      </div>
+
+      {/* Google Stitch Feature: Live Route Dispatch & GPS Telemetry Card */}
+      <div 
+        onClick={() => onNavigate('map')}
+        className="bg-slate-900 border border-blue-500/30 rounded-2xl p-3.5 shadow-lg flex items-center justify-between gap-3 cursor-pointer active:scale-[0.98] transition-all hover:border-blue-400/50"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 flex-shrink-0">
+            <MapPin className="w-5 h-5 text-blue-400 animate-bounce" />
+          </div>
+          <div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-black text-white font-display">લાઇવ જીપીએસ રૂટ મેપ</span>
+              <span className="badge-emerald font-mono">8 ROUTES</span>
+            </div>
+            <p className="text-[11px] text-slate-300 font-medium">
+              વાહન ટ્રેકિંગ અને પાર્ટી લોકેશન જુઓ
+            </p>
+          </div>
+        </div>
+        <div className="p-2 rounded-xl bg-slate-800 text-blue-400 border border-slate-700">
+          <ArrowRight className="w-4 h-4" />
         </div>
       </div>
 

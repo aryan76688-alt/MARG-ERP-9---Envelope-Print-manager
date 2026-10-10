@@ -179,9 +179,9 @@ export const MobileApkLayout: React.FC<MobileApkLayoutProps> = ({
         {children}
       </main>
 
-      {/* 3. NATIVE BOTTOM NAVIGATION BAR */}
-      <nav className="relative z-30 bg-slate-900/95 backdrop-blur-md border-t border-slate-800/90 px-2 pt-2 pb-[max(env(safe-area-inset-bottom),10px)] flex-shrink-0 shadow-2xl">
-        <div className="grid grid-cols-5 gap-1 items-end max-w-md mx-auto">
+      {/* 3. NATIVE FLOATING BOTTOM NAVIGATION DOCK */}
+      <nav className="relative z-30 px-3 pb-[max(env(safe-area-inset-bottom),8px)] pt-1 flex-shrink-0">
+        <div className="bg-slate-900/95 backdrop-blur-xl border border-slate-800/90 rounded-2xl px-2 py-1.5 shadow-2xl max-w-md mx-auto grid grid-cols-5 gap-1 items-center">
           {navTabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = currentTab === tab.id;
@@ -192,20 +192,20 @@ export const MobileApkLayout: React.FC<MobileApkLayoutProps> = ({
                 <button
                   key={tab.id}
                   onClick={() => handleTabClick(tab.id)}
-                  className="flex flex-col items-center justify-center -mt-5 group"
+                  className="flex flex-col items-center justify-center -mt-6 group"
                 >
                   <div className={`w-14 h-14 rounded-2xl flex flex-col items-center justify-center shadow-xl transition-all active:scale-90 ${
                     isActive 
                       ? 'bg-gradient-to-tr from-blue-600 via-indigo-600 to-blue-500 text-white ring-4 ring-blue-500/40 shadow-blue-500/50' 
-                      : 'bg-gradient-to-tr from-blue-700 via-indigo-700 to-blue-600 text-white ring-2 ring-blue-400/30 shadow-blue-900/40 hover:brightness-110'
+                      : 'bg-gradient-to-tr from-blue-600 to-indigo-600 text-white ring-2 ring-blue-400/40 shadow-lg shadow-blue-900/40 hover:brightness-110'
                   }`}>
                     <Icon className="w-6 h-6 text-white" />
                     <span className="text-[10px] font-black tracking-tight text-amber-300">
                       પ્રિન્ટ
                     </span>
                   </div>
-                  <span className="text-[10px] font-extrabold text-blue-400 mt-0.5">
-                    1-ટેપ
+                  <span className="text-[9px] font-extrabold text-blue-400 mt-0.5 font-mono">
+                    1-TAP
                   </span>
                 </button>
               );
@@ -215,18 +215,18 @@ export const MobileApkLayout: React.FC<MobileApkLayoutProps> = ({
               <button
                 key={tab.id}
                 onClick={() => handleTabClick(tab.id)}
-                className={`flex flex-col items-center justify-center py-1.5 px-1 rounded-xl transition-all active:scale-95 ${
+                className={`flex flex-col items-center justify-center py-1 px-1 rounded-xl transition-all active:scale-95 ${
                   isActive
                     ? 'text-blue-400 font-black'
                     : 'text-slate-400 hover:text-slate-200 font-medium'
                 }`}
               >
-                <div className={`p-1 rounded-lg transition-all ${
-                  isActive ? 'bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/30' : ''
+                <div className={`p-1.5 rounded-xl transition-all ${
+                  isActive ? 'bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/40' : ''
                 }`}>
                   <Icon className="w-5 h-5" />
                 </div>
-                <span className="text-[11px] leading-tight mt-0.5 font-bold">
+                <span className="text-[10px] leading-tight mt-0.5 font-bold">
                   {tab.label}
                 </span>
                 <span className="text-[8px] text-slate-500 leading-none">

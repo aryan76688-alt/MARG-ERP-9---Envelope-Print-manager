@@ -142,25 +142,28 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-slate-100 font-sans">
-      {/* 1. Left Sidebar: Dark Navy */}
-      <aside className="hidden md:flex md:w-64 flex-col bg-slate-900 border-r border-slate-800 text-slate-200 select-none z-20 flex-shrink-0">
+      {/* 1. Left Sidebar: Dark Navy Executive Dock */}
+      <aside className="hidden md:flex md:w-64 flex-col bg-slate-900 border-r border-slate-800 text-slate-200 select-none z-20 flex-shrink-0 shadow-xl">
         {/* Brand Logo Header */}
-        <div className="h-16 flex items-center px-5 gap-3 border-b border-slate-800/80 bg-slate-950/40">
-          <div className="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center font-black text-white text-lg shadow-md shadow-blue-500/20">
+        <div className="h-16 flex items-center px-5 gap-3 border-b border-slate-800/80 bg-slate-950/60">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center font-black text-white text-lg shadow-lg shadow-blue-500/25 border border-blue-400/30">
             <Printer className="w-5 h-5 text-white" />
           </div>
           <div className="flex flex-col">
-            <span className="font-extrabold text-base tracking-wider text-white flex items-center gap-1">
-              Envelope Print
+            <span className="font-extrabold text-base tracking-wider text-white font-display flex items-center gap-1.5">
+              <span>MARG ERP 9</span>
+              <span className="text-[10px] font-black uppercase px-1.5 py-0.2 rounded bg-blue-500/20 text-blue-400 border border-blue-400/30">
+                PRO
+              </span>
             </span>
-            <span className="text-xs text-slate-400 font-medium tracking-wide">Dispatch Manager</span>
+            <span className="text-xs text-slate-400 font-medium tracking-wide">Envelope Manager</span>
           </div>
         </div>
 
         {/* Navigation Menu */}
-        <nav className="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto">
-          <div className="px-3 pb-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-            Main Navigation
+        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+          <div className="px-3 pb-2 text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">
+            Executive Modules
           </div>
           {navItems.map((item) => {
             const Icon = item.icon;
@@ -170,13 +173,13 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
               <button
                 key={item.id}
                 onClick={() => setCurrentTab(item.id)}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-semibold transition-all duration-150 ${
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all duration-150 ${
                   isActive
                     ? isPrint
-                      ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 text-white shadow-lg shadow-blue-500/40 ring-2 ring-blue-400/80 font-black'
-                      : 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
+                      ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 text-white shadow-lg shadow-blue-500/40 ring-1 ring-blue-400/80 font-black'
+                      : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/30 font-bold'
                     : isPrint
-                    ? 'bg-gradient-to-r from-blue-950/90 via-indigo-950/80 to-blue-900/90 text-white border border-blue-500/60 shadow-md shadow-blue-950/50 hover:border-blue-400 hover:from-blue-900 hover:to-indigo-900 font-extrabold ring-1 ring-blue-500/30'
+                    ? 'bg-gradient-to-r from-blue-950/70 via-indigo-950/60 to-blue-900/70 text-slate-100 border border-blue-500/50 shadow-sm hover:border-blue-400 hover:from-blue-900 font-bold'
                     : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
                 }`}
               >
@@ -194,19 +197,19 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
           })}
         </nav>
 
-        {/* Sidebar Footer System Info */}
-        <div className="p-4 border-t border-slate-800 bg-slate-950/40 text-xs text-slate-400 space-y-2.5">
+        {/* Sidebar Footer System Info & Telemetry */}
+        <div className="p-4 border-t border-slate-800 bg-slate-950/60 text-xs text-slate-400 space-y-2.5">
           <div className="flex items-center justify-between font-medium">
-            <span>System Status</span>
-            <span className="inline-flex items-center gap-1.5 text-emerald-400 text-xs font-semibold">
+            <span className="font-mono text-[11px] text-slate-400">ERP Sync Telemetry</span>
+            <span className="inline-flex items-center gap-1.5 text-emerald-400 text-[11px] font-bold">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              Connected
+              Port 8089 LIVE
             </span>
           </div>
           <div className="flex items-center justify-between text-xs text-slate-400 font-medium">
-            <span>PIN Code Policy</span>
-            <span className="text-slate-400 bg-slate-800/80 px-2 py-0.5 rounded text-[11px] font-medium border border-slate-700/60">
-              Disabled
+            <span className="text-[11px]">Active Engine</span>
+            <span className="text-blue-400 bg-blue-950/60 px-2 py-0.5 rounded text-[10px] font-mono font-bold border border-blue-800/60">
+              Stitch Executive
             </span>
           </div>
         </div>
@@ -293,13 +296,17 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
             </button>
 
             <div className="min-w-0">
-              <div className="flex items-center gap-2 truncate">
-                <h1 className="text-sm sm:text-lg font-black text-slate-900 tracking-tight truncate">
+              <div className="flex items-center gap-2.5 truncate">
+                <h1 className="text-sm sm:text-lg font-black text-slate-900 tracking-tight truncate font-display">
                   {activeTitle}
                 </h1>
+                <span className="hidden sm:inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold font-mono bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  ERP: LIVE 8089
+                </span>
               </div>
               <p className="text-xs text-slate-500 font-medium hidden sm:block truncate">
-                Professional Envelope Dispatch & Print Manager
+                MARG ERP 9 • Professional Envelope Dispatch & Print Manager
               </p>
             </div>
           </div>
