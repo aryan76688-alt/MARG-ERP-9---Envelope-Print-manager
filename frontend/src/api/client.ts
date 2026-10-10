@@ -1149,3 +1149,32 @@ export async function downloadRouteErrorReport(errors: RouteSyncErrorItem[]): Pr
   window.URL.revokeObjectURL(url);
 }
 
+export function getN8nWebhookUrl(): string {
+  return `${API_BASE}/webhooks/n8n/sheets-update`;
+}
+
+export async function fetchN8nWebhookInfo(): Promise<any> {
+  const res = await fetchApi(`${API_BASE}/webhooks/n8n/info`);
+  if (!res.ok) throw new Error('Failed to fetch n8n webhook info');
+  return res.json();
+}
+
+export async function fetchN8nWorkflowTemplate(): Promise<any> {
+  const res = await fetchApi(`${API_BASE}/webhooks/n8n/workflow-template`);
+  if (!res.ok) throw new Error('Failed to fetch n8n workflow template');
+  return res.json();
+}
+
+export async function testN8nWebhook(payload: any): Promise<any> {
+  const res = await fetchApi(`${API_BASE}/webhooks/n8n/sheets-update`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Webhook test failed' }));
+    throw new Error(err.detail || 'Webhook test failed');
+  }
+  return res.json();
+}
+

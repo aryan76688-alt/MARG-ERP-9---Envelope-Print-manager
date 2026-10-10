@@ -3,7 +3,7 @@ import io
 import json
 import datetime
 from typing import Optional, List, Dict, Any
-from fastapi import FastAPI, Depends, HTTPException, Query, UploadFile, File, Form, status, Response
+from fastapi import FastAPI, Depends, HTTPException, Query, UploadFile, File, Form, status, Response, Request, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse, FileResponse
@@ -336,6 +336,8 @@ class RouteUpdateItem(BaseModel):
     route_1_gu: Optional[str] = None
     route_2_gu: Optional[str] = None
     route_3_gu: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
 
 class BatchUpdateRoutesRequest(BaseModel):
     updates: List[RouteUpdateItem]
@@ -1149,20 +1151,22 @@ def delete_party(party_id: int, db: Session = Depends(get_db)):
 def export_routes_template(db: Session = Depends(get_db)):
     """
     Exports a CSV template with columns:
-    party_code, party_name, primary_route_1, secondary_route_2, third_route_3
+    party_code, party_name, primary_route_1, secondary_route_2, third_route_3, latitude, longitude
     pre-filled with all parties for easy editing in Google Sheets.
     """
     parties = db.query(Party).filter(Party.is_active == True).order_by(Party.party_name.asc()).all()
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["party_code", "party_name", "primary_route_1", "secondary_route_2", "third_route_3"])
+    writer.writerow(["party_code", "party_name", "primary_route_1", "secondary_route_2", "third_route_3", "latitude", "longitude"])
     for p in parties:
         writer.writerow([
             p.party_code or "",
             p.party_name,
             p.route_1 or p.route or "",
             p.route_2 or "",
-            p.route_3 or ""
+            p.route_3 or "",
+            p.latitude if getattr(p, "latitude", None) is not None else "",
+            p.longitude if getattr(p, "longitude", None) is not None else ""
         ])
     csv_bytes = output.getvalue().encode("utf-8")
     return Response(
@@ -1202,6 +1206,14 @@ def batch_update_routes(req: BatchUpdateRoutesRequest, db: Session = Depends(get
         party.route_2_gu = r2_gu
         party.route_3_gu = r3_gu
         party.route = r1 or r2 or r3 or party.route
+
+        if item.latitude is not None:
+            party.latitude = item.latitude
+            party.geofence_set_at = datetime.datetime.utcnow()
+        if item.longitude is not None:
+            party.longitude = item.longitude
+            party.geofence_set_at = datetime.datetime.utcnow()
+
         updated_count += 1
 
     db.commit()
@@ -1342,6 +1354,8 @@ def process_route_matrix(values: List[List[Any]], db: Session, spreadsheet_id: O
     r1_idx = None
     r2_idx = None
     r3_idx = None
+    lat_idx = None
+    lng_idx = None
 
     for idx, col in enumerate(header):
         norm = re.sub(r"[^a-z0-9]", "", str(col).lower())
@@ -1355,6 +1369,10 @@ def process_route_matrix(values: List[List[Any]], db: Session, spreadsheet_id: O
             r2_idx = idx
         elif norm in ["thirdroute3", "thirdroute", "route3", "r3", "routethree"]:
             r3_idx = idx
+        elif norm in ["latitude", "lat", "geolat", "gpslat", "latdeg", "latitudedeg"]:
+            lat_idx = idx
+        elif norm in ["longitude", "long", "lng", "lon", "geolong", "gpslong", "longdeg", "lngdeg", "longitudedeg"]:
+            lng_idx = idx
 
     # Positional fallback
     if code_idx is None and len(header) >= 1:
@@ -1392,6 +1410,8 @@ def process_route_matrix(values: List[List[Any]], db: Session, spreadsheet_id: O
         raw_r1 = str(row[r1_idx]).strip() if r1_idx is not None and r1_idx < len(row) else ""
         raw_r2 = str(row[r2_idx]).strip() if r2_idx is not None and r2_idx < len(row) else ""
         raw_r3 = str(row[r3_idx]).strip() if r3_idx is not None and r3_idx < len(row) else ""
+        raw_lat = str(row[lat_idx]).strip() if lat_idx is not None and lat_idx < len(row) else ""
+        raw_lng = str(row[lng_idx]).strip() if lng_idx is not None and lng_idx < len(row) else ""
 
         norm_name = re.sub(r"\s+", " ", raw_name.strip().upper()) if raw_name else ""
         norm_code = raw_code.strip().upper() if raw_code else ""
@@ -1436,6 +1456,25 @@ def process_route_matrix(values: List[List[Any]], db: Session, spreadsheet_id: O
         party.route_2_gu = translate_route_to_gujarati(p_r2)
         party.route_3_gu = translate_route_to_gujarati(p_r3)
         party.route = p_r1 or p_r2 or p_r3 or party.route
+
+        # Update GPS coordinates if present in spreadsheet
+        if raw_lat:
+            try:
+                parsed_lat = float(raw_lat)
+                if -90 <= parsed_lat <= 90:
+                    party.latitude = parsed_lat
+                    party.geofence_set_at = datetime.datetime.utcnow()
+            except (ValueError, TypeError):
+                pass
+
+        if raw_lng:
+            try:
+                parsed_lng = float(raw_lng)
+                if -180 <= parsed_lng <= 180:
+                    party.longitude = parsed_lng
+                    party.geofence_set_at = datetime.datetime.utcnow()
+            except (ValueError, TypeError):
+                pass
 
         updated_count += 1
 
@@ -1599,6 +1638,299 @@ def export_route_error_report(req: ErrorReportRequest):
     )
 
 # ==========================================
+# n8n WEBHOOK & REAL-TIME SHEETS AUTOMATION
+# ==========================================
+
+@app.get("/api/webhooks/n8n/info")
+def get_n8n_webhook_info():
+    """Returns documentation, supported fields, and sample payload for n8n Google Sheets automation."""
+    return {
+        "status": "online",
+        "service": "MARG Envelope Manager n8n Webhook Hub",
+        "webhook_url": "/api/webhooks/n8n/sheets-update",
+        "method": "POST",
+        "description": "Receives real-time Google Sheets edits or row additions via n8n. Instantly updates party GPS coordinates, routes, and contact details.",
+        "supported_fields": {
+            "required": ["party_name or party_code"],
+            "gps_coordinates": ["latitude (e.g. 23.1685)", "longitude (e.g. 72.8126)"],
+            "routes": ["primary_route_1", "secondary_route_2", "third_route_3"],
+            "address_fields": ["address", "address_line_2", "address_line_3", "city", "state"],
+            "contact_fields": ["mobile_no", "landline", "email", "gst_no", "notes"]
+        },
+        "sample_payload": {
+            "party_name": "JODHPUR MEDICOSE",
+            "party_code": "P0001",
+            "primary_route_1": "RAJASTHAN ROUTE",
+            "secondary_route_2": "CITY MAIN ROUTE",
+            "third_route_3": "",
+            "latitude": 26.2389,
+            "longitude": 73.0243,
+            "address": "SHREE MOHANGADH, NEAR STN ROAD",
+            "city": "JODHPUR",
+            "state": "RAJASTHAN",
+            "mobile_no": "9829012345"
+        }
+    }
+
+@app.get("/api/webhooks/n8n/workflow-template")
+def get_n8n_workflow_template():
+    """Returns the ready-to-import n8n workflow JSON structure for Google Sheets real-time trigger."""
+    n8n_json_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "n8n-google-sheets-auto-sync.json")
+    if os.path.exists(n8n_json_path):
+        try:
+            with open(n8n_json_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    # Fallback inline workflow template
+    return {
+        "name": "MARG Envelope Manager - Google Sheets Real-Time Sync",
+        "nodes": [
+            {
+                "parameters": {
+                    "pollTimes": { "item": [{ "mode": "everyMinute" }] },
+                    "documentId": { "__rl": True, "value": "SPREADSHEET_ID_HERE", "mode": "id" },
+                    "sheetName": { "__rl": True, "value": "Routes", "mode": "name" },
+                    "event": "rowAddedOrUpdated"
+                },
+                "id": "1",
+                "name": "Google Sheets Trigger",
+                "type": "n8n-nodes-base.googleSheetsTrigger",
+                "typeVersion": 1,
+                "position": [250, 300]
+            },
+            {
+                "parameters": {
+                    "method": "POST",
+                    "url": "https://marg-envelope-manager-production.up.railway.app/api/webhooks/n8n/sheets-update",
+                    "sendBody": True,
+                    "contentType": "json",
+                    "body": "={{ $json }}"
+                },
+                "id": "2",
+                "name": "HTTP Request (MARG Webhook)",
+                "type": "n8n-nodes-base.httpRequest",
+                "typeVersion": 4.2,
+                "position": [500, 300]
+            }
+        ],
+        "connections": {
+            "Google Sheets Trigger": {
+                "main": [[{ "node": "HTTP Request (MARG Webhook)", "type": "main", "index": 0 }]]
+            }
+        }
+    }
+
+@app.post("/api/webhooks/n8n/sheets-update")
+@app.post("/api/webhooks/n8n/parties")
+async def n8n_sheets_webhook_update(request: Request, db: Session = Depends(get_db)):
+    """
+    Real-time webhook receiver for n8n and Google Sheets integrations.
+    Whenever any row is edited or created in Google Sheets, n8n sends a POST request here
+    to immediately update party GPS coordinates (Latitude & Longitude), routes, and party details.
+    """
+    try:
+        raw_body = await request.json()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid JSON payload: {str(e)}")
+
+    # Normalize input: support single object, list of objects, or wrapped under 'rows', 'data', or 'items'
+    items = []
+    if isinstance(raw_body, list):
+        items = raw_body
+    elif isinstance(raw_body, dict):
+        if "rows" in raw_body and isinstance(raw_body["rows"], list):
+            items = raw_body["rows"]
+        elif "data" in raw_body and isinstance(raw_body["data"], list):
+            items = raw_body["data"]
+        elif "items" in raw_body and isinstance(raw_body["items"], list):
+            items = raw_body["items"]
+        else:
+            items = [raw_body]
+    else:
+        raise HTTPException(status_code=400, detail="Expected JSON object or array of objects")
+
+    updated_count = 0
+    created_count = 0
+    results = []
+
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+
+        # Flexible key normalization: allow 'Party Name', 'party_name', 'PartyName', 'LATITUDE', 'lat', etc.
+        norm_map = {}
+        for k, v in item.items():
+            clean_k = re.sub(r"[^a-z0-9]", "", str(k).lower())
+            norm_map[clean_k] = v
+
+        def get_field(*keys):
+            for key in keys:
+                ck = re.sub(r"[^a-z0-9]", "", key.lower())
+                if ck in norm_map and norm_map[ck] is not None:
+                    s_val = str(norm_map[ck]).strip()
+                    if s_val != "":
+                        return s_val
+            return None
+
+        p_name = get_field("party_name", "partyname", "party", "name", "customername", "ledgername")
+        p_code = get_field("party_code", "partycode", "code", "pcode", "id", "customercode")
+
+        if not p_name and not p_code:
+            continue
+
+        p_r1 = get_field("primary_route_1", "route_1", "primaryroute1", "route1", "r1", "route", "deliveryroute")
+        p_r2 = get_field("secondary_route_2", "route_2", "secondaryroute2", "route2", "r2")
+        p_r3 = get_field("third_route_3", "route_3", "thirdroute3", "route3", "r3")
+
+        p_lat_raw = get_field("latitude", "lat", "geolat", "gpslat", "latitude_deg", "lat_deg", "latitudedeg")
+        p_lng_raw = get_field("longitude", "long", "lng", "lon", "geolong", "gpslong", "longitude_deg", "long_deg", "lng_deg", "longitudedeg")
+
+        p_addr = get_field("address", "address_1", "addressline1", "addr1")
+        p_addr2 = get_field("address_line_2", "addressline2", "addr2")
+        p_addr3 = get_field("address_line_3", "addressline3", "addr3")
+        p_city = get_field("city", "town", "station")
+        p_state = get_field("state", "province")
+        p_mob = get_field("mobile_no", "mobile", "phone", "contact")
+        p_land = get_field("landline", "phone2", "officephone")
+        p_email = get_field("email", "mail")
+        p_gst = get_field("gst_no", "gst", "gstin")
+        p_notes = get_field("notes", "remarks", "comment")
+
+        # Parse Lat / Lng
+        p_lat = None
+        p_lng = None
+        if p_lat_raw:
+            try:
+                v = float(p_lat_raw)
+                if -90 <= v <= 90:
+                    p_lat = v
+            except (ValueError, TypeError):
+                pass
+
+        if p_lng_raw:
+            try:
+                v = float(p_lng_raw)
+                if -180 <= v <= 180:
+                    p_lng = v
+            except (ValueError, TypeError):
+                pass
+
+        # Match party in database
+        party = None
+        if p_code:
+            party = db.query(Party).filter(func.upper(Party.party_code) == p_code.upper()).first()
+        if not party and p_name:
+            party = db.query(Party).filter(func.upper(Party.party_name) == p_name.upper()).first()
+        if not party and p_name:
+            party = db.query(Party).filter(Party.party_name.ilike(f"%{p_name}%")).first()
+
+        if party:
+            # Update existing party
+            if p_name: party.party_name = p_name
+            if p_code and (not party.party_code or p_code.upper().startswith("MARG")):
+                party.party_code = p_code.upper()
+            if p_addr: party.address = p_addr
+            if p_addr2 is not None: party.address_line_2 = p_addr2
+            if p_addr3 is not None: party.address_line_3 = p_addr3
+            if p_city: party.city = p_city
+            if p_state: party.state = p_state
+            if p_mob is not None: party.mobile_no = p_mob
+            if p_land is not None: party.landline = p_land
+            if p_email is not None: party.email = p_email
+            if p_gst is not None: party.gst_no = p_gst
+            if p_notes is not None: party.notes = p_notes
+
+            # Routes
+            if p_r1 is not None:
+                party.route_1 = p_r1.upper() if p_r1 else None
+                party.route_1_gu = translate_route_to_gujarati(p_r1.upper() if p_r1 else None)
+            if p_r2 is not None:
+                party.route_2 = p_r2.upper() if p_r2 else None
+                party.route_2_gu = translate_route_to_gujarati(p_r2.upper() if p_r2 else None)
+            if p_r3 is not None:
+                party.route_3 = p_r3.upper() if p_r3 else None
+                party.route_3_gu = translate_route_to_gujarati(p_r3.upper() if p_r3 else None)
+            if p_r1 or p_r2 or p_r3:
+                party.route = party.route_1 or party.route_2 or party.route_3
+
+            # GPS Coordinates
+            if p_lat is not None:
+                party.latitude = p_lat
+                party.geofence_set_at = datetime.datetime.utcnow()
+            if p_lng is not None:
+                party.longitude = p_lng
+                party.geofence_set_at = datetime.datetime.utcnow()
+
+            updated_count += 1
+            results.append({
+                "id": party.id,
+                "party_name": party.party_name,
+                "party_code": party.party_code,
+                "latitude": party.latitude,
+                "longitude": party.longitude,
+                "route": party.route_1 or party.route,
+                "status": "updated"
+            })
+        else:
+            # Create new party if party_name is present
+            if not p_name:
+                continue
+
+            new_code = p_code.upper() if p_code else get_next_party_code(db)
+            r1_val = p_r1.upper() if p_r1 else None
+            r2_val = p_r2.upper() if p_r2 else None
+            r3_val = p_r3.upper() if p_r3 else None
+
+            party = Party(
+                party_name=p_name,
+                party_code=new_code,
+                address=p_addr or "DAHEGAM",
+                address_line_2=p_addr2,
+                address_line_3=p_addr3,
+                city=p_city or "DAHEGAM",
+                state=p_state or "GUJARAT",
+                mobile_no=p_mob,
+                landline=p_land,
+                email=p_email,
+                gst_no=p_gst,
+                notes=p_notes,
+                route_1=r1_val,
+                route_2=r2_val,
+                route_3=r3_val,
+                route_1_gu=translate_route_to_gujarati(r1_val),
+                route_2_gu=translate_route_to_gujarati(r2_val),
+                route_3_gu=translate_route_to_gujarati(r3_val),
+                route=r1_val or r2_val or r3_val,
+                latitude=p_lat,
+                longitude=p_lng,
+                geofence_set_at=datetime.datetime.utcnow() if (p_lat is not None or p_lng is not None) else None,
+                is_active=True
+            )
+            db.add(party)
+            db.flush()
+            created_count += 1
+            results.append({
+                "id": party.id,
+                "party_name": party.party_name,
+                "party_code": party.party_code,
+                "latitude": party.latitude,
+                "longitude": party.longitude,
+                "route": party.route_1 or party.route,
+                "status": "created"
+            })
+
+    db.commit()
+
+    return {
+        "success": True,
+        "message": f"Processed {len(items)} row(s): {updated_count} updated, {created_count} created",
+        "updated_count": updated_count,
+        "created_count": created_count,
+        "parties": results
+    }
+
+# ==========================================
 # 3. EXCEL IMPORT & VALIDATION
 # ==========================================
 
@@ -1717,6 +2049,26 @@ def confirm_import(req: ConfirmImportRequest, db: Session = Depends(get_db)):
         gst = (r.get("gst_no") or "").strip().upper() or None
         notes = (r.get("notes") or "").strip() or None
 
+        # GPS Coordinates (Latitude & Longitude)
+        lat = None
+        lng = None
+        raw_lat = r.get("latitude")
+        raw_lng = r.get("longitude")
+        if raw_lat is not None and str(raw_lat).strip() != "":
+            try:
+                v = float(str(raw_lat).strip())
+                if -90 <= v <= 90:
+                    lat = v
+            except (ValueError, TypeError):
+                pass
+        if raw_lng is not None and str(raw_lng).strip() != "":
+            try:
+                v = float(str(raw_lng).strip())
+                if -180 <= v <= 180:
+                    lng = v
+            except (ValueError, TypeError):
+                pass
+
         # Smart address fallback if addr (line 1) is empty
         if not addr:
             if addr2:
@@ -1771,6 +2123,10 @@ def confirm_import(req: ConfirmImportRequest, db: Session = Depends(get_db)):
                     if email: existing_party.email = email
                     if gst: existing_party.gst_no = gst
                     if notes: existing_party.notes = notes
+                    if lat is not None: existing_party.latitude = lat
+                    if lng is not None: existing_party.longitude = lng
+                    if lat is not None or lng is not None:
+                        existing_party.geofence_set_at = datetime.datetime.utcnow()
                     updated_count += 1
                     updated_parties.append({
                         "party_name": name,
@@ -1796,6 +2152,9 @@ def confirm_import(req: ConfirmImportRequest, db: Session = Depends(get_db)):
             email=email,
             gst_no=gst,
             notes=notes,
+            latitude=lat,
+            longitude=lng,
+            geofence_set_at=datetime.datetime.utcnow() if (lat is not None or lng is not None) else None,
             is_active=True
         )
         db.add(new_party)

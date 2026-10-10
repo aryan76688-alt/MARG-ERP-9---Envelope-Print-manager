@@ -1,0 +1,96 @@
+{
+  "name": "MARG Envelope Manager - Google Sheets Real-Time Sync",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "documentId": {
+          "__rl": true,
+          "value": "1nZ_B6HBDjTDcLey5x1784b2o8r0nKweafWVUY8JW0wg",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Routes",
+          "mode": "name"
+        },
+        "event": "rowAddedOrUpdated",
+        "options": {
+          "dataMode": "autoMapInputData"
+        }
+      },
+      "id": "e4b1029c-50f9-4d6d-88f9-2b0e9b986812",
+      "name": "Google Sheets Trigger (On Row Update)",
+      "type": "n8n-nodes-base.googleSheetsTrigger",
+      "typeVersion": 1,
+      "position": [
+        260,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://marg-envelope-manager-production.up.railway.app/api/webhooks/n8n/sheets-update",
+        "sendBody": true,
+        "contentType": "json",
+        "body": "={\n  \"party_name\": {{ $json[\"party_name\"] || $json[\"Party Name\"] || $json[\"name\"] || \"\" }},\n  \"party_code\": {{ $json[\"party_code\"] || $json[\"Party Code\"] || $json[\"code\"] || \"\" }},\n  \"primary_route_1\": {{ $json[\"primary_route_1\"] || $json[\"Primary Route 1\"] || $json[\"route_1\"] || $json[\"route\"] || \"\" }},\n  \"secondary_route_2\": {{ $json[\"secondary_route_2\"] || $json[\"Secondary Route 2\"] || $json[\"route_2\"] || \"\" }},\n  \"third_route_3\": {{ $json[\"third_route_3\"] || $json[\"Third Route 3\"] || $json[\"route_3\"] || \"\" }},\n  \"latitude\": {{ $json[\"latitude\"] || $json[\"Latitude\"] || $json[\"lat\"] || null }},\n  \"longitude\": {{ $json[\"longitude\"] || $json[\"Longitude\"] || $json[\"long\"] || $json[\"lng\"] || null }},\n  \"address\": {{ $json[\"address\"] || $json[\"Address\"] || \"\" }},\n  \"city\": {{ $json[\"city\"] || $json[\"City\"] || \"\" }},\n  \"mobile_no\": {{ $json[\"mobile_no\"] || $json[\"Mobile No.\"] || $json[\"mobile\"] || \"\" }}\n}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "94e8233f-fdf3-4c90-95b8-d25396a84f3c",
+      "name": "HTTP Request (MARG Envelope Webhook)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        520,
+        340
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Google Sheets Trigger (On Row Update)": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request (MARG Envelope Webhook)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "b18ca7e8-4660-4966-9df2-bb79469e77fa",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "marg-envelope-manager-n8n"
+  },
+  "tags": [
+    {
+      "name": "MARG-ERP-9"
+    },
+    {
+      "name": "Google-Sheets"
+    },
+    {
+      "name": "GPS-Latitude-Longitude"
+    }
+  ]
+}

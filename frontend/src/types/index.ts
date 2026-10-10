@@ -91,6 +91,8 @@ export interface RouteBatchUpdateItem {
   route_1_gu?: string;
   route_2_gu?: string;
   route_3_gu?: string;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 export interface RouteSyncErrorItem {

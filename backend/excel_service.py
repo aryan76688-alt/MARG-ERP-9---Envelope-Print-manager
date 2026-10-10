@@ -64,6 +64,12 @@ MARG_COLUMN_ALIASES: Dict[str, List[str]] = {
     ],
     "notes": [
         "notes", "remark", "remarks", "dispatch instruction", "comment", "description", "narration"
+    ],
+    "latitude": [
+        "latitude", "lat", "lat.", "geo lat", "gps lat", "latitude (deg)", "latitude deg", "latitude coordinate", "lat coordinate"
+    ],
+    "longitude": [
+        "longitude", "long", "lng", "lon", "geo long", "gps long", "long.", "lng.", "longitude (deg)", "longitude deg", "long coordinate", "lng coordinate"
     ]
 }
 
@@ -75,7 +81,7 @@ def clean_header(h: Any) -> str:
 def detect_column_mappings(headers: List[str]) -> Dict[str, Optional[str]]:
     """
     Automatically detects best-matching column headers for MARG ERP party imports.
-    Supports Route and all 3 address lines (address, address_line_2, address_line_3).
+    Supports Route, all 3 address lines (address, address_line_2, address_line_3), and GPS coordinates (latitude, longitude).
     Strictly ignores and excludes any PIN code / Postal code columns.
     """
     mapping: Dict[str, Optional[str]] = {
@@ -91,7 +97,9 @@ def detect_column_mappings(headers: List[str]) -> Dict[str, Optional[str]]:
         "landline": None,
         "email": None,
         "gst_no": None,
-        "notes": None
+        "notes": None,
+        "latitude": None,
+        "longitude": None
     }
     
     used_headers = set()
@@ -391,6 +399,31 @@ def validate_imported_rows(
         email = get_val("email")
         gst_no = get_val("gst_no")
         notes = get_val("notes")
+        raw_lat = get_val("latitude")
+        raw_lng = get_val("longitude")
+
+        # Parse and validate GPS Coordinates (Latitude & Longitude)
+        parsed_lat = None
+        parsed_lng = None
+        if raw_lat is not None and str(raw_lat).strip() != "":
+            try:
+                val = float(str(raw_lat).strip())
+                if -90 <= val <= 90:
+                    parsed_lat = val
+                else:
+                    warnings.append(f"Latitude '{raw_lat}' out of valid range (-90 to 90)")
+            except (ValueError, TypeError):
+                warnings.append(f"Invalid Latitude format: '{raw_lat}'")
+
+        if raw_lng is not None and str(raw_lng).strip() != "":
+            try:
+                val = float(str(raw_lng).strip())
+                if -180 <= val <= 180:
+                    parsed_lng = val
+                else:
+                    warnings.append(f"Longitude '{raw_lng}' out of valid range (-180 to 180)")
+            except (ValueError, TypeError):
+                warnings.append(f"Invalid Longitude format: '{raw_lng}'")
 
         # Normalize mobile (strip non-digits)
         clean_mob = re.sub(r"[^\d]", "", mobile) if mobile else ""
@@ -478,6 +511,8 @@ def validate_imported_rows(
             "email": email,
             "gst_no": gst_no,
             "notes": notes,
+            "latitude": parsed_lat,
+            "longitude": parsed_lng,
             "errors": errors,
             "warnings": warnings,
             "is_already_exists": is_already_exists,
@@ -544,6 +579,8 @@ def generate_sample_excel_template() -> bytes:
         ("Landline", 16),
         ("Email", 25),
         ("GST No.", 20),
+        ("Latitude", 14),
+        ("Longitude", 14),
         ("Notes", 30)
     ]
 
@@ -557,14 +594,14 @@ def generate_sample_excel_template() -> bytes:
 
     ws.row_dimensions[1].height = 28
 
-    # Realistic MARG ERP sample data rows with Delivery Route and 3 Address Lines
+    # Realistic MARG ERP sample data rows with Delivery Route, 3 Address Lines, and GPS Coordinates
     sample_data = [
-        ["JODHPUR MEDICOSE", "P0001", "RAJASTHAN ROUTE", "SHREE MOHANGADH", "NEAR STN ROAD", "OPP CIVIL HOSPITAL", "JODHPUR", "RAJASTHAN", "9829012345", "0291-2645120", "jodhpurmedicose@gmail.com", "08ABCDE1234F1Z2", "Express courier"],
-        ["JAY SHREE TRADERS", "P0002", "CITY MAIN ROUTE", "SHOP 14, APMC MARKET", "SECTOR 19", "PHARMA WING", "AHMEDABAD", "GUJARAT", "9876543210", "079-25418900", "jayshreetraders@yahoo.com", "24ABCDE5678G2Z1", "Medical consignments"],
-        ["JIGNESH ENTERPRISE", "P0003", "VADODARA HIGHWAY", "GIDC PHASE 2", "PLOT 45/A", "", "VADODARA", "GUJARAT", "9824098765", "0265-2890123", "jignesh_ent@rediffmail.com", "24XYZAB9876C1Z8", "Priority"],
-        ["J K PHARMA DISTRIBUTOR", "P0004", "SOUTH GUJARAT", "MEDICINE COMPLEX", "RING ROAD", "", "SURAT", "GUJARAT", "9898011223", "0261-2478901", "jkpharma@suratpharma.com", "24LMNOP4321D1Z9", ""],
-        ["JALARAM AGENCIES", "P0005", "SAURASHTRA ROUTE", "GRAIN MARKET", "OPP TOWN HALL", "", "RAJKOT", "GUJARAT", "9426033445", "0281-2234567", "jalaram_rajkot@gmail.com", "24PQRSU8765E1Z4", ""],
-        ["JANTA MEDICALS", "P0006", "NORTH ZONE", "MAIN HOSPITAL ROAD", "NEAR BUS STAND", "", "JAIPUR", "RAJASTHAN", "9829567890", "0141-2356789", "jantamedicals.jpr@gmail.com", "08JKLMN3456H1Z3", "Cold chain parcel"]
+        ["JODHPUR MEDICOSE", "P0001", "RAJASTHAN ROUTE", "SHREE MOHANGADH", "NEAR STN ROAD", "OPP CIVIL HOSPITAL", "JODHPUR", "RAJASTHAN", "9829012345", "0291-2645120", "jodhpurmedicose@gmail.com", "08ABCDE1234F1Z2", 26.2389, 73.0243, "Express courier"],
+        ["JAY SHREE TRADERS", "P0002", "CITY MAIN ROUTE", "SHOP 14, APMC MARKET", "SECTOR 19", "PHARMA WING", "AHMEDABAD", "GUJARAT", "9876543210", "079-25418900", "jayshreetraders@yahoo.com", "24ABCDE5678G2Z1", 23.0225, 72.5714, "Medical consignments"],
+        ["JIGNESH ENTERPRISE", "P0003", "VADODARA HIGHWAY", "GIDC PHASE 2", "PLOT 45/A", "", "VADODARA", "GUJARAT", "9824098765", "0265-2890123", "jignesh_ent@rediffmail.com", "24XYZAB9876C1Z8", 22.3072, 73.1812, "Priority"],
+        ["J K PHARMA DISTRIBUTOR", "P0004", "SOUTH GUJARAT", "MEDICINE COMPLEX", "RING ROAD", "", "SURAT", "GUJARAT", "9898011223", "0261-2478901", "jkpharma@suratpharma.com", "24LMNOP4321D1Z9", 21.1702, 72.8311, ""],
+        ["JALARAM AGENCIES", "P0005", "SAURASHTRA ROUTE", "GRAIN MARKET", "OPP TOWN HALL", "", "RAJKOT", "GUJARAT", "9426033445", "0281-2234567", "jalaram_rajkot@gmail.com", "24PQRSU8765E1Z4", 22.3039, 70.8022, ""],
+        ["JANTA MEDICALS", "P0006", "NORTH ZONE", "MAIN HOSPITAL ROAD", "NEAR BUS STAND", "", "JAIPUR", "RAJASTHAN", "9829567890", "0141-2356789", "jantamedicals.jpr@gmail.com", "08JKLMN3456H1Z3", 26.9124, 75.7873, "Cold chain parcel"]
     ]
 
     for row_idx, row_values in enumerate(sample_data, start=2):
@@ -614,6 +651,8 @@ def export_parties_to_excel(parties: List[Any]) -> bytes:
         ("Landline", 16),
         ("Email", 25),
         ("GST No.", 20),
+        ("Latitude", 15),
+        ("Longitude", 15),
         ("Status", 12)
     ]
 
@@ -642,6 +681,8 @@ def export_parties_to_excel(parties: List[Any]) -> bytes:
             p.landline or "",
             p.email or "",
             p.gst_no or "",
+            p.latitude if getattr(p, "latitude", None) is not None else "",
+            p.longitude if getattr(p, "longitude", None) is not None else "",
             "Active" if p.is_active else "Inactive"
         ]
         for col_idx, val in enumerate(row_vals, start=1):
@@ -668,6 +709,8 @@ def export_parties_to_excel(parties: List[Any]) -> bytes:
         ("લેન્ડલાઈન (Phone)", 16),
         ("ઇમેઇલ (Email)", 25),
         ("GST નંબર (GST No.)", 20),
+        ("અક્ષાંશ (Latitude)", 15),
+        ("રેખાંશ (Longitude)", 15),
         ("સ્થિતિ (Status)", 12)
     ]
 
@@ -704,6 +747,8 @@ def export_parties_to_excel(parties: List[Any]) -> bytes:
             p.landline or "",
             p.email or "",
             p.gst_no or "",
+            p.latitude if getattr(p, "latitude", None) is not None else "",
+            p.longitude if getattr(p, "longitude", None) is not None else "",
             "ચાલુ (Active)" if p.is_active else "બંધ (Inactive)"
         ]
         for col_idx, val in enumerate(row_vals_gu, start=1):

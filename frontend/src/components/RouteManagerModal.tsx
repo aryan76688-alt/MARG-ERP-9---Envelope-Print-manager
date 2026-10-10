@@ -13,7 +13,13 @@ import {
   Sparkles,
   Layers,
   Upload,
-  AlertTriangle
+  AlertTriangle,
+  Zap,
+  Check,
+  Copy,
+  MapPin,
+  Terminal,
+  Play
 } from 'lucide-react';
 import { Party, RouteBatchUpdateItem, GoogleSheetsSyncResult } from '../types';
 import { 
@@ -22,7 +28,9 @@ import {
   batchUpdateRoutes, 
   fetchParties,
   uploadRoutesFile,
-  downloadRouteErrorReport
+  downloadRouteErrorReport,
+  getN8nWebhookUrl,
+  testN8nWebhook
 } from '../api/client';
 
 interface RouteManagerModalProps {
@@ -54,7 +62,7 @@ export const RouteManagerModal: React.FC<RouteManagerModalProps> = ({
   savedSheetId = '1nZ_B6HBDjTDcLey5x1784b2o8r0nKweafWVUY8JW0wg',
   savedApiKey = 'AIzaSyBqmmiMRBWeV1s7Kpie1DlE6HIHKSnVuLg'
 }) => {
-  const [activeTab, setActiveTab] = useState<'upload' | 'sheets' | 'editor'>('upload');
+  const [activeTab, setActiveTab] = useState<'upload' | 'sheets' | 'n8n' | 'editor'>('upload');
   
   // File Upload State (myBillBook style)
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -65,6 +73,12 @@ export const RouteManagerModal: React.FC<RouteManagerModalProps> = ({
   const [sheetUrlOrId, setSheetUrlOrId] = useState<string>(savedSheetId || '1nZ_B6HBDjTDcLey5x1784b2o8r0nKweafWVUY8JW0wg');
   const [apiKey, setApiKey] = useState<string>(savedApiKey || 'AIzaSyBqmmiMRBWeV1s7Kpie1DlE6HIHKSnVuLg');
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
+
+  // n8n Webhook state
+  const [copiedWebhook, setCopiedWebhook] = useState<boolean>(false);
+  const [copiedScript, setCopiedScript] = useState<boolean>(false);
+  const [isTestingWebhook, setIsTestingWebhook] = useState<boolean>(false);
+  const [testWebhookResult, setTestWebhookResult] = useState<any>(null);
   
   // Shared Sync / Upload Result & Errors state (myBillBook style)
   const [syncResult, setSyncResult] = useState<GoogleSheetsSyncResult | null>(null);
@@ -361,7 +375,23 @@ export const RouteManagerModal: React.FC<RouteManagerModalProps> = ({
               <span>Google Sheets Sync</span>
             </button>
 
-            {/* Tab 3: Direct Route Editor (All Parties) */}
+            {/* Tab 3: n8n Full Automation (Real-Time Auto Sync) */}
+            <button
+              onClick={() => setActiveTab('n8n')}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                activeTab === 'n8n'
+                  ? 'bg-amber-500 text-slate-950 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Zap className="w-4 h-4 fill-amber-400 text-slate-900" />
+              <span>n8n Automation</span>
+              <span className="text-[9px] bg-red-600 text-white font-black px-1.5 py-0.2 rounded uppercase">
+                Live Sync
+              </span>
+            </button>
+
+            {/* Tab 4: Direct Route Editor (All Parties) */}
             <button
               onClick={() => setActiveTab('editor')}
               className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
@@ -887,7 +917,242 @@ export const RouteManagerModal: React.FC<RouteManagerModalProps> = ({
             </div>
           )}
 
-          {/* TAB 3: DIRECT ROUTE EDITOR - ALL PARTIES */}
+          {/* TAB 3: n8n REAL-TIME AUTOMATION & WEBHOOK */}
+          {activeTab === 'n8n' && (
+            <div className="space-y-6 max-w-4xl mx-auto">
+              
+              {/* Hero Banner */}
+              <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-slate-50 border border-amber-300/80 rounded-2xl p-5 shadow-xs">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-500 text-slate-950 flex items-center gap-1">
+                        <Zap className="w-3 h-3 fill-slate-950" />
+                        <span>Real-Time n8n Automation</span>
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-600 text-white">
+                        Live Webhook
+                      </span>
+                    </div>
+                    <h4 className="font-black text-slate-900 text-base">
+                      Fully Automated Google Sheets Sync with GPS Latitude & Longitude
+                    </h4>
+                    <p className="text-xs text-slate-600 leading-relaxed font-medium">
+                      Whenever you update or add any row in Google Sheets, <strong>n8n</strong> automatically sends the change to MARG Envelope Manager.
+                      Party names, codes, routes, and exact <strong>Latitude & Longitude</strong> GPS coordinates update automatically in real-time!
+                    </p>
+                  </div>
+
+                  <a
+                    href={getExportRoutesTemplateUrl()}
+                    download
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-sm transition-colors whitespace-nowrap cursor-pointer"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Download Template with Lat/Lng</span>
+                  </a>
+                </div>
+              </div>
+
+              {/* Webhook Endpoint Display Card */}
+              <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-3">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <h5 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
+                    <Terminal className="w-4 h-4 text-blue-600" />
+                    <span>Your Dedicated n8n Webhook Endpoint</span>
+                  </h5>
+                  <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
+                    HTTP POST • JSON
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2 bg-slate-900 text-emerald-400 p-3 rounded-xl font-mono text-xs overflow-x-auto border border-slate-800">
+                  <span className="bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded text-[10px] font-black">POST</span>
+                  <span className="flex-1 truncate select-all">{getN8nWebhookUrl()}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(getN8nWebhookUrl());
+                      setCopiedWebhook(true);
+                      setTimeout(() => setCopiedWebhook(false), 2500);
+                    }}
+                    className="px-3 py-1 bg-white/10 hover:bg-white/20 text-white font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer text-xs"
+                  >
+                    {copiedWebhook ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedWebhook ? 'Copied!' : 'Copy URL'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Spreadsheet Columns Required */}
+              <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-3">
+                <h5 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-rose-600" />
+                  <span>Google Sheets Column Headers (Add These Columns to Your Sheet)</span>
+                </h5>
+                <p className="text-xs text-slate-600 font-medium">
+                  Use these standard column headers in Row 1 of your Google Sheet. Column order does not matter:
+                </p>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                    <div className="font-mono font-bold text-xs text-blue-700">party_name</div>
+                    <div className="text-[11px] text-slate-500 mt-0.5">Required (e.g. JODHPUR MEDICOSE)</div>
+                  </div>
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                    <div className="font-mono font-bold text-xs text-blue-700">party_code</div>
+                    <div className="text-[11px] text-slate-500 mt-0.5">Optional (e.g. P0001, MARG001)</div>
+                  </div>
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+                    <div className="font-mono font-bold text-xs text-emerald-800 flex items-center gap-1">
+                      <span>latitude</span>
+                      <span className="text-[9px] bg-emerald-200 text-emerald-900 px-1 rounded font-black">GPS</span>
+                    </div>
+                    <div className="text-[11px] text-emerald-700 mt-0.5">Latitude (e.g. 23.1685)</div>
+                  </div>
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+                    <div className="font-mono font-bold text-xs text-emerald-800 flex items-center gap-1">
+                      <span>longitude</span>
+                      <span className="text-[9px] bg-emerald-200 text-emerald-900 px-1 rounded font-black">GPS</span>
+                    </div>
+                    <div className="text-[11px] text-emerald-700 mt-0.5">Longitude (e.g. 72.8126)</div>
+                  </div>
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                    <div className="font-mono font-bold text-xs text-slate-700">primary_route_1</div>
+                    <div className="text-[11px] text-slate-500 mt-0.5">Route 1 (e.g. MONDAY ROUTE)</div>
+                  </div>
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                    <div className="font-mono font-bold text-xs text-slate-700">secondary_route_2</div>
+                    <div className="text-[11px] text-slate-500 mt-0.5">Route 2 (e.g. THURSDAY ROUTE)</div>
+                  </div>
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                    <div className="font-mono font-bold text-xs text-slate-700">third_route_3</div>
+                    <div className="text-[11px] text-slate-500 mt-0.5">Route 3 (e.g. SATURDAY ROUTE)</div>
+                  </div>
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                    <div className="font-mono font-bold text-xs text-slate-700">address / city / mobile</div>
+                    <div className="text-[11px] text-slate-500 mt-0.5">Optional contact details</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Two Integration Options: n8n vs Google Apps Script */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                
+                {/* Option A: Download n8n Workflow */}
+                <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col justify-between space-y-3">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="w-6 h-6 rounded-full bg-amber-500 text-slate-950 font-black text-xs flex items-center justify-center">A</span>
+                      <h5 className="font-extrabold text-sm text-slate-900">Option 1: Import Pre-built n8n Workflow</h5>
+                    </div>
+                    <p className="text-xs text-slate-600 leading-relaxed font-medium">
+                      Download our ready-made n8n workflow file. In your n8n workspace, click <strong>Workflows &gt; Import from File</strong> and upload this JSON.
+                      It has the Google Sheets Trigger and Webhook node pre-configured!
+                    </p>
+                  </div>
+
+                  <a
+                    href="/n8n-google-sheets-auto-sync.json"
+                    download="n8n-google-sheets-auto-sync.json"
+                    className="w-full py-2.5 px-4 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs rounded-xl shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Download n8n Workflow (.json)</span>
+                  </a>
+                </div>
+
+                {/* Option B: Direct Google Apps Script onEdit */}
+                <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col justify-between space-y-3">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="w-6 h-6 rounded-full bg-blue-600 text-white font-black text-xs flex items-center justify-center">B</span>
+                      <h5 className="font-extrabold text-sm text-slate-900">Option 2: 0-Second Instant Sync (Apps Script)</h5>
+                    </div>
+                    <p className="text-xs text-slate-600 leading-relaxed font-medium">
+                      In your Google Sheet, open <strong>Extensions &gt; Apps Script</strong>, paste this simple script, and save.
+                      Every cell you edit will automatically sync to MARG instantly without waiting!
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const script = `function onEdit(e) {\n  var sheet = e.source.getActiveSheet();\n  var row = e.range.getRow();\n  if (row <= 1) return;\n  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];\n  var values = sheet.getRange(row, 1, 1, sheet.getLastColumn()).getValues()[0];\n  var data = {};\n  for (var i = 0; i < headers.length; i++) {\n    data[headers[i]] = values[i];\n  }\n  UrlFetchApp.fetch("${getN8nWebhookUrl()}", {\n    method: "post",\n    contentType: "application/json",\n    payload: JSON.stringify(data),\n    muteHttpExceptions: true\n  });\n}`;
+                      navigator.clipboard.writeText(script);
+                      setCopiedScript(true);
+                      setTimeout(() => setCopiedScript(false), 2500);
+                    }}
+                    className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    {copiedScript ? <Check className="w-4 h-4 text-emerald-300" /> : <Copy className="w-4 h-4" />}
+                    <span>{copiedScript ? 'Apps Script Copied to Clipboard!' : 'Copy Google Apps Script (1-Click)'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Live Webhook Test Box */}
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 shadow-xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <h5 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
+                    <Play className="w-4 h-4 text-emerald-600" />
+                    <span>Test Your Webhook Connection</span>
+                  </h5>
+                  <button
+                    type="button"
+                    disabled={isTestingWebhook}
+                    onClick={async () => {
+                      setIsTestingWebhook(true);
+                      setTestWebhookResult(null);
+                      try {
+                        const res = await testN8nWebhook({
+                          party_name: internalParties[0]?.party_name || "TEST SAMPLE PARTY",
+                          party_code: internalParties[0]?.party_code || "P0001",
+                          primary_route_1: "MONDAY ROUTE",
+                          latitude: 23.1685,
+                          longitude: 72.8126
+                        });
+                        setTestWebhookResult({ success: true, data: res });
+                        onPartiesUpdated?.();
+                        onRoutesUpdated?.();
+                      } catch (err: any) {
+                        setTestWebhookResult({ success: false, error: err.message });
+                      } finally {
+                        setIsTestingWebhook(false);
+                      }
+                    }}
+                    className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+                  >
+                    {isTestingWebhook ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+                    <span>{isTestingWebhook ? 'Testing...' : 'Send Test Ping to Webhook'}</span>
+                  </button>
+                </div>
+
+                {testWebhookResult && (
+                  <div className={`p-3 rounded-xl border text-xs font-medium ${
+                    testWebhookResult.success 
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-800' 
+                      : 'bg-rose-50 border-rose-200 text-rose-800'
+                  }`}>
+                    {testWebhookResult.success ? (
+                      <div className="flex items-center gap-2 font-bold">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                        <span>Webhook connection verified! Response: {testWebhookResult.data.message || '200 OK'}</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 font-bold">
+                        <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0" />
+                        <span>Webhook test error: {testWebhookResult.error}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+            </div>
+          )}
+
+          {/* TAB 4: DIRECT ROUTE EDITOR - ALL PARTIES */}
           {activeTab === 'editor' && (
             <div className="space-y-4">
               {/* Controls bar */}
