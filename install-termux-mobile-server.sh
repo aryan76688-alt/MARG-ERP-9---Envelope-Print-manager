@@ -3,23 +3,37 @@
 # MARG ERP 9 Envelope Print Manager - Termux 24/7 Mobile Server Installer
 # Turn your Android Phone into a 24/7 Web Server (Laptop Off, 100% Free Forever)
 # ==============================================================================
-set -e
-
 echo "📱 [1/5] Preventing Android from putting server to sleep..."
 termux-wake-lock 2>/dev/null || true
 
-echo "📦 [2/5] Updating Termux packages and installing Python & Git..."
-pkg update -y || apt update -y || true
-pkg install -y python git curl wget || apt install -y python git curl wget
+echo "🌐 [2/5] Configuring fast official Cloudflare CDN mirror & IPv4 tuning..."
+mkdir -p "$PREFIX/etc/apt/apt.conf.d"
+cat << 'EOF' > "$PREFIX/etc/apt/apt.conf.d/99network-tune"
+Acquire::ForceIPv4 "true";
+Acquire::Retries "5";
+Acquire::http::Timeout "30";
+EOF
 
-# Install pre-compiled pillow for Android if available to avoid C compile errors
-pkg install -y python-pillow 2>/dev/null || pip install pillow || true
+# Direct apt sources to the official high-speed Cloudflare CDN mirror (prevents unreachable foreign university mirrors)
+mkdir -p "$PREFIX/etc/apt"
+echo "deb https://packages-cf.termux.dev/apt/termux-main stable main" > "$PREFIX/etc/apt/sources.list"
 
-echo "📦 [3/5] Installing Python backend packages..."
-pip install --upgrade pip
-pip install fastapi "uvicorn[standard]" pydantic sqlalchemy python-multipart openpyxl passlib bcrypt pyjwt python-jose requests
+echo "📦 [3/5] Updating Termux packages and installing Python & Git..."
+apt-get clean 2>/dev/null || true
+apt-get update -y --fix-missing || pkg update -y || true
+apt-get install -y --fix-missing python git curl wget || pkg install -y python git curl wget
 
-echo "🌐 [4/5] Installing Cloudflare Tunnel (cloudflared for Android)..."
+# Pre-compiled pillow for Android if available to avoid C compile errors
+pkg install -y python-pillow 2>/dev/null || true
+
+echo "📦 [4/5] Installing Python backend packages..."
+pip install --upgrade pip --no-warn-script-location 2>/dev/null || true
+# Install pure-Python ASGI server and essential backend dependencies
+pip install --no-cache-dir fastapi uvicorn pydantic sqlalchemy python-multipart openpyxl passlib pyjwt python-jose requests
+# Optional compiled packages (non-fatal if skipped)
+pip install --no-cache-dir pillow bcrypt 2>/dev/null || true
+
+echo "🌐 [5/5] Installing Cloudflare Tunnel (cloudflared for Android)..."
 ARCH=$(uname -m)
 if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
   CLOUDFLARED_URL="https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64"
@@ -29,16 +43,17 @@ else
   CLOUDFLARED_URL="https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64"
 fi
 
-curl -L -o "$PREFIX/bin/cloudflared" "$CLOUDFLARED_URL"
+curl -fsSL -o "$PREFIX/bin/cloudflared" "$CLOUDFLARED_URL" || wget -qO "$PREFIX/bin/cloudflared" "$CLOUDFLARED_URL"
 chmod +x "$PREFIX/bin/cloudflared"
 
-echo "📂 [5/5] Fetching latest repository code..."
+echo "📂 Fetching latest repository code..."
 cd "$HOME"
-if [ -d "MARG-ERP-9---Envelope-Print-manager" ]; then
+if [ -d "MARG-ERP-9---Envelope-Print-manager/.git" ]; then
   cd MARG-ERP-9---Envelope-Print-manager
-  git pull origin main
+  git reset --hard origin/main 2>/dev/null || git pull origin main 2>/dev/null || true
 else
-  git clone https://github.com/aryan76688-alt/MARG-ERP-9---Envelope-Print-manager.git
+  rm -rf "MARG-ERP-9---Envelope-Print-manager" 2>/dev/null || true
+  git clone --depth 1 https://github.com/aryan76688-alt/MARG-ERP-9---Envelope-Print-manager.git
   cd MARG-ERP-9---Envelope-Print-manager
 fi
 
