@@ -5,23 +5,23 @@
 # ==============================================================================
 set -e
 
-echo "📱 [1/6] Preventing Android from putting server to sleep..."
+echo "📱 [1/5] Preventing Android from putting server to sleep..."
 termux-wake-lock 2>/dev/null || true
 
-echo "📦 [2/6] Updating Termux packages and installing build tools..."
-pkg update -y
-pkg install -y python git clang make libffi libjpeg-turbo libpng pango cairo harfbuzz curl wget
+echo "📦 [2/5] Updating Termux packages and installing Python & Git..."
+pkg update -y || apt update -y || true
+pkg install -y python git curl wget || apt install -y python git curl wget
 
-echo "📦 [3/6] Installing Python packages for MARG Envelope Manager..."
-pip install --upgrade pip setuptools wheel
-pip install fastapi "uvicorn[standard]" pydantic sqlalchemy python-multipart openpyxl python-barcode pillow passlib bcrypt pyjwt python-jose requests
+# Install pre-compiled pillow for Android if available to avoid C compile errors
+pkg install -y python-pillow 2>/dev/null || pip install pillow || true
 
-# Attempt weasyprint if pango/cairo headers are available
-pip install weasyprint 2>/dev/null || echo "ℹ️ WeasyPrint note: Standard HTML/PDF printing will be used."
+echo "📦 [3/5] Installing Python backend packages..."
+pip install --upgrade pip
+pip install fastapi "uvicorn[standard]" pydantic sqlalchemy python-multipart openpyxl passlib bcrypt pyjwt python-jose requests
 
-echo "🌐 [4/6] Installing Cloudflare Tunnel (cloudflared for ARM64 Android)..."
+echo "🌐 [4/5] Installing Cloudflare Tunnel (cloudflared for Android)..."
 ARCH=$(uname -m)
-if [ "$ARCH" = "aarch64" ]; then
+if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
   CLOUDFLARED_URL="https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64"
 elif [ "$ARCH" = "armv7l" ] || [ "$ARCH" = "arm" ]; then
   CLOUDFLARED_URL="https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm"
@@ -32,7 +32,7 @@ fi
 curl -L -o "$PREFIX/bin/cloudflared" "$CLOUDFLARED_URL"
 chmod +x "$PREFIX/bin/cloudflared"
 
-echo "📂 [5/6] Fetching latest repository code..."
+echo "📂 [5/5] Fetching latest repository code..."
 cd "$HOME"
 if [ -d "MARG-ERP-9---Envelope-Print-manager" ]; then
   cd MARG-ERP-9---Envelope-Print-manager
@@ -42,7 +42,7 @@ else
   cd MARG-ERP-9---Envelope-Print-manager
 fi
 
-echo "🚀 [6/6] Generating 1-tap start script at ~/start-server.sh..."
+echo "🚀 Generating 1-tap start script at ~/start-server.sh..."
 cat << 'EOF' > "$HOME/start-server.sh"
 #!/data/data/com.termux/files/usr/bin/bash
 termux-wake-lock 2>/dev/null || true
@@ -52,15 +52,15 @@ echo "======================================================"
 echo "🚀 STARTING MARG ENVELOPE MANAGER MOBILE 24/7 SERVER"
 echo "======================================================"
 
-# Start backend server
 python -m uvicorn main:app --host 0.0.0.0 --port 8080 &
 SERVER_PID=$!
 
 sleep 3
+echo ""
 echo "📱 Local Phone Access: http://127.0.0.1:8080"
-echo "🌐 Starting Cloudflare Public HTTPS Tunnel..."
+echo "🌐 Starting Public HTTPS Tunnel via Cloudflare..."
 echo "======================================================"
-echo "⚡ Copy the public https://xxxx.trycloudflare.com link below:"
+echo "⚡ Open the public https://xxxx.trycloudflare.com link below:"
 echo "======================================================"
 
 cloudflared tunnel --url http://localhost:8080
