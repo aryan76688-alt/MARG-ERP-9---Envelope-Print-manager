@@ -18,44 +18,28 @@ EOF
 mkdir -p "$PREFIX/etc/apt"
 echo "deb https://packages-cf.termux.dev/apt/termux-main stable main" > "$PREFIX/etc/apt/sources.list"
 
-echo "📦 [3/5] Updating Termux packages and installing Python & Git..."
+echo "📦 [3/5] Updating Termux packages and repairing OpenSSL/cURL libraries..."
 apt-get clean 2>/dev/null || true
 apt-get update -y --fix-missing || pkg update -y || true
-apt-get install -y --fix-missing python git curl wget || pkg install -y python git curl wget
+# Explicitly sync and upgrade openssl, ca-certificates, libcurl to prevent symbol mismatches
+apt-get install -y --fix-missing openssl ca-certificates libcurl curl git python python-pip openssh wget || \
+pkg install -y openssl ca-certificates libcurl curl git python python-pip openssh wget
 
 # Pre-compiled pillow for Android if available to avoid C compile errors
 pkg install -y python-pillow 2>/dev/null || true
 
-echo "📦 [4/5] Installing Python backend packages..."
+echo "📦 [4/5] Installing Python backend packages (FastAPI & Android wheels)..."
 pip install --upgrade pip --no-warn-script-location 2>/dev/null || true
+# Install pre-compiled pydantic-core wheel for Android Termux Python 3.14
+pip install --no-cache-dir --extra-index-url https://eutalix.github.io/android-pydantic-core/ pydantic-core pydantic || true
 # Install pure-Python ASGI server and essential backend dependencies
-pip install --no-cache-dir fastapi uvicorn pydantic sqlalchemy python-multipart openpyxl passlib pyjwt python-jose requests
-# Optional compiled packages (non-fatal if skipped)
-pip install --no-cache-dir pillow bcrypt 2>/dev/null || true
+pip install --no-cache-dir fastapi uvicorn sqlalchemy python-multipart openpyxl passlib pyjwt python-jose requests
 
-echo "🌐 [5/5] Installing Cloudflare Tunnel (cloudflared for Android)..."
-ARCH=$(uname -m)
-if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
-  CLOUDFLARED_URL="https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64"
-elif [ "$ARCH" = "armv7l" ] || [ "$ARCH" = "arm" ]; then
-  CLOUDFLARED_URL="https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm"
-else
-  CLOUDFLARED_URL="https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64"
-fi
-
-curl -fsSL -o "$PREFIX/bin/cloudflared" "$CLOUDFLARED_URL" || wget -qO "$PREFIX/bin/cloudflared" "$CLOUDFLARED_URL"
-chmod +x "$PREFIX/bin/cloudflared"
-
-echo "📂 Fetching latest repository code..."
+echo "📂 [5/5] Fetching latest repository code..."
 cd "$HOME"
-if [ -d "MARG-ERP-9---Envelope-Print-manager/.git" ]; then
-  cd MARG-ERP-9---Envelope-Print-manager
-  git reset --hard origin/main 2>/dev/null || git pull origin main 2>/dev/null || true
-else
-  rm -rf "MARG-ERP-9---Envelope-Print-manager" 2>/dev/null || true
-  git clone --depth 1 https://github.com/aryan76688-alt/MARG-ERP-9---Envelope-Print-manager.git
-  cd MARG-ERP-9---Envelope-Print-manager
-fi
+rm -rf "MARG-ERP-9---Envelope-Print-manager" 2>/dev/null || true
+git clone --depth 1 https://github.com/aryan76688-alt/MARG-ERP-9---Envelope-Print-manager.git
+cd MARG-ERP-9---Envelope-Print-manager
 
 echo "🚀 Generating 1-tap start script at ~/start-server.sh..."
 cat << 'EOF' > "$HOME/start-server.sh"
@@ -73,12 +57,15 @@ SERVER_PID=$!
 sleep 3
 echo ""
 echo "📱 Local Phone Access: http://127.0.0.1:8080"
-echo "🌐 Starting Public HTTPS Tunnel via Cloudflare..."
+echo "🌐 Starting Public HTTPS Tunnel via SSH (100% Free Forever)..."
 echo "======================================================"
-echo "⚡ Open the public https://xxxx.trycloudflare.com link below:"
+echo "⚡ Your Free Public 24/7 Website Link will appear below:"
 echo "======================================================"
 
-cloudflared tunnel --url http://localhost:8080
+# Start tunnel using native SSH (zero account needed, zero DNS bugs on Android)
+ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -R 80:localhost:8080 nokey@localhost.run || \
+ssh -o StrictHostKeyChecking=no -p 443 -R0:localhost:8080 qr@a.pinggy.io
+
 kill $SERVER_PID 2>/dev/null || true
 EOF
 
