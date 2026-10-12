@@ -38,7 +38,9 @@ for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":8080" ^| findstr "LISTENING
 )
 taskkill /F /IM cloudflared.exe >nul 2>&1
 
-:: 4. Install/verify Python packages
+:: 4. Install/verify Python packages & allow firewall
+echo [*] Ensuring Windows Firewall allows port 8080 for office Wi-Fi...
+netsh advfirewall firewall add rule name="MARG Envelope Manager (8080)" dir=in action=allow protocol=TCP localport=8080 >nul 2>&1
 echo [*] Verifying backend packages...
 "%PYTHON_EXE%" -m pip install -r backend\requirements.txt --quiet 2>nul
 
@@ -72,8 +74,8 @@ echo.
 :: 8. Open browser automatically
 start http://localhost:8080
 
-:: 9. Start Cloudflare Tunnel
+:: 9. Start Cloudflare Tunnel in background (non-blocking)
 if exist "cloudflared.exe" (
-    echo [*] Connecting Cloudflare 24/7 Tunnel...
-    cloudflared.exe tunnel run --token eyJhIjoiZGEyZGRiOTVmYmVhMjQzNGM4YWMwYTFhNjViN2Y3MjEiLCJ0IjoiOTAwY2I1Y2EtOTY5ZC00MzAzLTk3ZWYtMDZmMjVjMTEzZDExIiwicyI6Ill6WTRObUV6T0RFdE56QmhNUzAwTmpCa0xXSXdPREV0WWpFMk16VmxOVE00TnpGbCJ9 --protocol http2
+    echo [*] Starting Cloudflare 24/7 Tunnel in background...
+    start "Cloudflare Tunnel" /min "%~dp0cloudflared.exe" tunnel run --token eyJhIjoiZGEyZGRiOTVmYmVhMjQzNGM4YWMwYTFhNjViN2Y3MjEiLCJ0IjoiOTAwY2I1Y2EtOTY5ZC00MzAzLTk3ZWYtMDZmMjVjMTEzZDExIiwicyI6Ill6WTRObUV6T0RFdE56QmhNUzAwTmpCa0xXSXdPREV0WWpFMk16VmxOVE00TnpGbCJ9 --protocol http2
 )

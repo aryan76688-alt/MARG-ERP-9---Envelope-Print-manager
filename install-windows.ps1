@@ -151,6 +151,13 @@ if (-not (Test-Path "$targetDir\cloudflared.exe")) {
     Invoke-WebRequest -Uri "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe" -OutFile "$targetDir\cloudflared.exe"
 }
 
+# Allow inbound TCP port 8080 for employee phones and PCs on local Wi-Fi
+Write-Host "[*] Allowing port 8080 through Windows Firewall for local network access..." -ForegroundColor Cyan
+try {
+    netsh advfirewall firewall delete rule name="MARG Envelope Manager (8080)" | Out-Null
+    netsh advfirewall firewall add rule name="MARG Envelope Manager (8080)" dir=in action=allow protocol=TCP localport=8080 | Out-Null
+} catch {}
+
 # 6. Configure 24/7 Auto-Start on Windows Reboot / Startup & Shortcuts
 Write-Host "[6/6] Configuring 24/7 Auto-Start on Windows Reboot..." -ForegroundColor Cyan
 $wsh = New-Object -ComObject WScript.Shell
