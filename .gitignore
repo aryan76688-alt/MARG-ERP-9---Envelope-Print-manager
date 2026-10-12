@@ -20,3 +20,5 @@ android/local.properties
 .gradle/
 *.apk
 backend/envelope_manager.db
+.wrangler/
+

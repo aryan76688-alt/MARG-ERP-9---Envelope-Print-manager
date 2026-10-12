@@ -25,6 +25,7 @@ import {
 const isLocalAsset = typeof window !== 'undefined' && (
   window.location.protocol === 'file:' || 
   window.location.hostname === 'appassets.androidplatform.net' ||
+  window.location.hostname.includes('.pages.dev') ||
   (window as any).isAndroidApp === true ||
   navigator.userAgent.includes('ShreejiEnvelopeApp')
 );
