@@ -75,12 +75,18 @@ EOF
 
 chmod +x "$HOME/start-server.sh"
 
+# Add alias 'server' so user can start with just one word
+if ! grep -q "start-server.sh" "$HOME/.bashrc" 2>/dev/null; then
+  echo "alias server='$HOME/start-server.sh'" >> "$HOME/.bashrc"
+fi
+
 echo ""
 echo "======================================================================"
 echo "🎉 INSTALLATION COMPLETE! YOUR PHONE IS NOW A 24/7 WEB SERVER"
 echo "======================================================================"
-echo "To start your server anytime, simply run:"
-echo "  ~/start-server.sh"
+echo "To start your server anytime, simply type:"
+echo "  server"
+echo "  (or ~/start-server.sh)"
 echo ""
 echo "⚠️ IMPORTANT ANDROID SETTINGS (To keep it running 24/7 when screen is locked):"
 echo "  1. Long-press the Termux App icon -> App Info"
