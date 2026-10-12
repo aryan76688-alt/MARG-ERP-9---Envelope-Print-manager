@@ -58,6 +58,8 @@ echo "🚀 Generating 1-tap start script at ~/start-server.sh..."
 cat << 'EOF' > "$HOME/start-server.sh"
 #!/data/data/com.termux/files/usr/bin/bash
 termux-wake-lock 2>/dev/null || true
+cd "$HOME/MARG-ERP-9---Envelope-Print-manager"
+git pull origin main 2>/dev/null || true
 cd "$HOME/MARG-ERP-9---Envelope-Print-manager/backend"
 
 echo "======================================================"
