@@ -69,6 +69,28 @@ echo "======================================================"
 python -m uvicorn main:app --host 0.0.0.0 --port 8080 &
 SERVER_PID=$!
 
+# Background Auto-Update Watcher: Checks GitHub every 2 minutes and auto-reloads on new changes
+(
+  while true; do
+    sleep 120
+    cd "$HOME/MARG-ERP-9---Envelope-Print-manager"
+    git fetch origin main --quiet 2>/dev/null || true
+    LOCAL=$(git rev-parse HEAD 2>/dev/null || true)
+    REMOTE=$(git rev-parse origin/main 2>/dev/null || true)
+    if [ "$LOCAL" != "$REMOTE" ] && [ -n "$REMOTE" ]; then
+      echo ""
+      echo "🔄 [Auto-Update] New feature or change detected on GitHub! Updating application..."
+      git reset --hard origin/main 2>/dev/null || git pull origin main 2>/dev/null || true
+      pkill -f "uvicorn main:app" 2>/dev/null || true
+      sleep 2
+      cd "$HOME/MARG-ERP-9---Envelope-Print-manager/backend"
+      python -m uvicorn main:app --host 0.0.0.0 --port 8080 &
+      echo "✅ [Auto-Update] Application updated and restarted with new features!"
+    fi
+  done
+) &
+WATCHER_PID=$!
+
 sleep 3
 WIFI_IP=$(ip -4 addr show wlan0 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' || true)
 echo ""
@@ -76,6 +98,7 @@ echo "📱 Local Phone Access: http://127.0.0.1:8080"
 if [ -n "$WIFI_IP" ]; then
   echo "📶 Same Wi-Fi Access:  http://$WIFI_IP:8080 (Laptop / Other Phones)"
 fi
+echo "🔄 Auto-Updater:       ACTIVE (Checks GitHub every 2m for new features)"
 echo "🌐 Starting Public HTTPS Tunnel via SSH (100% Free Forever)..."
 echo "======================================================"
 echo "⚡ Your Free Public 24/7 Website Link will appear below:"
@@ -85,7 +108,7 @@ echo "======================================================"
 ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -R 80:localhost:8080 nokey@localhost.run || \
 ssh -o StrictHostKeyChecking=no -p 443 -R0:localhost:8080 qr@a.pinggy.io
 
-kill $SERVER_PID 2>/dev/null || true
+kill $SERVER_PID $WATCHER_PID 2>/dev/null || true
 EOF
 
 chmod +x "$HOME/start-server.sh"
@@ -93,6 +116,8 @@ chmod +x "$HOME/start-server.sh"
 cat << 'EOF' > "$HOME/start-cloudflare-tunnel.sh"
 #!/data/data/com.termux/files/usr/bin/bash
 termux-wake-lock 2>/dev/null || true
+cd "$HOME/MARG-ERP-9---Envelope-Print-manager"
+git pull origin main 2>/dev/null || true
 cd "$HOME/MARG-ERP-9---Envelope-Print-manager/backend"
 
 echo "======================================================"
@@ -102,11 +127,31 @@ echo "======================================================"
 python -m uvicorn main:app --host 0.0.0.0 --port 8080 &
 SERVER_PID=$!
 
+# Background Auto-Update Watcher
+(
+  while true; do
+    sleep 120
+    cd "$HOME/MARG-ERP-9---Envelope-Print-manager"
+    git fetch origin main --quiet 2>/dev/null || true
+    LOCAL=$(git rev-parse HEAD 2>/dev/null || true)
+    REMOTE=$(git rev-parse origin/main 2>/dev/null || true)
+    if [ "$LOCAL" != "$REMOTE" ] && [ -n "$REMOTE" ]; then
+      echo "🔄 [Auto-Update] Detected changes on GitHub! Updating..."
+      git reset --hard origin/main 2>/dev/null || git pull origin main 2>/dev/null || true
+      pkill -f "uvicorn main:app" 2>/dev/null || true
+      sleep 2
+      cd "$HOME/MARG-ERP-9---Envelope-Print-manager/backend"
+      python -m uvicorn main:app --host 0.0.0.0 --port 8080 &
+    fi
+  done
+) &
+WATCHER_PID=$!
+
 sleep 3
 echo "🌐 Connecting to Cloudflare Zero Trust Tunnel (remote)..."
 cloudflared tunnel run --token eyJhIjoiZGEyZGRiOTVmYmVhMjQzNGM4YWMwYTFhNjViN2Y3MjEiLCJ0IjoiOTAwY2I1Y2EtOTY5ZC00MzAzLTk3ZWYtMDZmMjVjMTEzZDExIiwicyI6Ill6WTRObUV6T0RFdE56QmhNUzAwTmpCa0xXSXdPREV0WWpFMk16VmxOVE00TnpGbCJ9 --protocol http2 --edge-ip-version 4
 
-kill $SERVER_PID 2>/dev/null || true
+kill $SERVER_PID $WATCHER_PID 2>/dev/null || true
 EOF
 
 # Symlink server and cftunnel into $PREFIX/bin so they work immediately in ANY terminal without restarting
