@@ -30,12 +30,19 @@ if %ERRORLEVEL% equ 0 (
     git pull origin main 2>nul
 )
 
-:: 3. Install/verify Python packages
+:: 3. Clean up any hanging instance on port 8080 to prevent conflicts on restart
+echo [*] Ensuring port 8080 is free...
+for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":8080" ^| findstr "LISTENING" 2^>nul') do (
+    taskkill /F /PID %%a >nul 2>&1
+)
+taskkill /F /IM cloudflared.exe >nul 2>&1
+
+:: 4. Install/verify Python packages
 echo [*] Verifying Python backend packages...
 python -m pip install --upgrade pip --quiet 2>nul
 python -m pip install -r backend\requirements.txt --quiet 2>nul
 
-:: 4. Check/Download Cloudflare Tunnel client
+:: 5. Check/Download Cloudflare Tunnel client
 if not exist "cloudflared.exe" (
     echo [*] Downloading Cloudflare Tunnel (cloudflared.exe)...
     curl -Lo cloudflared.exe https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe 2>nul
