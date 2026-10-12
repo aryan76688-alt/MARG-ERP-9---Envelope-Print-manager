@@ -992,8 +992,24 @@ def compile_html_to_pdf(html_content: str, auto_print: bool = False) -> bytes:
 
     raw_pdf = None
 
-    # Check for Chromium binary first before attempting subprocess execution
-    chrome_bin = shutil.which("chromium") or shutil.which("chromium-browser") or shutil.which("google-chrome")
+    # Check for Chromium/Chrome/Edge binary first before attempting subprocess execution
+    chrome_bin = (
+        shutil.which("chromium") or 
+        shutil.which("chromium-browser") or 
+        shutil.which("google-chrome") or 
+        shutil.which("chrome") or 
+        shutil.which("msedge")
+    )
+    if not chrome_bin and os.name == 'nt':
+        for win_path in [
+            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+            r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+            r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+            r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+        ]:
+            if os.path.exists(win_path):
+                chrome_bin = win_path
+                break
     if chrome_bin:
         try:
             cmd = [
