@@ -20,10 +20,10 @@ echo "deb https://packages-cf.termux.dev/apt/termux-main stable main" > "$PREFIX
 
 echo "📦 [3/5] Updating Termux packages and repairing OpenSSL/cURL libraries..."
 apt-get clean 2>/dev/null || true
-apt-get update -y --fix-missing || pkg update -y || true
-# Explicitly sync and upgrade openssl, ca-certificates, libcurl to prevent symbol mismatches
-apt-get install -y --fix-missing openssl ca-certificates libcurl curl git python python-pip openssh wget || \
-pkg install -y openssl ca-certificates libcurl curl git python python-pip openssh wget
+apt-get update -y --fix-missing || true
+apt-get full-upgrade -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" --fix-missing || true
+# Ensure all essential tools are present
+apt-get install -y --fix-missing openssl ca-certificates libcurl curl git python python-pip openssh wget || true
 
 # Pre-compiled pillow for Android if available to avoid C compile errors
 pkg install -y python-pillow 2>/dev/null || true
@@ -55,8 +55,12 @@ python -m uvicorn main:app --host 0.0.0.0 --port 8080 &
 SERVER_PID=$!
 
 sleep 3
+WIFI_IP=$(ip -4 addr show wlan0 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' || true)
 echo ""
 echo "📱 Local Phone Access: http://127.0.0.1:8080"
+if [ -n "$WIFI_IP" ]; then
+  echo "📶 Same Wi-Fi Access:  http://$WIFI_IP:8080 (Laptop / Other Phones)"
+fi
 echo "🌐 Starting Public HTTPS Tunnel via SSH (100% Free Forever)..."
 echo "======================================================"
 echo "⚡ Your Free Public 24/7 Website Link will appear below:"
