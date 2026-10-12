@@ -75,9 +75,31 @@ EOF
 
 chmod +x "$HOME/start-server.sh"
 
-# Add alias 'server' so user can start with just one word
+cat << 'EOF' > "$HOME/start-cloudflare-tunnel.sh"
+#!/data/data/com.termux/files/usr/bin/bash
+termux-wake-lock 2>/dev/null || true
+cd "$HOME/MARG-ERP-9---Envelope-Print-manager/backend"
+
+echo "======================================================"
+echo "🚀 STARTING MARG MOBILE SERVER VIA CLOUDFLARE TUNNEL"
+echo "======================================================"
+
+python -m uvicorn main:app --host 0.0.0.0 --port 8080 &
+SERVER_PID=$!
+
+sleep 3
+echo "🌐 Connecting to Cloudflare Zero Trust Tunnel (remote)..."
+cloudflared tunnel run --token eyJhIjoiZGEyZGRiOTVmYmVhMjQzNGM4YWMwYTFhNjViN2Y3MjEiLCJ0IjoiOTAwY2I1Y2EtOTY5ZC00MzAzLTk3ZWYtMDZmMjVjMTEzZDExIiwicyI6Ill6WTRObUV6T0RFdE56QmhNUzAwTmpCa0xXSXdPREV0WWpFMk16VmxOVE00TnpGbCJ9 --protocol http2 --edge-ip-version 4
+
+kill $SERVER_PID 2>/dev/null || true
+EOF
+
+chmod +x "$HOME/start-cloudflare-tunnel.sh"
+
+# Add aliases to ~/.bashrc for easy 1-word startup
 if ! grep -q "start-server.sh" "$HOME/.bashrc" 2>/dev/null; then
   echo "alias server='$HOME/start-server.sh'" >> "$HOME/.bashrc"
+  echo "alias cftunnel='$HOME/start-cloudflare-tunnel.sh'" >> "$HOME/.bashrc"
 fi
 
 echo ""
