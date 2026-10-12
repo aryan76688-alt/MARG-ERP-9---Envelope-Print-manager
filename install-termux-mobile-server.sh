@@ -30,10 +30,23 @@ pkg install -y python-pillow 2>/dev/null || true
 
 echo "📦 [4/5] Installing Python backend packages (FastAPI & Android wheels)..."
 pip install --upgrade pip --no-warn-script-location 2>/dev/null || true
-# Install pre-compiled pydantic-core wheel for Android Termux Python 3.14
-pip install --no-cache-dir --extra-index-url https://eutalix.github.io/android-pydantic-core/ pydantic-core pydantic || true
-# Install pure-Python ASGI server and essential backend dependencies
-pip install --no-cache-dir fastapi uvicorn sqlalchemy python-multipart openpyxl passlib pyjwt python-jose requests
+
+# 1. Install pure-Python core packages FIRST so uvicorn is guaranteed ready
+pip install --no-cache-dir uvicorn sqlalchemy python-multipart openpyxl passlib pyjwt python-jose requests
+
+# 2. Download direct pre-compiled wheel for Android Termux Python 3.14 (avoids PyPI compiling 2.50.1 from source)
+ARCH=$(uname -m)
+if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
+  WHEEL_URL="https://github.com/Eutalix/android-pydantic-core/releases/download/v2.50.0/pydantic_core-2.50.0-cp314-cp314-android_24_arm64_v8a.whl"
+elif [ "$ARCH" = "armv7l" ] || [ "$ARCH" = "arm" ]; then
+  WHEEL_URL="https://github.com/Eutalix/android-pydantic-core/releases/download/v2.50.0/pydantic_core-2.50.0-cp314-cp314-android_24_armeabi_v7a.whl"
+else
+  WHEEL_URL="https://github.com/Eutalix/android-pydantic-core/releases/download/v2.50.0/pydantic_core-2.50.0-cp314-cp314-android_24_x86_64.whl"
+fi
+
+pip install --no-cache-dir "$WHEEL_URL" || true
+pip install --no-cache-dir "pydantic==2.14.0" || true
+pip install --no-cache-dir fastapi || true
 
 echo "📂 [5/5] Fetching latest repository code..."
 cd "$HOME"
@@ -94,7 +107,10 @@ cloudflared tunnel run --token eyJhIjoiZGEyZGRiOTVmYmVhMjQzNGM4YWMwYTFhNjViN2Y3M
 kill $SERVER_PID 2>/dev/null || true
 EOF
 
-chmod +x "$HOME/start-cloudflare-tunnel.sh"
+# Symlink server and cftunnel into $PREFIX/bin so they work immediately in ANY terminal without restarting
+ln -sf "$HOME/start-server.sh" "$PREFIX/bin/server"
+ln -sf "$HOME/start-cloudflare-tunnel.sh" "$PREFIX/bin/cftunnel"
+chmod +x "$PREFIX/bin/server" "$PREFIX/bin/cftunnel" 2>/dev/null || true
 
 # Add aliases to ~/.bashrc for easy 1-word startup
 if ! grep -q "start-server.sh" "$HOME/.bashrc" 2>/dev/null; then
