@@ -32,9 +32,30 @@ const isLocalAsset = typeof window !== 'undefined' && (
 
 export const DEFAULT_REMOTE_API = 'https://marg-envelope-manager-production.up.railway.app';
 
-export const API_BASE = isLocalAsset 
-  ? (localStorage.getItem('api_server_url') || DEFAULT_REMOTE_API) + '/api'
-  : '/api';
+export function getApiBase(): string {
+  if (typeof window === 'undefined') return '/api';
+  const custom = localStorage.getItem('api_server_url');
+  if (custom && custom.trim()) {
+    return custom.trim().replace(/\/+$/, '') + '/api';
+  }
+  const isLocalAssetCheck = (
+    window.location.protocol === 'file:' || 
+    window.location.hostname === 'appassets.androidplatform.net' ||
+    window.location.hostname.includes('.pages.dev') ||
+    (window as any).isAndroidApp === true ||
+    navigator.userAgent.includes('ShreejiEnvelopeApp')
+  );
+  if (isLocalAssetCheck) {
+    return (localStorage.getItem('api_server_url') || DEFAULT_REMOTE_API).replace(/\/+$/, '') + '/api';
+  }
+  return '/api';
+}
+
+export const API_BASE = {
+  toString: () => getApiBase(),
+  valueOf: () => getApiBase(),
+  [Symbol.toPrimitive]: () => getApiBase(),
+} as any as string;
 
 export function getAuthToken() {
   return localStorage.getItem('token');
@@ -46,13 +67,22 @@ async function fetchApi(url: string, options: RequestInit = {}) {
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
-  const res = await fetch(url, { ...options, headers });
-  if (res.status === 401 && window.location.hash !== '#login') {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    window.location.hash = 'login';
+  try {
+    const res = await fetch(url, { ...options, headers });
+    if (res.status === 401 && window.location.hash !== '#login') {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.hash = 'login';
+    }
+    return res;
+  } catch (err: any) {
+    const isFetchErr = err?.name === 'TypeError' || err?.message?.toLowerCase().includes('fetch');
+    if (isFetchErr) {
+      const activeServer = localStorage.getItem('api_server_url') || (isLocalAsset ? DEFAULT_REMOTE_API : (typeof window !== 'undefined' ? window.location.origin : 'server'));
+      throw new Error(`Cannot connect to backend server (${activeServer}). Please ensure your Termux or Windows server is running, or configure the server URL in Settings.`);
+    }
+    throw err;
   }
-  return res;
 }
 
 export async function fetchDashboard(period: string = 'this_month'): Promise<DashboardData> {
@@ -393,18 +423,44 @@ export async function deletePrintJob(id: number): Promise<void> {
 }
 
 export async function fetchSettings(): Promise<{ sender: SenderSettings; app: AppSettings }> {
-  const res = await fetchApi(`${API_BASE}/settings`);
-  if (!res.ok) throw new Error('Failed to load settings');
-  return res.json();
+  try {
+    const res = await fetchApi(`${API_BASE}/settings`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.sender) localStorage.setItem('sender_settings', JSON.stringify(data.sender));
+      if (data.app) localStorage.setItem('app_settings', JSON.stringify(data.app));
+      return data;
+    }
+  } catch (err) {
+    console.warn('Network error fetching settings from server, checking local cache:', err);
+  }
+
+  // Local fallback if backend is offline or not yet connected
+  const localSender = localStorage.getItem('sender_settings');
+  const localApp = localStorage.getItem('app_settings');
+  if (localSender || localApp) {
+    return {
+      sender: localSender ? JSON.parse(localSender) : {} as any,
+      app: localApp ? JSON.parse(localApp) : {} as any,
+    };
+  }
+  throw new Error('Failed to load settings: backend server is offline and no local settings cached.');
 }
 
 export async function saveSettings(payload: { sender?: SenderSettings; app?: Partial<AppSettings> }): Promise<void> {
+  // Always cache locally so changes are never lost!
+  if (payload.sender) {
+    localStorage.setItem('sender_settings', JSON.stringify(payload.sender));
+  }
+  if (payload.app) {
+    localStorage.setItem('app_settings', JSON.stringify(payload.app));
+  }
   const res = await fetchApi(`${API_BASE}/settings`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  if (!res.ok) throw new Error('Failed to save settings');
+  if (!res.ok) throw new Error('Failed to save settings to server');
 }
 
 export async function downloadEnvelopePDF(payload: {

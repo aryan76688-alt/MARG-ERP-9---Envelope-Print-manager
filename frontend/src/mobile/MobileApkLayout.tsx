@@ -174,6 +174,19 @@ export const MobileApkLayout: React.FC<MobileApkLayoutProps> = ({
         </div>
       </header>
 
+      {/* Cloudflare Pages Backend Missing Alert Banner */}
+      {typeof window !== 'undefined' && window.location.hostname.includes('.pages.dev') && !localStorage.getItem('api_server_url') && (
+        <div className="bg-gradient-to-r from-amber-600 to-orange-600 text-white px-3 py-2 text-[11px] font-bold flex items-center justify-between shadow-md z-30 shrink-0">
+          <span className="truncate mr-2">⚠️ Cloudflare Pages: Connect to Phone or PC backend</span>
+          <button
+            onClick={() => setCurrentTab('settings')}
+            className="bg-white text-slate-900 px-2 py-0.5 rounded text-[10px] font-black shrink-0"
+          >
+            Connect
+          </button>
+        </div>
+      )}
+
       {/* 2. SCROLLABLE MAIN CONTENT AREA */}
       <main className="flex-1 overflow-y-auto bg-slate-950 text-slate-100 overscroll-contain">
         {children}

@@ -25,7 +25,11 @@ import {
   Plus,
   Trash2,
   Droplets,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Server,
+  Wifi,
+  Globe,
+  ExternalLink
 } from 'lucide-react';
 import { SenderSettings, AppSettings, DualBrainStatus } from '../types';
 import { 
@@ -140,6 +144,80 @@ export const Settings: React.FC = () => {
 
   const [newFluidName, setNewFluidName] = useState<string>('');
   const [newVolumeName, setNewVolumeName] = useState<string>('');
+  const isPagesDev = typeof window !== 'undefined' && window.location.hostname.includes('.pages.dev');
+  const [customServerUrl, setCustomServerUrl] = useState<string>(() => {
+    return localStorage.getItem('api_server_url') || '';
+  });
+  const [serverTesting, setServerTesting] = useState(false);
+  const [isServerHealthy, setIsServerHealthy] = useState<boolean | null>(null);
+
+  const testConnection = async (urlToCheck?: string) => {
+    const raw = urlToCheck !== undefined ? urlToCheck : (customServerUrl || '');
+    const clean = raw.trim().replace(/\/+$/, '');
+    const target = clean || (typeof window !== 'undefined' ? window.location.origin : '');
+    setServerTesting(true);
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 4000);
+      const res = await fetch(`${target}/api/auth/google/client-id`, {
+        method: 'GET',
+        signal: controller.signal
+      });
+      clearTimeout(timer);
+      setIsServerHealthy(res.ok);
+      return res.ok;
+    } catch {
+      setIsServerHealthy(false);
+      return false;
+    } finally {
+      setServerTesting(false);
+    }
+  };
+
+  useEffect(() => {
+    testConnection();
+  }, []);
+
+  const handleSaveServerUrl = async (urlToSave: string) => {
+    const clean = urlToSave.trim().replace(/\/+$/, '');
+    if (!clean) {
+      localStorage.removeItem('api_server_url');
+      setCustomServerUrl('');
+      alert('Reset to default direct connection.');
+      window.location.reload();
+      return;
+    }
+    setServerTesting(true);
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 4000);
+      const res = await fetch(`${clean}/api/auth/google/client-id`, {
+        method: 'GET',
+        signal: controller.signal
+      });
+      clearTimeout(timer);
+      if (res.ok) {
+        localStorage.setItem('api_server_url', clean);
+        setIsServerHealthy(true);
+        alert(`Connected to backend at ${clean}! Reloading application...`);
+        window.location.reload();
+      } else {
+        localStorage.setItem('api_server_url', clean);
+        alert(`Saved ${clean}. Reloading application...`);
+        window.location.reload();
+      }
+    } catch (err: any) {
+      const proceed = window.confirm(
+        `Could not reach ${clean} right now.\n\nPlease check if your Phone (Termux) or PC server is running.\n\nDo you want to save this URL anyway?`
+      );
+      if (proceed) {
+        localStorage.setItem('api_server_url', clean);
+        window.location.reload();
+      }
+    } finally {
+      setServerTesting(false);
+    }
+  };
 
   const loadBackupSettings = () => {
     fetchBackupSettings()
@@ -289,19 +367,28 @@ export const Settings: React.FC = () => {
     e.preventDefault();
     setSaving(true);
     setSuccessMsg('');
+    const appWithFluids: AppSettings = {
+      ...app,
+      iv_fluids_json: JSON.stringify(ivFluids),
+      iv_volumes_json: JSON.stringify(ivVolumes.filter((v) => v !== '200ML')),
+    };
+
+    // 1. Immediately cache locally in browser so edits are never lost
+    localStorage.setItem('sender_settings', JSON.stringify(sender));
+    localStorage.setItem('app_settings', JSON.stringify(appWithFluids));
+    localStorage.setItem('iv_fluid_types', JSON.stringify(ivFluids));
+    localStorage.setItem('iv_fluid_volumes', JSON.stringify(ivVolumes.filter((v) => v !== '200ML')));
+
+    // 2. Sync to backend database
     try {
-      const appWithFluids: AppSettings = {
-        ...app,
-        iv_fluids_json: JSON.stringify(ivFluids),
-        iv_volumes_json: JSON.stringify(ivVolumes.filter((v) => v !== '200ML')),
-      };
       await saveSettings({ sender, app: appWithFluids });
-      localStorage.setItem('iv_fluid_types', JSON.stringify(ivFluids));
-      localStorage.setItem('iv_fluid_volumes', JSON.stringify(ivVolumes.filter((v) => v !== '200ML')));
-      setSuccessMsg('Settings updated and saved successfully!');
+      setIsServerHealthy(true);
+      setSuccessMsg('Settings saved successfully and synced to server!');
       setTimeout(() => setSuccessMsg(''), 4000);
     } catch (err: any) {
-      alert('Failed to save settings: ' + err.message);
+      setIsServerHealthy(false);
+      setSuccessMsg('Settings saved locally in browser! (Server offline)');
+      alert(`✅ Settings saved in browser!\n\n⚠️ Could not sync to backend database: ${err.message}\n\nIf you are using Cloudflare Pages, make sure your Phone or PC server is running and connected in the "Backend Server Connection" section above.`);
     } finally {
       setSaving(false);
     }
@@ -354,6 +441,120 @@ export const Settings: React.FC = () => {
             <span>{successMsg}</span>
           </div>
         )}
+      </div>
+
+      {/* Backend Server Connection Banner / Card */}
+      <div className={`p-5 rounded-xl border transition-all ${
+        isServerHealthy === true
+          ? 'bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 border-emerald-200 shadow-sm'
+          : isServerHealthy === false
+          ? 'bg-gradient-to-r from-amber-50 via-orange-50 to-rose-50 border-amber-300 shadow-md'
+          : 'bg-white border-slate-200 shadow-sm'
+      }`}>
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 mb-3">
+          <div className="flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-white shadow-sm ${
+              isServerHealthy === true ? 'bg-emerald-600' : isServerHealthy === false ? 'bg-amber-600' : 'bg-blue-600'
+            }`}>
+              <Server className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-black text-slate-900 text-sm">Backend Server Connection (સર્વર કનેક્શન)</span>
+                <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border ${
+                  isServerHealthy === true
+                    ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                    : isServerHealthy === false
+                    ? 'bg-rose-100 text-rose-800 border-rose-300 animate-pulse'
+                    : 'bg-slate-100 text-slate-700 border-slate-300'
+                }`}>
+                  {isServerHealthy === true ? '🟢 Connected / ઓનલાઇન' : isServerHealthy === false ? '⚠️ Offline / અસફળ' : 'Checking...'}
+                </span>
+              </div>
+              <p className="text-xs text-slate-600 font-medium">
+                {customServerUrl 
+                  ? `Custom Server: ${customServerUrl}`
+                  : isPagesDev
+                  ? 'Cloudflare Pages needs your Phone (Termux) or PC Server address.'
+                  : `Direct Server Access: ${typeof window !== 'undefined' ? window.location.origin : 'Local'}`}
+              </p>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            {customServerUrl && (
+              <button
+                type="button"
+                onClick={() => handleSaveServerUrl('')}
+                className="px-2.5 py-1 text-xs font-bold text-slate-600 hover:text-red-600 hover:bg-red-50 rounded-lg border border-slate-300 transition-colors"
+                title="Reset to default"
+              >
+                Reset Default
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Input & Action */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          <div className="relative flex-1">
+            <input
+              type="text"
+              value={customServerUrl}
+              onChange={(e) => setCustomServerUrl(e.target.value)}
+              placeholder="e.g. https://6c0f86a81e0ea2.lhr.life (Phone) or http://127.0.0.1:8080 (PC)"
+              className="w-full px-3.5 py-2 text-xs font-mono rounded-lg border border-slate-300 bg-white text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => handleSaveServerUrl(customServerUrl)}
+            disabled={serverTesting}
+            className="flex items-center justify-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold rounded-lg text-xs shadow-sm transition-all shrink-0"
+          >
+            {serverTesting ? (
+              <>
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                <span>Testing...</span>
+              </>
+            ) : (
+              <>
+                <Wifi className="w-3.5 h-3.5" />
+                <span>Connect & Save Server</span>
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* Quick Presets & Guidance */}
+        <div className="mt-3 pt-2.5 border-t border-slate-200/70 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="font-bold text-slate-700 text-[11px]">Quick Presets:</span>
+            <button
+              type="button"
+              onClick={() => {
+                setCustomServerUrl('https://6c0f86a81e0ea2.lhr.life');
+                handleSaveServerUrl('https://6c0f86a81e0ea2.lhr.life');
+              }}
+              className="px-2 py-0.5 rounded bg-white hover:bg-slate-100 border border-slate-200 font-mono text-[11px] text-blue-700 font-bold"
+            >
+              📱 Phone (Termux)
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCustomServerUrl('http://127.0.0.1:8080');
+                handleSaveServerUrl('http://127.0.0.1:8080');
+              }}
+              className="px-2 py-0.5 rounded bg-white hover:bg-slate-100 border border-slate-200 font-mono text-[11px] text-slate-700 font-bold"
+            >
+              💻 Windows PC (127.0.0.1:8080)
+            </button>
+          </div>
+          <div className="text-[11px] text-slate-600">
+            💡 <strong>Direct Access:</strong> If you open your Phone's link directly in Chrome, you don't even need this setup!
+          </div>
+        </div>
       </div>
 
       {/* Tabs Row */}
