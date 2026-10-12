@@ -4447,10 +4447,14 @@ class CachedStaticFiles(StaticFiles):
             resp.headers["Cache-Control"] = "no-cache"
         return resp
 
-# Mount built React frontend if dist exists
+# Mount built React frontend if dist or backend/static exists
 dist_dir = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")
-if os.path.exists(dist_dir):
+static_dir = os.path.join(os.path.dirname(__file__), "static")
+
+if os.path.exists(dist_dir) and os.path.exists(os.path.join(dist_dir, "index.html")):
     app.mount("/", CachedStaticFiles(directory=dist_dir, html=True), name="static")
+elif os.path.exists(static_dir) and os.path.exists(os.path.join(static_dir, "index.html")):
+    app.mount("/", CachedStaticFiles(directory=static_dir, html=True), name="static")
 
 if __name__ == "__main__":
     import uvicorn
