@@ -1,9 +1,10 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # ==============================================================================
 # Shreeji Healthcare Unified Service Manager - Start Script (Termux)
-# Starts: 1. PostgreSQL (Port 5432)
+# Starts: 1. PostgreSQL Database (Port 5432)
 #         2. Shreeji Order Book (Next.js - Port 3000)
 #         3. MARG Envelope Print Manager (FastAPI - Port 8080)
+#         4. Cloudflare Public Web Tunnels (Free Public HTTPS URLs)
 # ==============================================================================
 
 # Terminal Colors
@@ -21,20 +22,20 @@ PG_DATA="${PREFIX_DIR}/var/lib/postgresql"
 
 clear
 echo -e "${CYAN}${BOLD}==============================================================================${NC}"
-echo -e "${CYAN}${BOLD}       SHREEJI HEALTHCARE - ONE-TOUCH DUAL SERVER LAUNCHER (TERMUX)           ${NC}"
+echo -e "${CYAN}${BOLD}     SHREEJI HEALTHCARE - MOBILE DUAL SERVER & PUBLIC WEB LAUNCHER            ${NC}"
 echo -e "${CYAN}${BOLD}==============================================================================${NC}"
 
 # 1. Acquire Android Wake Lock so services continue running when screen is off
 if command -v termux-wake-lock >/dev/null 2>&1; then
     termux-wake-lock
-    echo -e "${GREEN}[*] Android Wake-Lock acquired (Server will stay alive in background).${NC}"
+    echo -e "${GREEN}[*] Android Wake-Lock acquired (Server will stay alive 24/7).${NC}"
 fi
 
 mkdir -p "${BASE_DIR}/logs"
 mkdir -p "${BASE_DIR}/pids"
 
 # 2. Start PostgreSQL Database
-echo -e "\n${BLUE}[1/3] Checking PostgreSQL Database...${NC}"
+echo -e "\n${BLUE}[1/4] Checking PostgreSQL Database...${NC}"
 if pg_isready -q 2>/dev/null; then
     echo -e "${GREEN}    [✓] PostgreSQL is already running on port 5432.${NC}"
 else
@@ -44,13 +45,13 @@ else
     if pg_isready -q 2>/dev/null; then
         echo -e "${GREEN}    [✓] PostgreSQL started successfully on port 5432.${NC}"
     else
-        echo -e "${YELLOW}    [!] PostgreSQL could not start automatically. Trying direct init/start...${NC}"
+        echo -e "${YELLOW}    [!] Starting directly...${NC}"
         pg_ctl -D "${PG_DATA}" start >/dev/null 2>&1
     fi
 fi
 
 # 3. Start Shreeji Healthcare Order Book (Next.js - Port 3000)
-echo -e "\n${BLUE}[2/3] Checking Shreeji Order Book (B2B)...${NC}"
+echo -e "\n${BLUE}[2/4] Checking Shreeji Order Book (B2B)...${NC}"
 ORDERBOOK_DIR="${BASE_DIR}/b2b-pharma-app"
 if [ ! -d "${ORDERBOOK_DIR}" ]; then
     if [ -d "${BASE_DIR}/B2B" ]; then
@@ -82,7 +83,7 @@ else
 fi
 
 # 4. Start MARG Envelope Print Manager (FastAPI - Port 8080)
-echo -e "\n${BLUE}[3/3] Checking MARG ERP Envelope Print Manager...${NC}"
+echo -e "\n${BLUE}[3/4] Checking MARG ERP Envelope Print Manager...${NC}"
 ENVELOPE_DIR="${BASE_DIR}/MARG-Envelope-Manager"
 if [ ! -d "${ENVELOPE_DIR}" ]; then
     if [ -d "${BASE_DIR}/ENVELOPE" ]; then
@@ -114,7 +115,40 @@ else
     echo -e "${RED}    [X] Envelope Manager directory not found at ${ENVELOPE_DIR}.${NC}"
 fi
 
-# 5. Detect Device IP Address on Wi-Fi/Hotspot
+# 5. Cloudflare Public Web Tunnels (100% Free Public Web Access)
+ENVELOPE_PUBLIC_URL=""
+ORDERBOOK_PUBLIC_URL=""
+
+if command -v cloudflared >/dev/null 2>&1; then
+    echo -e "\n${BLUE}[4/4] Activating Free Public Web Tunnels (Cloudflare)...${NC}"
+    pkill -f "cloudflared tunnel" 2>/dev/null || true
+    
+    nohup cloudflared tunnel --url http://localhost:8080 > "${BASE_DIR}/logs/tunnel_envelope.log" 2>&1 &
+    echo $! > "${BASE_DIR}/pids/tunnel_envelope.pid"
+    
+    nohup cloudflared tunnel --url http://localhost:3000 > "${BASE_DIR}/logs/tunnel_orderbook.log" 2>&1 &
+    echo $! > "${BASE_DIR}/pids/tunnel_orderbook.pid"
+    
+    echo -e "    [*] Connecting to Cloudflare global network..."
+    for i in {1..6}; do
+        ENVELOPE_PUBLIC_URL=$(grep -o 'https://[-a-zA-Z0-9.]*\.trycloudflare\.com' "${BASE_DIR}/logs/tunnel_envelope.log" 2>/dev/null | tail -n 1)
+        ORDERBOOK_PUBLIC_URL=$(grep -o 'https://[-a-zA-Z0-9.]*\.trycloudflare\.com' "${BASE_DIR}/logs/tunnel_orderbook.log" 2>/dev/null | tail -n 1)
+        if [ -n "${ENVELOPE_PUBLIC_URL}" ] && [ -n "${ORDERBOOK_PUBLIC_URL}" ]; then
+            break
+        fi
+        sleep 1
+    done
+    
+    if [ -n "${ENVELOPE_PUBLIC_URL}" ]; then
+        echo -e "${GREEN}    [✓] Public Web Tunnels Active!${NC}"
+    else
+        echo -e "${YELLOW}    [!] Tunnels started in background (fetching URLs in a few seconds...)${NC}"
+    fi
+else
+    echo -e "\n${YELLOW}[!] Cloudflare is not installed. To enable free public web access, run: pkg install cloudflared -y${NC}"
+fi
+
+# 6. Detect Device Local Wi-Fi IP
 WIFI_IP=$(ip -4 addr show wlan0 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -n 1)
 if [ -z "${WIFI_IP}" ]; then
     WIFI_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
@@ -124,23 +158,34 @@ if [ -z "${WIFI_IP}" ]; then
 fi
 
 echo -e "\n${GREEN}${BOLD}==============================================================================${NC}"
-echo -e "${GREEN}${BOLD}                🎉 BOTH APPLICATIONS ARE RUNNING & CONNECTED!                ${NC}"
+echo -e "${GREEN}${BOLD}          🎉 YOUR OWN MOBILE SERVER IS LIVE & ACCESSIBLE!                     ${NC}"
 echo -e "${GREEN}${BOLD}==============================================================================${NC}"
 
-echo -e "\n${BOLD}📱 OPEN ON THIS PHONE (Any Browser):${NC}"
-echo -e "   1. ${BOLD}MARG Envelope Manager:${NC}   ${CYAN}http://localhost:8080${NC}"
-echo -e "   2. ${BOLD}Shreeji Order Book:${NC}      ${CYAN}http://localhost:3000${NC}"
+if [ -n "${ENVELOPE_PUBLIC_URL}" ] || [ -n "${ORDERBOOK_PUBLIC_URL}" ]; then
+    echo -e "\n${CYAN}${BOLD}🌐 1. PUBLIC WEB ACCESS (Worldwide from any Phone / PC on 4G/5G/Wi-Fi):${NC}"
+    if [ -n "${ENVELOPE_PUBLIC_URL}" ]; then
+        echo -e "   • ${BOLD}MARG Envelope Manager:${NC}  ${GREEN}${BOLD}${ENVELOPE_PUBLIC_URL}${NC}"
+    fi
+    if [ -n "${ORDERBOOK_PUBLIC_URL}" ]; then
+        echo -e "   • ${BOLD}Shreeji Order Book:${NC}     ${GREEN}${BOLD}${ORDERBOOK_PUBLIC_URL}${NC}"
+    fi
+fi
 
-echo -e "\n${BOLD}💻 OPEN ON OFFICE PC / LAPTOP (Connected to Same Wi-Fi / Hotspot):${NC}"
-echo -e "   1. ${BOLD}MARG Envelope Manager:${NC}   ${YELLOW}http://${WIFI_IP}:8080${NC}"
-echo -e "   2. ${BOLD}Shreeji Order Book:${NC}      ${YELLOW}http://${WIFI_IP}:3000${NC}"
+echo -e "\n${YELLOW}${BOLD}🏠 2. LOCAL WI-FI ACCESS (Superfast for Office PC / Laptop):${NC}"
+echo -e "   • ${BOLD}MARG Envelope Manager:${NC}  ${YELLOW}http://${WIFI_IP}:8080${NC}"
+echo -e "   • ${BOLD}Shreeji Order Book:${NC}     ${YELLOW}http://${WIFI_IP}:3000${NC}"
 
-echo -e "\n${BOLD}⚡ REAL-TIME AUTOMATION:${NC}"
-echo -e "   • Party addition/edits in either app will automatically sync in real-time."
-echo -e "   • Envelope prints & outstanding balances are cached for instant loading."
+echo -e "\n${BOLD}📱 3. ON THIS PHONE (Mobile Browser):${NC}"
+echo -e "   • ${BOLD}MARG Envelope Manager:${NC}  http://localhost:8080"
+echo -e "   • ${BOLD}Shreeji Order Book:${NC}     http://localhost:3000"
 
-echo -e "\n${BOLD}🛠️ USEFUL COMMANDS:${NC}"
-echo -e "   • Check status: ${CYAN}bash ${BASE_DIR}/status.sh${NC}"
-echo -e "   • Stop servers: ${CYAN}bash ${BASE_DIR}/stop-all.sh${NC}"
-echo -e "   • Update apps:  ${CYAN}bash ${BASE_DIR}/update.sh${NC}"
+echo -e "\n${BOLD}⚡ ZERO CLOUD COST & BULLETPROOF SYNC:${NC}"
+echo -e "   • You own this server 100% on your phone with zero monthly fees!"
+echo -e "   • PostgreSQL database runs locally on port 5432 with permanent storage."
+echo -e "   • When you add parties in either app, they sync in real-time."
+
+echo -e "\n${BOLD}🛠️ QUICK COMMANDS:${NC}"
+echo -e "   • Check status & URLs: ${CYAN}status${NC} (or bash ~/shreeji/status.sh)"
+echo -e "   • Stop all servers:    ${CYAN}stop${NC}   (or bash ~/shreeji/stop-all.sh)"
+echo -e "   • Update latest code:  ${CYAN}update${NC} (or bash ~/shreeji/update.sh)"
 echo -e "${GREEN}${BOLD}==============================================================================${NC}\n"

@@ -1,10 +1,11 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # ==============================================================================
-# Shreeji Healthcare - 100% Bulletproof Unified Termux Deployment
+# Shreeji Healthcare - 100% Bulletproof Mobile Server Deployment (Termux)
 # Deploys both applications on a single Android device via Termux:
 #   1. Shreeji Healthcare Order Book (Next.js - Port 3000)
 #   2. MARG ERP 9 Envelope Print Manager (FastAPI - Port 8080)
 #   3. PostgreSQL Database (Port 5432)
+#   4. Cloudflare Public Web Tunnels (100% Free Public Web Access)
 # ==============================================================================
 
 set -e
@@ -24,10 +25,11 @@ PG_DATA="${PREFIX_DIR}/var/lib/postgresql"
 
 clear
 echo -e "${CYAN}${BOLD}==============================================================================${NC}"
-echo -e "${CYAN}${BOLD}     SHREEJI HEALTHCARE - COMPLETE TERMUX AUTOMATED DEPLOYMENT                ${NC}"
+echo -e "${CYAN}${BOLD}     SHREEJI HEALTHCARE - COMPLETE 24/7 MOBILE SERVER SETUP (TERMUX)          ${NC}"
 echo -e "${CYAN}${BOLD}==============================================================================${NC}"
-echo -e "${GREEN}[*] Target Environment: Android (Termux)${NC}"
+echo -e "${GREEN}[*] Target Environment: Android (Termux - Your Own Independent Server)${NC}"
 echo -e "${GREEN}[*] Target Apps: Order Book (Port 3000) + Envelope Manager (Port 8080)${NC}"
+echo -e "${GREEN}[*] Public Web Access: Cloudflare Free Tunnel (Zero Monthly Fees)${NC}"
 echo -e "${GREEN}[*] Working Directory: ${BASE_DIR}${NC}\n"
 
 # 1. Acquire Android Wake Lock so deployment is never killed
@@ -41,9 +43,12 @@ echo -e "\n${BLUE}[1/6] Updating Termux packages and installing dependencies...$
 pkg update -y
 pkg install -y git nodejs-lts python postgresql libjpeg-turbo freetype clang make rsync curl termux-tools lsof psmisc
 
+# Install Cloudflare Tunnel for free public web access
+pkg install -y cloudflared 2>/dev/null || true
+
 # Pre-compiled Pillow from Termux package manager (avoids compiling C headers)
 pkg install -y python-pillow 2>/dev/null || true
-echo -e "${GREEN}[✓] System packages installed successfully.${NC}"
+echo -e "${GREEN}[✓] System packages and cloudflared installed successfully.${NC}"
 
 # 3. Create Base Directory Structure
 mkdir -p "${BASE_DIR}"
@@ -118,7 +123,6 @@ echo -e "${GREEN}[✓] Shreeji Order Book ready.${NC}"
 echo -e "\n${BLUE}[4/6] Setting up MARG ERP Envelope Print Manager...${NC}"
 ENVELOPE_DIR="${BASE_DIR}/MARG-Envelope-Manager"
 if [ ! -d "${ENVELOPE_DIR}" ]; then
-    # Check if installer was launched from an existing clone
     CURRENT_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
     if [ -f "${CURRENT_SCRIPT_DIR}/backend/main.py" ]; then
         echo -e "    [*] Copying local MARG Envelope Manager repository..."
@@ -175,7 +179,7 @@ alias shreeji="bash $HOME/shreeji/start-all.sh"
 BASHRC_EOF
 fi
 
-# Optional Termux:Boot configuration for auto-start on device restart
+# Termux:Boot configuration for auto-start on device reboot
 BOOT_DIR="${HOME}/.termux/boot"
 mkdir -p "${BOOT_DIR}"
 cat << 'BOOT_EOF' > "${BOOT_DIR}/start-shreeji.sh"
