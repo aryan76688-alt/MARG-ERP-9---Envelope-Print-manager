@@ -32,6 +32,8 @@ import urllib.error
 import auth as auth_module
 from pathlib import Path
 import math
+import requests
+from cache_manager import cache_mgr
 
 def calculate_haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """Calculates distance in meters between two GPS coordinates using Haversine formula."""
@@ -654,6 +656,7 @@ def get_dashboard_stats(
 
 @app.get("/api/parties")
 def list_parties(
+    request: Request,
     page: int = Query(1, ge=1),
     limit: int = Query(25, ge=-1),
     search: Optional[str] = None,
@@ -663,6 +666,24 @@ def list_parties(
     route: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
+    cache_key = f"parties:list:{page}:{limit}:{search or ''}:{state or ''}:{city or ''}:{status}:{route or ''}"
+    etag = cache_mgr.get_etag(cache_key)
+
+    if_none_match = request.headers.get("if-none-match")
+    if if_none_match and if_none_match == etag:
+        return Response(status_code=304, headers={"ETag": etag, "Cache-Control": "public, max-age=15, stale-while-revalidate=30"})
+
+    cached_data = cache_mgr.get(cache_key)
+    if cached_data is not None:
+        return JSONResponse(
+            content=cached_data,
+            headers={
+                "ETag": etag,
+                "Cache-Control": "public, max-age=15, stale-while-revalidate=30",
+                "X-Cache": "HIT"
+            }
+        )
+
     query = db.query(Party)
 
     if status == "active":
@@ -761,7 +782,7 @@ def list_parties(
             "created_at": p.created_at.isoformat() if p.created_at else None
         })
 
-    return {
+    res_data = {
         "items": items,
         "total": total,
         "page": page,
@@ -770,6 +791,15 @@ def list_parties(
         "states": sorted(list(set(all_states))),
         "cities": sorted(list(set(all_cities)))
     }
+    cache_mgr.set(cache_key, res_data, ttl_seconds=30.0)
+    return JSONResponse(
+        content=res_data,
+        headers={
+            "ETag": etag,
+            "Cache-Control": "public, max-age=15, stale-while-revalidate=30",
+            "X-Cache": "MISS"
+        }
+    )
 
 @app.get("/api/parties/autocomplete")
 def autocomplete_parties(
@@ -784,6 +814,11 @@ def autocomplete_parties(
     clean_q = q.strip()
     if not clean_q:
         return []
+
+    cache_key = f"parties:autocomplete:{mode}:{clean_q.lower()}"
+    cached = cache_mgr.get(cache_key)
+    if cached is not None:
+        return cached
 
     pattern = f"{clean_q}%" if mode == "starts_with" else f"%{clean_q}%"
 
@@ -803,7 +838,7 @@ def autocomplete_parties(
         )
     ).order_by(Party.party_name.asc()).limit(25).all()
 
-    return [
+    formatted = [
         {
             "id": p.id,
             "party_name": p.party_name,
@@ -834,6 +869,8 @@ def autocomplete_parties(
         }
         for p in results
     ]
+    cache_mgr.set(cache_key, formatted, ttl_seconds=60.0)
+    return formatted
 
 @app.get("/api/parties/unprinted-today")
 def get_unprinted_parties_today(
@@ -919,10 +956,161 @@ def get_party_next_code(db: Session = Depends(get_db)):
     """
     Returns the next auto-assignable party code (e.g. MARG001837).
     """
-    return {"next_code": get_next_party_code(db)}
+    cached = cache_mgr.get("parties:next_code")
+    if cached is not None:
+        return cached
+    res = {"next_code": get_next_party_code(db)}
+    cache_mgr.set("parties:next_code", res, ttl_seconds=30.0)
+    return res
+
+ORDER_BOOK_API_URL = os.environ.get("ORDER_BOOK_API_URL", "http://127.0.0.1:3000")
+ORDER_BOOK_REMOTE_URL = "https://shreejiapp-production.up.railway.app"
+MARG_SYNC_SECRET = os.environ.get("MARG_SYNC_SECRET", "shreeji-marg-sync-secret-2026")
+
+def sync_party_to_order_book(party: Party, action: str = "upsert"):
+    """
+    Asynchronously and non-blockingly notifies Shreeji Healthcare Order Book of party addition/update.
+    """
+    def _run():
+        payload = {
+            "partyCode": party.party_code,
+            "partyName": party.party_name,
+            "mobile": party.mobile_no or "",
+            "email": party.email or "",
+            "gstNumber": party.gst_no or "",
+            "address": party.address or "",
+            "addressLine1": party.address or "",
+            "addressLine2": party.address_line_2 or "",
+            "addressLine3": party.address_line_3 or "",
+            "city": party.city or "",
+            "state": party.state or "Gujarat",
+            "landline": party.landline or "",
+            "deliveryRoute": party.route_1 or party.route or "",
+            "status": "active" if party.is_active else "inactive",
+            "action": action
+        }
+        headers = {
+            "Content-Type": "application/json",
+            "X-Sync-Secret": MARG_SYNC_SECRET,
+            "X-Sync-Source": "envelope"
+        }
+        for base in [ORDER_BOOK_API_URL, ORDER_BOOK_REMOTE_URL]:
+            try:
+                target = f"{base.rstrip('/')}/api/sync/parties"
+                res = requests.post(target, json=payload, headers=headers, timeout=4)
+                if res.status_code in (200, 201):
+                    print(f"[OrderBook Sync] Synced party {party.party_code} to {target}")
+                    return
+            except Exception:
+                pass
+    threading.Thread(target=_run, daemon=True).start()
+
+@app.post("/api/parties/sync-webhook")
+def receive_party_sync(
+    request: Request,
+    payload: Dict[str, Any] = Body(...),
+    db: Session = Depends(get_db)
+):
+    """
+    Receives party creation/update from Shreeji Healthcare Order Book (B2B).
+    Validates X-Sync-Secret.
+    """
+    secret = request.headers.get("x-sync-secret", "")
+    if secret != MARG_SYNC_SECRET:
+        raise HTTPException(status_code=401, detail="Invalid sync secret")
+
+    party_code = (payload.get("partyCode") or payload.get("party_code") or "").strip().upper()
+    party_name = (payload.get("partyName") or payload.get("party_name") or "").strip().upper()
+    mobile = (payload.get("mobile") or payload.get("mobile_no") or "").strip()
+    gst = (payload.get("gstNumber") or payload.get("gst_no") or "").strip().upper()
+    city = (payload.get("city") or "").strip().upper() or "DAHEGAM"
+    state = (payload.get("state") or "").strip().upper() or "GUJARAT"
+    address = (payload.get("address") or payload.get("addressLine1") or "").strip().upper() or city
+    address_2 = (payload.get("addressLine2") or "").strip().upper() or None
+    address_3 = (payload.get("addressLine3") or "").strip().upper() or None
+    route = (payload.get("deliveryRoute") or payload.get("route") or "").strip().upper() or None
+    email = (payload.get("email") or "").strip() or None
+    landline = (payload.get("landline") or "").strip() or None
+
+    if not party_name:
+        raise HTTPException(status_code=400, detail="partyName is required")
+
+    # Match existing party by code > gst > mobile > name
+    party = None
+    if party_code:
+        party = db.query(Party).filter(func.upper(Party.party_code) == party_code).first()
+    if not party and gst:
+        party = db.query(Party).filter(func.upper(Party.gst_no) == gst).first()
+    if not party and mobile and len(mobile) >= 10:
+        party = db.query(Party).filter(Party.mobile_no == mobile).first()
+    if not party and party_name:
+        party = db.query(Party).filter(func.upper(Party.party_name) == party_name).first()
+
+    action = "updated"
+    if party:
+        party.party_name = party_name
+        if party_code and not party.party_code:
+            party.party_code = party_code
+        if address:
+            party.address = address
+        if address_2:
+            party.address_line_2 = address_2
+        if address_3:
+            party.address_line_3 = address_3
+        if city:
+            party.city = city
+        if state:
+            party.state = state
+        if mobile:
+            party.mobile_no = mobile
+        if gst:
+            party.gst_no = gst
+        if email:
+            party.email = email
+        if landline:
+            party.landline = landline
+        if route:
+            party.route = route
+            party.route_1 = route
+            party.route_1_gu = translate_route_to_gujarati(route)
+        party.updated_at = datetime.datetime.utcnow()
+    else:
+        action = "created"
+        code_to_use = party_code if party_code else get_next_party_code(db)
+        r1_gu = translate_route_to_gujarati(route) if route else None
+        party = Party(
+            party_name=party_name,
+            party_code=code_to_use,
+            address=address,
+            address_line_2=address_2,
+            address_line_3=address_3,
+            city=city,
+            state=state,
+            mobile_no=mobile or None,
+            landline=landline,
+            email=email,
+            gst_no=gst or None,
+            route=route,
+            route_1=route,
+            route_1_gu=r1_gu,
+            is_active=True
+        )
+        db.add(party)
+
+    db.commit()
+    db.refresh(party)
+    cache_mgr.bump_version()
+
+    return {
+        "success": True,
+        "action": action,
+        "party_id": party.id,
+        "party_code": party.party_code,
+        "party_name": party.party_name
+    }
 
 @app.post("/api/parties", status_code=status.HTTP_201_CREATED)
-def create_party(party_in: PartyCreate, db: Session = Depends(get_db)):
+def create_party(party_in: PartyCreate, request: Request, db: Session = Depends(get_db)):
     if not party_in.party_name.strip():
         raise HTTPException(status_code=400, detail="Party Name is required")
     if not party_in.address.strip():
@@ -980,18 +1168,32 @@ def create_party(party_in: PartyCreate, db: Session = Depends(get_db)):
     db.add(party)
     db.commit()
     db.refresh(party)
+
+    # Invalidate cache
+    cache_mgr.bump_version()
+
+    # Outbound sync to Shreeji Healthcare Order Book
+    if request.headers.get("x-sync-source") != "orderbook":
+        sync_party_to_order_book(party, "create")
+
     return party
 
 @app.get("/api/parties/routes")
 def get_all_routes(db: Session = Depends(get_db)):
     """Returns sorted unique routes assigned across parties and print jobs."""
+    cached = cache_mgr.get("parties:routes")
+    if cached is not None:
+        return cached
+
     party_routes = set()
     for col in [Party.route, Party.route_1, Party.route_2, Party.route_3]:
         for r in db.query(col).distinct().filter(col != None).all():
             if r[0] and r[0].strip():
                 party_routes.add(r[0].strip())
     job_routes = [r[0].strip() for r in db.query(PrintJob.delivery_route).distinct().filter(PrintJob.delivery_route != None).all() if r[0] and r[0].strip()]
-    return sorted(list(party_routes.union(job_routes)))
+    res = sorted(list(party_routes.union(job_routes)))
+    cache_mgr.set("parties:routes", res, ttl_seconds=300.0)
+    return res
 
 @app.post("/api/parties/bulk-route")
 def bulk_assign_party_route(req: BulkRouteRequest, db: Session = Depends(get_db)):
@@ -1012,6 +1214,7 @@ def bulk_assign_party_route(req: BulkRouteRequest, db: Session = Depends(get_db)
         synchronize_session=False
     )
     db.commit()
+    cache_mgr.bump_version()
     return {"success": True, "updated_count": updated, "route": route_clean, "route_gu": gu_route}
 
 @app.post("/api/parties/bulk-delete")
@@ -1019,9 +1222,10 @@ def bulk_delete_parties(req: BulkDeletePartiesRequest, db: Session = Depends(get
     """Deletes multiple selected parties in a single transaction."""
     if not req.party_ids:
         return {"deleted_count": 0, "message": "No party IDs provided"}
-    
+
     deleted = db.query(Party).filter(Party.id.in_(req.party_ids)).delete(synchronize_session=False)
     db.commit()
+    cache_mgr.bump_version()
     return {"deleted_count": deleted, "message": f"{deleted} parties deleted successfully"}
 
 @app.post("/api/parties/delete-all")
@@ -1031,6 +1235,7 @@ def delete_all_parties(db: Session = Depends(get_db)):
     total_count = db.query(Party).count()
     db.query(Party).delete(synchronize_session=False)
     db.commit()
+    cache_mgr.bump_version()
     return {"deleted_count": total_count, "message": f"All {total_count} parties deleted successfully"}
 
 @app.post("/api/parties/export-selected")
@@ -1040,7 +1245,7 @@ def export_selected_parties(req: ExportSelectedPartiesRequest, db: Session = Dep
         parties = db.query(Party).filter(Party.id.in_(req.party_ids)).order_by(Party.party_name.asc()).all()
     else:
         parties = db.query(Party).order_by(Party.party_name.asc()).all()
-    
+
     xlsx_bytes = excel_service.export_parties_to_excel(parties)
     return Response(
         content=xlsx_bytes,
@@ -1056,7 +1261,7 @@ def get_party(party_id: int, db: Session = Depends(get_db)):
     return party
 
 @app.put("/api/parties/{party_id}")
-def update_party(party_id: int, party_in: PartyUpdate, db: Session = Depends(get_db)):
+def update_party(party_id: int, party_in: PartyUpdate, request: Request, db: Session = Depends(get_db)):
     party = db.query(Party).filter(Party.id == party_id).first()
     if not party:
         raise HTTPException(status_code=404, detail="Party not found")
@@ -1082,7 +1287,7 @@ def update_party(party_id: int, party_in: PartyUpdate, db: Session = Depends(get
     party.address_line_3_gu = ai_service.clean_gujarati_text(party_in.address_line_3_gu) if party_in.address_line_3_gu else None
     party.city_gu = ai_service.clean_gujarati_text(party_in.city_gu) if party_in.city_gu else None
     party.state_gu = ai_service.clean_gujarati_text(party_in.state_gu) if party_in.state_gu else None
-    
+
     if party_in.route_1 is not None:
         party.route_1 = party_in.route_1.strip().upper() if party_in.route_1 else None
         party.route_1_gu = party_in.route_1_gu.strip() if party_in.route_1_gu else translate_route_to_gujarati(party.route_1)
@@ -1110,6 +1315,14 @@ def update_party(party_id: int, party_in: PartyUpdate, db: Session = Depends(get
 
     db.commit()
     db.refresh(party)
+
+    # Invalidate cache
+    cache_mgr.bump_version()
+
+    # Outbound sync to Shreeji Healthcare Order Book
+    if request.headers.get("x-sync-source") != "orderbook":
+        sync_party_to_order_book(party, "update")
+
     return party
 
 @app.post("/api/parties/{party_id}/geofence")
@@ -1124,6 +1337,7 @@ def update_party_geofence(party_id: int, req: PartyGeofenceUpdateRequest, db: Se
     party.geofence_set_at = datetime.datetime.now(datetime.timezone.utc)
     db.commit()
     db.refresh(party)
+    cache_mgr.bump_version()
     return {
         "success": True,
         "party_id": party.id,
@@ -1139,9 +1353,11 @@ def delete_party(party_id: int, db: Session = Depends(get_db)):
     party = db.query(Party).filter(Party.id == party_id).first()
     if not party:
         raise HTTPException(status_code=404, detail="Party not found")
+    name = party.party_name
     db.delete(party)
     db.commit()
-    return {"message": f"Party '{party.party_name}' deleted successfully"}
+    cache_mgr.bump_version()
+    return {"message": f"Party '{name}' deleted successfully"}
 
 # -------------------------------------------------------------
 # GOOGLE SHEETS ROUTE INTEGRATION & BATCH ROUTE EDITING

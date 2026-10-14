@@ -169,6 +169,27 @@ def init_db():
             ("google_id", "TEXT", None),
             ("avatar_url", "TEXT", None),
         ])
+
+        # High-Performance Indexes Migration
+        indexes_to_ensure = [
+            ("idx_parties_code", "parties", ["party_code"]),
+            ("idx_parties_name", "parties", ["party_name"]),
+            ("idx_parties_name_gu", "parties", ["party_name_gu"]),
+            ("idx_parties_city", "parties", ["city"]),
+            ("idx_parties_mobile", "parties", ["mobile_no"]),
+            ("idx_parties_city_route", "parties", ["city", "route_1"]),
+            ("idx_parties_active_updated", "parties", ["is_active", "updated_at"]),
+            ("idx_print_jobs_created_at", "print_jobs", ["created_at"]),
+            ("idx_print_jobs_status", "print_jobs", ["status"]),
+            ("idx_print_jobs_party_snap", "print_jobs", ["party_name_snap"]),
+        ]
+        with engine.begin() as conn:
+            for idx_name, tbl_name, cols in indexes_to_ensure:
+                col_str = ", ".join(cols)
+                try:
+                    conn.execute(text(f"CREATE INDEX IF NOT EXISTS {idx_name} ON {tbl_name} ({col_str})"))
+                except Exception as ie:
+                    print(f"Index migration note ({idx_name}): {ie}")
     except Exception as mig_err:
         print(f"Column inspector migration notice: {mig_err}")
 

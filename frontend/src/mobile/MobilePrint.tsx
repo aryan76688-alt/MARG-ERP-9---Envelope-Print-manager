@@ -1,20 +1,15 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Search, 
   Printer, 
   Plus, 
   Minus, 
-  Check, 
-  Sparkles, 
-  Languages, 
   Share2, 
   MapPin, 
   Truck, 
-  AlertCircle,
-  FileText,
-  X,
-  Phone,
-  CheckCircle2
+  X, 
+  Phone, 
+  CheckCircle2 
 } from 'lucide-react';
 import { Party, CaseBreakdownItem } from '../types';
 import { autocompleteParties, createPrintJob, downloadEnvelopePDF } from '../api/client';
@@ -80,7 +75,6 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
         if (res && res.length > 0) {
           setSuggestions(res);
         } else {
-          // Fallback to offline search
           const off = await searchPartiesOffline(searchQuery);
           setSuggestions(off.slice(0, 10));
         }
@@ -123,7 +117,7 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
 
   const handleExecutePrint = async () => {
     if (!selectedParty) {
-      alert('કૃપા કરીને પહેલા પાર્ટી પસંદ કરો.');
+      alert('Please select a party first.');
       return;
     }
 
@@ -156,13 +150,11 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
       const res = await createPrintJob(payload);
       if (res && res.job) {
         setSuccessJob(res.job);
-        // Trigger download
         downloadEnvelopePDF({ job_id: res.job.id, language: language });
         if (onJobCreated) onJobCreated();
       }
     } catch (err: any) {
       console.error('Mobile print error:', err);
-      // Offline fallback queue
       try {
         const clientUuid = 'offline_' + Date.now();
         await queueOfflineJob({
@@ -179,9 +171,9 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
           driver_name: driverName,
           delivery_route: deliveryRoute
         });
-        alert('ઓફલાઇન સેવ થયું: ઇન્ટરનેટ જોડાણ મળતાં ઓટો-સિંક થશે.');
-      } catch (offlineErr) {
-        alert('પ્રિન્ટ એરર: ' + (err.message || 'અજ્ઞાત ક્ષતિ'));
+        alert('Saved offline: Will auto-sync once internet connection is available.');
+      } catch (offlineErr: any) {
+        alert('Print error: ' + (err.message || 'Unknown error'));
       }
     } finally {
       setPrinting(false);
@@ -197,19 +189,19 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
   };
 
   return (
-    <div className="p-4 space-y-4 max-w-lg mx-auto pb-28">
-      {/* 1. PARTY SEARCH & SELECTION BAR */}
+    <div className="p-4 space-y-4 max-w-lg mx-auto pb-32">
+      {/* 1. PARTY SEARCH & AUTOCOMPLETE */}
       <div className="relative">
-        <label className="block text-xs font-black uppercase text-slate-400 mb-1.5 px-1">
-          પાર્ટી શોધો (Search Party)
+        <label className="block text-xs font-black uppercase tracking-wider text-slate-400 mb-1.5 px-1">
+          Select Recipient Party
         </label>
         <div className="relative flex items-center">
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="પાર્ટી નામ, કોડ (MARG000001), શહેર શોધો..."
-            className="w-full bg-slate-900 border border-slate-700/80 rounded-2xl py-3.5 pl-11 pr-10 text-white placeholder-slate-500 text-sm font-semibold focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 shadow-md"
+            placeholder="Search name, code (e.g. MARG001837), city..."
+            className="w-full bg-slate-900/90 border border-slate-700/80 rounded-2xl py-3.5 pl-11 pr-10 text-white placeholder-slate-500 text-sm font-semibold focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 shadow-md"
           />
           <Search className="w-5 h-5 text-slate-400 absolute left-3.5 pointer-events-none" />
           {searchQuery && (
@@ -222,7 +214,7 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
           )}
         </div>
 
-        {/* Autocomplete Dropdown List */}
+        {/* Autocomplete Dropdown */}
         {suggestions.length > 0 && (
           <div className="absolute left-0 right-0 top-full mt-2 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl z-40 max-h-72 overflow-y-auto divide-y divide-slate-800">
             {suggestions.map((party) => (
@@ -235,14 +227,19 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
                   <span className="text-xs font-mono font-black px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30">
                     {party.party_code || 'MARG'}
                   </span>
-                  <span className="text-xs text-slate-400">{party.city}</span>
+                  <span className="text-xs text-slate-400 font-bold">{party.city}</span>
                 </div>
                 <div className="font-extrabold text-white text-sm mt-1">
-                  {party.party_name_gu ? `${party.party_name_gu} (${party.party_name})` : party.party_name}
+                  {party.party_name}
                 </div>
+                {party.party_name_gu && (
+                  <div className="text-xs text-slate-400 font-medium">
+                    {party.party_name_gu}
+                  </div>
+                )}
                 {party.route_1 && (
                   <div className="text-[10px] text-amber-400 font-bold mt-0.5">
-                    રૂટ: {party.route_1_gu || party.route_1}
+                    Route: {party.route_1}
                   </div>
                 )}
               </div>
@@ -253,7 +250,7 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
 
       {/* 2. SELECTED PARTY CARD */}
       {selectedParty ? (
-        <div className="bg-slate-900 border border-blue-500/30 rounded-2xl p-4 shadow-xl relative">
+        <div className="bg-slate-900/90 border border-blue-500/30 rounded-2xl p-4 shadow-xl relative space-y-3">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
@@ -261,17 +258,15 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
                   {selectedParty.party_code || 'MARG'}
                 </span>
                 <span className="text-xs text-emerald-400 font-bold bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded-md">
-                  પસંદ કરેલ
+                  Active Selection
                 </span>
               </div>
               <h3 className="text-base font-black text-white mt-1.5 leading-snug">
-                {language === 'gu' && selectedParty.party_name_gu 
-                  ? selectedParty.party_name_gu 
-                  : selectedParty.party_name}
+                {selectedParty.party_name}
               </h3>
               {selectedParty.party_name_gu && (
-                <div className="text-xs text-slate-400 font-medium">
-                  {selectedParty.party_name}
+                <div className="text-xs text-slate-400 font-medium mt-0.5">
+                  {selectedParty.party_name_gu}
                 </div>
               )}
             </div>
@@ -280,20 +275,18 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
             <button
               onClick={() => setSelectedParty(null)}
               className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white"
-              title="Clear party"
+              title="Clear Selected Party"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
 
           {/* Address Details */}
-          <div className="mt-3 pt-3 border-t border-slate-800/80 text-xs text-slate-300 space-y-1">
+          <div className="pt-2 border-t border-slate-800 text-xs text-slate-300 space-y-1">
             <div className="flex items-start gap-1.5">
               <MapPin className="w-3.5 h-3.5 text-blue-400 flex-shrink-0 mt-0.5" />
               <span>
-                {language === 'gu' && selectedParty.address_gu 
-                  ? selectedParty.address_gu 
-                  : selectedParty.address}
+                {selectedParty.address}
                 {selectedParty.city && `, ${selectedParty.city}`}
               </span>
             </div>
@@ -306,27 +299,22 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
           </div>
 
           {/* Route Tags */}
-          <div className="mt-3 flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-1.5 pt-1">
             {selectedParty.route_1 && (
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                1: {selectedParty.route_1_gu || selectedParty.route_1}
+                R1: {selectedParty.route_1}
               </span>
             )}
             {selectedParty.route_2 && (
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                2: {selectedParty.route_2_gu || selectedParty.route_2}
-              </span>
-            )}
-            {selectedParty.route_3 && (
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                3: {selectedParty.route_3_gu || selectedParty.route_3}
+                R2: {selectedParty.route_2}
               </span>
             )}
           </div>
 
-          {/* Language Toggle */}
-          <div className="mt-3.5 flex items-center justify-between pt-2 border-t border-slate-800">
-            <span className="text-xs font-bold text-slate-400">કવર ભાષા (Print Language):</span>
+          {/* Envelope Print Language Toggle */}
+          <div className="flex items-center justify-between pt-2 border-t border-slate-800">
+            <span className="text-xs font-bold text-slate-400">Envelope Language:</span>
             <div className="flex items-center bg-slate-800 p-0.5 rounded-xl border border-slate-700">
               <button
                 onClick={() => setLanguage('gu')}
@@ -334,7 +322,7 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
                   language === 'gu' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
                 }`}
               >
-                ગુજરાતી
+                Gujarati
               </button>
               <button
                 onClick={() => setLanguage('en')}
@@ -348,19 +336,19 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
           </div>
         </div>
       ) : (
-        <div className="p-6 rounded-2xl bg-slate-900 border border-dashed border-slate-800 text-center text-slate-400 text-xs">
-          કવર પ્રિન્ટ કરવા માટે ઉપરથી પાર્ટી સર્ચ કરો અથવા પસંદ કરો.
+        <div className="p-8 rounded-2xl bg-slate-900/80 border border-dashed border-slate-800 text-center text-slate-400 text-xs">
+          Search or select a party above to configure your envelope print.
         </div>
       )}
 
-      {/* 3. TACTILE CASE STEPPER (Supports 0 for Address-Only) */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-lg space-y-3">
+      {/* 3. TACTILE CASE STEPPER */}
+      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-lg space-y-3">
         <div className="flex items-center justify-between">
-          <label className="text-xs font-black uppercase text-slate-400">
-            કેસ સંખ્યા (Total Cases)
+          <label className="text-xs font-black uppercase tracking-wider text-slate-400">
+            Total Dispatch Cases
           </label>
-          <span className="text-[10px] font-bold text-blue-400">
-            {totalCases === 0 ? 'માત્ર સરનામું (Address-Only)' : `${totalCases} પાર્સલ કેસ`}
+          <span className="text-[11px] font-bold text-blue-400">
+            {totalCases === 0 ? 'Address-Only Envelope' : `${totalCases} Parcel Case(s)`}
           </span>
         </div>
 
@@ -376,7 +364,7 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
           <div className="text-center min-w-[80px]">
             <div className="text-3xl font-black text-white">{totalCases}</div>
             <div className="text-[10px] font-bold text-slate-400">
-              {totalCases === 0 ? 'સરનામું માત્ર' : 'કેસ (Cases)'}
+              {totalCases === 0 ? 'Address Only' : 'Cases'}
             </div>
           </div>
 
@@ -388,7 +376,7 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
           </button>
         </div>
 
-        {/* Quick Case Chips */}
+        {/* Quick Case Pills */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
           <button
             onClick={() => setTotalCases(0)}
@@ -398,7 +386,7 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
                 : 'bg-slate-800 text-slate-400 border-slate-700'
             }`}
           >
-            0 (માત્ર સરનામું)
+            0 (Address Only)
           </button>
           {[1, 2, 3, 5, 10].map(c => (
             <button
@@ -410,7 +398,7 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
                   : 'bg-slate-800 text-slate-400 border-slate-700'
               }`}
             >
-              {c} કેસ
+              {c} {c === 1 ? 'Case' : 'Cases'}
             </button>
           ))}
         </div>
@@ -418,15 +406,17 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
 
       {/* 4. IV FLUIDS BREAKDOWN (200ML EXCLUDED) */}
       {totalCases > 0 && (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-lg space-y-3">
+        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-lg space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-black uppercase text-slate-400">
-              IV Fluids & બોટલ વિગતો
+            <span className="text-xs font-black uppercase tracking-wider text-slate-400">
+              IV Fluids & Bottle Breakdown
             </span>
-            <span className="text-[10px] text-amber-400 font-bold">200ML બાકાત</span>
+            <span className="text-[10px] text-amber-400 font-bold bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-md">
+              200ML Excluded
+            </span>
           </div>
 
-          {/* Quick Add Pills */}
+          {/* Quick Add Grid */}
           <div className="grid grid-cols-4 gap-1.5">
             {fluidTypes.map(f => (
               <div key={f} className="space-y-1">
@@ -455,7 +445,7 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
                   <span>{item.type} {item.volume} ({item.qty})</span>
                   <button
                     onClick={() => handleRemoveFluidItem(idx)}
-                    className="text-slate-400 hover:text-rose-400 ml-1"
+                    className="text-slate-400 hover:text-rose-400 ml-1 font-black"
                   >
                     ×
                   </button>
@@ -471,23 +461,21 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
         <div className="bg-emerald-950/80 border border-emerald-500/40 rounded-2xl p-4 shadow-xl space-y-3">
           <div className="flex items-center gap-2.5 text-emerald-300">
             <CheckCircle2 className="w-5 h-5" />
-            <span className="text-sm font-black">કવર સફળતાપૂર્વક પ્રિન્ટ થયું!</span>
+            <span className="text-sm font-black">Envelope Generated Successfully!</span>
           </div>
           <div className="text-xs text-slate-200">
-            જોબ નંબર: <span className="font-mono font-bold text-white">{successJob.job_number}</span>
+            Job ID: <span className="font-mono font-bold text-white">{successJob.job_number}</span>
           </div>
 
           <div className="flex items-center gap-2 pt-1">
-            {/* Download Again */}
             <button
               onClick={() => downloadEnvelopePDF({ job_id: successJob.id, language: language })}
               className="flex-1 py-2.5 rounded-xl bg-blue-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition-all"
             >
               <Printer className="w-4 h-4" />
-              <span>PDF ફરી ડાઉનલોડ</span>
+              <span>Download PDF</span>
             </button>
 
-            {/* WhatsApp Share */}
             {selectedParty?.mobile_no && (
               <a
                 href={generateWhatsAppDispatchUrl({
@@ -503,16 +491,15 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
                 className="py-2.5 px-3 rounded-xl bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition-all"
               >
                 <Share2 className="w-4 h-4" />
-                <span>વોટ્સએપ</span>
+                <span>WhatsApp</span>
               </a>
             )}
 
-            {/* New Print */}
             <button
               onClick={resetForm}
               className="py-2.5 px-3 rounded-xl bg-slate-800 text-slate-200 font-bold text-xs hover:bg-slate-700 active:scale-95 transition-all"
             >
-              નવું
+              New
             </button>
           </div>
         </div>
@@ -533,10 +520,10 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
             <Printer className="w-6 h-6 text-amber-300" />
             <span>
               {printing 
-                ? 'પ્રિન્ટ થઈ રહ્યું છે...' 
+                ? 'Generating Envelope...' 
                 : totalCases === 0 
-                ? 'સરનામું કવર પ્રિન્ટ કરો (0 કેસ)' 
-                : `કવર પ્રિન્ટ કરો (${totalCases} કેસ)`}
+                ? 'Print Address-Only Envelope' 
+                : `Print Envelope (${totalCases} Cases)`}
             </span>
           </button>
         </div>

@@ -27,7 +27,7 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         const val LOCAL_APP_URL = "https://appassets.androidplatform.net/assets/index.html?mode=apk"
-        const val REMOTE_FALLBACK_URL = "https://marg-envelope-manager-production.up.railway.app/?mode=apk"
+        const val REMOTE_FALLBACK_URL = "https://shreeji-envelope-manager.pages.dev/?mode=apk"
     }
 
     private lateinit var rootLayout: View

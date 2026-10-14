@@ -9,12 +9,15 @@ import {
   RefreshCw, 
   Share2, 
   Calendar, 
-  ArrowRight,
-  Clock,
-  Sparkles,
-  MapPin,
-  Map,
-  FileSpreadsheet
+  ArrowRight, 
+  Clock, 
+  Sparkles, 
+  MapPin, 
+  Map, 
+  FileSpreadsheet,
+  CheckCircle2,
+  TrendingUp,
+  Radio
 } from 'lucide-react';
 import { DashboardData, PrintJob } from '../types';
 import { fetchDashboard, fetchPrintJobs } from '../api/client';
@@ -54,37 +57,39 @@ export const MobileHome: React.FC<MobileHomeProps> = ({ onNavigate }) => {
   }, []);
 
   return (
-    <div className="p-4 space-y-4 max-w-lg mx-auto pb-8">
-      {/* 1. TOP HERO GREETING & LIVE ERP SYNC */}
-      <div className="flex items-center justify-between bg-gradient-to-r from-blue-950/80 via-slate-900 to-indigo-950/70 border border-blue-500/30 rounded-2xl p-4 shadow-xl">
-        <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-base font-black text-white font-display flex items-center gap-1.5">
-              <span>શ્રીજી ડિસ્પેચ હબ</span>
-              <Sparkles className="w-4 h-4 text-amber-400" />
-            </h2>
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              LIVE 8089
-            </span>
+    <div className="p-4 space-y-4 max-w-lg mx-auto pb-8 font-sans">
+      {/* 1. TOP HERO GREETING & LIVE ERP SYNC (STITCH EXECUTIVE STYLE) */}
+      <div className="relative overflow-hidden bg-gradient-to-r from-blue-950/80 via-slate-900 to-indigo-950/70 border border-blue-500/30 rounded-2xl p-4 shadow-xl">
+        <div className="relative z-10 flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-black text-white font-display flex items-center gap-1.5">
+                <span>Shreeji Dispatch Hub</span>
+                <Sparkles className="w-4 h-4 text-amber-400" />
+              </h2>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                ONLINE
+              </span>
+            </div>
+            <p className="text-xs font-semibold text-slate-300 mt-0.5">
+              Executive Envelope Print & Fleet Logistics
+            </p>
           </div>
-          <p className="text-xs font-semibold text-slate-300 mt-0.5">
-            કવર પ્રિન્ટ, રૂટ ટ્રેકિંગ અને ડિસ્પેચ
-          </p>
+          <button
+            onClick={loadData}
+            disabled={refreshing}
+            className="p-2.5 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 active:text-white active:bg-blue-600 transition-all shadow-sm cursor-pointer"
+            title="Refresh Live Data"
+          >
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin text-blue-400' : ''}`} />
+          </button>
         </div>
-        <button
-          onClick={loadData}
-          disabled={refreshing}
-          className="p-2.5 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 active:text-white active:bg-blue-600 transition-all shadow-sm"
-          title="Refresh Data"
-        >
-          <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin text-blue-400' : ''}`} />
-        </button>
       </div>
 
-      {/* 2. STATS ROW (2x2 GRID WITH GLOWING ACCENTS) */}
+      {/* 2. STATS 2x2 METRIC MATRIX */}
       <div className="grid grid-cols-2 gap-2.5">
-        {/* Parties Card */}
+        {/* Total Parties */}
         <div 
           onClick={() => onNavigate('parties')}
           className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 shadow-md flex items-center gap-3 active:scale-95 transition-all cursor-pointer hover:border-blue-500/40"
@@ -93,11 +98,11 @@ export const MobileHome: React.FC<MobileHomeProps> = ({ onNavigate }) => {
             <Users className="w-6 h-6" />
           </div>
           <div>
-            <div className="text-[11px] font-bold text-slate-400">કુલ પાર્ટીઓ</div>
+            <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">Total Parties</div>
             <div className="text-xl font-black text-white font-display">
               {data?.metrics?.total_parties?.toLocaleString('en-IN') ?? '1,836'}
             </div>
-            <div className="text-[10px] text-blue-400 font-semibold font-mono">100% સિંક</div>
+            <div className="text-[10px] text-blue-400 font-semibold font-mono">100% Synced</div>
           </div>
         </div>
 
@@ -110,15 +115,15 @@ export const MobileHome: React.FC<MobileHomeProps> = ({ onNavigate }) => {
             <Printer className="w-6 h-6" />
           </div>
           <div>
-            <div className="text-[11px] font-bold text-slate-400">પ્રિન્ટેડ કવર</div>
+            <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">Printed Today</div>
             <div className="text-xl font-black text-emerald-400 font-display">
-              {data?.metrics?.total_envelopes_printed ?? 0}
+              {data?.metrics?.todays_prints ?? data?.metrics?.total_envelopes_printed ?? 0}
             </div>
-            <div className="text-[10px] text-emerald-300 font-semibold font-mono">કુલ ડિસ્પેચ</div>
+            <div className="text-[10px] text-emerald-300 font-semibold font-mono">Ready to Courier</div>
           </div>
         </div>
 
-        {/* Today's Cases */}
+        {/* Cases Dispatched */}
         <div 
           onClick={() => onNavigate('dispatch')}
           className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 shadow-md flex items-center gap-3 active:scale-95 transition-all cursor-pointer hover:border-amber-500/40"
@@ -127,11 +132,11 @@ export const MobileHome: React.FC<MobileHomeProps> = ({ onNavigate }) => {
             <Package className="w-6 h-6" />
           </div>
           <div>
-            <div className="text-[11px] font-bold text-slate-400">આજના કેસ</div>
+            <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">Cases Handled</div>
             <div className="text-xl font-black text-amber-300 font-display">
               {data?.metrics?.total_cases ?? 0}
             </div>
-            <div className="text-[10px] text-amber-400 font-semibold font-mono">દવા અને બોટલ</div>
+            <div className="text-[10px] text-amber-400 font-semibold font-mono">Cartons & Boxes</div>
           </div>
         </div>
 
@@ -144,174 +149,164 @@ export const MobileHome: React.FC<MobileHomeProps> = ({ onNavigate }) => {
             <Truck className="w-6 h-6" />
           </div>
           <div>
-            <div className="text-[11px] font-bold text-slate-400">ડ્રાઈવર POD</div>
+            <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">Driver Stops</div>
             <div className="text-xl font-black text-purple-300 font-display">
               {data?.print_summary?.pending ?? 0}
             </div>
-            <div className="text-[10px] text-purple-400 font-semibold font-mono">ડિલિવરી ટ્રેક</div>
+            <div className="text-[10px] text-purple-400 font-semibold font-mono">Live Route Queue</div>
           </div>
         </div>
       </div>
 
-      {/* Google Stitch Feature: Live Route Dispatch & GPS Telemetry Card */}
+      {/* 3. GPS ROUTE RADAR BANNER (STITCH HIGH-DENSITY CARD) */}
       <div 
         onClick={() => onNavigate('map')}
         className="bg-slate-900 border border-blue-500/30 rounded-2xl p-3.5 shadow-lg flex items-center justify-between gap-3 cursor-pointer active:scale-[0.98] transition-all hover:border-blue-400/50"
       >
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 flex-shrink-0">
-            <MapPin className="w-5 h-5 text-blue-400 animate-bounce" />
+            <MapPin className="w-5 h-5 text-blue-400" />
           </div>
           <div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs font-black text-white font-display">લાઇવ જીપીએસ રૂટ મેપ</span>
-              <span className="badge-emerald font-mono">8 ROUTES</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-black text-white font-display">Live Route & GPS Radar</span>
+              <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-mono">
+                8 Active Routes
+              </span>
             </div>
-            <p className="text-[11px] text-slate-300 font-medium">
-              વાહન ટ્રેકિંગ અને પાર્ટી લોકેશન જુઓ
+            <p className="text-[11px] text-slate-300 font-medium mt-0.5">
+              Interactive chemist geofences and delivery directions
             </p>
           </div>
         </div>
-        <div className="p-2 rounded-xl bg-slate-800 text-blue-400 border border-slate-700">
+        <div className="p-2 rounded-xl bg-slate-800 text-blue-400 border border-slate-700 flex-shrink-0">
           <ArrowRight className="w-4 h-4" />
         </div>
       </div>
 
-      {/* 3. PRIMARY ACTION: 1-TAP FAST ENVELOPE PRINT */}
+      {/* 4. PRIMARY CALL TO ACTION: 1-TAP INSTANT PRINT */}
       <button
         onClick={() => onNavigate('print')}
-        className="w-full bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 hover:from-blue-500 hover:to-indigo-500 text-white rounded-2xl p-4 shadow-xl shadow-blue-600/30 border border-blue-400/40 flex items-center justify-between active:scale-[0.98] transition-all"
+        className="w-full bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 hover:from-blue-500 hover:to-indigo-500 text-white rounded-2xl p-4 shadow-xl shadow-blue-600/30 border border-blue-400/40 flex items-center justify-between active:scale-[0.98] transition-all cursor-pointer"
       >
         <div className="flex items-center gap-3.5">
           <div className="w-12 h-12 rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white shadow-inner flex-shrink-0">
             <Printer className="w-7 h-7 text-amber-300" />
           </div>
           <div className="text-left">
-            <div className="text-base font-black text-white flex items-center gap-2">
-              <span>ઝડપી કવર પ્રિન્ટ</span>
-              <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 animate-pulse">
-                FAST
+            <div className="text-base font-black text-white flex items-center gap-2 font-display">
+              <span>Print Envelope</span>
+              <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 font-mono">
+                1-TAP
               </span>
             </div>
-            <div className="text-xs text-blue-100 font-semibold">
-              પાર્ટી પસંદ કરો અને તરત જ પ્રિન્ટ કરો
+            <div className="text-xs text-blue-100 font-medium">
+              Select chemist party & generate physical print
             </div>
           </div>
         </div>
-        <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white">
+        <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white flex-shrink-0">
           <ArrowRight className="w-4 h-4" />
         </div>
       </button>
 
-      {/* 4. QUICK ACTION SHORTCUTS GRID */}
+      {/* 5. QUICK SHORTCUTS GRID */}
       <div>
-        <div className="text-xs font-black uppercase text-slate-400 tracking-wider mb-2.5 px-1">
-          ઝડપી શોર્ટકટ્સ (Quick Shortcuts)
+        <div className="text-xs font-black uppercase text-slate-400 tracking-wider mb-2.5 px-1 font-mono">
+          Quick Actions & Master Data
         </div>
         <div className="grid grid-cols-3 gap-2">
           {/* Search Party */}
           <button
             onClick={() => onNavigate('parties')}
-            className="flex flex-col items-center justify-center p-3 rounded-2xl bg-slate-900 border border-slate-800 text-slate-200 active:bg-blue-600 active:text-white transition-all shadow-sm"
+            className="flex flex-col items-center justify-center p-3 rounded-2xl bg-slate-900 border border-slate-800 text-slate-200 active:bg-blue-600 active:text-white transition-all shadow-sm cursor-pointer"
           >
             <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center mb-1.5">
               <Search className="w-5 h-5" />
             </div>
-            <span className="text-xs font-bold">શોધો</span>
-            <span className="text-[9px] text-slate-400">Search</span>
+            <span className="text-xs font-bold">Search</span>
+            <span className="text-[10px] text-slate-400">Directory</span>
           </button>
 
           {/* Add New Party */}
           <button
             onClick={() => onNavigate('parties', { openAddModal: true })}
-            className="flex flex-col items-center justify-center p-3 rounded-2xl bg-slate-900 border border-slate-800 text-slate-200 active:bg-blue-600 active:text-white transition-all shadow-sm"
+            className="flex flex-col items-center justify-center p-3 rounded-2xl bg-slate-900 border border-slate-800 text-slate-200 active:bg-blue-600 active:text-white transition-all shadow-sm cursor-pointer"
           >
             <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center mb-1.5">
               <Plus className="w-5 h-5" />
             </div>
-            <span className="text-xs font-bold">નવી પાર્ટી</span>
-            <span className="text-[9px] text-slate-400">Add Party</span>
+            <span className="text-xs font-bold">New Party</span>
+            <span className="text-[10px] text-slate-400">Add Chemist</span>
           </button>
 
           {/* Delivery POD */}
           <button
             onClick={() => onNavigate('driver')}
-            className="flex flex-col items-center justify-center p-3 rounded-2xl bg-slate-900 border border-slate-800 text-slate-200 active:bg-blue-600 active:text-white transition-all shadow-sm"
+            className="flex flex-col items-center justify-center p-3 rounded-2xl bg-slate-900 border border-slate-800 text-slate-200 active:bg-blue-600 active:text-white transition-all shadow-sm cursor-pointer"
           >
             <div className="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center mb-1.5">
               <Truck className="w-5 h-5" />
             </div>
-            <span className="text-xs font-bold">ડ્રાઈવર POD</span>
-            <span className="text-[9px] text-slate-400">Driver</span>
+            <span className="text-xs font-bold">Driver POD</span>
+            <span className="text-[10px] text-slate-400">Delivery</span>
           </button>
 
           {/* Dispatch Summary */}
           <button
             onClick={() => onNavigate('dispatch')}
-            className="flex flex-col items-center justify-center p-3 rounded-2xl bg-slate-900 border border-slate-800 text-slate-200 active:bg-blue-600 active:text-white transition-all shadow-sm"
+            className="flex flex-col items-center justify-center p-3 rounded-2xl bg-slate-900 border border-slate-800 text-slate-200 active:bg-blue-600 active:text-white transition-all shadow-sm cursor-pointer"
           >
             <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center mb-1.5">
               <Package className="w-5 h-5" />
             </div>
-            <span className="text-xs font-bold">સમરી</span>
-            <span className="text-[9px] text-slate-400">Summary</span>
+            <span className="text-xs font-bold">Manifest</span>
+            <span className="text-[10px] text-slate-400">Summary</span>
           </button>
 
-          {/* Route Manager */}
-          <button
-            onClick={() => onNavigate('parties', { openRouteManager: true })}
-            className="flex flex-col items-center justify-center p-3 rounded-2xl bg-slate-900 border border-slate-800 text-slate-200 active:bg-blue-600 active:text-white transition-all shadow-sm"
-          >
-            <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center mb-1.5">
-              <MapPin className="w-5 h-5" />
-            </div>
-            <span className="text-xs font-bold">રૂટ મેનેજર</span>
-            <span className="text-[9px] text-slate-400">Routes</span>
-          </button>
-
-          {/* All Parties Map */}
+          {/* Route Map */}
           <button
             onClick={() => onNavigate('map')}
-            className="flex flex-col items-center justify-center p-3 rounded-2xl bg-slate-900 border border-slate-800 text-slate-200 active:bg-emerald-600 active:text-white transition-all shadow-sm"
+            className="flex flex-col items-center justify-center p-3 rounded-2xl bg-slate-900 border border-slate-800 text-slate-200 active:bg-emerald-600 active:text-white transition-all shadow-sm cursor-pointer"
           >
             <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center mb-1.5">
               <Map className="w-5 h-5" />
             </div>
-            <span className="text-xs font-bold">પાર્ટી મેપ</span>
-            <span className="text-[9px] text-emerald-400 font-semibold">Map</span>
+            <span className="text-xs font-bold">GPS Map</span>
+            <span className="text-[10px] text-slate-400">Live Routes</span>
           </button>
 
           {/* History */}
           <button
             onClick={() => onNavigate('history')}
-            className="flex flex-col items-center justify-center p-3 rounded-2xl bg-slate-900 border border-slate-800 text-slate-200 active:bg-blue-600 active:text-white transition-all shadow-sm"
+            className="flex flex-col items-center justify-center p-3 rounded-2xl bg-slate-900 border border-slate-800 text-slate-200 active:bg-blue-600 active:text-white transition-all shadow-sm cursor-pointer"
           >
             <div className="w-10 h-10 rounded-xl bg-rose-500/10 text-rose-400 flex items-center justify-center mb-1.5">
               <Clock className="w-5 h-5" />
             </div>
-            <span className="text-xs font-bold">ઇતિહાસ</span>
-            <span className="text-[9px] text-slate-400">History</span>
+            <span className="text-xs font-bold">History</span>
+            <span className="text-[10px] text-slate-400">Logs & Reprints</span>
           </button>
         </div>
       </div>
 
-      {/* 5. RECENT PRINTS CAROUSEL WITH 1-TAP REPRINT & WHATSAPP */}
+      {/* 6. RECENT ENVELOPES FEED (STITCH HIGH-CONTRAST TIMELINE) */}
       <div>
         <div className="flex items-center justify-between mb-2.5 px-1">
-          <span className="text-xs font-black uppercase text-slate-400 tracking-wider">
-            તાજેતરના કવર (Recent Envelopes)
+          <span className="text-xs font-black uppercase text-slate-400 tracking-wider font-mono">
+            Recent Print Queue
           </span>
           <button
             onClick={() => onNavigate('history')}
-            className="text-xs font-bold text-blue-400 hover:text-blue-300"
+            className="text-xs font-bold text-blue-400 hover:text-blue-300 cursor-pointer"
           >
-            બધા જુઓ →
+            View All →
           </button>
         </div>
 
         {recentJobs.length === 0 ? (
           <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 text-center text-slate-400 text-xs">
-            આજે હજુ સુધી કોઈ કવર પ્રિન્ટ થયા નથી.
+            No envelopes printed today yet. Click Print Envelope above to start.
           </div>
         ) : (
           <div className="space-y-2">
@@ -319,7 +314,7 @@ export const MobileHome: React.FC<MobileHomeProps> = ({ onNavigate }) => {
               const partyName = job.party_name || 'Party';
               const partyGu = job.party_name_gu || '';
               const cases = job.total_cases ?? 1;
-              const dateStr = job.created_at ? new Date(job.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '';
+              const dateStr = job.created_at ? new Date(job.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '';
               const waUrl = job.mobile 
                 ? generateWhatsAppDispatchUrl({
                     partyName: job.party_name,
@@ -328,26 +323,31 @@ export const MobileHome: React.FC<MobileHomeProps> = ({ onNavigate }) => {
                     jobNumber: job.job_number,
                     totalCases: cases,
                     city: job.city
-                  }, 'gu') 
+                  }, 'en') 
                 : null;
 
               return (
                 <div
                   key={job.id}
-                  className="bg-slate-900 border border-slate-800 rounded-2xl p-3 shadow-md flex items-center justify-between gap-3"
+                  className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 shadow-md flex items-center justify-between gap-3 hover:border-slate-700 transition-all"
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-2">
                       <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30">
                         {job.party_code || 'MARG'}
                       </span>
-                      <span className="text-[10px] text-slate-400">{dateStr}</span>
+                      <span className="text-[10px] font-mono text-slate-400">{dateStr}</span>
                     </div>
                     <div className="font-extrabold text-sm text-white truncate mt-1">
-                      {partyGu ? `${partyGu} (${partyName})` : partyName}
+                      {partyName}
                     </div>
-                    <div className="text-xs text-slate-400 flex items-center gap-2 mt-0.5">
-                      <span className="text-amber-400 font-bold">{cases} કેસ</span>
+                    {partyGu && (
+                      <div className="text-xs text-slate-400 truncate leading-tight font-medium">
+                        {partyGu}
+                      </div>
+                    )}
+                    <div className="text-xs text-slate-400 flex items-center gap-2 mt-1">
+                      <span className="text-amber-400 font-bold font-mono">{cases} {cases === 1 ? 'Case' : 'Cases'}</span>
                       {job.city && (
                         <span>• {job.city}</span>
                       )}
@@ -358,11 +358,11 @@ export const MobileHome: React.FC<MobileHomeProps> = ({ onNavigate }) => {
                     {/* Reprint Button */}
                     <button
                       onClick={() => onNavigate('print', { reprintJob: job })}
-                      className="p-2 rounded-xl bg-blue-600 text-white font-bold text-xs shadow-md active:scale-95 transition-all flex items-center gap-1"
+                      className="px-2.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md active:scale-95 transition-all flex items-center gap-1 cursor-pointer"
                       title="Reprint Envelope"
                     >
-                      <Printer className="w-4 h-4" />
-                      <span className="text-[11px]">ફરી</span>
+                      <Printer className="w-3.5 h-3.5" />
+                      <span className="text-[11px]">Reprint</span>
                     </button>
 
                     {/* WhatsApp Button */}
@@ -371,8 +371,8 @@ export const MobileHome: React.FC<MobileHomeProps> = ({ onNavigate }) => {
                         href={waUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="p-2 rounded-xl bg-emerald-600 text-white active:scale-95 transition-all"
-                        title="Share on WhatsApp"
+                        className="p-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white active:scale-95 transition-all cursor-pointer shadow-sm"
+                        title="Share Dispatch on WhatsApp"
                       >
                         <Share2 className="w-4 h-4" />
                       </a>
