@@ -79,7 +79,7 @@ async function fetchApi(url: string, options: RequestInit = {}) {
     const isFetchErr = err?.name === 'TypeError' || err?.message?.toLowerCase().includes('fetch');
     if (isFetchErr) {
       const activeServer = localStorage.getItem('api_server_url') || (isLocalAsset ? DEFAULT_REMOTE_API : (typeof window !== 'undefined' ? window.location.origin : 'server'));
-      throw new Error(`Cannot connect to backend server (${activeServer}). Please ensure your Termux or Windows server is running, or configure the server URL in Settings.`);
+      throw new Error(`Cannot connect to backend server (${activeServer}). Please ensure your Termux server is running on port 8080.`);
     }
     throw err;
   }
