@@ -4544,11 +4544,11 @@ def read_users_me(current_user: User = Depends(auth_module.get_current_user)):
     return current_user
 
 @app.get("/api/users", response_model=List[UserResponse])
-def get_users(db: Session = Depends(get_db), current_user: User = Depends(auth_module.get_current_super_admin)):
+def get_users(db: Session = Depends(get_db), current_user: User = Depends(auth_module.get_current_active_admin)):
     return db.query(User).all()
 
 @app.post("/api/users", response_model=UserResponse)
-def create_user(user_in: UserCreate, db: Session = Depends(get_db), current_user: User = Depends(auth_module.get_current_super_admin)):
+def create_user(user_in: UserCreate, db: Session = Depends(get_db), current_user: User = Depends(auth_module.get_current_active_admin)):
     existing_user = db.query(User).filter(User.username == user_in.username).first()
     if existing_user:
         raise HTTPException(status_code=400, detail="Username already registered")
@@ -4568,7 +4568,7 @@ def create_user(user_in: UserCreate, db: Session = Depends(get_db), current_user
     return new_user
 
 @app.put("/api/users/{user_id}", response_model=UserResponse)
-def update_user(user_id: int, user_in: UserUpdate, db: Session = Depends(get_db), current_user: User = Depends(auth_module.get_current_super_admin)):
+def update_user(user_id: int, user_in: UserUpdate, db: Session = Depends(get_db), current_user: User = Depends(auth_module.get_current_active_admin)):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -4593,7 +4593,7 @@ def update_user(user_id: int, user_in: UserUpdate, db: Session = Depends(get_db)
     return user
 
 @app.delete("/api/users/{user_id}")
-def delete_user(user_id: int, db: Session = Depends(get_db), current_user: User = Depends(auth_module.get_current_super_admin)):
+def delete_user(user_id: int, db: Session = Depends(get_db), current_user: User = Depends(auth_module.get_current_active_admin)):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -4649,6 +4649,59 @@ def download_android_apk():
                 media_type="application/vnd.android.package-archive"
             )
     raise HTTPException(status_code=404, detail="APK build not found")
+
+
+# --- Real-time User & Driver GPS Tracking (Only visible to Admin & Super Admin) ---
+live_user_locations: Dict[str, Dict[str, Any]] = {}
+
+class LiveLocationPayload(BaseModel):
+    latitude: float
+    longitude: float
+    accuracy: Optional[float] = None
+    battery: Optional[int] = None
+    speed: Optional[float] = None
+
+@app.post("/api/users/live-location")
+def update_user_live_location(
+    req: LiveLocationPayload, 
+    current_user: User = Depends(auth_module.get_current_user)
+):
+    """Updates user's real-time GPS location."""
+    now_dt = datetime.datetime.now(datetime.timezone.utc)
+    live_user_locations[current_user.username] = {
+        "username": current_user.username,
+        "full_name": current_user.full_name or current_user.username,
+        "role": current_user.role,
+        "latitude": req.latitude,
+        "longitude": req.longitude,
+        "accuracy": req.accuracy,
+        "battery": req.battery,
+        "speed": req.speed,
+        "updated_at": now_dt.isoformat(),
+        "timestamp": now_dt.timestamp()
+    }
+    return {"success": True, "username": current_user.username}
+
+@app.get("/api/users/live-locations")
+def get_users_live_locations(
+    current_user: User = Depends(auth_module.get_current_user)
+):
+    """Returns active user locations. Strictly limited: only super_admin and admin can access."""
+    user_role = (current_user.role or "").lower()
+    if user_role not in ["super_admin", "admin"]:
+        # Regular users and employees are forbidden from seeing other user locations
+        return []
+
+    now_sec = datetime.datetime.now(datetime.timezone.utc).timestamp()
+    # Filter only locations received within the last 30 minutes
+    active_list = []
+    for uname, loc in list(live_user_locations.items()):
+        if now_sec - loc.get("timestamp", 0) <= 1800:
+            active_list.append(loc)
+        else:
+            live_user_locations.pop(uname, None)
+
+    return active_list
 
 
 # Custom static file server with immutable caching for fingerprinted assets

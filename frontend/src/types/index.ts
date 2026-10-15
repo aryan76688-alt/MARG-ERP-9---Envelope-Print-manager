@@ -439,3 +439,15 @@ export interface DualBrainStatus {
   };
 }
 
+export interface LiveUserLocation {
+  username: string;
+  full_name: string;
+  role: string;
+  latitude: number;
+  longitude: number;
+  accuracy?: number;
+  battery?: number;
+  speed?: number;
+  updated_at: string;
+  timestamp: number;
+}

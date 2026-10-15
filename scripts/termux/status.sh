@@ -47,21 +47,14 @@ else
     echo -e "    Status:   ${RED}🔴 OFFLINE / STOPPED${NC}"
 fi
 
-# 4. Public Web Tunnels Status
-echo -e "\n${BOLD}[4] Public Web Tunnels (Cloudflare Free):${NC}"
-ENVELOPE_PUBLIC_URL=$(grep -o 'https://[-a-zA-Z0-9.]*\.trycloudflare\.com' "${BASE_DIR}/logs/tunnel_envelope.log" 2>/dev/null | tail -n 1)
-ORDERBOOK_PUBLIC_URL=$(grep -o 'https://[-a-zA-Z0-9.]*\.trycloudflare\.com' "${BASE_DIR}/logs/tunnel_orderbook.log" 2>/dev/null | tail -n 1)
-
+# 4. Permanent Cloudflare Custom Subdomain Status
+echo -e "\n${BOLD}[4] Permanent Public Web Subdomains (Cloudflare Tunnel):${NC}"
 if pgrep -f "cloudflared tunnel" >/dev/null 2>&1; then
-    echo -e "    Status:   ${GREEN}🟢 ONLINE (Accessible worldwide)${NC}"
-    if [ -n "${ENVELOPE_PUBLIC_URL}" ]; then
-        echo -e "    • Envelope Manager URL: ${GREEN}${BOLD}${ENVELOPE_PUBLIC_URL}${NC}"
-    fi
-    if [ -n "${ORDERBOOK_PUBLIC_URL}" ]; then
-        echo -e "    • Order Book URL:       ${GREEN}${BOLD}${ORDERBOOK_PUBLIC_URL}${NC}"
-    fi
+    echo -e "    Status:   ${GREEN}🟢 ONLINE (Global 24/7 Access)${NC}"
+    echo -e "    • Envelope Manager: ${GREEN}${BOLD}https://envelope.shreeji7.com${NC}"
+    echo -e "    • Order Book:       ${GREEN}${BOLD}https://order.shreeji7.com${NC}"
 else
-    echo -e "    Status:   ${RED}🔴 OFFLINE (Tunnels not running)${NC}"
+    echo -e "    Status:   ${RED}🔴 OFFLINE (Tunnel stopped)${NC}"
 fi
 
 # 5. Local Wi-Fi IP

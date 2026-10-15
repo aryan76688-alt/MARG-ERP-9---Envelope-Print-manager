@@ -121,7 +121,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
     { id: 'dispatch', label: 'Dispatch Summary', icon: Package },
     { id: 'history', label: 'Print History', icon: History },
     { id: 'settings', label: 'Settings', icon: SettingsIcon },
-    ...(userRole === 'super_admin' ? [{ id: 'users', label: 'User Management', icon: User }] : [])
+    ...(['super_admin', 'admin'].includes(userRole) ? [{ id: 'users', label: 'User Management', icon: User }] : [])
   ];
 
   const navItems = navItemsRaw;

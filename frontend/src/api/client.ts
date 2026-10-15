@@ -18,7 +18,8 @@ import {
   PODSubmission,
   RouteBatchUpdateItem,
   GoogleSheetsSyncResult,
-  RouteSyncErrorItem
+  RouteSyncErrorItem,
+  LiveUserLocation
 } from '../types';
 
 
@@ -1233,5 +1234,35 @@ export async function testN8nWebhook(payload: any): Promise<any> {
     throw new Error(err.detail || 'Webhook test failed');
   }
   return res.json();
+}
+
+export async function updateLiveLocation(coords: {
+  latitude: number;
+  longitude: number;
+  accuracy?: number;
+  battery?: number;
+  speed?: number;
+}): Promise<any> {
+  try {
+    const res = await fetchApi(`${API_BASE}/users/live-location`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(coords),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchLiveUserLocations(): Promise<LiveUserLocation[]> {
+  try {
+    const res = await fetchApi(`${API_BASE}/users/live-locations`);
+    if (!res.ok) return [];
+    return await res.json();
+  } catch {
+    return [];
+  }
 }
 

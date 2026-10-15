@@ -4,7 +4,7 @@
 # Starts: 1. PostgreSQL Database (Port 5432)
 #         2. Shreeji Order Book (Next.js - Port 3000)
 #         3. MARG Envelope Print Manager (FastAPI - Port 8080)
-#         4. Cloudflare Public Web Tunnels (Free Public HTTPS URLs)
+#         4. Cloudflare Custom Subdomain Tunnel (Permanent HTTPS Domains)
 # ==============================================================================
 
 # Terminal Colors
@@ -20,9 +20,14 @@ PREFIX_DIR="${PREFIX:-/data/data/com.termux/files/usr}"
 BASE_DIR="${HOME}/shreeji"
 PG_DATA="${PREFIX_DIR}/var/lib/postgresql"
 
+# Cloudflare Named Tunnel Token for Permanent Custom Subdomains:
+# 1. envelope.shreeji7.com -> http://localhost:8080
+# 2. order.shreeji7.com    -> http://localhost:3000
+CF_TUNNEL_TOKEN="eyJhIjoiZGEyZGRiOTVmYmVhMjQzNGM4YWMwYTFhNjViN2Y3MjEiLCJ0IjoiOTAwY2I1Y2EtOTY5ZC00MzAzLTk3ZWYtMDZmMjVjMTEzZDExIiwicyI6Ill6WTRObUV6T0RFdE56QmhNUzAwTmpCa0xXSXdPREV0WWpFMk16VmxOVE00TnpGbCJ9"
+
 clear
 echo -e "${CYAN}${BOLD}==============================================================================${NC}"
-echo -e "${CYAN}${BOLD}     SHREEJI HEALTHCARE - MOBILE DUAL SERVER & PUBLIC WEB LAUNCHER            ${NC}"
+echo -e "${CYAN}${BOLD}     SHREEJI HEALTHCARE - 24/7 SERVER & CUSTOM SUBDOMAIN LAUNCHER             ${NC}"
 echo -e "${CYAN}${BOLD}==============================================================================${NC}"
 
 # 1. Acquire Android Wake Lock so services continue running when screen is off
@@ -115,37 +120,21 @@ else
     echo -e "${RED}    [X] Envelope Manager directory not found at ${ENVELOPE_DIR}.${NC}"
 fi
 
-# 5. Cloudflare Public Web Tunnels (100% Free Public Web Access)
-ENVELOPE_PUBLIC_URL=""
-ORDERBOOK_PUBLIC_URL=""
-
+# 5. Connect Permanent Cloudflare Custom Subdomain Tunnel
 if command -v cloudflared >/dev/null 2>&1; then
-    echo -e "\n${BLUE}[4/4] Activating Free Public Web Tunnels (Cloudflare)...${NC}"
-    pkill -f "cloudflared tunnel" 2>/dev/null || true
+    echo -e "\n${BLUE}[4/4] Activating Permanent Cloudflare Custom Subdomains...${NC}"
     
-    nohup cloudflared tunnel --url http://localhost:8080 > "${BASE_DIR}/logs/tunnel_envelope.log" 2>&1 &
-    echo $! > "${BASE_DIR}/pids/tunnel_envelope.pid"
-    
-    nohup cloudflared tunnel --url http://localhost:3000 > "${BASE_DIR}/logs/tunnel_orderbook.log" 2>&1 &
-    echo $! > "${BASE_DIR}/pids/tunnel_orderbook.pid"
-    
-    echo -e "    [*] Connecting to Cloudflare global network..."
-    for i in {1..6}; do
-        ENVELOPE_PUBLIC_URL=$(grep -o 'https://[-a-zA-Z0-9.]*\.trycloudflare\.com' "${BASE_DIR}/logs/tunnel_envelope.log" 2>/dev/null | tail -n 1)
-        ORDERBOOK_PUBLIC_URL=$(grep -o 'https://[-a-zA-Z0-9.]*\.trycloudflare\.com' "${BASE_DIR}/logs/tunnel_orderbook.log" 2>/dev/null | tail -n 1)
-        if [ -n "${ENVELOPE_PUBLIC_URL}" ] && [ -n "${ORDERBOOK_PUBLIC_URL}" ]; then
-            break
-        fi
-        sleep 1
-    done
-    
-    if [ -n "${ENVELOPE_PUBLIC_URL}" ]; then
-        echo -e "${GREEN}    [✓] Public Web Tunnels Active!${NC}"
+    # Check if tunnel is already connected
+    if pgrep -f "cloudflared tunnel" >/dev/null 2>&1; then
+        echo -e "${GREEN}    [✓] Cloudflare Tunnel is already connected.${NC}"
     else
-        echo -e "${YELLOW}    [!] Tunnels started in background (fetching URLs in a few seconds...)${NC}"
+        nohup cloudflared tunnel run --token "${CF_TUNNEL_TOKEN}" > "${BASE_DIR}/logs/tunnel.log" 2>&1 &
+        echo $! > "${BASE_DIR}/pids/tunnel.pid"
+        sleep 3
+        echo -e "${GREEN}    [✓] Connected to Cloudflare Edge Network!${NC}"
     fi
 else
-    echo -e "\n${YELLOW}[!] Cloudflare is not installed. To enable free public web access, run: pkg install cloudflared -y${NC}"
+    echo -e "\n${YELLOW}[!] cloudflared is not installed. To enable public subdomains, run: pkg install cloudflared -y${NC}"
 fi
 
 # 6. Detect Device Local Wi-Fi IP
@@ -158,18 +147,12 @@ if [ -z "${WIFI_IP}" ]; then
 fi
 
 echo -e "\n${GREEN}${BOLD}==============================================================================${NC}"
-echo -e "${GREEN}${BOLD}          🎉 YOUR OWN MOBILE SERVER IS LIVE & ACCESSIBLE!                     ${NC}"
+echo -e "${GREEN}${BOLD}    🎉 YOUR OWN SERVER IS LIVE WITH PERMANENT CUSTOM SUBDOMAINS!              ${NC}"
 echo -e "${GREEN}${BOLD}==============================================================================${NC}"
 
-if [ -n "${ENVELOPE_PUBLIC_URL}" ] || [ -n "${ORDERBOOK_PUBLIC_URL}" ]; then
-    echo -e "\n${CYAN}${BOLD}🌐 1. PUBLIC WEB ACCESS (Worldwide from any Phone / PC on 4G/5G/Wi-Fi):${NC}"
-    if [ -n "${ENVELOPE_PUBLIC_URL}" ]; then
-        echo -e "   • ${BOLD}MARG Envelope Manager:${NC}  ${GREEN}${BOLD}${ENVELOPE_PUBLIC_URL}${NC}"
-    fi
-    if [ -n "${ORDERBOOK_PUBLIC_URL}" ]; then
-        echo -e "   • ${BOLD}Shreeji Order Book:${NC}     ${GREEN}${BOLD}${ORDERBOOK_PUBLIC_URL}${NC}"
-    fi
-fi
+echo -e "\n${CYAN}${BOLD}🌐 1. PERMANENT PUBLIC WEB SUBDOMAINS (Never Changes - Access Anywhere):${NC}"
+echo -e "   • ${BOLD}MARG Envelope Manager:${NC}  ${GREEN}${BOLD}https://envelope.shreeji7.com${NC}"
+echo -e "   • ${BOLD}Shreeji Order Book:${NC}     ${GREEN}${BOLD}https://order.shreeji7.com${NC}"
 
 echo -e "\n${YELLOW}${BOLD}🏠 2. LOCAL WI-FI ACCESS (Superfast for Office PC / Laptop):${NC}"
 echo -e "   • ${BOLD}MARG Envelope Manager:${NC}  ${YELLOW}http://${WIFI_IP}:8080${NC}"
@@ -179,10 +162,9 @@ echo -e "\n${BOLD}📱 3. ON THIS PHONE (Mobile Browser):${NC}"
 echo -e "   • ${BOLD}MARG Envelope Manager:${NC}  http://localhost:8080"
 echo -e "   • ${BOLD}Shreeji Order Book:${NC}     http://localhost:3000"
 
-echo -e "\n${BOLD}⚡ ZERO CLOUD COST & BULLETPROOF SYNC:${NC}"
-echo -e "   • You own this server 100% on your phone with zero monthly fees!"
-echo -e "   • PostgreSQL database runs locally on port 5432 with permanent storage."
-echo -e "   • When you add parties in either app, they sync in real-time."
+echo -e "\n${BOLD}⚡ ZERO MONTHLY COST & 100% INDEPENDENT:${NC}"
+echo -e "   • No Railway subscription needed."
+echo -e "   • High performance database & cross-app sync running locally 24/7."
 
 echo -e "\n${BOLD}🛠️ QUICK COMMANDS:${NC}"
 echo -e "   • Check status & URLs: ${CYAN}status${NC} (or bash ~/shreeji/status.sh)"
