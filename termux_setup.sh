@@ -46,8 +46,8 @@ pkg install -y git nodejs-lts python postgresql libjpeg-turbo freetype clang mak
 # Install Cloudflare Tunnel for free public web access
 pkg install -y cloudflared 2>/dev/null || true
 
-# Pre-compiled Pillow from Termux package manager (avoids compiling C headers)
-pkg install -y python-pillow 2>/dev/null || true
+# Pre-compiled C extensions from Termux package manager (avoids compiling C/Rust headers)
+pkg install -y python-pillow python-cryptography python-bcrypt 2>/dev/null || true
 echo -e "${GREEN}[✓] System packages and cloudflared installed successfully.${NC}"
 
 # 3. Create Base Directory Structure
@@ -152,8 +152,8 @@ if [ ! -d "${BASE_DIR}/venv" ]; then
 fi
 
 echo -e "    [*] Installing Python backend packages..."
-"${BASE_DIR}/venv/bin/pip" install --upgrade pip --quiet
-"${BASE_DIR}/venv/bin/pip" install -r "${ENVELOPE_DIR}/backend/requirements.txt" --quiet
+"${BASE_DIR}/venv/bin/pip" install --upgrade pip setuptools wheel --quiet
+"${BASE_DIR}/venv/bin/pip" install -r "${ENVELOPE_DIR}/backend/requirements.txt"
 echo -e "${GREEN}[✓] MARG Envelope Print Manager ready.${NC}"
 
 # 7. Install Service Control Scripts and Bash Aliases
