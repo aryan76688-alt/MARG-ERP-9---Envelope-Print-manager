@@ -38,6 +38,7 @@ fi
 if [ -d "${ORDERBOOK_DIR}" ]; then
     cd "${ORDERBOOK_DIR}"
     git pull origin main || true
+    npm install --no-audit --prefer-offline 2>/dev/null || true
     # Run any new database migrations
     npm run db:migrate || true
     echo -e "${GREEN}    [✓] Order Book updated.${NC}"
