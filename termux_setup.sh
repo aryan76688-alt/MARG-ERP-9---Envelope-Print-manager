@@ -118,6 +118,9 @@ npm install --no-audit @next/swc-wasm-nodejs@15.2.1 2>/dev/null || true
 echo -e "    [*] Applying database migrations & seed..."
 npm run db:migrate 2>/dev/null || true
 npm run db:seed 2>/dev/null || true
+
+echo -e "    [*] Building Order Book production bundle (fast startup & low memory)..."
+npm run build 2>/dev/null || true
 echo -e "${GREEN}[✓] Shreeji Order Book ready.${NC}"
 
 # 6. Setup MARG ERP 9 Envelope Print Manager (FastAPI - Port 8080)

@@ -77,9 +77,9 @@ if [ -d "${ORDERBOOK_DIR}" ]; then
         export ENVELOPE_MANAGER_API_URL="http://127.0.0.1:8080"
         
         if [ -d ".next" ]; then
-            nohup npm run start > "${BASE_DIR}/logs/orderbook.log" 2>&1 &
+            nohup npx next start -H 0.0.0.0 -p 3000 > "${BASE_DIR}/logs/orderbook.log" 2>&1 &
         else
-            nohup npm run dev > "${BASE_DIR}/logs/orderbook.log" 2>&1 &
+            nohup npx next dev -H 0.0.0.0 -p 3000 > "${BASE_DIR}/logs/orderbook.log" 2>&1 &
         fi
         echo $! > "${BASE_DIR}/pids/orderbook.pid"
         sleep 2
@@ -126,7 +126,10 @@ fi
 sync_worker_proxy() {
     local worker_name="$1"
     local target_url="$2"
-    if [ -z "${target_url}" ]; then return; fi
+    if [ -z "${target_url}" ]; then
+        echo -e "    ${YELLOW}[!] Warning: Tunnel URL for ${worker_name} is empty. Cloudflare Worker not updated.${NC}"
+        return 1
+    fi
     
     local script_payload="addEventListener('fetch', event => { event.respondWith(handleRequest(event.request)); });
 const TARGET_BASE = \"${target_url}\";
@@ -161,10 +164,16 @@ async function handleRequest(request) {
   }
 }"
 
-    curl -s -X PUT -H "Authorization: Bearer ${CF_API_TOKEN}" \
+    local res
+    res=$(curl -s -X PUT -H "Authorization: Bearer ${CF_API_TOKEN}" \
       -H "Content-Type: application/javascript" \
       --data-binary "${script_payload}" \
-      "https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/workers/scripts/${worker_name}" >/dev/null 2>&1
+      "https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/workers/scripts/${worker_name}")
+    if echo "${res}" | grep -q '"success":true'; then
+        echo -e "${GREEN}    [✓] Cloudflare Worker '${worker_name}' linked -> ${target_url}${NC}"
+    else
+        echo -e "${YELLOW}    [!] Worker '${worker_name}' sync response: ${res}${NC}"
+    fi
 }
 
 # 5. Connect Permanent Cloudflare Workers & Public Tunnels
@@ -173,24 +182,35 @@ if command -v cloudflared >/dev/null 2>&1; then
     
     # Check if tunnels need starting
     if ! pgrep -f "cloudflared tunnel.*3000" >/dev/null 2>&1; then
-        nohup cloudflared tunnel --url http://localhost:3000 > "${BASE_DIR}/logs/tunnel_order.log" 2>&1 &
+        nohup cloudflared tunnel --url http://127.0.0.1:3000 > "${BASE_DIR}/logs/tunnel_order.log" 2>&1 &
         echo $! > "${BASE_DIR}/pids/tunnel_order.pid"
     fi
     if ! pgrep -f "cloudflared tunnel.*8080" >/dev/null 2>&1; then
-        nohup cloudflared tunnel --url http://localhost:8080 > "${BASE_DIR}/logs/tunnel_envelope.log" 2>&1 &
+        nohup cloudflared tunnel --url http://127.0.0.1:8080 > "${BASE_DIR}/logs/tunnel_envelope.log" 2>&1 &
         echo $! > "${BASE_DIR}/pids/tunnel_envelope.pid"
     fi
     
-    echo -e "    [*] Linking phone server to Cloudflare Edge Network..."
-    sleep 4
-    
-    ORDER_URL=$(grep -o 'https://[-a-zA-Z0-9.]*\.trycloudflare\.com' "${BASE_DIR}/logs/tunnel_order.log" 2>/dev/null | tail -n 1)
-    ENVELOPE_URL=$(grep -o 'https://[-a-zA-Z0-9.]*\.trycloudflare\.com' "${BASE_DIR}/logs/tunnel_envelope.log" 2>/dev/null | tail -n 1)
+    echo -e "    [*] Waiting for Cloudflare tunnels to register (up to 25s)..."
+    ORDER_URL=""
+    ENVELOPE_URL=""
+    for i in $(seq 1 25); do
+        if [ -z "${ORDER_URL}" ]; then
+            ORDER_URL=$(grep -o 'https://[-a-zA-Z0-9.]*\.trycloudflare\.com' "${BASE_DIR}/logs/tunnel_order.log" 2>/dev/null | tail -n 1)
+        fi
+        if [ -z "${ENVELOPE_URL}" ]; then
+            ENVELOPE_URL=$(grep -o 'https://[-a-zA-Z0-9.]*\.trycloudflare\.com' "${BASE_DIR}/logs/tunnel_envelope.log" 2>/dev/null | tail -n 1)
+        fi
+        if [ -n "${ORDER_URL}" ] && [ -n "${ENVELOPE_URL}" ]; then
+            echo -e "${GREEN}    [✓] Tunnels registered in ${i}s.${NC}"
+            break
+        fi
+        sleep 1
+    done
     
     sync_worker_proxy "shreeji-order" "${ORDER_URL}"
     sync_worker_proxy "shreeji-envelope" "${ENVELOPE_URL}"
     
-    echo -e "${GREEN}    [✓] Permanent Cloudflare Public Domains Connected!${NC}"
+    echo -e "${GREEN}    [✓] Permanent Cloudflare Public Domains Ready!${NC}"
 else
     echo -e "\n${YELLOW}[!] cloudflared is not installed. Run: pkg install cloudflared -y${NC}"
 fi
