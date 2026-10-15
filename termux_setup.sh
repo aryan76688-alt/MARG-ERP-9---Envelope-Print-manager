@@ -162,6 +162,11 @@ cp -f "${ENVELOPE_DIR}/scripts/termux/start-all.sh" "${BASE_DIR}/start-all.sh"
 cp -f "${ENVELOPE_DIR}/scripts/termux/stop-all.sh" "${BASE_DIR}/stop-all.sh"
 cp -f "${ENVELOPE_DIR}/scripts/termux/status.sh" "${BASE_DIR}/status.sh"
 cp -f "${ENVELOPE_DIR}/scripts/termux/update.sh" "${BASE_DIR}/update.sh"
+if [ -f "${ENVELOPE_DIR}/scripts/termux/watchdog.sh" ]; then
+    cp -f "${ENVELOPE_DIR}/scripts/termux/watchdog.sh" "${BASE_DIR}/watchdog.sh"
+elif [ -f "${ORDERBOOK_DIR}/scripts/termux/watchdog.sh" ]; then
+    cp -f "${ORDERBOOK_DIR}/scripts/termux/watchdog.sh" "${BASE_DIR}/watchdog.sh"
+fi
 chmod +x "${BASE_DIR}"/*.sh
 
 # Register convenience aliases in ~/.bashrc
@@ -175,6 +180,7 @@ alias start="bash $HOME/shreeji/start-all.sh"
 alias stop="bash $HOME/shreeji/stop-all.sh"
 alias status="bash $HOME/shreeji/status.sh"
 alias update="bash $HOME/shreeji/update.sh"
+alias watchdog="tail -f $HOME/shreeji/logs/watchdog.log"
 alias shreeji="bash $HOME/shreeji/start-all.sh"
 BASHRC_EOF
 fi
@@ -185,11 +191,12 @@ mkdir -p "${BOOT_DIR}"
 cat << 'BOOT_EOF' > "${BOOT_DIR}/start-shreeji.sh"
 #!/data/data/com.termux/files/usr/bin/bash
 termux-wake-lock
+sleep 10
 bash $HOME/shreeji/start-all.sh
 BOOT_EOF
 chmod +x "${BOOT_DIR}/start-shreeji.sh"
 
-echo -e "${GREEN}[✓] Shortcuts installed (type 'start', 'stop', or 'status' anytime).${NC}"
+echo -e "${GREEN}[✓] Shortcuts installed (type 'start', 'stop', 'status', or 'watchdog' anytime).${NC}"
 
 # 8. Start both servers immediately
 echo -e "\n${BLUE}[6/6] Launching all services...${NC}"

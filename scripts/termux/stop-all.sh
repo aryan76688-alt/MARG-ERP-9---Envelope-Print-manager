@@ -18,10 +18,17 @@ echo -e "${YELLOW}${BOLD}=======================================================
 echo -e "${YELLOW}${BOLD}             STOPPING ALL SHREEJI HEALTHCARE SERVICES...                     ${NC}"
 echo -e "${YELLOW}${BOLD}==============================================================================${NC}"
 
+# 0. Stop Watchdog Daemon
+echo -e "\n${BLUE}[1/5] Stopping 24/7 Watchdog Daemon...${NC}"
+pkill -f "watchdog.sh" 2>/dev/null || true
+rm -f "${BASE_DIR}/pids/watchdog.pid"
+echo -e "${GREEN}    [✓] Watchdog daemon stopped.${NC}"
+
 # 1. Stop Public Web Tunnels (Cloudflare)
-echo -e "\n${BLUE}[1/4] Stopping Public Web Tunnels...${NC}"
+echo -e "\n${BLUE}[2/5] Stopping Public Web Tunnels...${NC}"
 pkill -f "cloudflared tunnel" 2>/dev/null || true
 rm -f "${BASE_DIR}/pids/tunnel_*.pid"
+rm -f "${BASE_DIR}/pids/tunnel.pid"
 echo -e "${GREEN}    [✓] Public tunnels closed.${NC}"
 
 # 2. Stop Envelope Manager (FastAPI - Port 8080)

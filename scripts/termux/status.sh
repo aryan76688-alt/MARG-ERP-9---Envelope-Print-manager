@@ -57,7 +57,17 @@ else
     echo -e "    Status:   ${RED}🔴 OFFLINE (Tunnel stopped)${NC}"
 fi
 
-# 5. Local Wi-Fi IP
+# 5. 24/7 Watchdog & Live Code Auto-Updater Status
+echo -e "\n${BOLD}[5] 24/7 Auto-Healer & Auto-Updater Watchdog:${NC}"
+if pgrep -f "watchdog.sh" >/dev/null 2>&1; then
+    PID=$(cat "${BASE_DIR}/pids/watchdog.pid" 2>/dev/null || pgrep -f "watchdog.sh" | head -n 1)
+    echo -e "    Status:   ${GREEN}🟢 ACTIVE (Continuous Auto-Restart & Auto-Update)${NC} (PID: ${PID})"
+    echo -e "    Log:      ${CYAN}tail -f ~/shreeji/logs/watchdog.log${NC}"
+else
+    echo -e "    Status:   ${YELLOW}🟡 INACTIVE (Run 'start' to activate)${NC}"
+fi
+
+# 6. Local Wi-Fi IP
 WIFI_IP=$(ip -4 addr show wlan0 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -n 1)
 if [ -z "${WIFI_IP}" ]; then
     WIFI_IP=$(hostname -I 2>/dev/null | awk '{print $1}')

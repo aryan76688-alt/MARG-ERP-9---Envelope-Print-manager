@@ -131,10 +131,30 @@ if command -v cloudflared >/dev/null 2>&1; then
         nohup cloudflared tunnel run --token "${CF_TUNNEL_TOKEN}" > "${BASE_DIR}/logs/tunnel.log" 2>&1 &
         echo $! > "${BASE_DIR}/pids/tunnel.pid"
         sleep 3
-        echo -e "${GREEN}    [✓] Connected to Cloudflare Edge Network!${NC}"
     fi
 else
     echo -e "\n${YELLOW}[!] cloudflared is not installed. To enable public subdomains, run: pkg install cloudflared -y${NC}"
+fi
+
+# 5. Launch 24/7 Auto-Healer & Live Auto-Updater Watchdog
+echo -e "\n${BLUE}[5/5] Activating 24/7 Watchdog (Auto-Heal + Auto-Update)...${NC}"
+WATCHDOG_SCRIPT="${BASE_DIR}/watchdog.sh"
+if [ ! -f "${WATCHDOG_SCRIPT}" ]; then
+    if [ -f "${ENVELOPE_DIR}/scripts/termux/watchdog.sh" ]; then
+        WATCHDOG_SCRIPT="${ENVELOPE_DIR}/scripts/termux/watchdog.sh"
+    elif [ -f "${ORDERBOOK_DIR}/scripts/termux/watchdog.sh" ]; then
+        WATCHDOG_SCRIPT="${ORDERBOOK_DIR}/scripts/termux/watchdog.sh"
+    fi
+fi
+
+if [ -f "${WATCHDOG_SCRIPT}" ]; then
+    if pgrep -f "watchdog.sh" >/dev/null 2>&1; then
+        echo -e "${GREEN}    [✓] Watchdog daemon is already running.${NC}"
+    else
+        nohup bash "${WATCHDOG_SCRIPT}" >/dev/null 2>&1 &
+        echo $! > "${BASE_DIR}/pids/watchdog.pid"
+        echo -e "${GREEN}    [✓] Watchdog daemon launched (Auto-restarts & auto-updates 24/7).${NC}"
+    fi
 fi
 
 # 6. Detect Device Local Wi-Fi IP

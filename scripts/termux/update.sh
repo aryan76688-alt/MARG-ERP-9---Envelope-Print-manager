@@ -43,6 +43,10 @@ if [ -d "${ORDERBOOK_DIR}" ]; then
     echo -e "${GREEN}    [✓] Order Book updated.${NC}"
 fi
 
+# 3. Refresh Control Scripts
+cp -f "${ENVELOPE_DIR}/scripts/termux/"*.sh "${BASE_DIR}/" 2>/dev/null || true
+chmod +x "${BASE_DIR}"/*.sh
+
 echo -e "\n${YELLOW}[*] Restarting services with latest changes...${NC}"
 bash "${BASE_DIR}/stop-all.sh"
 sleep 2
