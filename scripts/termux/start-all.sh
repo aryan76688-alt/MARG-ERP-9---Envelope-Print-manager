@@ -67,7 +67,7 @@ if [ ! -d "${ORDERBOOK_DIR}" ]; then
 fi
 
 if [ -d "${ORDERBOOK_DIR}" ]; then
-    if lsof -i :3000 >/dev/null 2>&1 || fuser 3000/tcp >/dev/null 2>&1; then
+    if (echo > /dev/tcp/127.0.0.1/3000) 2>/dev/null || curl -s -m 1 http://127.0.0.1:3000 >/dev/null 2>&1; then
         echo -e "${GREEN}    [✓] Order Book is already active on port 3000.${NC}"
     else
         echo -e "    [*] Starting Order Book on port 3000..."
@@ -99,7 +99,7 @@ if [ ! -d "${ENVELOPE_DIR}" ]; then
 fi
 
 if [ -d "${ENVELOPE_DIR}" ]; then
-    if lsof -i :8080 >/dev/null 2>&1 || fuser 8080/tcp >/dev/null 2>&1; then
+    if (echo > /dev/tcp/127.0.0.1/8080) 2>/dev/null || curl -s -m 1 http://127.0.0.1:8080 >/dev/null 2>&1; then
         echo -e "${GREEN}    [✓] Envelope Print Manager is already active on port 8080.${NC}"
     else
         echo -e "    [*] Starting Envelope Print Manager on port 8080..."

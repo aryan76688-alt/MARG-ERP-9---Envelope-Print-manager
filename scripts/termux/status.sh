@@ -29,7 +29,7 @@ fi
 
 # 2. Shreeji Order Book Status
 echo -e "\n${BOLD}[2] Shreeji Order Book (Next.js - Port 3000):${NC}"
-if lsof -i :3000 >/dev/null 2>&1 || fuser 3000/tcp >/dev/null 2>&1; then
+if (echo > /dev/tcp/127.0.0.1/3000) 2>/dev/null || curl -s -m 1 http://127.0.0.1:3000 >/dev/null 2>&1; then
     PID=$(cat "${BASE_DIR}/pids/orderbook.pid" 2>/dev/null || echo "Active")
     echo -e "    Status:   ${GREEN}🟢 ONLINE / RUNNING${NC} (PID: ${PID})"
     echo -e "    Local:    ${CYAN}http://localhost:3000${NC}"
@@ -39,7 +39,7 @@ fi
 
 # 3. MARG Envelope Print Manager Status
 echo -e "\n${BOLD}[3] MARG ERP Envelope Print Manager (FastAPI - Port 8080):${NC}"
-if lsof -i :8080 >/dev/null 2>&1 || fuser 8080/tcp >/dev/null 2>&1; then
+if (echo > /dev/tcp/127.0.0.1/8080) 2>/dev/null || curl -s -m 1 http://127.0.0.1:8080 >/dev/null 2>&1; then
     PID=$(cat "${BASE_DIR}/pids/envelope.pid" 2>/dev/null || echo "Active")
     echo -e "    Status:   ${GREEN}🟢 ONLINE / RUNNING${NC} (PID: ${PID})"
     echo -e "    Local:    ${CYAN}http://localhost:8080${NC}"

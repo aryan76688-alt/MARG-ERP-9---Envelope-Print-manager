@@ -113,6 +113,7 @@ ENV_EOF
 
 echo -e "    [*] Installing npm dependencies for Order Book..."
 npm install --no-audit --prefer-offline 2>/dev/null || npm install
+npm install --no-audit @next/swc-wasm-nodejs@15.2.1 2>/dev/null || true
 
 echo -e "    [*] Applying database migrations & seed..."
 npm run db:migrate 2>/dev/null || true

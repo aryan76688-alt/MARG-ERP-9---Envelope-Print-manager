@@ -96,7 +96,7 @@ while true; do
     fi
 
     # 2. Health Check: Shreeji Order Book (Next.js - Port 3000)
-    if ! lsof -i :3000 >/dev/null 2>&1 && ! fuser 3000/tcp >/dev/null 2>&1; then
+    if ! (echo > /dev/tcp/127.0.0.1/3000) 2>/dev/null && ! curl -s -m 1 http://127.0.0.1:3000 >/dev/null 2>&1; then
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] [HEAL] Order Book (Port 3000) is down! Restarting..." >> "${LOG_FILE}"
         if [ -d "${ORDERBOOK_DIR}" ]; then
             cd "${ORDERBOOK_DIR}"
@@ -113,7 +113,7 @@ while true; do
     fi
 
     # 3. Health Check: MARG Envelope Print Manager (FastAPI - Port 8080)
-    if ! lsof -i :8080 >/dev/null 2>&1 && ! fuser 8080/tcp >/dev/null 2>&1; then
+    if ! (echo > /dev/tcp/127.0.0.1/8080) 2>/dev/null && ! curl -s -m 1 http://127.0.0.1:8080 >/dev/null 2>&1; then
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] [HEAL] Envelope Manager (Port 8080) is down! Restarting..." >> "${LOG_FILE}"
         if [ -d "${ENVELOPE_DIR}" ]; then
             cd "${ENVELOPE_DIR}"
@@ -169,11 +169,18 @@ while true; do
                 npm run db:migrate >> "${LOG_FILE}" 2>&1 || true
                 
                 # Graceful restart of orderbook
-                kill $(cat "${BASE_DIR}/pids/orderbook.pid" 2>/dev/null) 2>/dev/null || fuser -k 3000/tcp 2>/dev/null || true
+                if [ -f "${BASE_DIR}/pids/orderbook.pid" ]; then
+                    kill $(cat "${BASE_DIR}/pids/orderbook.pid" 2>/dev/null) 2>/dev/null || true
+                fi
+                pkill -f "next" 2>/dev/null || true
                 sleep 2
                 export PORT=3000
                 export NODE_ENV=production
-                nohup npm run start > "${BASE_DIR}/logs/orderbook.log" 2>&1 &
+                if [ -d ".next" ]; then
+                    nohup npm run start > "${BASE_DIR}/logs/orderbook.log" 2>&1 &
+                else
+                    nohup npm run dev > "${BASE_DIR}/logs/orderbook.log" 2>&1 &
+                fi
                 echo $! > "${BASE_DIR}/pids/orderbook.pid"
                 echo "[$(date '+%Y-%m-%d %H:%M:%S')] [AUTO-UPDATE] Order Book updated and restarted." >> "${LOG_FILE}"
             fi
@@ -190,7 +197,10 @@ while true; do
                 git pull origin main >> "${LOG_FILE}" 2>&1 || true
                 
                 # Graceful restart of envelope backend
-                kill $(cat "${BASE_DIR}/pids/envelope.pid" 2>/dev/null) 2>/dev/null || fuser -k 8080/tcp 2>/dev/null || true
+                if [ -f "${BASE_DIR}/pids/envelope.pid" ]; then
+                    kill $(cat "${BASE_DIR}/pids/envelope.pid" 2>/dev/null) 2>/dev/null || true
+                fi
+                pkill -f "uvicorn.*main:app" 2>/dev/null || true
                 sleep 2
                 PYTHON_BIN="python3"
                 if [ -f "${BASE_DIR}/venv/bin/python" ]; then
