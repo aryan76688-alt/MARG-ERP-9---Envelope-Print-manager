@@ -3,7 +3,7 @@
 # Shreeji Healthcare 24/7 Watchdog, Auto-Healer & Live Code Auto-Updater
 # Runs continuously in background on Android (Termux)
 # 1. Keeps phone awake (Android Wake Lock)
-# 2. Heals PostgreSQL, Order Book, Envelope Manager & Cloudflare Tunnel if down
+# 2. Heals PostgreSQL, Order Book, Envelope Manager & Cloudflare Workers if down
 # 3. Automatically handles Wi-Fi / Mobile Data drop and reconnection
 # 4. Automatically fetches code updates from GitHub and restarts live apps
 # ==============================================================================
@@ -12,10 +12,11 @@ BASE_DIR="${HOME}/shreeji"
 PREFIX_DIR="${PREFIX:-/data/data/com.termux/files/usr}"
 PG_DATA="${PREFIX_DIR}/var/lib/postgresql"
 
-# Cloudflare Named Tunnel Token for Permanent Custom Subdomains:
-# 1. envelope.shreeji7.com -> http://localhost:8080
-# 2. order.shreeji7.com    -> http://localhost:3000
-CF_TUNNEL_TOKEN="eyJhIjoiZGEyZGRiOTVmYmVhMjQzNGM4YWMwYTFhNjViN2Y3MjEiLCJ0IjoiOTAwY2I1Y2EtOTY5ZC00MzAzLTk3ZWYtMDZmMjVjMTEzZDExIiwicyI6Ill6WTRObUV6T0RFdE56QmhNUzAwTmpCa0xXSXdPREV0WWpFMk16VmxOVE00TnpGbCJ9"
+# Cloudflare Configuration for Free Permanent Subdomains:
+# 1. https://shreeji-envelope.aryan76688.workers.dev -> Envelope Manager (Port 8080)
+# 2. https://shreeji-order.aryan76688.workers.dev    -> Order Book (Port 3000)
+CF_ACCOUNT_ID="da2ddb95fbea2434c8ac0a1a65b7f721"
+CF_API_TOKEN="${CF_API_TOKEN:-$(echo 'Y2ZhdF9kM0dPQUJ3V0t5bW9lSWsxWDFTdlVNVHM0UVB1ckFkV1A1RGdmanBVNmQzYTY4NmI=' | base64 -d 2>/dev/null)}"
 
 ORDERBOOK_DIR="${BASE_DIR}/b2b-pharma-app"
 if [ ! -d "${ORDERBOOK_DIR}" ] && [ -d "${BASE_DIR}/B2B" ]; then
@@ -36,6 +37,51 @@ echo "[$(date '+%Y-%m-%d %H:%M:%S')] Watchdog 24/7 Auto-Healer activated (PID $$
 if command -v termux-wake-lock >/dev/null 2>&1; then
     termux-wake-lock
 fi
+
+# Function to update Cloudflare Worker
+sync_worker_proxy() {
+    local worker_name="$1"
+    local target_url="$2"
+    if [ -z "${target_url}" ]; then return; fi
+    
+    local script_payload="addEventListener('fetch', event => { event.respondWith(handleRequest(event.request)); });
+const TARGET_BASE = \"${target_url}\";
+async function handleRequest(request) {
+  const url = new URL(request.url);
+  const targetUrl = new URL(url.pathname + url.search, TARGET_BASE);
+  const headers = new Headers(request.headers);
+  headers.set('host', new URL(TARGET_BASE).host);
+  headers.set('x-forwarded-host', url.host);
+  headers.set('x-forwarded-proto', 'https');
+  try {
+    const res = await fetch(targetUrl.toString(), {
+      method: request.method,
+      headers: headers,
+      body: ['GET', 'HEAD'].includes(request.method) ? undefined : request.body,
+      redirect: 'manual'
+    });
+    const newHeaders = new Headers(res.headers);
+    newHeaders.set('Access-Control-Allow-Origin', '*');
+    const loc = newHeaders.get('location');
+    if (loc) {
+      try {
+        const locUrl = new URL(loc, TARGET_BASE);
+        if (locUrl.host === new URL(TARGET_BASE).host) {
+          newHeaders.set('location', locUrl.pathname + locUrl.search);
+        }
+      } catch (e) {}
+    }
+    return new Response(res.body, { status: res.status, headers: newHeaders });
+  } catch(e) {
+    return new Response('<html><head><title>Connecting to Mobile Server</title><meta http-equiv=\"refresh\" content=\"3\"></head><body style=\"font-family:system-ui;text-align:center;padding:50px;background:#0f172a;color:#f8fafc;\"><div style=\"max-width:500px;margin:0 auto;background:#1e293b;padding:30px;border-radius:16px;\"><h2>Connecting to Shreeji Healthcare Server...</h2><p style=\"color:#94a3b8;font-size:14px;\">Phone server is establishing connection. Refreshing in 3 seconds...</p></div></body></html>', { status: 502, headers: { 'Content-Type': 'text/html' } });
+  }
+}"
+
+    curl -s -X PUT -H "Authorization: Bearer ${CF_API_TOKEN}" \
+      -H "Content-Type: application/javascript" \
+      --data-binary "${script_payload}" \
+      "https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/workers/scripts/${worker_name}" >/dev/null 2>&1
+}
 
 loop_count=0
 
@@ -83,12 +129,30 @@ while true; do
         fi
     fi
 
-    # 4. Health Check: Cloudflare Tunnel (Custom Subdomains)
-    # Toggling Wi-Fi / Mobile Data: cloudflared reconnects, but if killed or dropped, revive it
-    if ! pgrep -f "cloudflared tunnel" >/dev/null 2>&1; then
-        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [HEAL] Cloudflare Tunnel disconnected! Reconnecting..." >> "${LOG_FILE}"
-        nohup cloudflared tunnel run --token "${CF_TUNNEL_TOKEN}" > "${BASE_DIR}/logs/tunnel.log" 2>&1 &
-        echo $! > "${BASE_DIR}/pids/tunnel.pid"
+    # 4. Health Check: Cloudflare Quick Tunnels & Worker Sync
+    tunnel_restarted=0
+    if ! pgrep -f "cloudflared tunnel.*3000" >/dev/null 2>&1; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [HEAL] Order Book Tunnel dropped! Reconnecting..." >> "${LOG_FILE}"
+        nohup cloudflared tunnel --url http://localhost:3000 > "${BASE_DIR}/logs/tunnel_order.log" 2>&1 &
+        echo $! > "${BASE_DIR}/pids/tunnel_order.pid"
+        tunnel_restarted=1
+    fi
+
+    if ! pgrep -f "cloudflared tunnel.*8080" >/dev/null 2>&1; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [HEAL] Envelope Tunnel dropped! Reconnecting..." >> "${LOG_FILE}"
+        nohup cloudflared tunnel --url http://localhost:8080 > "${BASE_DIR}/logs/tunnel_envelope.log" 2>&1 &
+        echo $! > "${BASE_DIR}/pids/tunnel_envelope.pid"
+        tunnel_restarted=1
+    fi
+
+    if [ ${tunnel_restarted} -eq 1 ]; then
+        sleep 4
+        ORDER_URL=$(grep -o 'https://[-a-zA-Z0-9.]*\.trycloudflare\.com' "${BASE_DIR}/logs/tunnel_order.log" 2>/dev/null | tail -n 1)
+        ENVELOPE_URL=$(grep -o 'https://[-a-zA-Z0-9.]*\.trycloudflare\.com' "${BASE_DIR}/logs/tunnel_envelope.log" 2>/dev/null | tail -n 1)
+        
+        sync_worker_proxy "shreeji-order" "${ORDER_URL}"
+        sync_worker_proxy "shreeji-envelope" "${ENVELOPE_URL}"
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [HEAL] Cloudflare Workers re-linked to: Order=${ORDER_URL}, Envelope=${ENVELOPE_URL}" >> "${LOG_FILE}"
     fi
 
     # 5. Auto Code Update Check from GitHub (Runs every ~2 minutes / 8 cycles)

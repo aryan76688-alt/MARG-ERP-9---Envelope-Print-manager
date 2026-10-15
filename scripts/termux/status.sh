@@ -47,14 +47,14 @@ else
     echo -e "    Status:   ${RED}🔴 OFFLINE / STOPPED${NC}"
 fi
 
-# 4. Permanent Cloudflare Custom Subdomain Status
-echo -e "\n${BOLD}[4] Permanent Public Web Subdomains (Cloudflare Tunnel):${NC}"
+# 4. Permanent Cloudflare Public Web Domains Status
+echo -e "\n${BOLD}[4] Permanent Public Web Domains (Cloudflare Edge Network):${NC}"
 if pgrep -f "cloudflared tunnel" >/dev/null 2>&1; then
-    echo -e "    Status:   ${GREEN}🟢 ONLINE (Global 24/7 Access)${NC}"
-    echo -e "    • Envelope Manager: ${GREEN}${BOLD}https://envelope.shreeji7.com${NC}"
-    echo -e "    • Order Book:       ${GREEN}${BOLD}https://order.shreeji7.com${NC}"
+    echo -e "    Status:   ${GREEN}🟢 ONLINE (Global 24/7 Access - 100% Free)${NC}"
+    echo -e "    • Order Book:       ${GREEN}${BOLD}https://shreeji-order.aryan76688.workers.dev${NC}"
+    echo -e "    • Envelope Manager: ${GREEN}${BOLD}https://shreeji-envelope.aryan76688.workers.dev${NC}"
 else
-    echo -e "    Status:   ${RED}🔴 OFFLINE (Tunnel stopped)${NC}"
+    echo -e "    Status:   ${RED}🔴 OFFLINE (Tunnels stopped)${NC}"
 fi
 
 # 5. 24/7 Watchdog & Live Code Auto-Updater Status
