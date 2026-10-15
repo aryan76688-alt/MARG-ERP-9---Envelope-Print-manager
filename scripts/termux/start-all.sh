@@ -25,7 +25,7 @@ PG_DATA="${PREFIX_DIR}/var/lib/postgresql"
 # 1. https://shreeji-envelope.aryan76688.workers.dev -> Envelope Manager (Port 8080)
 # 2. https://shreeji-order.aryan76688.workers.dev    -> Order Book (Port 3000)
 CF_ACCOUNT_ID="da2ddb95fbea2434c8ac0a1a65b7f721"
-CF_API_TOKEN="${CF_API_TOKEN:-$(echo 'Y2ZhdF9kM0dPQUJ3V0t5bW9lSWsxWDFTdlVNVHM0UVB1ckFkV1A1RGdmanBVNmQzYTY4NmI=' | base64 -d 2>/dev/null)}"
+CF_API_TOKEN="${CF_API_TOKEN:-$(echo 'Y2ZhdF9kM0dPQWJ3V0t5bW9lSWsxWDFTdlVNVHM0UVB1ckFkV1A1RGdmanBVNmQzYTY4NmI=' | base64 -d 2>/dev/null)}"
 
 clear
 echo -e "${CYAN}${BOLD}==============================================================================${NC}"
