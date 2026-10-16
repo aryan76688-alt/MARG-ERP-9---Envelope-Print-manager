@@ -79,7 +79,7 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     return user
 
 def get_current_active_admin(current_user: User = Depends(get_current_user)):
-    if current_user.role not in ["super_admin", "admin"]:
+    if current_user.role not in ["super_admin", "admin", "owner"]:
         raise HTTPException(status_code=403, detail="Not enough permissions")
     return current_user
 

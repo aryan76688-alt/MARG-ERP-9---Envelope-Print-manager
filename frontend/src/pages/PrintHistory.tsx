@@ -15,10 +15,19 @@ import {
   AlertTriangle,
   RefreshCw,
   Edit3,
-  MessageSquare
+  MessageSquare,
+  Mail
 } from 'lucide-react';
 import { PrintJob, PrintJobDetails } from '../types';
-import { fetchPrintJobs, fetchPrintJobDetails, deletePrintJob, downloadEnvelopePDF, getExportHistoryUrl } from '../api/client';
+import { 
+  fetchPrintJobs, 
+  fetchPrintJobDetails, 
+  deletePrintJob, 
+  downloadEnvelopePDF, 
+  getExportHistoryUrl,
+  sendGmailDispatchSummary,
+  sendGmailInvoice
+} from '../api/client';
 import { getCachedPrintJobs, setCachedPrintJobs } from '../offline/db';
 import { JobDetailsModal } from '../components/JobDetailsModal';
 import { generateWhatsAppDispatchUrl } from '../utils/whatsapp';
@@ -47,6 +56,8 @@ export const PrintHistory: React.FC<PrintHistoryProps> = ({ onNavigate }) => {
   const [selectedJob, setSelectedJob] = useState<PrintJobDetails | null>(null);
   const [detailsModalOpen, setDetailsModalOpen] = useState<boolean>(false);
   const [deleteConfirmJob, setDeleteConfirmJob] = useState<PrintJob | null>(null);
+  const [emailingSummary, setEmailingSummary] = useState<boolean>(false);
+  const [emailingJobId, setEmailingJobId] = useState<number | null>(null);
 
   const loadJobs = async (silent: boolean = false) => {
     try {
@@ -137,6 +148,45 @@ export const PrintHistory: React.FC<PrintHistoryProps> = ({ onNavigate }) => {
     }
   };
 
+  const handleEmailDispatchSummary = async () => {
+    setEmailingSummary(true);
+    try {
+      const res = await sendGmailDispatchSummary({ limit: 50 });
+      if (res.success) {
+        alert('Dispatch summary report successfully sent to Gmail!');
+      } else {
+        alert('Failed to send email: ' + (res.error || 'Unknown error'));
+      }
+    } catch (err: any) {
+      alert('Email send error: ' + err.message);
+    } finally {
+      setEmailingSummary(false);
+    }
+  };
+
+  const handleEmailInvoiceForJob = async (job: PrintJob) => {
+    setEmailingJobId(job.id);
+    try {
+      const res = await sendGmailInvoice({
+        party_name: job.party_name,
+        party_id: job.party_id,
+        invoice_no: job.job_number,
+        cases: job.total_cases,
+        transport: job.delivery_route || 'Direct Transport',
+        notes: job.parcel_type
+      });
+      if (res.success) {
+        alert(`Invoice notification sent to party / management for ${job.party_name}!`);
+      } else {
+        alert('Failed to send email: ' + (res.error || 'Unknown error'));
+      }
+    } catch (err: any) {
+      alert('Email send error: ' + err.message);
+    } finally {
+      setEmailingJobId(null);
+    }
+  };
+
   return (
     <div className="space-y-4 max-w-7xl mx-auto">
       {/* Header Bar */}
@@ -172,6 +222,16 @@ export const PrintHistory: React.FC<PrintHistoryProps> = ({ onNavigate }) => {
             <Download className="w-4 h-4 text-emerald-600" />
             <span>Export History XLSX</span>
           </a>
+
+          <button
+            onClick={handleEmailDispatchSummary}
+            disabled={emailingSummary}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-blue-200 bg-blue-50/80 text-blue-800 hover:bg-blue-100 font-bold text-xs transition-colors disabled:opacity-50"
+            title="Email last 50 dispatch jobs report to Gmail"
+          >
+            <Mail className={`w-4 h-4 ${emailingSummary ? 'animate-bounce text-blue-600' : 'text-blue-600'}`} />
+            <span>{emailingSummary ? 'Emailing...' : 'Email Dispatch Report'}</span>
+          </button>
 
           <button
             onClick={() => onNavigate('print')}
@@ -402,6 +462,16 @@ export const PrintHistory: React.FC<PrintHistoryProps> = ({ onNavigate }) => {
                             </a>
                           );
                         })()}
+
+                        {/* Email Invoice & Dispatch Notification */}
+                        <button
+                          onClick={() => handleEmailInvoiceForJob(j)}
+                          disabled={emailingJobId === j.id}
+                          className="p-1.5 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50"
+                          title="1-Click Email Invoice / Dispatch Details to Party via Gmail"
+                        >
+                          <Mail className={`w-4 h-4 ${emailingJobId === j.id ? 'animate-bounce text-blue-600' : 'text-blue-600'}`} />
+                        </button>
 
                         {/* Edit & Reprint */}
                         <button

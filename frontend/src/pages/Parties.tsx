@@ -27,7 +27,8 @@ import {
   Phone,
   MessageCircle,
   Calendar,
-  ExternalLink
+  ExternalLink,
+  Mail
 } from 'lucide-react';
 import { Party } from '../types';
 import { 
@@ -43,7 +44,8 @@ import {
   fetchPartyRoutes,
   triggerBackgroundTranslation,
   fetchTranslationStatus,
-  printEnvelopePDF
+  printEnvelopePDF,
+  sendGmailPartiesList
 } from '../api/client';
 import { getPartiesOffline, ensureInitialPartiesLoaded } from '../offline/db';
 import { PartyModal } from '../components/PartyModal';
@@ -96,6 +98,23 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
   // Background Google Translation state
   const [translating, setTranslating] = useState<boolean>(false);
   const [translationStats, setTranslationStats] = useState<{ is_running: boolean; total: number; processed: number; status: string } | null>(null);
+  const [emailSending, setEmailSending] = useState<boolean>(false);
+
+  const handleEmailPartiesList = async () => {
+    setEmailSending(true);
+    try {
+      const res = await sendGmailPartiesList({});
+      if (res.success) {
+        alert('Master parties CSV list has been emailed to management via Gmail!');
+      } else {
+        alert('Failed to send email: ' + (res.error || 'Unknown error'));
+      }
+    } catch (err: any) {
+      alert('Email send error: ' + err.message);
+    } finally {
+      setEmailSending(false);
+    }
+  };
 
   const checkTranslationProgress = async () => {
     try {
@@ -418,6 +437,16 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
             <Download className="w-4 h-4 text-slate-500" />
             <span>Export XLSX</span>
           </a>
+
+          <button
+            onClick={handleEmailPartiesList}
+            disabled={emailSending}
+            className="btn-secondary text-blue-700 bg-blue-50/80 border-blue-200 hover:bg-blue-100 font-bold"
+            title="1-Click Email Master Parties Directory to Management via Gmail"
+          >
+            <Mail className={`w-4 h-4 ${emailSending ? 'animate-bounce text-blue-600' : 'text-blue-600'}`} />
+            <span>{emailSending ? 'Emailing...' : 'Email to Gmail'}</span>
+          </button>
 
           <button
             onClick={() => onNavigate('import')}

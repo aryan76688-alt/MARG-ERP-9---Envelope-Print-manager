@@ -129,6 +129,12 @@ class AppSettings(Base):
     last_google_sheet_sync_time = Column(DateTime, nullable=True)
     last_google_sheet_sync_status = Column(String(255), nullable=True)
     google_oauth_client_id = Column(String(255), default="58565275888-4juppeh2cdeo6v4tn1qc81e8ngpnevsu.apps.googleusercontent.com")
+    
+    # Google Drive Webhook & 1-Click Gmail Dispatch Settings (Option 1)
+    gdrive_webhook_url = Column(Text, nullable=True, default="")
+    gdrive_api_key = Column(String(255), nullable=True, default="SHREEJI_SECRET_KEY_2026")
+    gdrive_backup_folder = Column(String(200), default="Shreeji_Healthcare_Backups")
+    gdrive_notify_email = Column(String(255), default="shreejiseven@gmail.com")
 
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 

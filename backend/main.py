@@ -34,6 +34,7 @@ from pathlib import Path
 import math
 import requests
 from cache_manager import cache_mgr
+import gdrive_service
 
 def calculate_haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """Calculates distance in meters between two GPS coordinates using Haversine formula."""
@@ -443,6 +444,33 @@ class BackupSettingsRequest(BaseModel):
     auto_backup_time: str = "20:00"
     rclone_remote_name: str = "gdrive"
     rclone_backup_path: str = "MARG_Backups"
+
+class GDriveSettingsRequest(BaseModel):
+    gdrive_webhook_url: Optional[str] = ""
+    gdrive_api_key: Optional[str] = "SHREEJI_SECRET_KEY_2026"
+    gdrive_backup_folder: Optional[str] = "Shreeji_Healthcare_Backups"
+    gdrive_notify_email: Optional[str] = "shreejiseven@gmail.com"
+
+class GDriveRestoreRequest(BaseModel):
+    file_id: str
+
+class SendGmailInvoiceRequest(BaseModel):
+    to_email: Optional[str] = None
+    party_id: Optional[int] = None
+    party_name: Optional[str] = None
+    invoice_no: Optional[str] = None
+    invoice_date: Optional[str] = None
+    amount: Optional[float] = None
+    cases: Optional[int] = 1
+    transport: Optional[str] = None
+    notes: Optional[str] = None
+
+class SendGmailDispatchSummaryRequest(BaseModel):
+    to_email: Optional[str] = None
+    limit: Optional[int] = 50
+
+class SendGmailPartiesListRequest(BaseModel):
+    to_email: Optional[str] = None
 
 class BulkRouteRequest(BaseModel):
     party_ids: List[int]
@@ -4152,6 +4180,318 @@ def trigger_backup_now(
     backup_path = getattr(app_set, "rclone_backup_path", "MARG_Backups") or "MARG_Backups"
     result = perform_rclone_backup(db, remote_name=remote_name, backup_path=backup_path)
     return result
+
+# ==========================================
+# 8B. GOOGLE DRIVE & GMAIL WEBHOOK API (OPTION 1)
+# 100% Free, Zero OAuth2, Super Admin / Admin / Owner Only
+# ==========================================
+
+@app.get("/api/gdrive/settings")
+def get_gdrive_settings(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth_module.get_current_active_admin)
+):
+    app_set = db.query(AppSettings).first()
+    return {
+        "gdrive_webhook_url": getattr(app_set, "gdrive_webhook_url", "") or "",
+        "gdrive_api_key": getattr(app_set, "gdrive_api_key", "SHREEJI_SECRET_KEY_2026") or "SHREEJI_SECRET_KEY_2026",
+        "gdrive_backup_folder": getattr(app_set, "gdrive_backup_folder", "Shreeji_Healthcare_Backups") or "Shreeji_Healthcare_Backups",
+        "gdrive_notify_email": getattr(app_set, "gdrive_notify_email", "shreejiseven@gmail.com") or "shreejiseven@gmail.com",
+        "last_backup_time": app_set.last_backup_time.strftime("%d-%m-%Y %I:%M %p") if app_set and app_set.last_backup_time else None,
+        "last_backup_status": getattr(app_set, "last_backup_status", None) if app_set else None
+    }
+
+@app.put("/api/gdrive/settings")
+def update_gdrive_settings(
+    req: GDriveSettingsRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth_module.get_current_active_admin)
+):
+    app_set = db.query(AppSettings).first()
+    if not app_set:
+        app_set = AppSettings()
+        db.add(app_set)
+    app_set.gdrive_webhook_url = (req.gdrive_webhook_url or "").strip()
+    app_set.gdrive_api_key = (req.gdrive_api_key or "").strip()
+    app_set.gdrive_backup_folder = (req.gdrive_backup_folder or "Shreeji_Healthcare_Backups").strip()
+    app_set.gdrive_notify_email = (req.gdrive_notify_email or "shreejiseven@gmail.com").strip()
+    db.commit()
+    return {"message": "Google Drive & Gmail webhook settings saved successfully"}
+
+@app.post("/api/gdrive/test")
+def test_gdrive_connection(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth_module.get_current_active_admin)
+):
+    app_set = db.query(AppSettings).first()
+    webhook_url = getattr(app_set, "gdrive_webhook_url", "")
+    api_key = getattr(app_set, "gdrive_api_key", "SHREEJI_SECRET_KEY_2026")
+    if not webhook_url:
+        raise HTTPException(status_code=400, detail="Google Apps Script Webhook URL is not configured. Please paste your deployed Web App URL in settings.")
+    res = gdrive_service.test_connection(webhook_url, api_key)
+    return res
+
+@app.post("/api/gdrive/backup/run")
+def trigger_gdrive_backup(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth_module.get_current_active_admin)
+):
+    app_set = db.query(AppSettings).first()
+    webhook_url = getattr(app_set, "gdrive_webhook_url", "")
+    api_key = getattr(app_set, "gdrive_api_key", "SHREEJI_SECRET_KEY_2026")
+    folder_name = getattr(app_set, "gdrive_backup_folder", "Shreeji_Healthcare_Backups") or "Shreeji_Healthcare_Backups"
+    
+    if not webhook_url:
+        raise HTTPException(status_code=400, detail="Google Apps Script Webhook URL is not configured in Settings.")
+
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    filename, zip_bytes = gdrive_service.create_envelope_backup_archive(db, base_dir=base_dir)
+
+    upload_res = gdrive_service.upload_backup(
+        webhook_url=webhook_url,
+        api_key=api_key,
+        filename=filename,
+        content_bytes=zip_bytes,
+        mime_type="application/zip",
+        folder_name=folder_name
+    )
+
+    now = datetime.datetime.now()
+    if app_set:
+        app_set.last_backup_time = now
+        if upload_res.get("success"):
+            app_set.last_backup_status = f"Success: {filename} uploaded to GDrive"
+        else:
+            app_set.last_backup_status = f"Failed: {upload_res.get('error', 'Unknown error')}"
+        db.commit()
+
+    return {
+        "success": upload_res.get("success", False),
+        "filename": filename,
+        "size_kb": round(len(zip_bytes) / 1024, 2),
+        "gdrive_response": upload_res
+    }
+
+@app.get("/api/gdrive/backups")
+def list_gdrive_backups(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth_module.get_current_active_admin)
+):
+    app_set = db.query(AppSettings).first()
+    webhook_url = getattr(app_set, "gdrive_webhook_url", "")
+    api_key = getattr(app_set, "gdrive_api_key", "SHREEJI_SECRET_KEY_2026")
+    folder_name = getattr(app_set, "gdrive_backup_folder", "Shreeji_Healthcare_Backups") or "Shreeji_Healthcare_Backups"
+    
+    if not webhook_url:
+        raise HTTPException(status_code=400, detail="Google Apps Script Webhook URL is not configured in Settings.")
+
+    res = gdrive_service.list_backups(webhook_url, api_key, folder_name=folder_name)
+    return res
+
+@app.post("/api/gdrive/restore")
+def restore_gdrive_backup(
+    req: GDriveRestoreRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth_module.get_current_active_admin)
+):
+    app_set = db.query(AppSettings).first()
+    webhook_url = getattr(app_set, "gdrive_webhook_url", "")
+    api_key = getattr(app_set, "gdrive_api_key", "SHREEJI_SECRET_KEY_2026")
+    
+    if not webhook_url:
+        raise HTTPException(status_code=400, detail="Google Apps Script Webhook URL is not configured.")
+
+    dl_res = gdrive_service.download_backup(webhook_url, api_key, req.file_id)
+    if not dl_res.get("success") or not dl_res.get("raw_bytes"):
+        raise HTTPException(status_code=400, detail=f"Failed to download backup from Google Drive: {dl_res.get('error')}")
+
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    restore_res = gdrive_service.restore_envelope_backup(db, dl_res["raw_bytes"], base_dir=base_dir)
+    return restore_res
+
+@app.post("/api/gmail/send-invoice")
+def send_gmail_invoice(
+    req: SendGmailInvoiceRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth_module.get_current_active_admin)
+):
+    app_set = db.query(AppSettings).first()
+    sender = db.query(SenderSettings).first()
+    webhook_url = getattr(app_set, "gdrive_webhook_url", "")
+    api_key = getattr(app_set, "gdrive_api_key", "SHREEJI_SECRET_KEY_2026")
+    
+    if not webhook_url:
+        raise HTTPException(status_code=400, detail="Google Apps Script Webhook URL is not configured in Settings.")
+
+    party = None
+    if req.party_id:
+        party = db.query(Party).filter(Party.id == req.party_id).first()
+    elif req.party_name:
+        party = db.query(Party).filter(Party.name.ilike(req.party_name.strip())).first()
+
+    to_addr = req.to_email or (party.email if party and party.email else None) or getattr(app_set, "gdrive_notify_email", "shreejiseven@gmail.com")
+    if not to_addr:
+        to_addr = "shreejiseven@gmail.com"
+
+    company_name = sender.company_name if sender else "SHREEJI HEALTHCARE"
+    subject = f"Invoice / Dispatch Details: {req.invoice_no or 'Dispatch'} - {req.party_name or (party.name if party else 'Valued Client')}"
+    
+    html = f"""
+    <div style="font-family: Arial, sans-serif; max-width: 650px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+      <div style="background: #2563eb; color: #ffffff; padding: 20px; text-align: center;">
+        <h2 style="margin: 0;">{company_name}</h2>
+        <p style="margin: 5px 0 0 0; font-size: 14px; opacity: 0.9;">Dispatch & Invoice Notification</p>
+      </div>
+      <div style="padding: 24px; color: #1e293b;">
+        <p>Dear <strong>{req.party_name or (party.name if party else 'Valued Customer')}</strong>,</p>
+        <p>Your consignment / invoice details are provided below:</p>
+        <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+          <tr style="background: #f8fafc;"><td style="padding: 10px; border: 1px solid #e2e8f0; font-weight: bold;">Party Name</td><td style="padding: 10px; border: 1px solid #e2e8f0;">{req.party_name or (party.name if party else '-')}</td></tr>
+          <tr><td style="padding: 10px; border: 1px solid #e2e8f0; font-weight: bold;">Invoice No.</td><td style="padding: 10px; border: 1px solid #e2e8f0;">{req.invoice_no or 'N/A'}</td></tr>
+          <tr style="background: #f8fafc;"><td style="padding: 10px; border: 1px solid #e2e8f0; font-weight: bold;">Invoice Date</td><td style="padding: 10px; border: 1px solid #e2e8f0;">{req.invoice_date or datetime.date.today().strftime('%d/%m/%Y')}</td></tr>
+          <tr><td style="padding: 10px; border: 1px solid #e2e8f0; font-weight: bold;">Cases / Boxes</td><td style="padding: 10px; border: 1px solid #e2e8f0;">{req.cases or 1}</td></tr>
+          <tr style="background: #f8fafc;"><td style="padding: 10px; border: 1px solid #e2e8f0; font-weight: bold;">Transport / Courier</td><td style="padding: 10px; border: 1px solid #e2e8f0;">{req.transport or 'Direct Transport'}</td></tr>
+          {f'<tr style="background: #f8fafc;"><td style="padding: 10px; border: 1px solid #e2e8f0; font-weight: bold;">Notes</td><td style="padding: 10px; border: 1px solid #e2e8f0;">{req.notes}</td></tr>' if req.notes else ''}
+        </table>
+        {f'<p style="font-size: 13px; color: #64748b;">Delivery Address: {party.address}, {party.city}, {party.state} - {party.pincode or ""}</p>' if party else ''}
+        <div style="margin-top: 25px; padding-top: 15px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #94a3b8; text-align: center;">
+          Sent automatically via Shreeji Healthcare Dispatch System.
+        </div>
+      </div>
+    </div>
+    """
+
+    res = gdrive_service.send_email(
+        webhook_url=webhook_url,
+        api_key=api_key,
+        to_email=to_addr,
+        subject=subject,
+        body_html=html
+    )
+    return res
+
+@app.post("/api/gmail/send-dispatch-summary")
+def send_gmail_dispatch_summary(
+    req: SendGmailDispatchSummaryRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth_module.get_current_active_admin)
+):
+    app_set = db.query(AppSettings).first()
+    sender = db.query(SenderSettings).first()
+    webhook_url = getattr(app_set, "gdrive_webhook_url", "")
+    api_key = getattr(app_set, "gdrive_api_key", "SHREEJI_SECRET_KEY_2026")
+    
+    if not webhook_url:
+        raise HTTPException(status_code=400, detail="Google Apps Script Webhook URL is not configured in Settings.")
+
+    to_addr = req.to_email or getattr(app_set, "gdrive_notify_email", "shreejiseven@gmail.com")
+    jobs = db.query(PrintJob).order_by(PrintJob.created_at.desc()).limit(req.limit or 50).all()
+
+    company_name = sender.company_name if sender else "SHREEJI HEALTHCARE"
+    subject = f"Dispatch Summary Report ({len(jobs)} items) - {datetime.date.today().strftime('%d/%m/%Y')}"
+
+    rows_html = ""
+    for j in jobs:
+        created_str = j.created_at.strftime("%d/%m %I:%M %p") if j.created_at else "-"
+        rows_html += f"""
+        <tr>
+          <td style="padding: 8px; border: 1px solid #e2e8f0; font-size: 12px;">{created_str}</td>
+          <td style="padding: 8px; border: 1px solid #e2e8f0; font-weight: bold; font-size: 13px;">{j.party_name}</td>
+          <td style="padding: 8px; border: 1px solid #e2e8f0; font-size: 12px;">{j.city or '-'}</td>
+          <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: center; font-size: 12px;">{j.total_cases or 1}</td>
+          <td style="padding: 8px; border: 1px solid #e2e8f0; font-size: 12px;">{j.transport or '-'}</td>
+        </tr>
+        """
+
+    html = f"""
+    <div style="font-family: Arial, sans-serif; max-width: 750px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+      <div style="background: #0f172a; color: #ffffff; padding: 20px;">
+        <h2 style="margin: 0;">{company_name} - Dispatch Summary</h2>
+        <p style="margin: 5px 0 0 0; font-size: 13px; color: #94a3b8;">Generated on {datetime.datetime.now().strftime('%d/%m/%Y %I:%M %p')} | Total Records: {len(jobs)}</p>
+      </div>
+      <div style="padding: 20px;">
+        <table style="width: 100%; border-collapse: collapse;">
+          <thead>
+            <tr style="background: #f1f5f9; text-align: left; font-size: 12px; color: #475569;">
+              <th style="padding: 8px; border: 1px solid #e2e8f0;">Date/Time</th>
+              <th style="padding: 8px; border: 1px solid #e2e8f0;">Party Name</th>
+              <th style="padding: 8px; border: 1px solid #e2e8f0;">City</th>
+              <th style="padding: 8px; border: 1px solid #e2e8f0; text-align: center;">Cases</th>
+              <th style="padding: 8px; border: 1px solid #e2e8f0;">Transport</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows_html}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    """
+
+    res = gdrive_service.send_email(
+        webhook_url=webhook_url,
+        api_key=api_key,
+        to_email=to_addr,
+        subject=subject,
+        body_html=html
+    )
+    return res
+
+@app.post("/api/gmail/send-parties-list")
+def send_gmail_parties_list(
+    req: SendGmailPartiesListRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth_module.get_current_active_admin)
+):
+    app_set = db.query(AppSettings).first()
+    sender = db.query(SenderSettings).first()
+    webhook_url = getattr(app_set, "gdrive_webhook_url", "")
+    api_key = getattr(app_set, "gdrive_api_key", "SHREEJI_SECRET_KEY_2026")
+    
+    if not webhook_url:
+        raise HTTPException(status_code=400, detail="Google Apps Script Webhook URL is not configured in Settings.")
+
+    to_addr = req.to_email or getattr(app_set, "gdrive_notify_email", "shreejiseven@gmail.com")
+    parties = db.query(Party).filter(Party.is_active == True).order_by(Party.name.asc()).all()
+
+    company_name = sender.company_name if sender else "SHREEJI HEALTHCARE"
+    subject = f"Master Parties Directory ({len(parties)} Parties) - {company_name}"
+
+    csv_buffer = io.StringIO()
+    writer = csv.writer(csv_buffer)
+    writer.writerow(["ID", "Party Name", "City", "State", "Phone", "Mobile", "Email", "GST No", "DL No"])
+    for p in parties:
+        writer.writerow([p.id, p.name, p.city or "", p.state or "", p.phone or "", p.mobile or "", p.email or "", p.gst_no or "", p.dl_no or ""])
+
+    csv_bytes = csv_buffer.getvalue().encode("utf-8")
+
+    html = f"""
+    <div style="font-family: Arial, sans-serif; max-width: 650px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+      <div style="background: #16a34a; color: #ffffff; padding: 20px;">
+        <h2 style="margin: 0;">{company_name} - Parties Directory</h2>
+        <p style="margin: 5px 0 0 0; font-size: 13px;">Full active client list attached as CSV ({len(parties)} accounts)</p>
+      </div>
+      <div style="padding: 24px; color: #1e293b;">
+        <p>Dear Management,</p>
+        <p>Please find attached the latest active parties directory containing <strong>{len(parties)}</strong> parties.</p>
+        <p>You can open the attached CSV file in Microsoft Excel or Google Sheets.</p>
+      </div>
+    </div>
+    """
+
+    res = gdrive_service.send_email(
+        webhook_url=webhook_url,
+        api_key=api_key,
+        to_email=to_addr,
+        subject=subject,
+        body_html=html,
+        attachments=[{
+            "filename": f"Parties_List_{datetime.date.today().strftime('%Y%m%d')}.csv",
+            "content_bytes": csv_bytes,
+            "mimeType": "text/csv"
+        }]
+    )
+    return res
 
 # ==========================================
 # 9. GEMINI AI TRANSLATION & SMART PARSER

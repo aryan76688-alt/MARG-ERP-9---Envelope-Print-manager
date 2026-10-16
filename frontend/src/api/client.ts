@@ -1020,6 +1020,141 @@ export async function triggerManualBackup(): Promise<{ success: boolean; message
 }
 
 // ==========================================
+// GOOGLE DRIVE & GMAIL WEBHOOK CLIENT (OPTION 1)
+// ==========================================
+
+export interface GDriveSettingsData {
+  gdrive_webhook_url: string;
+  gdrive_api_key: string;
+  gdrive_backup_folder: string;
+  gdrive_notify_email: string;
+  last_backup_time?: string | null;
+  last_backup_status?: string | null;
+}
+
+export interface GDriveBackupItem {
+  id: string;
+  name: string;
+  size: number;
+  mimeType: string;
+  createdTime: string;
+}
+
+export async function fetchGDriveSettings(): Promise<GDriveSettingsData> {
+  const res = await fetchApi(`${API_BASE}/gdrive/settings`);
+  if (!res.ok) throw new Error('Failed to load Google Drive settings');
+  return res.json();
+}
+
+export async function updateGDriveSettings(data: {
+  gdrive_webhook_url: string;
+  gdrive_api_key: string;
+  gdrive_backup_folder: string;
+  gdrive_notify_email: string;
+}): Promise<{ message: string }> {
+  const res = await fetchApi(`${API_BASE}/gdrive/settings`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to update Google Drive settings' }));
+    throw new Error(err.detail || 'Failed to update Google Drive settings');
+  }
+  return res.json();
+}
+
+export async function testGDriveConnection(): Promise<{ success: boolean; message?: string; error?: string }> {
+  const res = await fetchApi(`${API_BASE}/gdrive/test`, { method: 'POST' });
+  return res.json();
+}
+
+export async function triggerGDriveBackup(): Promise<{ success: boolean; filename: string; size_kb: number; gdrive_response?: any }> {
+  const res = await fetchApi(`${API_BASE}/gdrive/backup/run`, { method: 'POST' });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to execute Google Drive backup' }));
+    throw new Error(err.detail || 'Failed to execute Google Drive backup');
+  }
+  return res.json();
+}
+
+export async function listGDriveBackups(): Promise<{ success: boolean; backups?: GDriveBackupItem[]; error?: string }> {
+  const res = await fetchApi(`${API_BASE}/gdrive/backups`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to list Google Drive backups' }));
+    throw new Error(err.detail || 'Failed to list Google Drive backups');
+  }
+  return res.json();
+}
+
+export async function restoreGDriveBackup(fileId: string): Promise<{ success: boolean; message?: string; error?: string; restored_parties?: number }> {
+  const res = await fetchApi(`${API_BASE}/gdrive/restore`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ file_id: fileId }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to restore backup' }));
+    throw new Error(err.detail || 'Failed to restore backup');
+  }
+  return res.json();
+}
+
+export async function sendGmailInvoice(data: {
+  to_email?: string;
+  party_id?: number;
+  party_name?: string;
+  invoice_no?: string;
+  invoice_date?: string;
+  amount?: number;
+  cases?: number;
+  transport?: string;
+  notes?: string;
+}): Promise<{ success: boolean; message?: string; error?: string }> {
+  const res = await fetchApi(`${API_BASE}/gmail/send-invoice`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to send invoice email' }));
+    throw new Error(err.detail || 'Failed to send invoice email');
+  }
+  return res.json();
+}
+
+export async function sendGmailDispatchSummary(data: {
+  to_email?: string;
+  limit?: number;
+}): Promise<{ success: boolean; message?: string; error?: string }> {
+  const res = await fetchApi(`${API_BASE}/gmail/send-dispatch-summary`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to send dispatch summary email' }));
+    throw new Error(err.detail || 'Failed to send dispatch summary email');
+  }
+  return res.json();
+}
+
+export async function sendGmailPartiesList(data: {
+  to_email?: string;
+}): Promise<{ success: boolean; message?: string; error?: string }> {
+  const res = await fetchApi(`${API_BASE}/gmail/send-parties-list`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to send parties list email' }));
+    throw new Error(err.detail || 'Failed to send parties list email');
+  }
+  return res.json();
+}
+
+// ==========================================
 // DRIVER MODE & OFFLINE SYNC APIs
 // ==========================================
 

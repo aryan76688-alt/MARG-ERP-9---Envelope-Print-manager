@@ -40,6 +40,15 @@ import {
   fetchBackupSettings,
   updateBackupSettings,
   triggerManualBackup,
+  fetchGDriveSettings,
+  updateGDriveSettings,
+  testGDriveConnection,
+  triggerGDriveBackup,
+  listGDriveBackups,
+  restoreGDriveBackup,
+  sendGmailDispatchSummary,
+  sendGmailPartiesList,
+  GDriveBackupItem,
   API_BASE
 } from '../api/client';
 
@@ -105,7 +114,7 @@ export const Settings: React.FC = () => {
       return {};
     }
   });
-  const canEditBackup = currentUser.role === 'super_admin' || currentUser.role === 'admin';
+  const canEditBackup = currentUser.role === 'super_admin' || currentUser.role === 'admin' || currentUser.role === 'owner';
 
   const [autoBackupEnabled, setAutoBackupEnabled] = useState<boolean>(true);
   const [autoBackupTime, setAutoBackupTime] = useState<string>('20:00');
@@ -117,6 +126,22 @@ export const Settings: React.FC = () => {
   const [backupSaving, setBackupSaving] = useState<boolean>(false);
   const [backupRunning, setBackupRunning] = useState<boolean>(false);
   const [backupMessage, setBackupMessage] = useState<string | null>(null);
+
+  // Google Drive & Gmail Webhook State (Option 1)
+  const [gdriveWebhookUrl, setGdriveWebhookUrl] = useState<string>('');
+  const [gdriveApiKey, setGdriveApiKey] = useState<string>('SHREEJI_SECRET_KEY_2026');
+  const [gdriveBackupFolder, setGdriveBackupFolder] = useState<string>('Shreeji_Healthcare_Backups');
+  const [gdriveNotifyEmail, setGdriveNotifyEmail] = useState<string>('shreejiseven@gmail.com');
+  const [gdriveTesting, setGdriveTesting] = useState<boolean>(false);
+  const [gdriveTestResult, setGdriveTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [gdriveBackupsList, setGdriveBackupsList] = useState<GDriveBackupItem[]>([]);
+  const [gdriveLoadingBackups, setGdriveLoadingBackups] = useState<boolean>(false);
+  const [gdriveRestoringId, setGdriveRestoringId] = useState<string | null>(null);
+  const [gdriveBackupRunning, setGdriveBackupRunning] = useState<boolean>(false);
+  const [gdriveSaving, setGdriveSaving] = useState<boolean>(false);
+  const [gdriveStatusMessage, setGdriveStatusMessage] = useState<string | null>(null);
+  const [gmailSending, setGmailSending] = useState<boolean>(false);
+  const [gmailStatusMessage, setGmailStatusMessage] = useState<string | null>(null);
 
   // IV Fluids & Volumes Configuration
   const [ivFluids, setIvFluids] = useState<string[]>(() => {
@@ -153,6 +178,15 @@ export const Settings: React.FC = () => {
         setLastBackupStatus(b.last_backup_status || null);
       })
       .catch((err) => console.warn('Could not load backup settings:', err));
+
+    fetchGDriveSettings()
+      .then((g) => {
+        if (g.gdrive_webhook_url) setGdriveWebhookUrl(g.gdrive_webhook_url);
+        if (g.gdrive_api_key) setGdriveApiKey(g.gdrive_api_key);
+        if (g.gdrive_backup_folder) setGdriveBackupFolder(g.gdrive_backup_folder);
+        if (g.gdrive_notify_email) setGdriveNotifyEmail(g.gdrive_notify_email);
+      })
+      .catch((err) => console.warn('Could not load GDrive settings:', err));
   };
 
   useEffect(() => {
@@ -282,6 +316,145 @@ export const Settings: React.FC = () => {
       alert('Backup failed: ' + err.message);
     } finally {
       setBackupRunning(false);
+    }
+  };
+
+  const handleSaveGDriveSettings = async () => {
+    if (!canEditBackup) {
+      alert('Permission Denied: Super Admin, Admin, and Owner only.');
+      return;
+    }
+    setGdriveSaving(true);
+    setGdriveStatusMessage(null);
+    try {
+      await updateGDriveSettings({
+        gdrive_webhook_url: gdriveWebhookUrl,
+        gdrive_api_key: gdriveApiKey,
+        gdrive_backup_folder: gdriveBackupFolder,
+        gdrive_notify_email: gdriveNotifyEmail,
+      });
+      setGdriveStatusMessage('Google Drive & Gmail Webhook settings saved!');
+      setTimeout(() => setGdriveStatusMessage(null), 4000);
+    } catch (err: any) {
+      alert('Failed to save settings: ' + err.message);
+    } finally {
+      setGdriveSaving(false);
+    }
+  };
+
+  const handleTestGDriveConnection = async () => {
+    setGdriveTesting(true);
+    setGdriveTestResult(null);
+    try {
+      const res = await testGDriveConnection();
+      if (res.success) {
+        setGdriveTestResult({ success: true, message: res.message || 'Connected to Google Apps Script Webhook successfully!' });
+      } else {
+        setGdriveTestResult({ success: false, message: res.error || 'Connection failed' });
+      }
+    } catch (err: any) {
+      setGdriveTestResult({ success: false, message: err.message || 'Network error' });
+    } finally {
+      setGdriveTesting(false);
+    }
+  };
+
+  const handleTriggerGDriveBackup = async () => {
+    if (!canEditBackup) {
+      alert('Permission Denied: Super Admin, Admin, and Owner only.');
+      return;
+    }
+    setGdriveBackupRunning(true);
+    setGdriveStatusMessage(null);
+    try {
+      const res = await triggerGDriveBackup();
+      if (res.success) {
+        setGdriveStatusMessage(`Backup successful! ${res.filename} (${res.size_kb} KB) uploaded to Google Drive.`);
+        handleLoadGDriveBackups();
+      } else {
+        alert('Backup failed: ' + JSON.stringify(res));
+      }
+    } catch (err: any) {
+      alert('Backup failed: ' + err.message);
+    } finally {
+      setGdriveBackupRunning(false);
+    }
+  };
+
+  const handleLoadGDriveBackups = async () => {
+    setGdriveLoadingBackups(true);
+    try {
+      const res = await listGDriveBackups();
+      if (res.success && res.backups) {
+        setGdriveBackupsList(res.backups);
+      } else {
+        alert('Could not retrieve backups: ' + (res.error || 'Unknown error'));
+      }
+    } catch (err: any) {
+      alert('Failed to list backups: ' + err.message);
+    } finally {
+      setGdriveLoadingBackups(false);
+    }
+  };
+
+  const handleRestoreGDriveBackup = async (fileId: string, fileName: string) => {
+    if (!canEditBackup) {
+      alert('Permission Denied: Super Admin, Admin, and Owner only.');
+      return;
+    }
+    const confirmed = window.confirm(
+      `Are you sure you want to restore "${fileName}" from Google Drive?\n\nA safe pre-restore snapshot will be saved on the server automatically before restoration.`
+    );
+    if (!confirmed) return;
+
+    setGdriveRestoringId(fileId);
+    try {
+      const res = await restoreGDriveBackup(fileId);
+      if (res.success) {
+        alert(res.message || 'Backup restored successfully!');
+      } else {
+        alert('Restore failed: ' + (res.error || 'Unknown error'));
+      }
+    } catch (err: any) {
+      alert('Restore failed: ' + err.message);
+    } finally {
+      setGdriveRestoringId(null);
+    }
+  };
+
+  const handleSendTestGmailDispatch = async () => {
+    setGmailSending(true);
+    setGmailStatusMessage(null);
+    try {
+      const res = await sendGmailDispatchSummary({ to_email: gdriveNotifyEmail });
+      if (res.success) {
+        setGmailStatusMessage(`Dispatch summary successfully sent to ${gdriveNotifyEmail}!`);
+        setTimeout(() => setGmailStatusMessage(null), 5000);
+      } else {
+        alert('Failed to send email: ' + (res.error || 'Unknown error'));
+      }
+    } catch (err: any) {
+      alert('Error sending email: ' + err.message);
+    } finally {
+      setGmailSending(false);
+    }
+  };
+
+  const handleSendTestGmailParties = async () => {
+    setGmailSending(true);
+    setGmailStatusMessage(null);
+    try {
+      const res = await sendGmailPartiesList({ to_email: gdriveNotifyEmail });
+      if (res.success) {
+        setGmailStatusMessage(`Master parties CSV list successfully emailed to ${gdriveNotifyEmail}!`);
+        setTimeout(() => setGmailStatusMessage(null), 5000);
+      } else {
+        alert('Failed to send email: ' + (res.error || 'Unknown error'));
+      }
+    } catch (err: any) {
+      alert('Error sending email: ' + err.message);
+    } finally {
+      setGmailSending(false);
     }
   };
 
@@ -1247,6 +1420,237 @@ export const Settings: React.FC = () => {
                   </div>
                 )}
               </div>
+            </div>
+
+            {/* GOOGLE DRIVE & GMAIL WEBHOOK CARD (OPTION 1) */}
+            <div className="p-5 rounded-2xl border-2 border-blue-300 bg-gradient-to-br from-blue-50/70 via-white to-sky-50/60 shadow-sm space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-blue-100 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-blue-600 text-white shadow-md shadow-blue-600/30">
+                    <Cloud className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-black text-slate-900 text-sm">
+                        Google Drive Auto-Sync & 1-Click Gmail Webhook
+                      </h4>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-700 uppercase tracking-wide">
+                        100% Free • Zero OAuth2
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 font-medium">
+                      Cloud backup, automatic restore, and instant Gmail dispatch powered by Google Apps Script Webhook API.
+                    </p>
+                  </div>
+                </div>
+
+                {canEditBackup ? (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Owner & Admin Only</span>
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                    <Lock className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Restricted Access</span>
+                  </span>
+                )}
+              </div>
+
+              {gdriveStatusMessage && (
+                <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2 font-bold animate-in fade-in">
+                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                  <span>{gdriveStatusMessage}</span>
+                </div>
+              )}
+
+              {gmailStatusMessage && (
+                <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-xs flex items-center gap-2 font-bold animate-in fade-in">
+                  <Mail className="w-4 h-4 shrink-0 text-blue-600" />
+                  <span>{gmailStatusMessage}</span>
+                </div>
+              )}
+
+              {gdriveTestResult && (
+                <div className={`p-3 rounded-xl border text-xs flex items-center gap-2 font-bold animate-in fade-in ${
+                  gdriveTestResult.success 
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800' 
+                    : 'bg-rose-50 border-rose-200 text-rose-800'
+                }`}>
+                  {gdriveTestResult.success ? (
+                    <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                  )}
+                  <span>{gdriveTestResult.message}</span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                {/* Webhook URL */}
+                <div className="sm:col-span-2">
+                  <label className="font-extrabold text-slate-700 block mb-1 flex items-center justify-between">
+                    <span>Google Apps Script Webhook URL:</span>
+                    <span className="text-[10px] text-blue-600 font-semibold">Script in scripts/google/GoogleSyncWebhook.gs</span>
+                  </label>
+                  <input
+                    type="url"
+                    disabled={!canEditBackup}
+                    value={gdriveWebhookUrl}
+                    onChange={(e) => setGdriveWebhookUrl(e.target.value)}
+                    placeholder="https://script.google.com/macros/s/AKfycb.../exec"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-xs text-slate-800 disabled:bg-slate-100 disabled:cursor-not-allowed"
+                  />
+                </div>
+
+                {/* Secret Key */}
+                <div>
+                  <label className="font-extrabold text-slate-700 block mb-1">Secret API Key (apiKey):</label>
+                  <input
+                    type="password"
+                    disabled={!canEditBackup}
+                    value={gdriveApiKey}
+                    onChange={(e) => setGdriveApiKey(e.target.value)}
+                    placeholder="SHREEJI_SECRET_KEY_2026"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-xs text-slate-800 disabled:bg-slate-100"
+                  />
+                </div>
+
+                {/* Backup Folder */}
+                <div>
+                  <label className="font-extrabold text-slate-700 block mb-1">Google Drive Folder Name:</label>
+                  <input
+                    type="text"
+                    disabled={!canEditBackup}
+                    value={gdriveBackupFolder}
+                    onChange={(e) => setGdriveBackupFolder(e.target.value)}
+                    placeholder="Shreeji_Healthcare_Backups"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-xs text-slate-800 disabled:bg-slate-100"
+                  />
+                </div>
+
+                {/* Notification Email */}
+                <div className="sm:col-span-2">
+                  <label className="font-extrabold text-slate-700 block mb-1">Default Gmail Notification / Dispatch Email:</label>
+                  <input
+                    type="email"
+                    disabled={!canEditBackup}
+                    value={gdriveNotifyEmail}
+                    onChange={(e) => setGdriveNotifyEmail(e.target.value)}
+                    placeholder="shreejiseven@gmail.com"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-xs text-slate-800 disabled:bg-slate-100"
+                  />
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              {canEditBackup && (
+                <div className="pt-3 border-t border-blue-100 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={gdriveSaving}
+                    onClick={handleSaveGDriveSettings}
+                    className="px-4 py-2 rounded-xl bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 font-bold text-xs transition-colors shadow-xs disabled:opacity-50"
+                  >
+                    {gdriveSaving ? 'Saving...' : 'Save Settings'}
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={gdriveTesting || !gdriveWebhookUrl}
+                    onClick={handleTestGDriveConnection}
+                    className="px-4 py-2 rounded-xl bg-blue-50 border border-blue-300 hover:bg-blue-100 text-blue-800 font-bold text-xs transition-colors shadow-xs disabled:opacity-50 flex items-center gap-1.5"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${gdriveTesting ? 'animate-spin' : ''}`} />
+                    <span>{gdriveTesting ? 'Testing...' : 'Test Connection'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={gdriveBackupRunning || !gdriveWebhookUrl}
+                    onClick={handleTriggerGDriveBackup}
+                    className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-xs shadow-md shadow-blue-600/30 transition-all hover:scale-102 disabled:opacity-50 flex items-center gap-1.5"
+                  >
+                    <Cloud className={`w-3.5 h-3.5 ${gdriveBackupRunning ? 'animate-spin' : ''}`} />
+                    <span>{gdriveBackupRunning ? 'Uploading Backup...' : 'Backup to Google Drive Now'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={gdriveLoadingBackups || !gdriveWebhookUrl}
+                    onClick={handleLoadGDriveBackups}
+                    className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs shadow-md transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                  >
+                    <Database className="w-3.5 h-3.5" />
+                    <span>{gdriveLoadingBackups ? 'Fetching...' : 'Browse Cloud Backups'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={gmailSending || !gdriveWebhookUrl}
+                    onClick={handleSendTestGmailParties}
+                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                  >
+                    <Mail className="w-3.5 h-3.5" />
+                    <span>{gmailSending ? 'Sending...' : 'Email Parties CSV to Gmail'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={gmailSending || !gdriveWebhookUrl}
+                    onClick={handleSendTestGmailDispatch}
+                    className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>{gmailSending ? 'Sending...' : 'Email Dispatch Report'}</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Backups List Table from Google Drive */}
+              {gdriveBackupsList.length > 0 && (
+                <div className="mt-4 pt-3 border-t border-blue-100">
+                  <h5 className="font-extrabold text-slate-800 text-xs mb-2 flex items-center justify-between">
+                    <span>Google Drive Cloud Backups ({gdriveBackupsList.length}):</span>
+                    <span className="text-[10px] text-slate-500 font-normal">Pre-restore safety snapshot created automatically</span>
+                  </h5>
+                  <div className="overflow-x-auto max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50 text-slate-600 border-b border-slate-200">
+                          <th className="p-2 font-bold">Filename</th>
+                          <th className="p-2 font-bold">Date & Time</th>
+                          <th className="p-2 font-bold text-right">Size</th>
+                          <th className="p-2 font-bold text-center">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {gdriveBackupsList.map((bk) => (
+                          <tr key={bk.id} className="border-b border-slate-100 hover:bg-blue-50/40">
+                            <td className="p-2 font-bold text-slate-800 font-mono text-[11px]">{bk.name}</td>
+                            <td className="p-2 text-slate-500 text-[11px]">
+                              {bk.createdTime ? new Date(bk.createdTime).toLocaleString() : '-'}
+                            </td>
+                            <td className="p-2 text-slate-600 text-right font-mono text-[11px]">
+                              {bk.size ? `${(bk.size / 1024).toFixed(1)} KB` : 'N/A'}
+                            </td>
+                            <td className="p-2 text-center">
+                              <button
+                                type="button"
+                                disabled={gdriveRestoringId === bk.id}
+                                onClick={() => handleRestoreGDriveBackup(bk.id, bk.name)}
+                                className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-[11px] shadow-xs transition-colors disabled:opacity-50"
+                              >
+                                {gdriveRestoringId === bk.id ? 'Restoring...' : 'Restore'}
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Android Mobile App (.APK) Download Card */}
