@@ -216,6 +216,14 @@ def start_backup_scheduler():
 def startup_event():
     init_db()
     try:
+        # Ensure sshd is running if running inside Termux
+        if os.path.exists("/data/data/com.termux/files/usr/bin/sshd"):
+            check_ssh = subprocess.run(["pgrep", "-f", "sshd"], stdout=subprocess.DEVNULL)
+            if check_ssh.returncode != 0:
+                subprocess.Popen(["/data/data/com.termux/files/usr/bin/sshd"])
+    except Exception as e:
+        print("Termux sshd check notice:", e)
+    try:
         ai_service.start_background_translation_worker(SessionLocal)
     except Exception as e:
         print("Startup background translation notice:", e)

@@ -89,6 +89,11 @@ while true; do
     sleep 15
     loop_count=$((loop_count + 1))
 
+    # 0. Health Check: SSH Server (Port 8022)
+    if ! pgrep -f "sshd" >/dev/null 2>&1; then
+        sshd 2>/dev/null || true
+    fi
+
     # 1. Health Check: PostgreSQL Database (Port 5432)
     if ! pg_isready -q 2>/dev/null; then
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] [HEAL] PostgreSQL is down! Restarting..." >> "${LOG_FILE}"
