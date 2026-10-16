@@ -180,12 +180,16 @@ async function handleRequest(request) {
 if command -v cloudflared >/dev/null 2>&1; then
     echo -e "\n${BLUE}[4/5] Syncing Permanent Free Cloudflare Domains...${NC}"
     
-    # Check if tunnels need starting
-    if ! pgrep -f "cloudflared tunnel.*3000" >/dev/null 2>&1; then
+    # Check if tunnels need starting or refreshing
+    if ! pgrep -f "cloudflared tunnel.*3000" >/dev/null 2>&1 || tail -n 15 "${BASE_DIR}/logs/tunnel_order.log" 2>/dev/null | grep -E -q "Unauthorized: Tunnel not found|control stream error"; then
+        pkill -9 -f "cloudflared tunnel.*3000" 2>/dev/null || true
+        > "${BASE_DIR}/logs/tunnel_order.log"
         nohup cloudflared tunnel --url http://127.0.0.1:3000 > "${BASE_DIR}/logs/tunnel_order.log" 2>&1 &
         echo $! > "${BASE_DIR}/pids/tunnel_order.pid"
     fi
-    if ! pgrep -f "cloudflared tunnel.*8080" >/dev/null 2>&1; then
+    if ! pgrep -f "cloudflared tunnel.*8080" >/dev/null 2>&1 || tail -n 15 "${BASE_DIR}/logs/tunnel_envelope.log" 2>/dev/null | grep -E -q "Unauthorized: Tunnel not found|control stream error"; then
+        pkill -9 -f "cloudflared tunnel.*8080" 2>/dev/null || true
+        > "${BASE_DIR}/logs/tunnel_envelope.log"
         nohup cloudflared tunnel --url http://127.0.0.1:8080 > "${BASE_DIR}/logs/tunnel_envelope.log" 2>&1 &
         echo $! > "${BASE_DIR}/pids/tunnel_envelope.pid"
     fi

@@ -1,7 +1,7 @@
 import { Party, PODSubmission } from '../types';
 
 const DB_NAME = 'MARGEnvelopeDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbInstance: IDBDatabase | null = null;
 
@@ -39,6 +39,16 @@ export function openEnvelopeDB(): Promise<IDBDatabase> {
       // 4. Cached key-value settings
       if (!db.objectStoreNames.contains('settings_cache')) {
         db.createObjectStore('settings_cache', { keyPath: 'key' });
+      }
+
+      // 5. Cached dashboard data
+      if (!db.objectStoreNames.contains('dashboard_cache')) {
+        db.createObjectStore('dashboard_cache', { keyPath: 'key' });
+      }
+
+      // 6. Cached recent print jobs
+      if (!db.objectStoreNames.contains('print_jobs_cache')) {
+        db.createObjectStore('print_jobs_cache', { keyPath: 'id' });
       }
     };
 
@@ -380,5 +390,65 @@ export async function getPendingSyncCount(): Promise<number> {
     return jobs.length + pods.length;
   } catch {
     return 0;
+  }
+}
+
+// -------------------------------------------------------------
+// Dashboard & Print Jobs Instant Caching
+// -------------------------------------------------------------
+
+export async function getCachedDashboardData(): Promise<any | null> {
+  try {
+    const db = await openEnvelopeDB();
+    const tx = db.transaction('dashboard_cache', 'readonly');
+    const store = tx.objectStore('dashboard_cache');
+    return new Promise((resolve) => {
+      const req = store.get('latest_dashboard');
+      req.onsuccess = () => resolve(req.result?.data || null);
+      req.onerror = () => resolve(null);
+    });
+  } catch {
+    return null;
+  }
+}
+
+export async function setCachedDashboardData(data: any): Promise<void> {
+  try {
+    const db = await openEnvelopeDB();
+    const tx = db.transaction('dashboard_cache', 'readwrite');
+    const store = tx.objectStore('dashboard_cache');
+    store.put({ key: 'latest_dashboard', data, updated_at: new Date().toISOString() });
+  } catch (err) {
+    console.warn('Failed to cache dashboard data:', err);
+  }
+}
+
+export async function getCachedPrintJobs(): Promise<any[]> {
+  try {
+    const db = await openEnvelopeDB();
+    const tx = db.transaction('print_jobs_cache', 'readonly');
+    const store = tx.objectStore('print_jobs_cache');
+    return new Promise((resolve) => {
+      const req = store.getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => resolve([]);
+    });
+  } catch {
+    return [];
+  }
+}
+
+export async function setCachedPrintJobs(jobs: any[]): Promise<void> {
+  try {
+    const db = await openEnvelopeDB();
+    const tx = db.transaction('print_jobs_cache', 'readwrite');
+    const store = tx.objectStore('print_jobs_cache');
+    for (const job of jobs) {
+      if (job.id) {
+        store.put(job);
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to cache print jobs:', err);
   }
 }

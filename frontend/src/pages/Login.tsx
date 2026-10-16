@@ -15,8 +15,6 @@ import {
 } from 'lucide-react';
 import { API_BASE, DEFAULT_REMOTE_API, getApiBase } from '../api/client';
 
-const GOOGLE_CLIENT_ID_DEFAULT = '58565275888-4juppeh2cdeo6v4tn1qc81e8ngpnevsu.apps.googleusercontent.com';
-
 interface LoginProps {
   onLogin: () => void;
 }
@@ -27,129 +25,14 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [selectedRoleId, setSelectedRoleId] = useState<string>('owner');
   const [formError, setFormError] = useState('');
-  const [googleError, setGoogleError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
-  const [gisLoaded, setGisLoaded] = useState(false);
-  const [googleClientId, setGoogleClientId] = useState(GOOGLE_CLIENT_ID_DEFAULT);
   const [showServerConfig, setShowServerConfig] = useState(false);
   const [customServerUrl, setCustomServerUrl] = useState(() => {
     return localStorage.getItem('api_server_url') || DEFAULT_REMOTE_API;
   });
   const [saveServerMsg, setSaveServerMsg] = useState('');
 
-  // Fetch configured Google Client ID from backend
-  useEffect(() => {
-    fetch(`${API_BASE}/auth/google/client-id`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (data?.client_id) {
-          setGoogleClientId(data.client_id);
-        }
-      })
-      .catch(() => {});
-  }, []);
 
-  const handleGoogleResponse = useCallback(async (response: any) => {
-    if (!response?.credential) {
-      setGoogleError('No credential received from Google.');
-      return;
-    }
-    setGoogleLoading(true);
-    setGoogleError('');
-
-    try {
-      const res = await fetch(`${API_BASE}/auth/google`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ credential: response.credential }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || 'Google sign-in authentication failed on server');
-      }
-
-      const data = await res.json();
-      localStorage.setItem('token', data.access_token);
-      if (data.user) {
-        localStorage.setItem('user', JSON.stringify(data.user));
-      } else {
-        // Fetch profile
-        try {
-          const meRes = await fetch(`${API_BASE}/auth/me`, {
-            headers: { Authorization: `Bearer ${data.access_token}` },
-          });
-          if (meRes.ok) {
-            const meData = await meRes.json();
-            localStorage.setItem('user', JSON.stringify(meData));
-          }
-        } catch {}
-      }
-
-      onLogin();
-    } catch (err: any) {
-      console.error('Google Sign-In error:', err);
-      setGoogleError(err.message || 'Google Sign-In failed. Please try again or use direct role login.');
-    } finally {
-      setGoogleLoading(false);
-    }
-  }, [onLogin]);
-
-  // Initialize Google Identity Services
-  useEffect(() => {
-    const initGsi = () => {
-      const google = (window as any).google;
-      if (google?.accounts?.id) {
-        try {
-          google.accounts.id.initialize({
-            client_id: googleClientId,
-            callback: handleGoogleResponse,
-            auto_select: false,
-            cancel_on_tap_outside: true,
-          });
-
-          const btnEl = document.getElementById('google-signin-btn-container');
-          if (btnEl) {
-            btnEl.innerHTML = '';
-            google.accounts.id.renderButton(btnEl, {
-              theme: 'outline',
-              size: 'large',
-              type: 'standard',
-              text: 'continue_with',
-              shape: 'rectangular',
-              logo_alignment: 'left',
-              width: 320,
-            });
-            setGisLoaded(true);
-          }
-        } catch (err) {
-          console.warn('Google Identity Services init error:', err);
-        }
-      }
-    };
-
-    if ((window as any).google?.accounts?.id) {
-      initGsi();
-    } else {
-      const timer = setInterval(() => {
-        if ((window as any).google?.accounts?.id) {
-          clearInterval(timer);
-          initGsi();
-        }
-      }, 400);
-      return () => clearInterval(timer);
-    }
-  }, [googleClientId, handleGoogleResponse]);
-
-  const triggerGooglePrompt = () => {
-    const google = (window as any).google;
-    if (google?.accounts?.id) {
-      google.accounts.id.prompt();
-    } else {
-      setGoogleError('Google Sign-In service is loading or offline. You can use direct role login below.');
-    }
-  };
 
   const roles = [
     {
@@ -419,69 +302,6 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
         {/* Content Container */}
         <div className="p-5 sm:p-8 space-y-5 flex-1">
-          {/* Google Sign-In Card */}
-          <div className="bg-slate-50/90 p-3.5 sm:p-4 rounded-xl border border-slate-200 space-y-3">
-            <div className="flex items-center justify-between">
-              {/* Issue 3 fix: natural title case instead of long uppercase */}
-              <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-                <span>Google Sign-In • ગૂગલ લોગિન</span>
-              </label>
-              {/* Issue 8 fix: unified 1-Tap utility badge design token */}
-              <span className="text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200/80 px-2 py-0.5 rounded-full">
-                ⚡ 1-Tap Fast Login
-              </span>
-            </div>
-
-            {/* Official Google GSI Render Mount (Issue 6 fix: Single primary Google button) */}
-            <div
-              id="google-signin-btn-container"
-              className={`flex justify-center w-full min-h-[44px] ${!gisLoaded ? 'hidden' : ''}`}
-            />
-
-            {/* Fallback Single Button only when GIS script hasn't mounted */}
-            {!gisLoaded && (
-              <button
-                type="button"
-                onClick={triggerGooglePrompt}
-                disabled={googleLoading}
-                className="w-full py-2.5 px-4 bg-white hover:bg-slate-50 active:bg-slate-100 border border-slate-300 rounded-xl shadow-sm font-semibold text-slate-700 flex items-center justify-center gap-2.5 transition-colors cursor-pointer text-xs sm:text-sm"
-              >
-                <svg className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" viewBox="0 0 24 24">
-                  <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"/>
-                  <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
-                  <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.98 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/>
-                  <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
-                </svg>
-                <span>{googleLoading ? 'Connecting with Google...' : 'Continue with Google • ગૂગલથી સાઇન ઇન કરો'}</span>
-              </button>
-            )}
-
-            {/* Issue 9 fix: Error message placed immediately adjacent to Google action */}
-            {googleError && (
-              <div role="alert" className="bg-red-50 border border-red-200 text-red-700 p-2.5 rounded-lg text-xs flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <span className="font-semibold">Google Sign-In: </span>
-                  <span>{googleError}</span>
-                </div>
-              </div>
-            )}
-
-            {/* Issue 4 fix: Bumped 10px text to 12px text-xs */}
-            <div className="flex items-center justify-between text-xs text-slate-500 pt-0.5 px-0.5">
-              <span className="truncate max-w-[280px]">Client ID: {googleClientId.slice(0, 16)}...apps.googleusercontent.com</span>
-              <span className="text-blue-600 font-semibold">Active</span>
-            </div>
-          </div>
-
-          {/* Divider */}
-          <div className="relative flex py-1 items-center">
-            <div className="flex-grow border-t border-slate-200"></div>
-            <span className="flex-shrink mx-3 text-slate-400 text-xs font-medium">
-              અથવા હોદ્દો / પાસવર્ડથી લોગિન કરો
-            </span>
-            <div className="flex-grow border-t border-slate-200"></div>
-          </div>
 
           {/* Issue 7 & 11 fix: Balanced Quick Role Selection without visual clutter */}
           <div>

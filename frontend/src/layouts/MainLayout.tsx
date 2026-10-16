@@ -19,7 +19,9 @@ import {
   Wifi,
   WifiOff,
   RefreshCw,
-  MapPin
+  MapPin,
+  HardDrive,
+  PhoneCall
 } from 'lucide-react';
 import { useNetworkSync } from '../offline/syncManager';
 
@@ -29,6 +31,7 @@ interface MainLayoutProps {
   canGoBack?: boolean;
   onGoBack?: () => void;
   onLogout?: () => void;
+  onOpenEmergencyCall?: () => void;
   children: React.ReactNode;
 }
 
@@ -38,6 +41,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
   canGoBack = false,
   onGoBack,
   onLogout,
+  onOpenEmergencyCall,
   children 
 }) => {
   const [currentTime, setCurrentTime] = useState<string>('');
@@ -121,6 +125,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
     { id: 'dispatch', label: 'Dispatch Summary', icon: Package },
     { id: 'history', label: 'Print History', icon: History },
     { id: 'settings', label: 'Settings', icon: SettingsIcon },
+    ...(userRole === 'super_admin' ? [{ id: 'storage', label: 'Phone Storage', icon: HardDrive }] : []),
     ...(['super_admin', 'admin'].includes(userRole) ? [{ id: 'users', label: 'User Management', icon: User }] : [])
   ];
 
@@ -136,6 +141,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
     dispatch: 'Dispatch Summary',
     history: 'Print History',
     settings: 'Settings',
+    storage: 'Phone Local Storage (Super Admin)',
     users: 'User Management',
   };
   const activeTitle = pageTitles[currentTab] || 'Envelope Print';
@@ -313,6 +319,18 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
 
           {/* Right Controls: Date, Digital Clock, Notifications, Profile */}
           <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+            {/* Emergency SOS Call (Admin & Super Admin only) */}
+            {['super_admin', 'admin'].includes(userRole) && onOpenEmergencyCall && (
+              <button
+                onClick={onOpenEmergencyCall}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-black text-xs shadow-md transition-all active:scale-95 cursor-pointer"
+                title="Emergency Direct Voice/Video Call"
+              >
+                <PhoneCall className="w-3.5 h-3.5 animate-pulse" />
+                <span>Emergency Call</span>
+              </button>
+            )}
+
             {/* Offline & Sync Status Indicator */}
             <button
               onClick={() => triggerSync()}

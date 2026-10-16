@@ -20,7 +20,9 @@ import {
   Sparkles,
   MapPin,
   CheckCircle2,
-  ChevronRight
+  ChevronRight,
+  PhoneCall,
+  HardDrive
 } from 'lucide-react';
 import { useNetworkSync } from '../offline/syncManager';
 
@@ -30,6 +32,7 @@ interface MobileApkLayoutProps {
   canGoBack?: boolean;
   onGoBack?: () => void;
   onLogout?: () => void;
+  onOpenEmergencyCall?: () => void;
   children: React.ReactNode;
 }
 
@@ -39,6 +42,7 @@ export const MobileApkLayout: React.FC<MobileApkLayoutProps> = ({
   canGoBack = false,
   onGoBack,
   onLogout,
+  onOpenEmergencyCall,
   children
 }) => {
   const [moreDrawerOpen, setMoreDrawerOpen] = useState<boolean>(false);
@@ -74,14 +78,6 @@ export const MobileApkLayout: React.FC<MobileApkLayoutProps> = ({
     { id: 'more', label: 'More', icon: Menu }
   ];
 
-  const secondaryNav = [
-    { id: 'map', label: 'All Parties Map', subLabel: 'GPS Geofences & Chemist Radar', icon: MapPin },
-    { id: 'dispatch', label: 'Dispatch Summary', subLabel: 'Courier Manifests & Sheets', icon: Package },
-    { id: 'history', label: 'Print History', subLabel: 'Job Logs & Reprints', icon: History },
-    { id: 'import', label: 'Excel Import', subLabel: 'Bulk MARG Ledger Ingestion', icon: FileSpreadsheet },
-    { id: 'settings', label: 'Settings', subLabel: 'Server Config & Preferences', icon: SettingsIcon },
-  ];
-
   let username = 'Dispatch Staff';
   let userAvatar: string | null = null;
   let userRole = 'staff';
@@ -91,6 +87,19 @@ export const MobileApkLayout: React.FC<MobileApkLayoutProps> = ({
     userAvatar = user.avatar_url || null;
     userRole = user.role || 'staff';
   } catch {}
+
+  const canInitiateCall = userRole === 'admin' || userRole === 'super_admin';
+
+  const secondaryNav = [
+    ...(userRole === 'super_admin' ? [
+      { id: 'storage', label: 'Phone Local Storage', subLabel: 'Folder Creation & Host Storage (Super Admin)', icon: HardDrive }
+    ] : []),
+    { id: 'map', label: 'All Parties Map', subLabel: 'GPS Geofences & Chemist Radar', icon: MapPin },
+    { id: 'dispatch', label: 'Dispatch Summary', subLabel: 'Courier Manifests & Sheets', icon: Package },
+    { id: 'history', label: 'Print History', subLabel: 'Job Logs & Reprints', icon: History },
+    { id: 'import', label: 'Excel Import', subLabel: 'Bulk MARG Ledger Ingestion', icon: FileSpreadsheet },
+    { id: 'settings', label: 'Settings', subLabel: 'Server Config & Preferences', icon: SettingsIcon },
+  ];
 
   return (
     <div className="flex flex-col h-[100dvh] w-full overflow-hidden bg-slate-950 font-sans select-none">
@@ -129,8 +138,19 @@ export const MobileApkLayout: React.FC<MobileApkLayoutProps> = ({
             </div>
           </div>
 
-          {/* Right: Network Status & Sync Trigger */}
+          {/* Right: Emergency Call (Admin/Super Admin only) & Sync Trigger */}
           <div className="flex items-center gap-1.5 flex-shrink-0">
+            {canInitiateCall && onOpenEmergencyCall && (
+              <button
+                onClick={onOpenEmergencyCall}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/40 text-[11px] font-black cursor-pointer shadow-sm transition-all active:scale-95"
+                title="Emergency Direct Video/Voice Call"
+              >
+                <PhoneCall className="w-3.5 h-3.5 text-rose-400 animate-pulse" />
+                <span className="text-[10px] uppercase font-bold text-rose-300">SOS</span>
+              </button>
+            )}
+
             <button
               onClick={() => triggerSync()}
               disabled={isSyncing}

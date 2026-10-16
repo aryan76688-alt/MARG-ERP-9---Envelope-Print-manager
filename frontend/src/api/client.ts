@@ -31,7 +31,7 @@ const isLocalAsset = typeof window !== 'undefined' && (
   navigator.userAgent.includes('ShreejiEnvelopeApp')
 );
 
-export const DEFAULT_REMOTE_API = 'https://marg-envelope-manager-production.up.railway.app';
+export const DEFAULT_REMOTE_API = 'https://shreeji-envelope.aryan76688.workers.dev';
 
 export function getApiBase(): string {
   if (typeof window === 'undefined') return '/api';

@@ -18,6 +18,10 @@ import { MobileHome } from './mobile/MobileHome';
 import { MobilePrint } from './mobile/MobilePrint';
 import { MobileParties } from './mobile/MobileParties';
 import { AllPartiesMap } from './pages/AllPartiesMap';
+import { StorageManager } from './pages/StorageManager';
+import { EmergencyCallModal } from './components/EmergencyCallModal';
+import { ReceiverAutoConnectModal } from './components/ReceiverAutoConnectModal';
+import { useEmergencyReceiver } from './hooks/useEmergencyReceiver';
 
 const queryClient = new QueryClient();
 
@@ -45,6 +49,8 @@ export const App: React.FC = () => {
   const [selectedPartyForPrint, setSelectedPartyForPrint] = useState<Party | null>(null);
   const [reprintJobData, setReprintJobData] = useState<any | null>(null);
   const [openAddPartyModal, setOpenAddPartyModal] = useState<boolean>(false);
+  const [emergencyCallerOpen, setEmergencyCallerOpen] = useState<boolean>(false);
+  const { incomingCall, isReceivingCall, dismissCall } = useEmergencyReceiver();
 
   useEffect(() => {
     const handleHashChange = () => {
@@ -180,6 +186,7 @@ export const App: React.FC = () => {
           canGoBack={currentTab !== 'dashboard'}
           onGoBack={handleGoBack}
           onLogout={handleLogout}
+          onOpenEmergencyCall={() => setEmergencyCallerOpen(true)}
         >
           {currentTab === 'dashboard' && <MobileHome onNavigate={navigateToTab} />}
           {currentTab === 'print' && (
@@ -205,6 +212,7 @@ export const App: React.FC = () => {
           {currentTab === 'history' && <PrintHistory onNavigate={navigateToTab} />}
           {currentTab === 'import' && <ImportExcel onNavigate={navigateToTab} />}
           {currentTab === 'settings' && <Settings />}
+          {currentTab === 'storage' && <StorageManager onNavigate={navigateToTab} />}
           {currentTab === 'users' && <Users />}
         </MobileApkLayout>
       ) : (
@@ -214,6 +222,7 @@ export const App: React.FC = () => {
           canGoBack={currentTab !== 'dashboard'}
           onGoBack={handleGoBack}
           onLogout={handleLogout}
+          onOpenEmergencyCall={() => setEmergencyCallerOpen(true)}
         >
           {currentTab === 'dashboard' && <Dashboard onNavigate={navigateToTab} />}
           {currentTab === 'parties' && (
@@ -235,9 +244,24 @@ export const App: React.FC = () => {
           {currentTab === 'history' && <PrintHistory onNavigate={navigateToTab} />}
           {currentTab === 'driver' && <DriverMode />}
           {currentTab === 'dispatch' && <DispatchSummary />}
+          {currentTab === 'storage' && <StorageManager onNavigate={navigateToTab} />}
           {currentTab === 'users' && <Users />}
           {currentTab === 'settings' && <Settings />}
         </MainLayout>
+      )}
+
+      {/* Receiver Direct Emergency Auto-Connect Modal (Zero Button Accept Barrier) */}
+      {isReceivingCall && incomingCall && (
+        <ReceiverAutoConnectModal call={incomingCall} onClose={dismissCall} />
+      )}
+
+      {/* Caller Emergency Voice/Video Modal (Admin & Super Admin Initiated) */}
+      {emergencyCallerOpen && (
+        <EmergencyCallModal
+          isOpen={emergencyCallerOpen}
+          onClose={() => setEmergencyCallerOpen(false)}
+          isCaller={true}
+        />
       )}
     </QueryClientProvider>
   );

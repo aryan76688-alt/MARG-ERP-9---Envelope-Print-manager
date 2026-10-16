@@ -142,7 +142,31 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
 
   const loadParties = async () => {
     try {
-      setLoading(true);
+      // 1. Instant Cache Render (<15ms from IndexedDB)
+      try {
+        const cached = await getPartiesOffline({
+          page,
+          limit,
+          search,
+          state: stateFilter,
+          city: cityFilter,
+          status: statusFilter,
+          route: routeFilter || undefined,
+          letter: selectedLetter !== 'ALL' ? selectedLetter : undefined
+        });
+        if (cached && cached.items && cached.items.length > 0) {
+          setParties(cached.items);
+          setTotal(cached.total);
+          setPages(cached.pages);
+          if (cached.states?.length) setAvailableStates(cached.states);
+          if (cached.cities?.length) setAvailableCities(cached.cities);
+          setLoading(false);
+        }
+      } catch (cacheErr) {
+        console.warn('IndexedDB read error:', cacheErr);
+      }
+
+      // 2. Background Server Revalidation (SWR)
       let res: any = null;
       try {
         res = await fetchParties({
@@ -155,7 +179,7 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
           route: routeFilter || undefined,
         });
       } catch (apiErr) {
-        console.warn('Online fetchParties failed, falling back to local database:', apiErr);
+        console.warn('Network fetchParties failed, using cached IndexedDB data:', apiErr);
       }
 
       if (res && res.items && res.items.length > 0) {
@@ -164,22 +188,6 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
         setPages(res.pages);
         setAvailableStates(res.states || []);
         setAvailableCities(res.cities || []);
-      } else {
-        const offlineData = await getPartiesOffline({
-          page,
-          limit,
-          search,
-          state: stateFilter,
-          city: cityFilter,
-          status: statusFilter,
-          route: routeFilter || undefined,
-          letter: selectedLetter !== 'ALL' ? selectedLetter : undefined
-        });
-        setParties(offlineData.items);
-        setTotal(offlineData.total);
-        setPages(offlineData.pages);
-        setAvailableStates(offlineData.states);
-        setAvailableCities(offlineData.cities);
       }
     } catch (err) {
       console.error('Failed to load parties:', err);

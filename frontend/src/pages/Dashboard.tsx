@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { DashboardData, BigBrainDashboardInsights } from '../types';
 import { fetchDashboard, fetchBigBrainDashboardInsights } from '../api/client';
-import { getAllOfflineParties } from '../offline/db';
+import { getAllOfflineParties, getCachedDashboardData, setCachedDashboardData } from '../offline/db';
 
 
 interface DashboardProps {
@@ -50,10 +50,24 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
 
   const loadData = async (period: string) => {
     try {
+      // 1. Instant Cache Render (<15ms from IndexedDB)
+      try {
+        const cached = await getCachedDashboardData();
+        if (cached) {
+          setData(cached);
+          setLoading(false);
+        }
+      } catch (cacheErr) {
+        console.warn('Dashboard IndexedDB cache error:', cacheErr);
+      }
+
       setRefreshing(true);
       const res = await fetchDashboard(period);
-      setData(res);
-      loadBigBrainInsights(res.metrics);
+      if (res && res.metrics) {
+        setData(res);
+        setCachedDashboardData(res);
+        loadBigBrainInsights(res.metrics);
+      }
     } catch (err) {
       console.warn('Dashboard fetch offline fallback:', err);
       try {

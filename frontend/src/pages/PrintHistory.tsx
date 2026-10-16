@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { PrintJob, PrintJobDetails } from '../types';
 import { fetchPrintJobs, fetchPrintJobDetails, deletePrintJob, downloadEnvelopePDF, getExportHistoryUrl } from '../api/client';
+import { getCachedPrintJobs, setCachedPrintJobs } from '../offline/db';
 import { JobDetailsModal } from '../components/JobDetailsModal';
 import { generateWhatsAppDispatchUrl } from '../utils/whatsapp';
 
@@ -49,6 +50,18 @@ export const PrintHistory: React.FC<PrintHistoryProps> = ({ onNavigate }) => {
 
   const loadJobs = async (silent: boolean = false) => {
     try {
+      // 1. Instant Cache Render
+      if (!silent) {
+        try {
+          const cached = await getCachedPrintJobs();
+          if (cached && cached.length > 0) {
+            setJobs(cached.slice(0, limit));
+            setTotal(cached.length);
+            setLoading(false);
+          }
+        } catch {}
+      }
+
       if (!silent) setLoading(true);
       const res = await fetchPrintJobs({
         page,
@@ -60,9 +73,12 @@ export const PrintHistory: React.FC<PrintHistoryProps> = ({ onNavigate }) => {
         date_to: dateTo,
         unique_per_day: uniquePerDay,
       });
-      setJobs(res.items);
-      setTotal(res.total);
-      setPages(res.pages);
+      if (res && res.items) {
+        setJobs(res.items);
+        setTotal(res.total);
+        setPages(res.pages);
+        setCachedPrintJobs(res.items);
+      }
     } catch (err) {
       console.error(err);
     } finally {

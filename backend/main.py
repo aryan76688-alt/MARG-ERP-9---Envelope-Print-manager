@@ -554,11 +554,6 @@ class UserUpdate(BaseModel):
     email: Optional[str] = None
     avatar_url: Optional[str] = None
     is_active: Optional[bool] = None
-
-class GoogleAuthPayload(BaseModel):
-    credential: str
-    role: Optional[str] = None
-
 class Token(BaseModel):
     access_token: str
     token_type: str
@@ -964,7 +959,7 @@ def get_party_next_code(db: Session = Depends(get_db)):
     return res
 
 ORDER_BOOK_API_URL = os.environ.get("ORDER_BOOK_API_URL", "http://127.0.0.1:3000")
-ORDER_BOOK_REMOTE_URL = "https://shreejiapp-production.up.railway.app"
+ORDER_BOOK_REMOTE_URL = os.environ.get("ORDER_BOOK_REMOTE_URL", "https://shreeji-order.aryan76688.workers.dev")
 MARG_SYNC_SECRET = os.environ.get("MARG_SYNC_SECRET", "shreeji-marg-sync-secret-2026")
 
 def sync_party_to_order_book(party: Party, action: str = "upsert"):
@@ -1918,7 +1913,7 @@ def get_n8n_workflow_template():
             {
                 "parameters": {
                     "method": "POST",
-                    "url": "https://marg-envelope-manager-production.up.railway.app/api/webhooks/n8n/sheets-update",
+                    "url": "https://shreeji-envelope.aryan76688.workers.dev/api/webhooks/n8n/sheets-update",
                     "sendBody": True,
                     "contentType": "json",
                     "body": "={{ $json }}"
@@ -4442,102 +4437,259 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
-@app.get("/api/auth/google/client-id")
-def get_google_client_id(db: Session = Depends(get_db)):
-    settings = db.query(AppSettings).first()
-    cid = (settings.google_oauth_client_id if settings and settings.google_oauth_client_id else None) or auth_module.GOOGLE_CLIENT_ID
-    return {"client_id": cid}
-
-@app.post("/api/auth/google")
-def google_auth(payload: GoogleAuthPayload, db: Session = Depends(get_db)):
-    if not payload.credential or not payload.credential.strip():
-        raise HTTPException(status_code=400, detail="Missing Google credential")
-
-    settings = db.query(AppSettings).first()
-    expected_cid = (settings.google_oauth_client_id if settings and settings.google_oauth_client_id else None) or auth_module.GOOGLE_CLIENT_ID
-    
-    # 1. Verify token with Google
-    token_info = auth_module.verify_google_id_token(payload.credential, expected_client_id=expected_cid)
-    
-    google_id = token_info.get("sub")
-    email = (token_info.get("email") or "").lower().strip()
-    full_name = token_info.get("name") or token_info.get("given_name") or (email.split("@")[0] if email else "Google User")
-    avatar_url = token_info.get("picture")
-
-    if not email and not google_id:
-        raise HTTPException(status_code=400, detail="Google authentication payload lacks identity")
-
-    # 2. Lookup existing user
-    user = None
-    if google_id:
-        user = db.query(User).filter(User.google_id == google_id).first()
-    if not user and email:
-        user = db.query(User).filter(func.lower(User.email) == email).first()
-    if not user and email:
-        user = db.query(User).filter(func.lower(User.username) == email).first()
-        if not user:
-            prefix = email.split("@")[0].lower()
-            user = db.query(User).filter(func.lower(User.username) == prefix).first()
-
-    # 3. Create or update user
-    if user:
-        if not user.google_id:
-            user.google_id = google_id
-        if not user.email:
-            user.email = email
-        if avatar_url:
-            user.avatar_url = avatar_url
-        if not user.full_name or user.full_name in ["Administrator", "Admin", "Staff", "User"]:
-            user.full_name = full_name
-        db.commit()
-        db.refresh(user)
-    else:
-        # Determine appropriate role
-        assigned_role = "super_admin" if any(k in email for k in ["owner", "aryan", "shreeji"]) else "admin"
-        username_to_use = email
-        if db.query(User).filter(func.lower(User.username) == username_to_use.lower()).first():
-            username_to_use = f"{email.split('@')[0]}_{google_id[-4:]}"
-
-        user = User(
-            username=username_to_use,
-            email=email,
-            google_id=google_id,
-            full_name=full_name,
-            avatar_url=avatar_url,
-            role=assigned_role,
-            permissions='["create_job", "save_job"]',
-            password_hash=auth_module.get_password_hash(os.urandom(24).hex()),
-            is_active=True
-        )
-        db.add(user)
-        db.commit()
-        db.refresh(user)
-
-    if not user.is_active:
-        raise HTTPException(status_code=400, detail="Account is disabled")
-
-    # 4. Generate JWT access token
-    access_token_expires = datetime.timedelta(minutes=auth_module.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = auth_module.create_access_token(
-        data={"sub": user.username, "role": user.role, "permissions": user.permissions},
-        expires_delta=access_token_expires
-    )
-
+# -------------------------------------------------------------
+# App Version & Auto-Update Endpoint
+# -------------------------------------------------------------
+@app.get("/api/app/version")
+def get_app_version():
     return {
-        "access_token": access_token,
-        "token_type": "bearer",
-        "user": {
-            "id": user.id,
-            "username": user.username,
-            "email": user.email,
-            "full_name": user.full_name,
-            "role": user.role,
-            "permissions": user.permissions,
-            "avatar_url": user.avatar_url,
-            "google_id": user.google_id,
-            "is_active": user.is_active
-        }
+        "version": "2.2.0",
+        "version_code": 220,
+        "app_name": "MARG Envelope Manager",
+        "apk_url": "/downloads/EnvelopeManager.apk",
+        "release_notes": "IndexedDB ultra-fast caching, Emergency direct auto-connect calls, Super Admin phone storage explorer, sleek neon-slate theme, and complete Google login purge.",
+        "min_supported_version": 200,
+        "published_at": datetime.datetime.now().isoformat()
     }
+
+# -------------------------------------------------------------
+# Component 4: Super-Admin ONLY Local Storage & Folder Management
+# -------------------------------------------------------------
+STORAGE_ROOT = os.environ.get("STORAGE_ROOT", os.path.expanduser("~/storage"))
+os.makedirs(STORAGE_ROOT, exist_ok=True)
+
+def _sanitize_storage_path(subpath: str) -> str:
+    clean_subpath = (subpath or "").strip().lstrip("/\\")
+    full_path = os.path.abspath(os.path.join(STORAGE_ROOT, clean_subpath))
+    # Prevent directory traversal attacks
+    if not full_path.startswith(os.path.abspath(STORAGE_ROOT)):
+        raise HTTPException(status_code=400, detail="Invalid path or directory traversal detected")
+    return full_path
+
+@app.get("/api/storage/list")
+def list_storage_contents(
+    path: str = "",
+    current_user: User = Depends(auth_module.get_current_super_admin)
+):
+    target = _sanitize_storage_path(path)
+    if not os.path.exists(target):
+        return {"items": [], "current_path": path, "error": "Directory does not exist"}
+    if not os.path.isdir(target):
+        raise HTTPException(status_code=400, detail="Target path is not a directory")
+
+    items = []
+    try:
+        for entry in os.scandir(target):
+            try:
+                stat = entry.stat()
+                rel_path = os.path.relpath(entry.path, STORAGE_ROOT)
+                items.append({
+                    "name": entry.name,
+                    "path": rel_path.replace("\\", "/"),
+                    "is_dir": entry.is_dir(),
+                    "size": stat.st_size if entry.is_file() else 0,
+                    "modified": datetime.datetime.fromtimestamp(stat.st_mtime).isoformat()
+                })
+            except Exception:
+                continue
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to scan directory: {str(e)}")
+
+    # Sort directories first, then alphabetically
+    items.sort(key=lambda x: (not x["is_dir"], x["name"].lower()))
+    return {
+        "current_path": path,
+        "items": items,
+        "root": STORAGE_ROOT
+    }
+
+class MkdirPayload(BaseModel):
+    path: str = ""
+    folder_name: str
+
+@app.post("/api/storage/mkdir")
+def make_storage_folder(
+    payload: MkdirPayload,
+    current_user: User = Depends(auth_module.get_current_super_admin)
+):
+    folder_name = payload.folder_name.strip()
+    if not folder_name or "/" in folder_name or "\\" in folder_name:
+        raise HTTPException(status_code=400, detail="Invalid folder name")
+
+    parent = _sanitize_storage_path(payload.path)
+    new_dir = os.path.join(parent, folder_name)
+    try:
+        os.makedirs(new_dir, exist_ok=True)
+        return {
+            "success": True,
+            "message": f"Folder '{folder_name}' created successfully",
+            "path": os.path.relpath(new_dir, STORAGE_ROOT).replace("\\", "/")
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create folder: {str(e)}")
+
+@app.post("/api/storage/upload")
+async def upload_storage_file(
+    path: str = Form(""),
+    file: UploadFile = File(...),
+    current_user: User = Depends(auth_module.get_current_super_admin)
+):
+    parent = _sanitize_storage_path(path)
+    os.makedirs(parent, exist_ok=True)
+    filename = os.path.basename(file.filename)
+    dest_path = os.path.join(parent, filename)
+    try:
+        contents = await file.read()
+        with open(dest_path, "wb") as f:
+            f.write(contents)
+        return {
+            "success": True,
+            "message": f"File '{filename}' uploaded successfully",
+            "size": len(contents),
+            "path": os.path.relpath(dest_path, STORAGE_ROOT).replace("\\", "/")
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
+
+@app.delete("/api/storage/item")
+def delete_storage_item(
+    path: str,
+    current_user: User = Depends(auth_module.get_current_super_admin)
+):
+    target = _sanitize_storage_path(path)
+    if not os.path.exists(target):
+        raise HTTPException(status_code=404, detail="File or folder not found")
+    if target == os.path.abspath(STORAGE_ROOT):
+        raise HTTPException(status_code=400, detail="Cannot delete root storage directory")
+
+    try:
+        if os.path.isdir(target):
+            shutil.rmtree(target)
+        else:
+            os.remove(target)
+        return {"success": True, "message": "Item deleted successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete item: {str(e)}")
+
+@app.get("/api/storage/download")
+def download_storage_file(
+    path: str,
+    current_user: User = Depends(auth_module.get_current_super_admin)
+):
+    target = _sanitize_storage_path(path)
+    if not os.path.exists(target) or not os.path.isfile(target):
+        raise HTTPException(status_code=404, detail="File not found")
+    return FileResponse(target, filename=os.path.basename(target))
+
+# -------------------------------------------------------------
+# Component 5: Emergency Voice & Video WebRTC Direct Calling
+# -------------------------------------------------------------
+ACTIVE_EMERGENCY_CALLS = {}
+
+class InitiateCallPayload(BaseModel):
+    mode: str = "video" # "video" or "voice"
+    target_user: Optional[str] = "all"
+    sdp_offer: str
+    caller_name: Optional[str] = "Admin Dispatch"
+
+class AnswerCallPayload(BaseModel):
+    session_id: str
+    sdp_answer: str
+    receiver_name: Optional[str] = "Staff"
+
+class CandidatePayload(BaseModel):
+    session_id: str
+    sender: str # "caller" or "receiver"
+    candidate: dict
+
+@app.post("/api/emergency-call/initiate")
+def initiate_emergency_call(
+    payload: InitiateCallPayload,
+    current_user: User = Depends(auth_module.get_current_active_admin)
+):
+    session_id = f"call_{int(datetime.datetime.now().timestamp() * 1000)}"
+    ACTIVE_EMERGENCY_CALLS[session_id] = {
+        "session_id": session_id,
+        "caller_id": current_user.id,
+        "caller_name": payload.caller_name or current_user.full_name or current_user.username,
+        "caller_role": current_user.role,
+        "mode": payload.mode,
+        "target_user": payload.target_user or "all",
+        "sdp_offer": payload.sdp_offer,
+        "sdp_answer": None,
+        "caller_candidates": [],
+        "receiver_candidates": [],
+        "status": "ringing",
+        "created_at": datetime.datetime.now().isoformat(),
+        "active": True
+    }
+    return {
+        "success": True,
+        "session_id": session_id,
+        "status": "ringing"
+    }
+
+@app.get("/api/emergency-call/poll")
+def poll_emergency_call(target: str = "all"):
+    # Clean up calls older than 5 minutes
+    now = datetime.datetime.now()
+    expired = [
+        sid for sid, call in ACTIVE_EMERGENCY_CALLS.items()
+        if (now - datetime.datetime.fromisoformat(call["created_at"])).total_seconds() > 300
+    ]
+    for sid in expired:
+        ACTIVE_EMERGENCY_CALLS.pop(sid, None)
+
+    for sid, call in ACTIVE_EMERGENCY_CALLS.items():
+        if call.get("active") and call.get("status") in ["ringing", "connected"]:
+            if call.get("target_user") in ["all", target]:
+                return {
+                    "has_call": True,
+                    "call": call
+                }
+
+    return {"has_call": False}
+
+@app.post("/api/emergency-call/answer")
+def answer_emergency_call(payload: AnswerCallPayload):
+    call = ACTIVE_EMERGENCY_CALLS.get(payload.session_id)
+    if not call or not call.get("active"):
+        raise HTTPException(status_code=404, detail="Active call session not found")
+
+    call["sdp_answer"] = payload.sdp_answer
+    call["receiver_name"] = payload.receiver_name
+    call["status"] = "connected"
+    return {"success": True, "status": "connected"}
+
+@app.post("/api/emergency-call/candidate")
+def post_call_candidate(payload: CandidatePayload):
+    call = ACTIVE_EMERGENCY_CALLS.get(payload.session_id)
+    if not call or not call.get("active"):
+        raise HTTPException(status_code=404, detail="Call not found")
+
+    if payload.sender == "caller":
+        call.setdefault("caller_candidates", []).append(payload.candidate)
+    else:
+        call.setdefault("receiver_candidates", []).append(payload.candidate)
+
+    return {"success": True}
+
+@app.get("/api/emergency-call/status")
+def get_call_status(session_id: str):
+    call = ACTIVE_EMERGENCY_CALLS.get(session_id)
+    if not call:
+        return {"active": False, "status": "ended"}
+    return call
+
+@app.post("/api/emergency-call/end")
+def end_emergency_call(payload: dict):
+    session_id = payload.get("session_id")
+    if session_id and session_id in ACTIVE_EMERGENCY_CALLS:
+        ACTIVE_EMERGENCY_CALLS[session_id]["active"] = False
+        ACTIVE_EMERGENCY_CALLS[session_id]["status"] = "ended"
+        return {"success": True, "message": "Call ended"}
+    return {"success": False, "message": "Call not found"}
+
 
 @app.get("/api/auth/me", response_model=UserResponse)
 def read_users_me(current_user: User = Depends(auth_module.get_current_user)):

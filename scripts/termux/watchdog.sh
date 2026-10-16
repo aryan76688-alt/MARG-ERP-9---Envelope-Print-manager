@@ -130,41 +130,56 @@ while true; do
     fi
 
     # 4. Health Check: Cloudflare Quick Tunnels & Worker Sync
-    tunnel_restarted=0
-    if ! pgrep -f "cloudflared tunnel.*3000" >/dev/null 2>&1; then
-        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [HEAL] Order Book Tunnel dropped! Reconnecting..." >> "${LOG_FILE}"
-        nohup cloudflared tunnel --url http://127.0.0.1:3000 > "${BASE_DIR}/logs/tunnel_order.log" 2>&1 &
-        echo $! > "${BASE_DIR}/pids/tunnel_order.pid"
-        tunnel_restarted=1
-    fi
+    check_and_heal_tunnel() {
+        local port="$1"
+        local name="$2"
+        local log_file="${BASE_DIR}/logs/tunnel_${name}.log"
+        local pid_file="${BASE_DIR}/pids/tunnel_${name}.pid"
+        local worker_name="shreeji-${name}"
+        local needs_restart=0
 
-    if ! pgrep -f "cloudflared tunnel.*8080" >/dev/null 2>&1; then
-        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [HEAL] Envelope Tunnel dropped! Reconnecting..." >> "${LOG_FILE}"
-        nohup cloudflared tunnel --url http://127.0.0.1:8080 > "${BASE_DIR}/logs/tunnel_envelope.log" 2>&1 &
-        echo $! > "${BASE_DIR}/pids/tunnel_envelope.pid"
-        tunnel_restarted=1
-    fi
+        # Check A: Is process running?
+        if ! pgrep -f "cloudflared tunnel.*${port}" >/dev/null 2>&1; then
+            needs_restart=1
+        # Check B: Did Cloudflare revoke the quick tunnel session?
+        elif tail -n 20 "${log_file}" 2>/dev/null | grep -E -q "Unauthorized: Tunnel not found|control stream error"; then
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] [HEAL] Cloudflare expired quick tunnel for ${name} (Port ${port})! Reconnecting fresh..." >> "${LOG_FILE}"
+            needs_restart=1
+        # Check C: Periodic worker reachability check (every 4 loops ~60s)
+        elif [ $((loop_count % 4)) -eq 0 ]; then
+            local http_code
+            http_code=$(curl -s -o /dev/null -w "%{http_code}" -m 5 "https://${worker_name}.aryan76688.workers.dev" 2>/dev/null || echo "000")
+            if [ "${http_code}" = "530" ] || [ "${http_code}" = "000" ] || [ "${http_code}" = "502" ]; then
+                echo "[$(date '+%Y-%m-%d %H:%M:%S')] [HEAL] Worker ${worker_name} returned HTTP ${http_code}! Re-establishing tunnel..." >> "${LOG_FILE}"
+                needs_restart=1
+            fi
+        fi
 
-    if [ ${tunnel_restarted} -eq 1 ]; then
-        ORDER_URL=""
-        ENVELOPE_URL=""
-        for i in $(seq 1 20); do
-            if [ -z "${ORDER_URL}" ]; then
-                ORDER_URL=$(grep -o 'https://[-a-zA-Z0-9.]*\.trycloudflare\.com' "${BASE_DIR}/logs/tunnel_order.log" 2>/dev/null | tail -n 1)
-            fi
-            if [ -z "${ENVELOPE_URL}" ]; then
-                ENVELOPE_URL=$(grep -o 'https://[-a-zA-Z0-9.]*\.trycloudflare\.com' "${BASE_DIR}/logs/tunnel_envelope.log" 2>/dev/null | tail -n 1)
-            fi
-            if [ -n "${ORDER_URL}" ] && [ -n "${ENVELOPE_URL}" ]; then
-                break
-            fi
+        if [ ${needs_restart} -eq 1 ]; then
+            pkill -9 -f "cloudflared tunnel.*${port}" 2>/dev/null || true
             sleep 1
-        done
-        
-        sync_worker_proxy "shreeji-order" "${ORDER_URL}"
-        sync_worker_proxy "shreeji-envelope" "${ENVELOPE_URL}"
-        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [HEAL] Cloudflare Workers re-linked to: Order=${ORDER_URL}, Envelope=${ENVELOPE_URL}" >> "${LOG_FILE}"
-    fi
+            > "${log_file}"
+            nohup cloudflared tunnel --url "http://127.0.0.1:${port}" > "${log_file}" 2>&1 &
+            echo $! > "${pid_file}"
+            
+            local fresh_url=""
+            for i in $(seq 1 20); do
+                fresh_url=$(grep -o 'https://[-a-zA-Z0-9.]*\.trycloudflare\.com' "${log_file}" 2>/dev/null | tail -n 1)
+                if [ -n "${fresh_url}" ]; then
+                    break
+                fi
+                sleep 1
+            done
+
+            if [ -n "${fresh_url}" ]; then
+                sync_worker_proxy "${worker_name}" "${fresh_url}"
+                echo "[$(date '+%Y-%m-%d %H:%M:%S')] [HEAL] Cloudflare Worker '${worker_name}' re-linked -> ${fresh_url}" >> "${LOG_FILE}"
+            fi
+        fi
+    }
+
+    check_and_heal_tunnel "3000" "order"
+    check_and_heal_tunnel "8080" "envelope"
 
     # 5. Auto Code Update Check from GitHub (Runs every ~2 minutes / 8 cycles)
     if [ $((loop_count % 8)) -eq 0 ]; then
