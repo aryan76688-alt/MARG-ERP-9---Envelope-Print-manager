@@ -1,7 +1,7 @@
 import { Party, PODSubmission } from '../types';
 
 const DB_NAME = 'MARGEnvelopeDB';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 let dbInstance: IDBDatabase | null = null;
 
@@ -49,6 +49,11 @@ export function openEnvelopeDB(): Promise<IDBDatabase> {
       // 6. Cached recent print jobs
       if (!db.objectStoreNames.contains('print_jobs_cache')) {
         db.createObjectStore('print_jobs_cache', { keyPath: 'id' });
+      }
+
+      // 7. Offline party creations queue (outbox)
+      if (!db.objectStoreNames.contains('offline_parties')) {
+        db.createObjectStore('offline_parties', { keyPath: 'client_uuid' });
       }
     };
 
@@ -383,11 +388,83 @@ export async function removeQueuedOfflinePOD(id: number): Promise<void> {
   }
 }
 
+// -------------------------------------------------------------
+// Offline Party Creations & GPS Auto-Save Queue
+// -------------------------------------------------------------
+
+export async function deletePartyFromOfflineCache(id: number): Promise<void> {
+  try {
+    const db = await openEnvelopeDB();
+    const tx = db.transaction('parties', 'readwrite');
+    tx.objectStore('parties').delete(id);
+  } catch (err) {
+    console.warn('Failed to delete party from offline cache:', err);
+  }
+}
+
+export async function queueOfflineParty(party: Party): Promise<void> {
+  const db = await openEnvelopeDB();
+  const tx = db.transaction('offline_parties', 'readwrite');
+  const store = tx.objectStore('offline_parties');
+  const record = {
+    ...party,
+    client_uuid: party.client_uuid || `offline-party-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    queued_at: new Date().toISOString(),
+  };
+  store.put(record);
+}
+
+export async function getQueuedOfflineParties(): Promise<any[]> {
+  try {
+    const db = await openEnvelopeDB();
+    const tx = db.transaction('offline_parties', 'readonly');
+    const store = tx.objectStore('offline_parties');
+    return new Promise((resolve) => {
+      const request = store.getAll();
+      request.onsuccess = () => resolve(request.result || []);
+      request.onerror = () => resolve([]);
+    });
+  } catch {
+    return [];
+  }
+}
+
+export async function removeQueuedOfflineParty(clientUuid: string): Promise<void> {
+  try {
+    const db = await openEnvelopeDB();
+    const tx = db.transaction('offline_parties', 'readwrite');
+    tx.objectStore('offline_parties').delete(clientUuid);
+  } catch (err) {
+    console.warn('Failed to remove queued offline party:', err);
+  }
+}
+
+export async function savePartyOffline(party: Party): Promise<Party> {
+  const tempId = party.id || -Date.now();
+  const clientUuid = party.client_uuid || `offline-party-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  const offlineParty: Party = {
+    ...party,
+    id: tempId,
+    client_uuid: clientUuid,
+  };
+
+  // 1. Immediately store in local parties IndexedDB so it's searchable and visible offline
+  const db = await openEnvelopeDB();
+  const tx = db.transaction('parties', 'readwrite');
+  tx.objectStore('parties').put(offlineParty);
+
+  // 2. Queue for background cloud sync
+  await queueOfflineParty(offlineParty);
+
+  return offlineParty;
+}
+
 export async function getPendingSyncCount(): Promise<number> {
   try {
     const jobs = await getQueuedOfflineJobs();
     const pods = await getQueuedOfflinePODs();
-    return jobs.length + pods.length;
+    const parties = await getQueuedOfflineParties();
+    return jobs.length + pods.length + parties.length;
   } catch {
     return 0;
   }

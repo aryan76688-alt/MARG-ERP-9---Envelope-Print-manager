@@ -122,6 +122,27 @@ export const PartyModal: React.FC<PartyModalProps> = ({
           })
           .catch(console.error)
           .finally(() => setLoadingNextCode(false));
+
+        // Auto-capture GPS location for the new party immediately
+        if (typeof navigator !== 'undefined' && navigator.geolocation) {
+          setCapturingGPS(true);
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              setFormData((prev) => ({
+                ...prev,
+                latitude: pos.coords.latitude,
+                longitude: pos.coords.longitude,
+                geofence_radius_meters: prev.geofence_radius_meters || 75,
+              }));
+              setCapturingGPS(false);
+            },
+            (err) => {
+              console.warn('Auto GPS capture skipped/denied:', err.message);
+              setCapturingGPS(false);
+            },
+            { enableHighAccuracy: true, timeout: 8000 }
+          );
+        }
       }
     }
     setErrors({});
@@ -480,12 +501,23 @@ export const PartyModal: React.FC<PartyModalProps> = ({
             <div className="bg-blue-50/60 border border-blue-200/80 rounded-xl p-3.5 space-y-3">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
-                  <h4 className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
-                    <MapPin className="w-4 h-4 text-blue-600" />
-                    GPS Geofence Location (જિયોફેન્સ લોકેશન)
-                  </h4>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h4 className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
+                      <MapPin className="w-4 h-4 text-blue-600" />
+                      GPS Geofence Location (જિયોફેન્સ લોકેશન)
+                    </h4>
+                    {formData.latitude !== null && formData.longitude !== null ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-full">
+                        ✓ GPS Locked ({formData.latitude.toFixed(4)}, {formData.longitude.toFixed(4)})
+                      </span>
+                    ) : capturingGPS ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-700 bg-blue-100 border border-blue-300 px-2 py-0.5 rounded-full animate-pulse">
+                        📡 Acquiring Store GPS...
+                      </span>
+                    ) : null}
+                  </div>
                   <p className="text-[11px] text-blue-700/80">
-                    Exact chemist counter coordinates for delivery verification and live distance calculation
+                    Exact chemist counter coordinates auto-saved for delivery verification &amp; offline sync
                   </p>
                 </div>
                 <div className="flex items-center gap-1.5 flex-wrap shrink-0 self-start sm:self-auto">

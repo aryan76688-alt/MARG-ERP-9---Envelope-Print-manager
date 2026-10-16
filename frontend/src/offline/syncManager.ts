@@ -4,10 +4,15 @@ import {
   removeQueuedOfflineJob, 
   getQueuedOfflinePODs, 
   removeQueuedOfflinePOD, 
+  getQueuedOfflineParties,
+  removeQueuedOfflineParty,
+  deletePartyFromOfflineCache,
+  updatePartyInOfflineCache,
   getPendingSyncCount,
   cachePartiesOffline 
 } from './db';
-import { syncBatchPrintJobs, syncBatchPOD, fetchParties } from '../api/client';
+import { syncBatchPrintJobs, syncBatchPOD, fetchParties, createParty } from '../api/client';
+import { Party } from '../types';
 
 export interface SyncStatus {
   isOnline: boolean;
@@ -19,13 +24,14 @@ export interface SyncStatus {
 }
 
 // Background sync function
-export async function syncPendingQueues(): Promise<{ syncedJobs: number; syncedPods: number }> {
+export async function syncPendingQueues(): Promise<{ syncedJobs: number; syncedPods: number; syncedParties: number }> {
   if (!navigator.onLine) {
-    return { syncedJobs: 0, syncedPods: 0 };
+    return { syncedJobs: 0, syncedPods: 0, syncedParties: 0 };
   }
 
   let syncedJobs = 0;
   let syncedPods = 0;
+  let syncedParties = 0;
 
   try {
     // 1. Sync Print Jobs
@@ -70,7 +76,29 @@ export async function syncPendingQueues(): Promise<{ syncedJobs: number; syncedP
       }
     }
 
-    // 3. Opportunistically warm up local parties cache if empty or stale
+    // 3. Sync Offline Created Parties with Location
+    const queuedParties = await getQueuedOfflineParties();
+    if (queuedParties.length > 0) {
+      for (const p of queuedParties) {
+        try {
+          const { id: localId, client_uuid, ...partyPayload } = p;
+          const serverParty = await createParty(partyPayload as Party);
+          if (localId && localId < 0) {
+            await deletePartyFromOfflineCache(localId);
+          }
+          await updatePartyInOfflineCache(serverParty);
+          if (p.client_uuid) {
+            await removeQueuedOfflineParty(p.client_uuid);
+          }
+          syncedParties++;
+        } catch (e) {
+          console.warn('Offline party sync error:', e);
+          break; // Server unreachable, try next time
+        }
+      }
+    }
+
+    // 4. Opportunistically warm up local parties cache if empty or stale
     try {
       const partiesRes = await fetchParties({ page: 1, limit: 1000 });
       if (partiesRes.items && partiesRes.items.length > 0) {
@@ -84,7 +112,7 @@ export async function syncPendingQueues(): Promise<{ syncedJobs: number; syncedP
     console.warn('Sync runner error:', err);
   }
 
-  return { syncedJobs, syncedPods };
+  return { syncedJobs, syncedPods, syncedParties };
 }
 
 // Custom React Hook

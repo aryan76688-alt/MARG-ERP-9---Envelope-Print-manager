@@ -1,0 +1,7 @@
+{
+  "margDataFolder": "C:\\MARGPROG\\DATA",
+  "envelopeServerUrl": "https://shreeji-envelope.aryan76688.workers.dev",
+  "b2bServerUrl": "https://shreeji-order.aryan76688.workers.dev",
+  "syncIntervalSeconds": 60,
+  "companyCode": ""
+}

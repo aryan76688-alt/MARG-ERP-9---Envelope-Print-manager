@@ -160,16 +160,32 @@ export async function autocompleteParties(q: string, mode: 'starts_with' | 'cont
 }
 
 export async function createParty(party: Party): Promise<Party> {
-  const res = await fetchApi(`${API_BASE}/parties`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(party),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: 'Failed to create party' }));
-    throw new Error(err.detail || 'Failed to create party');
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    const { savePartyOffline } = await import('../offline/db');
+    return await savePartyOffline(party);
   }
-  return res.json();
+
+  try {
+    const res = await fetchApi(`${API_BASE}/parties`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(party),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to create party' }));
+      throw new Error(err.detail || 'Failed to create party');
+    }
+    const created = await res.json();
+    try {
+      const { cachePartiesOffline } = await import('../offline/db');
+      await cachePartiesOffline([created]);
+    } catch {}
+    return created;
+  } catch (err: any) {
+    console.warn('Network error creating party, saving offline:', err);
+    const { savePartyOffline } = await import('../offline/db');
+    return await savePartyOffline(party);
+  }
 }
 
 export async function updateParty(id: number, party: Party): Promise<Party> {

@@ -1,0 +1,67 @@
+{
+  "manifest_version": 3,
+  "name": "MARG Cloud Dual App Bridge (Envelope & Order Book)",
+  "version": "1.0.0",
+  "description": "Direct bridge connecting MARG Cloud (account.margcloud.com) to Marg ERP Envelope Print Manager and Shreeji Healthcare Order Book.",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "MARG Cloud Dual Bridge",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting",
+    "downloads"
+  ],
+  "host_permissions": [
+    "https://account.margcloud.com/*",
+    "https://*.margcloud.com/*",
+    "https://*.margbooks.com/*",
+    "https://marg-envelope-manager-production.up.railway.app/*",
+    "https://*.up.railway.app/*",
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background/service-worker.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://account.margcloud.com/*",
+        "https://*.margcloud.com/*",
+        "https://*.margbooks.com/*"
+      ],
+      "js": [
+        "lib/xlsx.full.min.js",
+        "content/content.js"
+      ],
+      "css": [
+        "content/content.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "lib/xlsx.full.min.js",
+        "icons/icon-48.png"
+      ],
+      "matches": [
+        "https://account.margcloud.com/*",
+        "https://*.margcloud.com/*",
+        "https://*.margbooks.com/*"
+      ]
+    }
+  ]
+}

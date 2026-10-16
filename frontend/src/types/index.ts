@@ -29,6 +29,7 @@ export interface Party {
   longitude?: number | null;
   geofence_radius_meters?: number;
   geofence_set_at?: string | null;
+  client_uuid?: string;
   is_active?: boolean;
   created_at?: string;
 }

@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MARG Cloud Dual Bridge</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="header">
+    <div class="header-left">
+      <img src="../icons/icon-48.png" alt="Logo" class="logo">
+      <div>
+        <h1>MARG Cloud Bridge</h1>
+        <p class="subtitle">Dual Sync: Envelope Manager &amp; Order Book</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="content">
+    <!-- Server Status Cards -->
+    <div class="status-grid">
+      <div class="status-card" id="cardEnvelope">
+        <div class="card-header">
+          <span class="dot connected"></span>
+          <span class="app-name">Envelope Print Manager</span>
+        </div>
+        <span class="badge" id="badgeEnvelope">Ready</span>
+      </div>
+
+      <div class="status-card" id="cardB2B">
+        <div class="card-header">
+          <span class="dot connected"></span>
+          <span class="app-name">Shreeji Order Book</span>
+        </div>
+        <span class="badge" id="badgeB2B">Ready</span>
+      </div>
+    </div>
+
+    <!-- Drop Zone -->
+    <div class="drop-zone" id="dropZone">
+      <div class="drop-icon">📊</div>
+      <div class="drop-title">Drop MARG Export File Here</div>
+      <div class="drop-sub">Supports .XLS, .XLSX, and .CSV from Marg Cloud</div>
+      <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" class="hidden-input">
+      <button type="button" class="btn btn-outline" id="browseBtn">Browse File</button>
+    </div>
+
+    <!-- Auto Sync Toggle -->
+    <div class="setting-row">
+      <div>
+        <div class="setting-title">Auto-Sync Downloads</div>
+        <div class="setting-desc">Auto-upload files exported from account.margcloud.com</div>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="autoSyncToggle" checked>
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="action-grid">
+      <button class="btn btn-primary" id="syncBothBtn">🚀 Sync To Both Apps</button>
+      <button class="btn btn-secondary" id="testConnBtn">🔌 Test Connection</button>
+    </div>
+
+    <!-- Status Message Display -->
+    <div class="log-box hidden" id="logBox">
+      <div class="log-title" id="logTitle">Processing...</div>
+      <div class="log-body" id="logBody"></div>
+    </div>
+
+    <!-- Settings Accordion -->
+    <details class="settings-accordion">
+      <summary>⚙️ Server Settings &amp; URLs</summary>
+      <div class="settings-fields">
+        <label>Envelope Manager URL</label>
+        <input type="text" id="envelopeUrlInput" value="https://marg-envelope-manager-production.up.railway.app">
+        
+        <label>Shreeji Order Book URL</label>
+        <input type="text" id="b2bUrlInput" value="https://shreeji-healthcare.up.railway.app">
+        
+        <label>Sync Secret Key</label>
+        <input type="password" id="secretKeyInput" value="shreeji-marg-sync-secret-2026">
+        
+        <button class="btn btn-sm btn-outline" id="saveSettingsBtn">Save Settings</button>
+      </div>
+    </details>
+  </div>
+
+  <script src="../lib/xlsx.full.min.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
