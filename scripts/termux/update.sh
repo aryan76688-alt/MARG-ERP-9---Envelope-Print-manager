@@ -41,8 +41,9 @@ if [ -d "${ORDERBOOK_DIR}" ]; then
     npm install --no-audit --prefer-offline 2>/dev/null || true
     echo -e "    [*] Building Order Book production bundle..."
     npm run build 2>/dev/null || true
-    # Run any new database migrations
+    # Run any new database migrations & seeds
     npm run db:migrate || true
+    npm run db:seed || true
     echo -e "${GREEN}    [✓] Order Book updated.${NC}"
 fi
 
