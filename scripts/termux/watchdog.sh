@@ -89,6 +89,13 @@ while true; do
     sleep 15
     loop_count=$((loop_count + 1))
 
+    # Auto-recycle web servers every 2 hours (480 loops * 15s = 7200s) to prevent memory leaks with ZERO data loss
+    if [ $((loop_count % 480)) -eq 0 ]; then
+        if [ -f "${BASE_DIR}/auto-restart-2h.sh" ]; then
+            bash "${BASE_DIR}/auto-restart-2h.sh" >> "${LOG_FILE}" 2>&1 || true
+        fi
+    fi
+
     # 0. Health Check: SSH Server (Port 8022)
     if ! pgrep -f "sshd" >/dev/null 2>&1; then
         sshd 2>/dev/null || true

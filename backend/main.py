@@ -1017,6 +1017,8 @@ def sync_party_to_order_book(party: Party, action: str = "upsert"):
             "state": party.state or "Gujarat",
             "landline": party.landline or "",
             "deliveryRoute": party.route_1 or party.route or "",
+            "latitude": party.latitude,
+            "longitude": party.longitude,
             "status": "active" if party.is_active else "inactive",
             "action": action
         }
@@ -1062,6 +1064,8 @@ def receive_party_sync(
     route = (payload.get("deliveryRoute") or payload.get("route") or "").strip().upper() or None
     email = (payload.get("email") or "").strip() or None
     landline = (payload.get("landline") or "").strip() or None
+    lat = payload.get("latitude")
+    lng = payload.get("longitude")
 
     if not party_name:
         raise HTTPException(status_code=400, detail="partyName is required")
@@ -1104,11 +1108,34 @@ def receive_party_sync(
             party.route = route
             party.route_1 = route
             party.route_1_gu = translate_route_to_gujarati(route)
+        if lat is not None:
+            try:
+                party.latitude = float(lat)
+            except Exception:
+                pass
+        if lng is not None:
+            try:
+                party.longitude = float(lng)
+            except Exception:
+                pass
         party.updated_at = datetime.datetime.utcnow()
     else:
         action = "created"
         code_to_use = party_code if party_code else get_next_party_code(db)
         r1_gu = translate_route_to_gujarati(route) if route else None
+        lat_val = None
+        lng_val = None
+        if lat is not None:
+            try:
+                lat_val = float(lat)
+            except Exception:
+                pass
+        if lng is not None:
+            try:
+                lng_val = float(lng)
+            except Exception:
+                pass
+
         party = Party(
             party_name=party_name,
             party_code=code_to_use,
@@ -1124,6 +1151,8 @@ def receive_party_sync(
             route=route,
             route_1=route,
             route_1_gu=r1_gu,
+            latitude=lat_val,
+            longitude=lng_val,
             is_active=True
         )
         db.add(party)
@@ -1138,6 +1167,68 @@ def receive_party_sync(
         "party_id": party.id,
         "party_code": party.party_code,
         "party_name": party.party_name
+    }
+
+@app.post("/api/parties/sync-all-to-orderbook")
+def sync_all_parties_to_orderbook(db: Session = Depends(get_db)):
+    """
+    Exports and synchronizes all existing Envelope Manager parties to Shreeji Healthcare Order Book.
+    """
+    parties = db.query(Party).all()
+    total = len(parties)
+    if total == 0:
+        return {"success": True, "message": "No parties found to synchronize.", "total": 0, "synced": 0}
+
+    chunk_size = 100
+    synced_count = 0
+    headers = {
+        "Content-Type": "application/json",
+        "X-Sync-Secret": MARG_SYNC_SECRET,
+        "X-Sync-Source": "envelope"
+    }
+
+    for i in range(0, total, chunk_size):
+        chunk = parties[i:i + chunk_size]
+        payload = [
+            {
+                "partyCode": p.party_code,
+                "partyName": p.party_name,
+                "mobile": p.mobile_no or "",
+                "email": p.email or "",
+                "gstNumber": p.gst_no or "",
+                "address": p.address or "",
+                "addressLine1": p.address or "",
+                "addressLine2": p.address_line_2 or "",
+                "addressLine3": p.address_line_3 or "",
+                "city": p.city or "DAHEGAM",
+                "state": p.state or "Gujarat",
+                "landline": p.landline or "",
+                "deliveryRoute": p.route_1 or p.route or "",
+                "latitude": p.latitude,
+                "longitude": p.longitude,
+                "status": "active" if p.is_active else "inactive"
+            }
+            for p in chunk
+        ]
+
+        sent = False
+        for base in [ORDER_BOOK_API_URL, ORDER_BOOK_REMOTE_URL]:
+            try:
+                target = f"{base.rstrip('/')}/api/sync/parties/batch"
+                res = requests.post(target, json=payload, headers=headers, timeout=12)
+                if res.status_code in (200, 201):
+                    sent = True
+                    break
+            except Exception:
+                pass
+        if sent:
+            synced_count += len(chunk)
+
+    return {
+        "success": True,
+        "message": f"Successfully synchronized {synced_count} of {total} parties to Order Book.",
+        "total": total,
+        "synced": synced_count
     }
 
 @app.post("/api/parties", status_code=status.HTTP_201_CREATED)

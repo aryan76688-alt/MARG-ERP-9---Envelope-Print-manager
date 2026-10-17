@@ -24,7 +24,9 @@ import {
   ShieldCheck,
   Radio,
   Eye,
-  EyeOff
+  EyeOff,
+  Maximize,
+  Minimize
 } from 'lucide-react';
 import { Party, LiveUserLocation } from '../types';
 import { fetchParties, fetchDriverJobs, fetchLiveUserLocations, updateLiveLocation } from '../api/client';
@@ -267,6 +269,40 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
       return false;
     }
   });
+
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const mapRootRef = useRef<HTMLDivElement>(null);
+
+  const handleToggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      if (mapRootRef.current?.requestFullscreen) {
+        mapRootRef.current.requestFullscreen().catch(() => {
+          setIsFullscreen(prev => !prev);
+        });
+      } else {
+        setIsFullscreen(prev => !prev);
+      }
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+      }
+      setIsFullscreen(false);
+    }
+  };
+
+  useEffect(() => {
+    const onFsChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+      // Invalidate Leaflet map size on fullscreen change
+      setTimeout(() => {
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.invalidateSize();
+        }
+      }, 250);
+    };
+    document.addEventListener('fullscreenchange', onFsChange);
+    return () => document.removeEventListener('fullscreenchange', onFsChange);
+  }, []);
 
   // Load active dispatch cases for today
   const loadDriverJobs = async () => {
@@ -712,7 +748,12 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
   };
 
   return (
-    <div className="flex flex-col h-full w-full bg-slate-950 text-white font-sans overflow-hidden select-none">
+    <div 
+      ref={mapRootRef} 
+      className={`flex flex-col h-full w-full bg-slate-950 text-white font-sans overflow-hidden select-none transition-all duration-200 ${
+        isFullscreen ? 'fixed inset-0 z-[999999] w-screen h-screen' : ''
+      }`}
+    >
       {/* 1. TOP HEADER & FILTER BAR */}
       <div className="p-3 bg-slate-900 border-b border-slate-800 shadow-md flex-shrink-0 space-y-2.5 z-20">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -743,6 +784,29 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
 
           {/* Quick Action Buttons */}
           <div className="flex items-center gap-1.5 flex-shrink-0">
+            {/* Fullscreen Button */}
+            <button
+              onClick={handleToggleFullscreen}
+              className={`p-2 rounded-xl border text-xs font-bold flex items-center gap-1 active:scale-95 transition-all shadow-sm ${
+                isFullscreen 
+                  ? 'bg-amber-600 hover:bg-amber-700 text-white border-amber-500' 
+                  : 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700'
+              }`}
+              title={isFullscreen ? 'Exit Full Screen' : 'Full Screen Map'}
+            >
+              {isFullscreen ? (
+                <>
+                  <Minimize className="w-3.5 h-3.5 text-white" />
+                  <span className="hidden sm:inline">સામાન્ય જુઓ</span>
+                </>
+              ) : (
+                <>
+                  <Maximize className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="hidden sm:inline">પૂર્ણ સ્ક્રીન (Full Screen)</span>
+                </>
+              )}
+            </button>
+
             {isAdminOrSuperAdmin && (
               <button
                 onClick={() => handleLocateMe(true)}

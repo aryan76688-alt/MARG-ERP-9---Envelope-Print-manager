@@ -45,7 +45,8 @@ import {
   triggerBackgroundTranslation,
   fetchTranslationStatus,
   printEnvelopePDF,
-  sendGmailPartiesList
+  sendGmailPartiesList,
+  getApiBase
 } from '../api/client';
 import { getPartiesOffline, ensureInitialPartiesLoaded } from '../offline/db';
 import { PartyModal } from '../components/PartyModal';
@@ -113,6 +114,32 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
       alert('Email send error: ' + err.message);
     } finally {
       setEmailSending(false);
+    }
+  };
+
+  const [syncingOrderBook, setSyncingOrderBook] = useState<boolean>(false);
+
+  const handleSyncAllToOrderBook = async () => {
+    if (!window.confirm(`Sync all ${total} parties to Shreeji Healthcare Order Book app now?`)) return;
+    setSyncingOrderBook(true);
+    try {
+      const res = await fetch(`${getApiBase()}/parties/sync-all-to-orderbook`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
+        }
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(data.message || `Successfully synced ${data.synced} parties to Order Book!`);
+      } else {
+        alert('Sync failed: ' + (data.message || 'Unknown error'));
+      }
+    } catch (err: any) {
+      alert('Error during Order Book sync: ' + err.message);
+    } finally {
+      setSyncingOrderBook(false);
     }
   };
 
@@ -446,6 +473,16 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
           >
             <Mail className={`w-4 h-4 ${emailSending ? 'animate-bounce text-blue-600' : 'text-blue-600'}`} />
             <span>{emailSending ? 'Emailing...' : 'Email to Gmail'}</span>
+          </button>
+
+          <button
+            onClick={handleSyncAllToOrderBook}
+            disabled={syncingOrderBook}
+            className="btn-secondary text-emerald-800 bg-emerald-50 border-emerald-300 hover:bg-emerald-100 font-bold"
+            title="1-Click Synchronize all parties into Shreeji Healthcare Order Book"
+          >
+            <RefreshCw className={`w-4 h-4 text-emerald-600 ${syncingOrderBook ? 'animate-spin' : ''}`} />
+            <span>{syncingOrderBook ? 'Syncing to Order Book...' : 'Sync to Order Book'}</span>
           </button>
 
           <button
