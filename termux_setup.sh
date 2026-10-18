@@ -166,6 +166,7 @@ cp -f "${ENVELOPE_DIR}/scripts/termux/start-all.sh" "${BASE_DIR}/start-all.sh"
 cp -f "${ENVELOPE_DIR}/scripts/termux/stop-all.sh" "${BASE_DIR}/stop-all.sh"
 cp -f "${ENVELOPE_DIR}/scripts/termux/status.sh" "${BASE_DIR}/status.sh"
 cp -f "${ENVELOPE_DIR}/scripts/termux/update.sh" "${BASE_DIR}/update.sh"
+cp -f "${ENVELOPE_DIR}/scripts/termux/auto-restart-2h.sh" "${BASE_DIR}/auto-restart-2h.sh" 2>/dev/null || true
 if [ -f "${ENVELOPE_DIR}/scripts/termux/watchdog.sh" ]; then
     cp -f "${ENVELOPE_DIR}/scripts/termux/watchdog.sh" "${BASE_DIR}/watchdog.sh"
 elif [ -f "${ORDERBOOK_DIR}/scripts/termux/watchdog.sh" ]; then
@@ -184,6 +185,7 @@ alias start="bash $HOME/shreeji/start-all.sh"
 alias stop="bash $HOME/shreeji/stop-all.sh"
 alias status="bash $HOME/shreeji/status.sh"
 alias update="bash $HOME/shreeji/update.sh"
+alias restart="bash $HOME/shreeji/auto-restart-2h.sh"
 alias watchdog="tail -f $HOME/shreeji/logs/watchdog.log"
 alias shreeji="bash $HOME/shreeji/start-all.sh"
 BASHRC_EOF
