@@ -25,7 +25,8 @@ if [ ! -d "${ENVELOPE_DIR}" ] && [ -d "${BASE_DIR}/ENVELOPE" ]; then
 fi
 if [ -d "${ENVELOPE_DIR}" ]; then
     cd "${ENVELOPE_DIR}"
-    git pull origin main || true
+    git stash 2>/dev/null || true
+    git pull origin main
     echo -e "${GREEN}    [✓] Envelope Manager updated.${NC}"
 fi
 
@@ -37,12 +38,14 @@ if [ ! -d "${ORDERBOOK_DIR}" ] && [ -d "${BASE_DIR}/B2B" ]; then
 fi
 if [ -d "${ORDERBOOK_DIR}" ]; then
     cd "${ORDERBOOK_DIR}"
-    git pull origin main || true
-    npm install --no-audit --prefer-offline 2>/dev/null || true
+    git stash 2>/dev/null || true
+    git pull origin main
+    echo -e "    [*] Updating dependencies..."
+    npm install --no-audit --prefer-offline 2>/dev/null || npm install --no-audit
     echo -e "    [*] Building Order Book production bundle..."
-    npm run build 2>/dev/null || true
+    npm run build
     # Run any new database migrations
-    npm run db:migrate || true
+    npm run db:migrate 2>/dev/null || true
     echo -e "    [*] Syncing parties between Envelope Manager and Order Book..."
     python3 "${ENVELOPE_DIR}/scripts/sync_envelope_to_b2b.py" 2>/dev/null || true
     echo -e "${GREEN}    [✓] Order Book updated.${NC}"
