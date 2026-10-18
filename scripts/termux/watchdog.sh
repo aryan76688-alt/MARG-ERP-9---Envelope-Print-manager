@@ -114,11 +114,19 @@ while true; do
             cd "${ORDERBOOK_DIR}"
             export PORT=3000
             export NODE_ENV=production
+            export NODE_OPTIONS="--max-old-space-size=2048"
             export ENVELOPE_MANAGER_API_URL="http://127.0.0.1:8080"
-            if [ -d ".next" ]; then
-                nohup npx next start -H 0.0.0.0 -p 3000 > "${BASE_DIR}/logs/orderbook.log" 2>&1 &
+            NEXT_BIN="./node_modules/.bin/next"
+            if [ ! -x "${NEXT_BIN}" ]; then
+                NEXT_BIN="npx next"
+            fi
+            if [ -f ".next/BUILD_ID" ]; then
+                nohup ${NEXT_BIN} start -H 0.0.0.0 -p 3000 > "${BASE_DIR}/logs/orderbook.log" 2>&1 &
             else
-                nohup npx next dev -H 0.0.0.0 -p 3000 > "${BASE_DIR}/logs/orderbook.log" 2>&1 &
+                if [ -d ".next" ] && [ ! -f ".next/BUILD_ID" ]; then
+                    rm -rf .next
+                fi
+                nohup ${NEXT_BIN} dev -H 0.0.0.0 -p 3000 > "${BASE_DIR}/logs/orderbook.log" 2>&1 &
             fi
             echo $! > "${BASE_DIR}/pids/orderbook.pid"
         fi
@@ -214,10 +222,18 @@ while true; do
                 sleep 2
                 export PORT=3000
                 export NODE_ENV=production
-                if [ -d ".next" ]; then
-                    nohup npm run start > "${BASE_DIR}/logs/orderbook.log" 2>&1 &
+                export NODE_OPTIONS="--max-old-space-size=2048"
+                NEXT_BIN="./node_modules/.bin/next"
+                if [ ! -x "${NEXT_BIN}" ]; then
+                    NEXT_BIN="npx next"
+                fi
+                if [ -f ".next/BUILD_ID" ]; then
+                    nohup ${NEXT_BIN} start -H 0.0.0.0 -p 3000 > "${BASE_DIR}/logs/orderbook.log" 2>&1 &
                 else
-                    nohup npm run dev > "${BASE_DIR}/logs/orderbook.log" 2>&1 &
+                    if [ -d ".next" ] && [ ! -f ".next/BUILD_ID" ]; then
+                        rm -rf .next
+                    fi
+                    nohup ${NEXT_BIN} dev -H 0.0.0.0 -p 3000 > "${BASE_DIR}/logs/orderbook.log" 2>&1 &
                 fi
                 echo $! > "${BASE_DIR}/pids/orderbook.pid"
                 echo "[$(date '+%Y-%m-%d %H:%M:%S')] [AUTO-UPDATE] Order Book updated and restarted." >> "${LOG_FILE}"
