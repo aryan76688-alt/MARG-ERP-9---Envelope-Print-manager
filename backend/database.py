@@ -137,6 +137,10 @@ def init_db():
             ("last_google_sheet_sync_time", "TIMESTAMP", None),
             ("last_google_sheet_sync_status", "TEXT", None),
             ("google_oauth_client_id", "TEXT", "'58565275888-4juppeh2cdeo6v4tn1qc81e8ngpnevsu.apps.googleusercontent.com'"),
+            ("gdrive_webhook_url", "TEXT", "''"),
+            ("gdrive_api_key", "TEXT", "''"),
+            ("gdrive_backup_folder", "TEXT", "'MARG_Backups'"),
+            ("gdrive_notify_email", "TEXT", "''"),
         ])
 
         ensure_columns("print_jobs", [

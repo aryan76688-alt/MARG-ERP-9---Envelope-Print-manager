@@ -239,8 +239,8 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
   const [loading, setLoading] = useState<boolean>(true);
   const [search, setSearch] = useState<string>('');
   
-  // Filters: All vs With Cases Only, and Route-wise
-  const [filterMode, setFilterMode] = useState<'all' | 'with_cases'>('all');
+  // Filters: All vs With Cases Only vs Unmapped, and Route-wise
+  const [filterMode, setFilterMode] = useState<'all' | 'with_cases' | 'unmapped'>('all');
   const [selectedRoute, setSelectedRoute] = useState<string>('all');
   
   // Cases Map from Driver Dispatch Jobs: party_id -> info
@@ -481,9 +481,18 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
   // Filter ONLY parties with valid map coordinates
   const setMapParties = useMemo(() => {
     return parties.filter((p) => {
-      const hasLat = p.latitude !== null && p.latitude !== undefined && !isNaN(Number(p.latitude));
-      const hasLng = p.longitude !== null && p.longitude !== undefined && !isNaN(Number(p.longitude));
+      const hasLat = p.latitude !== null && p.latitude !== undefined && !isNaN(Number(p.latitude)) && Number(p.latitude) !== 0;
+      const hasLng = p.longitude !== null && p.longitude !== undefined && !isNaN(Number(p.longitude)) && Number(p.longitude) !== 0;
       return hasLat && hasLng;
+    });
+  }, [parties]);
+
+  // Parties WITHOUT coordinates (need manual pin)
+  const unmappedParties = useMemo(() => {
+    return parties.filter((p) => {
+      const hasLat = p.latitude !== null && p.latitude !== undefined && !isNaN(Number(p.latitude)) && Number(p.latitude) !== 0;
+      const hasLng = p.longitude !== null && p.longitude !== undefined && !isNaN(Number(p.longitude)) && Number(p.longitude) !== 0;
+      return !hasLat || !hasLng;
     });
   }, [parties]);
 
@@ -492,21 +501,22 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
     return setMapParties.filter((p) => p.id && partyCasesMap[p.id] && partyCasesMap[p.id].total_cases > 0).length;
   }, [setMapParties, partyCasesMap]);
 
-  // Extract available distinct routes from set parties
+  // Extract available distinct routes from all parties
   const availableRoutes = useMemo(() => {
     const routeSet = new Set<string>();
-    setMapParties.forEach((p) => {
+    parties.forEach((p) => {
       if (p.route_1) routeSet.add(p.route_1);
       if (p.route_2) routeSet.add(p.route_2);
       if (p.route_3) routeSet.add(p.route_3);
       if (p.route) routeSet.add(p.route);
     });
     return Array.from(routeSet).sort();
-  }, [setMapParties]);
+  }, [parties]);
 
-  // Filter set parties by search query, route, and case toggle
+  // Filter parties by search query, route, and filter mode
   const filteredParties = useMemo(() => {
-    return setMapParties.filter((p) => {
+    const sourceParties = filterMode === 'unmapped' ? unmappedParties : setMapParties;
+    return sourceParties.filter((p) => {
       const q = search.trim().toLowerCase();
       const matchesSearch =
         !q ||
@@ -525,11 +535,11 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
         p.route === selectedRoute;
 
       const hasCases = Boolean(p.id && partyCasesMap[p.id] && partyCasesMap[p.id].total_cases > 0);
-      const matchesCaseFilter = filterMode === 'all' || (filterMode === 'with_cases' && hasCases);
+      const matchesCaseFilter = filterMode !== 'with_cases' || hasCases;
 
       return matchesSearch && matchesRoute && matchesCaseFilter;
     });
-  }, [setMapParties, search, selectedRoute, filterMode, partyCasesMap]);
+  }, [setMapParties, unmappedParties, search, selectedRoute, filterMode, partyCasesMap]);
 
   // Calculate live distance between user and destination (Only computed for admin)
   const getDistanceFromUser = (targetLat?: number | null, targetLng?: number | null) => {
@@ -684,13 +694,18 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
 
     markersLayer.clearLayers();
 
-    if (filteredParties.length === 0) return;
+    if (filterMode === 'unmapped' || filteredParties.length === 0) return;
+
+    // LAG PREVENTION: Limit maximum visible markers to 100 to guarantee silky smooth 60fps panning
+    const maxMarkers = 100;
+    const partiesToRender = filteredParties.slice(0, maxMarkers);
 
     const latLngs: L.LatLngExpression[] = [];
 
-    filteredParties.forEach((p) => {
+    partiesToRender.forEach((p) => {
       const lat = Number(p.latitude);
       const lng = Number(p.longitude);
+      if (isNaN(lat) || isNaN(lng) || lat === 0 || lng === 0) return;
       const isSelected = selectedParty?.id === p.id;
       
       const primaryRoute = p.route_1 || p.route || p.route_2 || '';
@@ -706,7 +721,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
       // Marker click handler
       marker.on('click', () => {
         setSelectedParty(p);
-        map.flyTo([lat, lng], 16, { duration: 0.8 });
+        map.flyTo([lat, lng], 16, { duration: 0.5 });
       });
 
       // Tooltip on hover
@@ -721,12 +736,12 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
       latLngs.push([lat, lng]);
     });
 
-    // Auto fit bounds to show all plotted parties
-    if (latLngs.length > 0) {
+    // Auto fit bounds to show plotted parties
+    if (latLngs.length > 0 && !selectedParty) {
       const bounds = L.latLngBounds(latLngs);
       map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
     }
-  }, [filteredParties, selectedParty?.id, partyCasesMap]);
+  }, [filteredParties, selectedParty?.id, partyCasesMap, filterMode]);
 
   // Re-fit all party markers
   const handleFitAllMarkers = () => {
@@ -741,10 +756,17 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
     setParties((prev) =>
       prev.map((p) => (p.id === updatedParty.id ? updatedParty : p))
     );
-    if (selectedParty?.id === updatedParty.id) {
-      setSelectedParty(updatedParty);
-    }
+    setSelectedParty(updatedParty);
+    setPickerModalParty(null);
+    setFilterMode('all');
     updatePartyInOfflineCache(updatedParty);
+
+    // Smoothly fly to newly pinned party on map
+    setTimeout(() => {
+      if (mapInstanceRef.current && updatedParty.latitude && updatedParty.longitude) {
+        mapInstanceRef.current.flyTo([Number(updatedParty.latitude), Number(updatedParty.longitude)], 16, { duration: 0.6 });
+      }
+    }, 150);
   };
 
   return (
@@ -862,6 +884,18 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
             >
               <Package className="w-3.5 h-3.5 text-amber-400" />
               <span>કેસ વાળી પાર્ટીઓ ({partiesWithCasesCount})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterMode('unmapped')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-black flex items-center gap-1.5 transition-all ${
+                filterMode === 'unmapped'
+                  ? 'bg-rose-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-rose-300 hover:bg-slate-800'
+              }`}
+            >
+              <MapPin className="w-3.5 h-3.5 text-rose-400" />
+              <span>📍 બાકી પિન કરો ({unmappedParties.length})</span>
             </button>
           </div>
 
@@ -1006,8 +1040,63 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
           </div>
         )}
 
+        {/* Unmapped Parties Drawer / View when in 'unmapped' mode */}
+        {filterMode === 'unmapped' && (
+          <div className="absolute inset-0 z-20 flex flex-col bg-slate-900/95 backdrop-blur-md p-4 overflow-hidden">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800 shrink-0">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center font-bold">
+                  📍
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-white">પાર્ટી પિન સેટ કરો (Manual GPS Setup)</h3>
+                  <p className="text-[11px] text-slate-400">કોઈપણ પાર્ટી પર "પિન સેટ કરો" દબાવીને મેપ પર તેનું સાચું લોકેશન સેટ કરો.</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFilterMode('all')}
+                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold"
+              >
+                મેપ પર પાછા જાઓ ✕
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto divide-y divide-slate-800/60 py-2 space-y-2">
+              {filteredParties.length === 0 ? (
+                <div className="text-center py-16 text-slate-400 text-xs font-bold">
+                  કોઈ મેળ ખાતી પાર્ટી મળી નથી.
+                </div>
+              ) : (
+                filteredParties.slice(0, 100).map((p) => (
+                  <div key={p.id} className="p-3 bg-slate-950/80 rounded-2xl border border-slate-800 flex items-center justify-between gap-3 hover:border-slate-700 transition-all">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-bold">{p.party_code || 'MARG'}</span>
+                        <h4 className="text-xs font-black text-white truncate">{p.party_name_gu || p.party_name}</h4>
+                      </div>
+                      <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                        {p.address ? `${p.address}, ` : ''}{p.city || 'Gujarat'}
+                        {p.route_1 ? ` • 🛣️ ${p.route_1}` : ''}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setPickerModalParty(p)}
+                      className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white text-xs font-black shadow-md flex items-center gap-1.5 shrink-0 transition-all"
+                    >
+                      <MapPin className="w-3.5 h-3.5" />
+                      <span>પિન સેટ કરો</span>
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Empty state overlay when no parties match */}
-        {filteredParties.length === 0 && !loading && (
+        {filteredParties.length === 0 && !loading && filterMode !== 'unmapped' && (
           <div className="absolute inset-0 z-20 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm">
             <div className="max-w-md p-6 bg-slate-900 border border-slate-800 rounded-3xl text-center space-y-3 shadow-2xl">
               <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center mx-auto">
@@ -1021,7 +1110,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
               <p className="text-xs text-slate-400 leading-relaxed">
                 {filterMode === 'with_cases'
                   ? 'હાલમાં પસંદ કરેલા રૂટમાં કોઈ પેન્ડિંગ કેસ નથી. બધી પાર્ટીઓ જોવા માટે "બધી પાર્ટીઓ" બટન દબાવો.'
-                  : 'પાર્ટી લિસ્ટમાં જઈને પાર્ટી કાર્ડ પર "📍 મેપ પર પિન કરો" બટન દબાવો.'}
+                  : 'બધી પાર્ટીઓનું લોકેશન મેન્યુઅલી સેટ કરવા માટે નીચેનું બટન દબાવો.'}
               </p>
               {filterMode === 'with_cases' ? (
                 <button
@@ -1032,15 +1121,24 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                   <span>બધી પાર્ટીઓ બતાવો (Show All Parties)</span>
                 </button>
               ) : (
-                onNavigate && (
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-2">
                   <button
-                    onClick={() => onNavigate('parties')}
-                    className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md active:scale-95 transition-all inline-flex items-center gap-1.5"
+                    onClick={() => setFilterMode('unmapped')}
+                    className="w-full sm:w-auto px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md active:scale-95 transition-all inline-flex items-center justify-center gap-1.5"
                   >
-                    <Users className="w-4 h-4" />
-                    <span>પાર્ટી લિસ્ટ ખોલો (Open Parties)</span>
+                    <MapPin className="w-4 h-4" />
+                    <span>📍 પાર્ટી પિન સેટ કરો ({unmappedParties.length})</span>
                   </button>
-                )
+                  {onNavigate && (
+                    <button
+                      onClick={() => onNavigate('parties')}
+                      className="w-full sm:w-auto px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs border border-slate-700 active:scale-95 transition-all inline-flex items-center justify-center gap-1.5"
+                    >
+                      <Users className="w-4 h-4" />
+                      <span>પાર્ટી લિસ્ટ</span>
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           </div>
