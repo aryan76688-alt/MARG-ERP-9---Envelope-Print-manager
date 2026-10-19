@@ -122,9 +122,12 @@ export const MobileApkLayout: React.FC<MobileApkLayoutProps> = ({
   const canInitiateCall = userRole === 'admin' || userRole === 'super_admin';
 
   const secondaryNav = [
-    ...(userRole === 'super_admin' ? [
-      { id: 'storage', label: 'Phone Local Storage', subLabel: 'Folder Creation & Host Storage (Super Admin)', icon: HardDrive }
-    ] : []),
+    { 
+      id: 'storage', 
+      label: userRole === 'super_admin' ? 'Mobile Storage' : 'My Mobile Storage', 
+      subLabel: userRole === 'super_admin' ? 'User-Wise Host Storage & Folders' : 'Personal Documents & Files', 
+      icon: HardDrive 
+    },
     { id: 'map', label: 'All Parties Map', subLabel: 'GPS Geofences & Chemist Radar', icon: MapPin },
     { id: 'dispatch', label: 'Dispatch Summary', subLabel: 'Courier Manifests & Sheets', icon: Package },
     { id: 'history', label: 'Print History', subLabel: 'Job Logs & Reprints', icon: History },

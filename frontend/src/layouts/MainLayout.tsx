@@ -125,7 +125,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
     { id: 'dispatch', label: 'Dispatch Summary', icon: Package },
     { id: 'history', label: 'Print History', icon: History },
     { id: 'settings', label: 'Settings', icon: SettingsIcon },
-    ...(userRole === 'super_admin' ? [{ id: 'storage', label: 'Phone Storage', icon: HardDrive }] : []),
+    { id: 'storage', label: userRole === 'super_admin' ? 'Mobile Storage' : 'My Storage', icon: HardDrive },
     ...(['super_admin', 'admin'].includes(userRole) ? [{ id: 'users', label: 'User Management', icon: User }] : [])
   ];
 
@@ -141,7 +141,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
     dispatch: 'Dispatch Summary',
     history: 'Print History',
     settings: 'Settings',
-    storage: 'Phone Local Storage (Super Admin)',
+    storage: userRole === 'super_admin' ? 'Mobile Storage (User-Wise)' : 'My Mobile Storage',
     users: 'User Management',
   };
   const activeTitle = pageTitles[currentTab] || 'Envelope Print';

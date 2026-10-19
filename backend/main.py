@@ -4892,25 +4892,147 @@ def get_app_version():
     }
 
 # -------------------------------------------------------------
-# Component 4: Super-Admin ONLY Local Storage & Folder Management
+# Component 4: User-Wise Local Storage & Folder Management
 # -------------------------------------------------------------
 STORAGE_ROOT = os.environ.get("STORAGE_ROOT", os.path.expanduser("~/storage"))
 os.makedirs(STORAGE_ROOT, exist_ok=True)
+os.makedirs(os.path.join(STORAGE_ROOT, "users"), exist_ok=True)
 
-def _sanitize_storage_path(subpath: str) -> str:
-    clean_subpath = (subpath or "").strip().lstrip("/\\")
-    full_path = os.path.abspath(os.path.join(STORAGE_ROOT, clean_subpath))
-    # Prevent directory traversal attacks
+def _format_bytes(bytes_count: int) -> str:
+    if bytes_count <= 0:
+        return "0 B"
+    val = float(bytes_count)
+    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+        if val < 1024.0:
+            return f"{val:.1f} {unit}"
+        val /= 1024.0
+    return f"{val:.1f} PB"
+
+def _get_user_storage_path(user: User, requested_path: str = "") -> str:
+    clean_subpath = (requested_path or "").strip().lstrip("/\\")
+    
+    # If super_admin, they can access anything under STORAGE_ROOT
+    if user.role == "super_admin":
+        full_path = os.path.abspath(os.path.join(STORAGE_ROOT, clean_subpath))
+    else:
+        # Sandboxed to users/{user.username}
+        user_root = os.path.abspath(os.path.join(STORAGE_ROOT, "users", user.username))
+        os.makedirs(user_root, exist_ok=True)
+        
+        user_prefix = f"users/{user.username}"
+        if clean_subpath == user_prefix:
+            full_path = user_root
+        elif clean_subpath.startswith(user_prefix + "/"):
+            rel = clean_subpath[len(user_prefix) + 1:]
+            full_path = os.path.abspath(os.path.join(user_root, rel))
+        else:
+            full_path = os.path.abspath(os.path.join(user_root, clean_subpath))
+
+        if not full_path.startswith(user_root):
+            raise HTTPException(status_code=403, detail="Access denied: Sandboxed to your personal storage")
+
     if not full_path.startswith(os.path.abspath(STORAGE_ROOT)):
         raise HTTPException(status_code=400, detail="Invalid path or directory traversal detected")
     return full_path
 
+@app.get("/api/storage/users-summary")
+def get_users_storage_summary(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth_module.get_current_user)
+):
+    users_dir = os.path.join(STORAGE_ROOT, "users")
+    os.makedirs(users_dir, exist_ok=True)
+    
+    # Disk usage of host/phone
+    try:
+        du = shutil.disk_usage(STORAGE_ROOT)
+        host_disk = {
+            "total_bytes": du.total,
+            "used_bytes": du.used,
+            "free_bytes": du.free,
+            "total_formatted": _format_bytes(du.total),
+            "free_formatted": _format_bytes(du.free),
+            "used_formatted": _format_bytes(du.used),
+            "percent_used": round((du.used / du.total) * 100, 1) if du.total > 0 else 0
+        }
+    except Exception:
+        host_disk = {
+            "total_bytes": 0, "used_bytes": 0, "free_bytes": 0,
+            "total_formatted": "N/A", "free_formatted": "N/A", "used_formatted": "N/A",
+            "percent_used": 0
+        }
+
+    # If user is not super_admin, return only current user's summary
+    if current_user.role != "super_admin":
+        users_list = [current_user]
+    else:
+        users_list = db.query(User).filter(User.is_active == True).all()
+
+    summary_list = []
+    total_app_bytes = 0
+
+    for u in users_list:
+        u_folder = os.path.join(users_dir, u.username)
+        os.makedirs(u_folder, exist_ok=True)
+        
+        file_count = 0
+        dir_count = 0
+        total_size = 0
+        latest_mtime = None
+
+        try:
+            for root, dirs, files in os.walk(u_folder):
+                dir_count += len(dirs)
+                for f in files:
+                    file_count += 1
+                    fp = os.path.join(root, f)
+                    try:
+                        st = os.stat(fp)
+                        total_size += st.st_size
+                        if latest_mtime is None or st.st_mtime > latest_mtime:
+                            latest_mtime = st.st_mtime
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+        total_app_bytes += total_size
+        rel_path = f"users/{u.username}"
+
+        summary_list.append({
+            "user_id": u.id,
+            "username": u.username,
+            "full_name": u.full_name or u.username,
+            "role": u.role,
+            "avatar_url": u.avatar_url,
+            "path": rel_path,
+            "file_count": file_count,
+            "dir_count": dir_count,
+            "size_bytes": total_size,
+            "size_formatted": _format_bytes(total_size),
+            "latest_modified": datetime.datetime.fromtimestamp(latest_mtime).isoformat() if latest_mtime else None,
+            "is_current_user": u.id == current_user.id
+        })
+
+    summary_list.sort(key=lambda x: (x["role"] != "super_admin", -x["size_bytes"], x["full_name"].lower()))
+
+    return {
+        "host_disk": host_disk,
+        "total_app_bytes": total_app_bytes,
+        "total_app_size_formatted": _format_bytes(total_app_bytes),
+        "total_users": len(summary_list),
+        "current_user_role": current_user.role,
+        "is_super_admin": current_user.role == "super_admin",
+        "current_username": current_user.username,
+        "users": summary_list
+    }
+
 @app.get("/api/storage/list")
 def list_storage_contents(
     path: str = "",
-    current_user: User = Depends(auth_module.get_current_super_admin)
+    current_user: User = Depends(auth_module.get_current_user)
 ):
-    target = _sanitize_storage_path(path)
+    target = _get_user_storage_path(current_user, path)
     if not os.path.exists(target):
         return {"items": [], "current_path": path, "error": "Directory does not exist"}
     if not os.path.isdir(target):
@@ -4927,6 +5049,7 @@ def list_storage_contents(
                     "path": rel_path.replace("\\", "/"),
                     "is_dir": entry.is_dir(),
                     "size": stat.st_size if entry.is_file() else 0,
+                    "size_formatted": _format_bytes(stat.st_size) if entry.is_file() else "Folder",
                     "modified": datetime.datetime.fromtimestamp(stat.st_mtime).isoformat()
                 })
             except Exception:
@@ -4936,10 +5059,16 @@ def list_storage_contents(
 
     # Sort directories first, then alphabetically
     items.sort(key=lambda x: (not x["is_dir"], x["name"].lower()))
+    rel_current = os.path.relpath(target, STORAGE_ROOT).replace("\\", "/")
+    if rel_current == ".":
+        rel_current = ""
+
     return {
-        "current_path": path,
+        "current_path": rel_current,
         "items": items,
-        "root": STORAGE_ROOT
+        "root": STORAGE_ROOT,
+        "is_super_admin": current_user.role == "super_admin",
+        "current_username": current_user.username
     }
 
 class MkdirPayload(BaseModel):
@@ -4949,13 +5078,13 @@ class MkdirPayload(BaseModel):
 @app.post("/api/storage/mkdir")
 def make_storage_folder(
     payload: MkdirPayload,
-    current_user: User = Depends(auth_module.get_current_super_admin)
+    current_user: User = Depends(auth_module.get_current_user)
 ):
     folder_name = payload.folder_name.strip()
-    if not folder_name or "/" in folder_name or "\\" in folder_name:
+    if not folder_name or "/" in folder_name or "\\" in folder_name or ".." in folder_name:
         raise HTTPException(status_code=400, detail="Invalid folder name")
 
-    parent = _sanitize_storage_path(payload.path)
+    parent = _get_user_storage_path(current_user, payload.path)
     new_dir = os.path.join(parent, folder_name)
     try:
         os.makedirs(new_dir, exist_ok=True)
@@ -4971,9 +5100,9 @@ def make_storage_folder(
 async def upload_storage_file(
     path: str = Form(""),
     file: UploadFile = File(...),
-    current_user: User = Depends(auth_module.get_current_super_admin)
+    current_user: User = Depends(auth_module.get_current_user)
 ):
-    parent = _sanitize_storage_path(path)
+    parent = _get_user_storage_path(current_user, path)
     os.makedirs(parent, exist_ok=True)
     filename = os.path.basename(file.filename)
     dest_path = os.path.join(parent, filename)
@@ -4985,6 +5114,7 @@ async def upload_storage_file(
             "success": True,
             "message": f"File '{filename}' uploaded successfully",
             "size": len(contents),
+            "size_formatted": _format_bytes(len(contents)),
             "path": os.path.relpath(dest_path, STORAGE_ROOT).replace("\\", "/")
         }
     except Exception as e:
@@ -4993,12 +5123,12 @@ async def upload_storage_file(
 @app.delete("/api/storage/item")
 def delete_storage_item(
     path: str,
-    current_user: User = Depends(auth_module.get_current_super_admin)
+    current_user: User = Depends(auth_module.get_current_user)
 ):
-    target = _sanitize_storage_path(path)
+    target = _get_user_storage_path(current_user, path)
     if not os.path.exists(target):
         raise HTTPException(status_code=404, detail="File or folder not found")
-    if target == os.path.abspath(STORAGE_ROOT):
+    if target == os.path.abspath(STORAGE_ROOT) or target == os.path.abspath(os.path.join(STORAGE_ROOT, "users")):
         raise HTTPException(status_code=400, detail="Cannot delete root storage directory")
 
     try:
@@ -5013,9 +5143,9 @@ def delete_storage_item(
 @app.get("/api/storage/download")
 def download_storage_file(
     path: str,
-    current_user: User = Depends(auth_module.get_current_super_admin)
+    current_user: User = Depends(auth_module.get_current_user)
 ):
-    target = _sanitize_storage_path(path)
+    target = _get_user_storage_path(current_user, path)
     if not os.path.exists(target) or not os.path.isfile(target):
         raise HTTPException(status_code=404, detail="File not found")
     return FileResponse(target, filename=os.path.basename(target))

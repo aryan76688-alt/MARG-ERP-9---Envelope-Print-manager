@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from "react";
 import { 
   Folder, 
   FolderPlus, 
@@ -8,21 +8,50 @@ import {
   Download, 
   ArrowLeft, 
   RefreshCw, 
-  ShieldAlert, 
   HardDrive, 
   Check, 
   AlertCircle,
   Home,
-  ChevronRight
-} from 'lucide-react';
-import { API_BASE } from '../api/client';
+  ChevronRight,
+  Users as UsersIcon,
+  Search,
+  PieChart,
+  X
+} from "lucide-react";
+import { API_BASE } from "../api/client";
 
 interface StorageItem {
   name: string;
   path: string;
   is_dir: boolean;
   size: number;
+  size_formatted?: string;
   modified: string;
+}
+
+interface UserStorageSummary {
+  user_id: number;
+  username: string;
+  full_name: string;
+  role: string;
+  avatar_url?: string;
+  path: string;
+  file_count: number;
+  dir_count: number;
+  size_bytes: number;
+  size_formatted: string;
+  latest_modified?: string;
+  is_current_user: boolean;
+}
+
+interface HostDiskInfo {
+  total_bytes: number;
+  used_bytes: number;
+  free_bytes: number;
+  total_formatted: string;
+  free_formatted: string;
+  used_formatted: string;
+  percent_used: number;
 }
 
 interface StorageManagerProps {
@@ -30,65 +59,106 @@ interface StorageManagerProps {
 }
 
 export const StorageManager: React.FC<StorageManagerProps> = ({ onNavigate }) => {
-  const [currentPath, setCurrentPath] = useState<string>('');
+  const currentUser = useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem("user") || "{}");
+    } catch {
+      return {};
+    }
+  }, []);
+
+  const isSuperAdmin = currentUser.role === "super_admin";
+
+  const [viewMode, setViewMode] = useState<"users" | "files">(() => isSuperAdmin ? "users" : "files");
+  const [usersSummary, setUsersSummary] = useState<UserStorageSummary[]>([]);
+  const [hostDisk, setHostDisk] = useState<HostDiskInfo | null>(null);
+  const [totalAppSizeFormatted, setTotalAppSizeFormatted] = useState<string>("0 B");
+  const [loadingUsers, setLoadingUsers] = useState<boolean>(true);
+  const [userSearch, setUserSearch] = useState<string>("");
+
+  const [selectedUser, setSelectedUser] = useState<UserStorageSummary | null>(null);
+
+  const [currentPath, setCurrentPath] = useState<string>(() => isSuperAdmin ? "" : `users/${currentUser.username || ""}`);
   const [items, setItems] = useState<StorageItem[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string>('');
-  const [rootPath, setRootPath] = useState<string>('');
+  const [loadingFiles, setLoadingFiles] = useState<boolean>(false);
+  const [error, setError] = useState<string>("");
+  const [statusMsg, setStatusMsg] = useState<string>("");
 
-  // Modals
   const [newFolderOpen, setNewFolderOpen] = useState<boolean>(false);
-  const [newFolderName, setNewFolderName] = useState<string>('');
+  const [newFolderName, setNewFolderName] = useState<string>("");
   const [actionLoading, setActionLoading] = useState<boolean>(false);
-  const [statusMsg, setStatusMsg] = useState<string>('');
-
-  // Check role: STRICTLY super_admin only
-  let isSuperAdmin = false;
-  try {
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-    isSuperAdmin = user.role === 'super_admin';
-  } catch {}
 
   const getAuthHeader = () => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem("token");
     return token ? { Authorization: `Bearer ${token}` } : {};
   };
 
-  const loadDirectory = async (path: string = '') => {
+  const fetchUsersSummary = async () => {
     try {
-      setLoading(true);
-      setError('');
+      setLoadingUsers(true);
+      setError("");
+      const res = await fetch(`${API_BASE}/storage/users-summary`, {
+        headers: getAuthHeader()
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || "Failed to load user storage statistics");
+      }
+
+      const data = await res.json();
+      setUsersSummary(data.users || []);
+      setHostDisk(data.host_disk || null);
+      setTotalAppSizeFormatted(data.total_app_size_formatted || "0 B");
+    } catch (err: any) {
+      setError(err.message || "Error fetching user storage summary");
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  const loadDirectory = async (path: string = "") => {
+    try {
+      setLoadingFiles(true);
+      setError("");
       const res = await fetch(`${API_BASE}/storage/list?path=${encodeURIComponent(path)}`, {
         headers: getAuthHeader()
       });
 
-      if (res.status === 403) {
-        setError('403 Forbidden: Only Super Admin can access phone storage.');
-        setItems([]);
-        return;
-      }
-
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || 'Failed to list directory contents');
+        throw new Error(err.detail || "Failed to list directory contents");
       }
 
       const data = await res.json();
       setItems(data.items || []);
-      setCurrentPath(data.current_path || '');
-      if (data.root) setRootPath(data.root);
+      setCurrentPath(data.current_path || "");
     } catch (err: any) {
-      setError(err.message || 'Error loading directory');
+      setError(err.message || "Error loading directory");
     } finally {
-      setLoading(false);
+      setLoadingFiles(false);
     }
   };
 
   useEffect(() => {
-    if (isSuperAdmin) {
-      loadDirectory(currentPath);
+    fetchUsersSummary();
+    if (!isSuperAdmin) {
+      loadDirectory(`users/${currentUser.username || ""}`);
     }
-  }, [currentPath, isSuperAdmin]);
+  }, [isSuperAdmin, currentUser.username]);
+
+  const handleOpenUserStorage = (u: UserStorageSummary) => {
+    setSelectedUser(u);
+    setCurrentPath(u.path);
+    setViewMode("files");
+    loadDirectory(u.path);
+  };
+
+  const handleBackToUsersList = () => {
+    setSelectedUser(null);
+    setViewMode("users");
+    fetchUsersSummary();
+  };
 
   const handleCreateFolder = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,9 +167,9 @@ export const StorageManager: React.FC<StorageManagerProps> = ({ onNavigate }) =>
     try {
       setActionLoading(true);
       const res = await fetch(`${API_BASE}/storage/mkdir`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           ...getAuthHeader()
         },
         body: JSON.stringify({
@@ -110,16 +180,17 @@ export const StorageManager: React.FC<StorageManagerProps> = ({ onNavigate }) =>
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || 'Failed to create folder');
+        throw new Error(err.detail || "Failed to create folder");
       }
 
-      setNewFolderName('');
+      setNewFolderName("");
       setNewFolderOpen(false);
-      setStatusMsg('Folder created successfully');
-      setTimeout(() => setStatusMsg(''), 3000);
+      setStatusMsg("Folder created successfully (ફોલ્ડર સફળતાપૂર્વક બનાવ્યું)");
+      setTimeout(() => setStatusMsg(""), 3000);
       loadDirectory(currentPath);
+      fetchUsersSummary();
     } catch (err: any) {
-      alert(err.message || 'Folder creation failed');
+      alert(err.message || "Folder creation failed");
     } finally {
       setActionLoading(false);
     }
@@ -131,303 +202,496 @@ export const StorageManager: React.FC<StorageManagerProps> = ({ onNavigate }) =>
 
     const file = files[0];
     const formData = new FormData();
-    formData.append('file', file);
-    formData.append('path', currentPath);
+    formData.append("file", file);
+    formData.append("path", currentPath);
 
     try {
       setActionLoading(true);
       const res = await fetch(`${API_BASE}/storage/upload`, {
-        method: 'POST',
+        method: "POST",
         headers: getAuthHeader(),
         body: formData
       });
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || 'Upload failed');
+        throw new Error(err.detail || "Upload failed");
       }
 
-      setStatusMsg(`Uploaded ${file.name} successfully`);
-      setTimeout(() => setStatusMsg(''), 3000);
+      setStatusMsg(`File "${file.name}" uploaded successfully`);
+      setTimeout(() => setStatusMsg(""), 3000);
       loadDirectory(currentPath);
+      fetchUsersSummary();
     } catch (err: any) {
-      alert(err.message || 'Upload failed');
+      alert(err.message || "Upload failed");
     } finally {
       setActionLoading(false);
-      e.target.value = '';
+      e.target.value = "";
     }
   };
 
   const handleDeleteItem = async (itemPath: string, isDir: boolean) => {
-    const confirmed = window.confirm(`Are you sure you want to delete this ${isDir ? 'folder and all its contents' : 'file'}?`);
+    const confirmed = window.confirm(`Are you sure you want to delete this ${isDir ? "folder and all its contents" : "file"}?`);
     if (!confirmed) return;
 
     try {
       setActionLoading(true);
       const res = await fetch(`${API_BASE}/storage/item?path=${encodeURIComponent(itemPath)}`, {
-        method: 'DELETE',
+        method: "DELETE",
         headers: getAuthHeader()
       });
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || 'Failed to delete');
+        throw new Error(err.detail || "Failed to delete");
       }
 
-      setStatusMsg('Deleted successfully');
-      setTimeout(() => setStatusMsg(''), 3000);
+      setStatusMsg("Item deleted successfully");
+      setTimeout(() => setStatusMsg(""), 3000);
       loadDirectory(currentPath);
+      fetchUsersSummary();
     } catch (err: any) {
-      alert(err.message || 'Delete failed');
+      alert(err.message || "Delete failed");
     } finally {
       setActionLoading(false);
     }
   };
 
   const handleDownload = (itemPath: string) => {
-    const token = localStorage.getItem('token');
     const url = `${API_BASE}/storage/download?path=${encodeURIComponent(itemPath)}`;
-    const a = document.createElement('a');
+    const a = document.createElement("a");
     a.href = url;
-    a.target = '_blank';
+    a.target = "_blank";
     a.click();
   };
 
-  const navigateToFolder = (subpath: string) => {
-    setCurrentPath(subpath);
-  };
-
-  const formatBytes = (bytes: number) => {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
-  };
-
-  // If not super admin, block access
-  if (!isSuperAdmin) {
-    return (
-      <div className="p-6 max-w-lg mx-auto text-center space-y-4 pt-16">
-        <div className="w-16 h-16 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400 mx-auto">
-          <ShieldAlert className="w-8 h-8" />
-        </div>
-        <h2 className="text-xl font-black text-white font-display">Super Admin Access Only</h2>
-        <p className="text-sm text-slate-400">
-          Phone local storage and folder creation is strictly restricted to Super Admin. Regular admin and staff users are not permitted.
-        </p>
-        <button
-          onClick={() => onNavigate('dashboard')}
-          className="px-5 py-2.5 rounded-xl bg-slate-800 text-white font-bold hover:bg-slate-700 transition-all text-xs"
-        >
-          Return to Dashboard
-        </button>
-      </div>
+  const filteredUsers = useMemo(() => {
+    if (!userSearch.trim()) return usersSummary;
+    const q = userSearch.toLowerCase();
+    return usersSummary.filter(u => 
+      (u.full_name || "").toLowerCase().includes(q) ||
+      (u.username || "").toLowerCase().includes(q) ||
+      (u.role || "").toLowerCase().includes(q)
     );
-  }
+  }, [usersSummary, userSearch]);
 
-  const breadcrumbs = currentPath ? currentPath.split('/').filter(Boolean) : [];
+  const getRoleBadge = (role: string) => {
+    switch (role) {
+      case "super_admin":
+        return <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-purple-500/10 text-purple-600 border border-purple-500/30">Super Admin</span>;
+      case "admin":
+        return <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-blue-500/10 text-blue-600 border border-blue-500/30">Admin</span>;
+      case "driver":
+        return <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-emerald-500/10 text-emerald-600 border border-emerald-500/30">Driver</span>;
+      default:
+        return <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-slate-500/10 text-slate-600 border border-slate-500/30">{role}</span>;
+    }
+  };
+
+  const breadcrumbs = currentPath ? currentPath.split("/").filter(Boolean) : [];
 
   return (
-    <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-4">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900/90 border border-slate-800 p-4 rounded-2xl shadow-xl">
+    <div className="p-3.5 sm:p-6 max-w-5xl mx-auto space-y-4">
+      {/* 1. TOP HEADER */}
+      <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-600 to-blue-600 flex items-center justify-center text-white shadow-md shadow-cyan-500/20">
             <HardDrive className="w-5 h-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-base sm:text-lg font-black text-white font-display">Phone Local Storage</h1>
-              <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                Super Admin
-              </span>
+              <h1 className="text-base sm:text-lg font-black text-slate-900 font-display">
+                {isSuperAdmin ? "Phone & Mobile Storage (મોબાઇલ સ્ટોરેજ)" : "My Mobile Storage (મારું મોબાઇલ સ્ટોરેજ)"}
+              </h1>
+              {isSuperAdmin && (
+                <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-purple-100 text-purple-700 border border-purple-300">
+                  User-Wise Mode
+                </span>
+              )}
             </div>
-            <p className="text-xs text-slate-400">Create folders and manage files on host storage</p>
+            <p className="text-xs text-slate-500">
+              {isSuperAdmin 
+                ? "Manage folders, documents, and storage user-wise across all staff and drivers"
+                : `Sandboxed user storage for @${currentUser.username || "user"}`}
+            </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setNewFolderOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition-all cursor-pointer"
-          >
-            <FolderPlus className="w-4 h-4" />
-            <span>New Folder</span>
-          </button>
+        {/* Action Controls & View Switcher */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {isSuperAdmin && (
+            <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
+              <button
+                type="button"
+                onClick={() => {
+                  setViewMode("users");
+                  setSelectedUser(null);
+                  fetchUsersSummary();
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  viewMode === "users"
+                    ? "bg-white text-blue-600 shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <UsersIcon className="w-3.5 h-3.5" />
+                <span>User-Wise Storage ({usersSummary.length})</span>
+              </button>
 
-          <label className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold text-xs shadow-sm transition-all cursor-pointer">
-            <Upload className="w-4 h-4 text-cyan-400" />
-            <span>Upload File</span>
-            <input type="file" onChange={handleFileUpload} className="hidden" />
-          </label>
+              <button
+                type="button"
+                onClick={() => {
+                  setViewMode("files");
+                  loadDirectory(currentPath);
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  viewMode === "files" && !selectedUser
+                    ? "bg-white text-blue-600 shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <Folder className="w-3.5 h-3.5" />
+                <span>All Host Files</span>
+              </button>
+            </div>
+          )}
 
           <button
-            onClick={() => loadDirectory(currentPath)}
-            disabled={loading}
-            className="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white border border-slate-700 transition-all cursor-pointer"
+            onClick={() => {
+              if (viewMode === "users") fetchUsersSummary();
+              else loadDirectory(currentPath);
+            }}
+            disabled={loadingUsers || loadingFiles}
+            className="p-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200 transition-all cursor-pointer shadow-xs"
             title="Refresh"
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-4 h-4 ${(loadingUsers || loadingFiles) ? "animate-spin" : ""}`} />
           </button>
         </div>
       </div>
 
+      {/* Notifications */}
       {statusMsg && (
-        <div className="p-3 bg-emerald-950/60 border border-emerald-500/40 rounded-xl text-xs font-bold text-emerald-300 flex items-center gap-2">
-          <Check className="w-4 h-4 text-emerald-400" />
+        <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-xl text-xs font-bold text-emerald-800 flex items-center gap-2 animate-in fade-in">
+          <Check className="w-4 h-4 text-emerald-600 shrink-0" />
           <span>{statusMsg}</span>
         </div>
       )}
 
       {error && (
-        <div className="p-3 bg-rose-950/60 border border-rose-500/40 rounded-xl text-xs font-bold text-rose-300 flex items-center gap-2">
-          <AlertCircle className="w-4 h-4 text-rose-400" />
+        <div className="p-3 bg-rose-50 border border-rose-300 rounded-xl text-xs font-bold text-rose-800 flex items-center gap-2 animate-in fade-in">
+          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
-      {/* Path Breadcrumbs */}
-      <div className="flex items-center gap-1.5 text-xs text-slate-400 bg-slate-900/60 border border-slate-800/80 px-3 py-2 rounded-xl overflow-x-auto">
-        <button
-          onClick={() => setCurrentPath('')}
-          className="hover:text-cyan-400 flex items-center gap-1 font-semibold text-slate-300 cursor-pointer"
-        >
-          <Home className="w-3.5 h-3.5" />
-          <span>root</span>
-        </button>
-        {breadcrumbs.map((segment, idx) => {
-          const sub = breadcrumbs.slice(0, idx + 1).join('/');
-          const isLast = idx === breadcrumbs.length - 1;
-          return (
-            <React.Fragment key={sub}>
-              <ChevronRight className="w-3.5 h-3.5 text-slate-600 flex-shrink-0" />
-              <button
-                onClick={() => setCurrentPath(sub)}
-                className={`font-semibold cursor-pointer truncate max-w-[120px] ${
-                  isLast ? 'text-cyan-400 font-bold' : 'hover:text-slate-200'
-                }`}
-              >
-                {segment}
-              </button>
-            </React.Fragment>
-          );
-        })}
-      </div>
+      {/* 2. OVERALL STORAGE QUOTA STATS CARD */}
+      {hostDisk && (
+        <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white rounded-2xl p-4 shadow-md border border-slate-700">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-2.5">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 bg-blue-500/20 rounded-xl text-blue-400">
+                <PieChart className="w-4 h-4" />
+              </div>
+              <div>
+                <h4 className="text-xs font-bold text-slate-200">Phone Storage Quota & User Usage</h4>
+                <p className="text-[11px] text-slate-400">
+                  {hostDisk.free_formatted} Free of {hostDisk.total_formatted} Total
+                </p>
+              </div>
+            </div>
 
-      {/* File & Folder List */}
-      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl overflow-hidden">
-        {loading ? (
-          <div className="p-8 text-center text-slate-400 text-xs flex items-center justify-center gap-2">
-            <RefreshCw className="w-4 h-4 animate-spin text-cyan-400" />
-            <span>Scanning storage...</span>
+            <div className="text-right">
+              <span className="text-xs font-extrabold text-cyan-400">
+                {totalAppSizeFormatted}
+              </span>
+              <span className="text-[10px] text-slate-400 block">Used by App Users</span>
+            </div>
           </div>
-        ) : items.length === 0 ? (
-          <div className="p-8 text-center text-slate-400 text-xs">
-            <Folder className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-            <span>This folder is empty. Create a new folder or upload files.</span>
+
+          <div className="w-full bg-slate-700/80 rounded-full h-2 overflow-hidden">
+            <div 
+              className="bg-gradient-to-r from-blue-500 to-cyan-400 h-2 rounded-full transition-all duration-500"
+              style={{ width: `${Math.min(100, Math.max(2, hostDisk.percent_used))}%` }}
+            />
           </div>
-        ) : (
-          <div className="divide-y divide-slate-800/80">
-            {items.map((item) => (
-              <div
-                key={item.path}
-                className="flex items-center justify-between p-3.5 hover:bg-slate-800/50 transition-colors gap-3"
-              >
-                <div 
-                  onClick={() => item.is_dir ? navigateToFolder(item.path) : handleDownload(item.path)}
-                  className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer"
+          <div className="flex justify-between items-center text-[10px] text-slate-400 mt-1 font-mono">
+            <span>{hostDisk.percent_used}% Host Disk Occupied</span>
+            <span>{usersSummary.length} Active System Users</span>
+          </div>
+        </div>
+      )}
+
+      {/* 3. VIEW MODE A: USER-WISE STORAGE LIST */}
+      {viewMode === "users" && isSuperAdmin && (
+        <div className="space-y-3">
+          <div className="relative">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+            <input
+              type="text"
+              value={userSearch}
+              onChange={(e) => setUserSearch(e.target.value)}
+              placeholder="Search user by name, username, or role..."
+              className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-xs"
+            />
+          </div>
+
+          {loadingUsers ? (
+            <div className="p-12 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
+              <RefreshCw className="w-4 h-4 animate-spin text-blue-600" />
+              <span>Calculating user storage breakdowns...</span>
+            </div>
+          ) : filteredUsers.length === 0 ? (
+            <div className="p-10 text-center bg-white border border-slate-200 rounded-2xl text-xs text-slate-500">
+              No users found matching your search.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {filteredUsers.map((u) => (
+                <div
+                  key={u.user_id}
+                  className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-blue-300 transition-all flex flex-col justify-between"
                 >
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                    item.is_dir 
-                      ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' 
-                      : 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'
-                  }`}>
-                    {item.is_dir ? <Folder className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs font-bold text-white truncate hover:text-cyan-300">
-                      {item.name}
-                    </p>
-                    <p className="text-[10px] text-slate-400">
-                      {item.is_dir ? 'Directory' : formatBytes(item.size)} • {new Date(item.modified).toLocaleDateString()}
-                    </p>
-                  </div>
-                </div>
+                  <div>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 flex items-center justify-center font-black text-sm shrink-0">
+                          {u.full_name?.charAt(0).toUpperCase() || u.username.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <h3 className="font-extrabold text-sm text-slate-900 truncate">
+                            {u.full_name}
+                          </h3>
+                          <p className="text-[11px] text-slate-500 truncate">
+                            @{u.username}
+                          </p>
+                        </div>
+                      </div>
+                      {getRoleBadge(u.role)}
+                    </div>
 
-                <div className="flex items-center gap-1.5 flex-shrink-0">
-                  {!item.is_dir && (
-                    <button
-                      onClick={() => handleDownload(item.path)}
-                      className="p-1.5 rounded-lg bg-slate-800 hover:bg-cyan-950 text-slate-300 hover:text-cyan-300 border border-slate-700 transition-all cursor-pointer"
-                      title="Download"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                    </button>
-                  )}
+                    <div className="grid grid-cols-3 gap-2 bg-slate-50 border border-slate-100 rounded-xl p-2.5 my-3 text-center">
+                      <div>
+                        <span className="block text-xs font-black text-slate-800">{u.file_count}</span>
+                        <span className="text-[10px] text-slate-500">Files</span>
+                      </div>
+                      <div>
+                        <span className="block text-xs font-black text-slate-800">{u.dir_count}</span>
+                        <span className="text-[10px] text-slate-500">Folders</span>
+                      </div>
+                      <div>
+                        <span className="block text-xs font-black text-blue-600">{u.size_formatted}</span>
+                        <span className="text-[10px] text-slate-500">Storage</span>
+                      </div>
+                    </div>
+
+                    <div className="text-[10px] text-slate-400 flex items-center justify-between mb-3">
+                      <span>Folder: <span className="font-mono text-slate-600">{u.path}</span></span>
+                      {u.latest_modified && (
+                        <span>Mod: {new Date(u.latest_modified).toLocaleDateString()}</span>
+                      )}
+                    </div>
+                  </div>
+
                   <button
-                    onClick={() => handleDeleteItem(item.path, item.is_dir)}
-                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-950 text-slate-400 hover:text-rose-400 border border-slate-700 transition-all cursor-pointer"
-                    title="Delete"
+                    onClick={() => handleOpenUserStorage(u)}
+                    className="w-full py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold shadow-sm flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <Folder className="w-3.5 h-3.5" />
+                    <span>Open User Storage (સ્ટોરેજ ખોલો)</span>
                   </button>
                 </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 4. VIEW MODE B: FILE EXPLORER */}
+      {(viewMode === "files" || selectedUser || !isSuperAdmin) && (
+        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+          {selectedUser && (
+            <div className="bg-blue-50 border-b border-blue-100 px-4 py-2.5 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <button
+                  onClick={handleBackToUsersList}
+                  className="p-1 rounded-lg bg-white border border-blue-200 text-blue-700 hover:bg-blue-100 transition-colors cursor-pointer"
+                  title="Back to all users"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                </button>
+                <div className="min-w-0">
+                  <span className="text-xs font-extrabold text-blue-900 truncate block">
+                    User: {selectedUser.full_name} (@{selectedUser.username})
+                  </span>
+                  <span className="text-[10px] text-blue-600">
+                    Storage: {selectedUser.size_formatted} • {selectedUser.file_count} files
+                  </span>
+                </div>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
 
-      {/* New Folder Modal */}
-      {newFolderOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <form 
-            onSubmit={handleCreateFolder}
-            className="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-2xl max-w-sm w-full space-y-4"
-          >
-            <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-              <h3 className="text-sm font-black text-white">Create New Folder</h3>
-              <button 
-                type="button" 
-                onClick={() => setNewFolderOpen(false)}
-                className="text-slate-400 hover:text-white text-xs cursor-pointer"
+              <button
+                onClick={handleBackToUsersList}
+                className="text-[11px] font-bold text-blue-700 bg-white hover:bg-blue-100 border border-blue-200 px-2.5 py-1 rounded-lg transition-colors cursor-pointer shrink-0"
               >
-                Cancel
+                All Users List
               </button>
             </div>
+          )}
 
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-400 mb-1.5">
-                Folder Name
+          <div className="p-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 bg-slate-50">
+            <div className="flex items-center gap-1 text-xs text-slate-500 overflow-x-auto py-1">
+              <button
+                onClick={() => {
+                  if (selectedUser) setCurrentPath(selectedUser.path);
+                  else if (!isSuperAdmin) setCurrentPath(`users/${currentUser.username}`);
+                  else setCurrentPath("");
+                  loadDirectory(selectedUser ? selectedUser.path : (!isSuperAdmin ? `users/${currentUser.username}` : ""));
+                }}
+                className="hover:text-blue-600 flex items-center gap-1 font-bold text-slate-700 cursor-pointer"
+              >
+                <Home className="w-3.5 h-3.5" />
+                <span>{selectedUser ? `@${selectedUser.username}` : (!isSuperAdmin ? `@${currentUser.username}` : "root")}</span>
+              </button>
+
+              {breadcrumbs.map((segment, idx) => {
+                const sub = breadcrumbs.slice(0, idx + 1).join("/");
+                const isLast = idx === breadcrumbs.length - 1;
+                return (
+                  <React.Fragment key={sub}>
+                    <ChevronRight className="w-3.5 h-3.5 text-slate-300 shrink-0" />
+                    <button
+                      onClick={() => {
+                        setCurrentPath(sub);
+                        loadDirectory(sub);
+                      }}
+                      className={`cursor-pointer whitespace-nowrap ${
+                        isLast ? "font-bold text-slate-900" : "hover:text-blue-600 text-slate-600"
+                      }`}
+                    >
+                      {segment}
+                    </button>
+                  </React.Fragment>
+                );
+              })}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setNewFolderOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-xs transition-all cursor-pointer"
+              >
+                <FolderPlus className="w-3.5 h-3.5" />
+                <span>New Folder</span>
+              </button>
+
+              <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 font-bold text-xs shadow-xs transition-all cursor-pointer">
+                <Upload className="w-3.5 h-3.5 text-blue-600" />
+                <span>Upload File</span>
+                <input type="file" onChange={handleFileUpload} className="hidden" />
               </label>
-              <input
-                type="text"
-                value={newFolderName}
-                onChange={(e) => setNewFolderName(e.target.value)}
-                placeholder="e.g. Invoices_2026 or Backups"
-                autoFocus
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500 font-mono"
-              />
             </div>
+          </div>
 
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setNewFolderOpen(false)}
-                className="px-3 py-2 rounded-xl bg-slate-800 text-slate-300 font-bold text-xs cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={actionLoading || !newFolderName.trim()}
-                className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md cursor-pointer disabled:opacity-50"
-              >
-                {actionLoading ? 'Creating...' : 'Create Folder'}
-              </button>
+          {newFolderOpen && (
+            <div className="p-3 bg-blue-50/70 border-b border-blue-200">
+              <form onSubmit={handleCreateFolder} className="flex items-center gap-2 max-w-md">
+                <input
+                  type="text"
+                  value={newFolderName}
+                  onChange={(e) => setNewFolderName(e.target.value)}
+                  placeholder="Enter folder name (e.g. Invoices, Receipts)..."
+                  className="flex-1 px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
+                  autoFocus
+                />
+                <button
+                  type="submit"
+                  disabled={actionLoading || !newFolderName.trim()}
+                  className="px-3 py-1.5 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-500 disabled:opacity-50 cursor-pointer"
+                >
+                  Create
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNewFolderOpen(false)}
+                  className="p-1.5 rounded-xl text-slate-500 hover:text-slate-800 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </form>
             </div>
-          </form>
+          )}
+
+          {loadingFiles ? (
+            <div className="p-12 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
+              <RefreshCw className="w-4 h-4 animate-spin text-blue-600" />
+              <span>Loading files and folders...</span>
+            </div>
+          ) : items.length === 0 ? (
+            <div className="p-12 text-center space-y-3">
+              <div className="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 mx-auto">
+                <Folder className="w-6 h-6" />
+              </div>
+              <p className="text-xs text-slate-500 font-semibold">This folder is currently empty.</p>
+              <p className="text-[11px] text-slate-400">Use "Upload File" or "New Folder" to add documents.</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {items.map((it) => (
+                <div
+                  key={it.path}
+                  className="p-3 sm:px-4 flex items-center justify-between gap-3 hover:bg-slate-50 transition-colors"
+                >
+                  <div
+                    onClick={() => {
+                      if (it.is_dir) {
+                        setCurrentPath(it.path);
+                        loadDirectory(it.path);
+                      }
+                    }}
+                    className={`flex items-center gap-3 min-w-0 flex-1 ${it.is_dir ? "cursor-pointer" : ""}`}
+                  >
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                      it.is_dir ? "bg-amber-100 text-amber-700" : "bg-blue-50 text-blue-600"
+                    }`}>
+                      {it.is_dir ? <Folder className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
+                    </div>
+
+                    <div className="min-w-0">
+                      <h4 className={`text-xs font-bold truncate ${it.is_dir ? "text-blue-900 hover:underline" : "text-slate-800"}`}>
+                        {it.name}
+                      </h4>
+                      <p className="text-[10px] text-slate-400 flex items-center gap-2">
+                        <span>{it.is_dir ? "Folder" : it.size_formatted}</span>
+                        <span>•</span>
+                        <span>{new Date(it.modified).toLocaleString()}</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {!it.is_dir && (
+                      <button
+                        onClick={() => handleDownload(it.path)}
+                        className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                        title="Download file"
+                      >
+                        <Download className="w-4 h-4" />
+                      </button>
+                    )}
+
+                    <button
+                      onClick={() => handleDeleteItem(it.path, it.is_dir)}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                      title="Delete"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
