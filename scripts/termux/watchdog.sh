@@ -89,9 +89,11 @@ while true; do
     sleep 15
     loop_count=$((loop_count + 1))
 
-    # Auto-recycle web servers every 2 hours (480 loops * 15s = 7200s) to prevent memory leaks with ZERO data loss
-    if [ $((loop_count % 480)) -eq 0 ]; then
-        if [ -f "${BASE_DIR}/auto-restart-2h.sh" ]; then
+    # Auto-recycle web servers every 30 minutes (120 loops * 15s = 1800s) to prevent memory leaks with ZERO data loss
+    if [ $((loop_count % 120)) -eq 0 ]; then
+        if [ -f "${BASE_DIR}/auto-restart-30m.sh" ]; then
+            bash "${BASE_DIR}/auto-restart-30m.sh" >> "${LOG_FILE}" 2>&1 || true
+        elif [ -f "${BASE_DIR}/auto-restart-2h.sh" ]; then
             bash "${BASE_DIR}/auto-restart-2h.sh" >> "${LOG_FILE}" 2>&1 || true
         fi
     fi

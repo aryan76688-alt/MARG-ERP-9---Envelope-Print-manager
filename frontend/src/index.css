@@ -47,32 +47,42 @@
     @apply inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 font-bold text-xs transition-colors active:scale-95;
   }
 
-  /* Google Stitch Glassmorphism & Elevation */
-  .stitch-card {
-    @apply bg-slate-900/90 border border-slate-800/80 backdrop-blur-md rounded-2xl shadow-xl shadow-black/25 transition-all;
-  }
-  .stitch-card-elevated {
-    @apply bg-slate-900 border border-slate-800 rounded-2xl shadow-xl transition-all hover:border-blue-500/30;
-  }
-  .stitch-dock {
-    @apply bg-slate-950/95 border border-slate-800/90 backdrop-blur-xl shadow-2xl;
+  /* Recreated Smooth Bi-Directional APK Scrolling Engine */
+  .apk-scroll-container {
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+    touch-action: pan-y !important;
+    scroll-behavior: smooth !important;
+    overscroll-behavior-y: auto !important;
   }
 
-  /* Stitch Status Badges */
+  /* Google Stitch Glassmorphism & Elevation (Light Theme) */
+  .stitch-card {
+    @apply bg-white border border-slate-200/90 rounded-2xl shadow-sm transition-all;
+  }
+  .stitch-card-elevated {
+    @apply bg-white border border-slate-200 rounded-2xl shadow-md hover:shadow-lg transition-all hover:border-blue-300;
+  }
+  .stitch-dock {
+    @apply bg-white/95 border border-slate-200/90 backdrop-blur-xl shadow-xl;
+  }
+
+  /* Stitch Status Badges (Light Theme High Contrast) */
   .badge-emerald {
-    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20;
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200;
   }
   .badge-blue {
-    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-blue-500/10 text-blue-400 border border-blue-500/20;
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200;
   }
   .badge-indigo {
-    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-indigo-500/10 text-indigo-400 border border-indigo-500/20;
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-200;
   }
   .badge-amber {
-    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-amber-500/10 text-amber-400 border border-amber-500/20;
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-800 border border-amber-200;
   }
   .badge-rose {
-    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-rose-500/10 text-rose-400 border border-rose-500/20;
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-rose-50 text-rose-700 border border-rose-200;
   }
 }
 

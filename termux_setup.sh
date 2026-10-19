@@ -109,6 +109,9 @@ JWT_EXPIRES_IN=7d
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ENVELOPE_MANAGER_API_URL=http://127.0.0.1:8080
 MARG_SYNC_SECRET=shreeji-sync-2026
+GOOGLE_DRIVE_API_KEY=AIzaSyCvIXdK8OcrjxHRcTnHge8dqW2P5JdffGs
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=AIzaSyCqJ08p5J1pYJQvJqrkV5_8AIl6pP8CfXA
+GOOGLE_MAPS_API_KEY=AIzaSyCqJ08p5J1pYJQvJqrkV5_8AIl6pP8CfXA
 ENV_EOF
 
 echo -e "    [*] Installing npm dependencies for Order Book..."
@@ -148,6 +151,8 @@ HOST=0.0.0.0
 PORT=8080
 ORDER_BOOK_API_URL=http://127.0.0.1:3000
 DATABASE_URL=sqlite:///envelope_manager.db
+GOOGLE_DRIVE_API_KEY=AIzaSyCvIXdK8OcrjxHRcTnHge8dqW2P5JdffGs
+GOOGLE_MAPS_API_KEY=AIzaSyCqJ08p5J1pYJQvJqrkV5_8AIl6pP8CfXA
 ENV_EOF
 
 echo -e "    [*] Creating Python virtual environment..."
@@ -166,6 +171,7 @@ cp -f "${ENVELOPE_DIR}/scripts/termux/start-all.sh" "${BASE_DIR}/start-all.sh"
 cp -f "${ENVELOPE_DIR}/scripts/termux/stop-all.sh" "${BASE_DIR}/stop-all.sh"
 cp -f "${ENVELOPE_DIR}/scripts/termux/status.sh" "${BASE_DIR}/status.sh"
 cp -f "${ENVELOPE_DIR}/scripts/termux/update.sh" "${BASE_DIR}/update.sh"
+cp -f "${ENVELOPE_DIR}/scripts/termux/auto-restart-30m.sh" "${BASE_DIR}/auto-restart-30m.sh" 2>/dev/null || true
 cp -f "${ENVELOPE_DIR}/scripts/termux/auto-restart-2h.sh" "${BASE_DIR}/auto-restart-2h.sh" 2>/dev/null || true
 if [ -f "${ENVELOPE_DIR}/scripts/termux/watchdog.sh" ]; then
     cp -f "${ENVELOPE_DIR}/scripts/termux/watchdog.sh" "${BASE_DIR}/watchdog.sh"
@@ -185,7 +191,7 @@ alias start="bash $HOME/shreeji/start-all.sh"
 alias stop="bash $HOME/shreeji/stop-all.sh"
 alias status="bash $HOME/shreeji/status.sh"
 alias update="bash $HOME/shreeji/update.sh"
-alias restart="bash $HOME/shreeji/auto-restart-2h.sh"
+alias restart="bash $HOME/shreeji/auto-restart-30m.sh"
 alias watchdog="tail -f $HOME/shreeji/logs/watchdog.log"
 alias shreeji="bash $HOME/shreeji/start-all.sh"
 BASHRC_EOF

@@ -20,7 +20,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
-import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import androidx.webkit.WebViewAssetLoader
 
 class MainActivity : AppCompatActivity() {
@@ -32,7 +31,6 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var rootLayout: View
     private lateinit var webView: WebView
-    private lateinit var swipeRefreshLayout: SwipeRefreshLayout
     private lateinit var progressBar: ProgressBar
     private lateinit var errorLayout: View
     private lateinit var retryButton: Button
@@ -54,11 +52,21 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Light Theme Status Bar & Navigation Bar configuration
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+            window.statusBarColor = 0xFFF8FAFC.toInt()
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            window.navigationBarColor = 0xFFFFFFFF.toInt()
+            window.decorView.systemUiVisibility = window.decorView.systemUiVisibility or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+        }
+
         setContentView(R.layout.activity_main)
 
         rootLayout = findViewById(R.id.rootLayout)
         webView = findViewById(R.id.webView)
-        swipeRefreshLayout = findViewById(R.id.swipeRefreshLayout)
         progressBar = findViewById(R.id.progressBar)
         errorLayout = findViewById(R.id.errorLayout)
         retryButton = findViewById(R.id.retryButton)
@@ -85,9 +93,6 @@ class MainActivity : AppCompatActivity() {
         initLocationPermissionLauncher()
         initWebView()
         requestLocationPermissions()
-
-        swipeRefreshLayout.setColorSchemeColors(0xFF2563EB.toInt(), 0xFF4F46E5.toInt())
-        swipeRefreshLayout.setOnRefreshListener { webView.reload() }
 
         retryButton.setOnClickListener {
             errorLayout.visibility = View.GONE
@@ -178,6 +183,14 @@ class MainActivity : AppCompatActivity() {
 
         val originalUA = settings.userAgentString
         settings.userAgentString = "$originalUA ShreejiEnvelopeApp/1.0.0 (Android FullStack APK)"
+
+        // Native Bi-Directional Smooth Scrolling Configuration
+        webView.isVerticalScrollBarEnabled = true
+        webView.isScrollbarFadingEnabled = true
+        webView.scrollBarStyle = View.SCROLLBARS_INSIDE_OVERLAY
+        webView.overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+        webView.isNestedScrollingEnabled = true
+        webView.setBackgroundColor(0xFFF8FAFC.toInt())
 
         webView.addJavascriptInterface(WebAppInterface(this), "AndroidBridge")
 
@@ -292,12 +305,10 @@ class MainActivity : AppCompatActivity() {
 
             override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                 progressBar.visibility = View.VISIBLE
-                swipeRefreshLayout.isRefreshing = false
             }
 
             override fun onPageFinished(view: WebView?, url: String?) {
                 progressBar.visibility = View.GONE
-                swipeRefreshLayout.isRefreshing = false
                 errorLayout.visibility = View.GONE
                 webView.visibility = View.VISIBLE
             }
@@ -305,7 +316,6 @@ class MainActivity : AppCompatActivity() {
             override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
                 if (request?.isForMainFrame == true) {
                     progressBar.visibility = View.GONE
-                    swipeRefreshLayout.isRefreshing = false
                     val currentUrl = view?.url
                     if (currentUrl != null && currentUrl.contains("appassets.androidplatform.net")) {
                         webView.loadUrl(REMOTE_FALLBACK_URL)

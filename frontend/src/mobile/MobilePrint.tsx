@@ -103,77 +103,75 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
       updated[existingIndex].qty += 1;
       setCaseItems(updated);
     } else {
-      setCaseItems([
-        ...caseItems, 
-        { title: `${fluidType} ${volume}`, type: fluidType, volume, qty: 1 }
-      ]);
+      setCaseItems([...caseItems, { type: fluidType, volume: volume, qty: 1 }]);
     }
   };
 
   const handleRemoveFluidItem = (index: number) => {
-    const updated = caseItems.filter((_, i) => i !== index);
-    setCaseItems(updated);
+    setCaseItems(caseItems.filter((_, i) => i !== index));
   };
 
   const handleExecutePrint = async () => {
-    if (!selectedParty) {
-      alert('Please select a party first.');
-      return;
-    }
-
+    if (!selectedParty) return;
     setPrinting(true);
     try {
-      const isAddressOnly = totalCases === 0;
-      const payload: any = {
-        party_id: selectedParty.id,
+      const jobPayload = {
+        party_id: selectedParty.id!,
         party_name: selectedParty.party_name,
-        party_code: selectedParty.party_code,
-        party_address: selectedParty.address,
-        party_address_line_2: selectedParty.address_line_2,
-        party_address_line_3: selectedParty.address_line_3,
-        party_city: selectedParty.city,
-        party_state: selectedParty.state,
-        party_mobile: selectedParty.mobile_no,
-        party_gst: selectedParty.gst_no,
+        party_code: selectedParty.party_code || undefined,
+        address: selectedParty.address,
+        address_line_2: selectedParty.address_line_2 || undefined,
+        address_line_3: selectedParty.address_line_3 || undefined,
+        city: selectedParty.city,
+        state: selectedParty.state || 'Gujarat',
+        mobile_no: selectedParty.mobile_no || undefined,
+        gst_no: selectedParty.gst_no || undefined,
         parcel_type: 'Medicine',
         total_cases: totalCases,
-        total_weight: 0.0,
-        envelope_size: 'A4',
+        case_weights: Array(totalCases).fill(0),
+        envelope_size: 'Medium (9x4)',
         orientation: 'Landscape',
+        printer_name: 'Default',
+        envelopes_per_page: 1,
+        status: 'Printed',
+        delivery_boy_name: driverName || undefined,
+        delivery_route: deliveryRoute || selectedParty.route_1 || selectedParty.route || undefined,
         language: language,
-        driver_name: driverName,
-        delivery_route: deliveryRoute,
-        case_items: isAddressOnly ? [] : caseItems,
-        is_address_only: isAddressOnly
+        party_name_gu: selectedParty.party_name_gu || undefined,
+        address_gu: selectedParty.address_gu || undefined,
+        address_line_2_gu: selectedParty.address_line_2_gu || undefined,
+        address_line_3_gu: selectedParty.address_line_3_gu || undefined,
+        city_gu: selectedParty.city_gu || undefined,
+        state_gu: selectedParty.state_gu || undefined,
+        case_breakdown: caseItems.length > 0 ? caseItems : undefined
       };
 
-      const res = await createPrintJob(payload);
-      if (res && res.job) {
-        setSuccessJob(res.job);
-        downloadEnvelopePDF({ job_id: res.job.id, language: language });
-        if (onJobCreated) onJobCreated();
-      }
+      const res = await createPrintJob(jobPayload);
+      setSuccessJob(res);
+      if (onJobCreated) onJobCreated();
     } catch (err: any) {
-      console.error('Mobile print error:', err);
       try {
-        const clientUuid = 'offline_' + Date.now();
-        await queueOfflineJob({
-          client_uuid: clientUuid,
-          party_id: selectedParty.id,
-          party_name_snap: selectedParty.party_name,
-          party_code_snap: selectedParty.party_code,
-          party_address_snap: selectedParty.address,
-          party_city_snap: selectedParty.city,
-          party_state_snap: selectedParty.state,
-          party_mobile_snap: selectedParty.mobile_no,
+        const offlineId = await queueOfflineJob({
+          party_id: selectedParty.id!,
+          party_name: selectedParty.party_name,
+          party_name_gu: selectedParty.party_name_gu || undefined,
+          party_code: selectedParty.party_code,
+          address: selectedParty.address,
+          city: selectedParty.city,
+          mobile: selectedParty.mobile_no,
           total_cases: totalCases,
           language: language,
-          driver_name: driverName,
-          delivery_route: deliveryRoute
+          delivery_route: deliveryRoute,
+          driver_name: driverName
         });
-        alert('Saved offline: Will auto-sync once internet connection is available.');
-      } catch (offlineErr: any) {
-        alert('Print error: ' + (err.message || 'Unknown error'));
+        setSuccessJob({
+          id: offlineId,
+          job_number: `OFFLINE-${Date.now().toString().slice(-6)}`,
+          is_offline: true
+        });
+        if (onJobCreated) onJobCreated();
+      } catch (offErr) {
+        alert("Failed to create print job: " + (err.message || "Unknown error"));
       }
     } finally {
       setPrinting(false);
@@ -189,10 +187,10 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
   };
 
   return (
-    <div className="p-4 space-y-4 max-w-lg mx-auto pb-32">
-      {/* 1. PARTY SEARCH & AUTOCOMPLETE */}
+    <div className="p-4 space-y-4 max-w-lg mx-auto pb-32 font-sans">
+      {/* 1. PARTY SEARCH & AUTOCOMPLETE (LIGHT THEME) */}
       <div className="relative">
-        <label className="block text-xs font-black uppercase tracking-wider text-slate-400 mb-1.5 px-1">
+        <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-1.5 px-1 font-mono">
           Select Recipient Party
         </label>
         <div className="relative flex items-center">
@@ -201,13 +199,13 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search name, code (e.g. MARG001837), city..."
-            className="w-full bg-slate-900/90 border border-slate-700/80 rounded-2xl py-3.5 pl-11 pr-10 text-white placeholder-slate-500 text-sm font-semibold focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 shadow-md"
+            className="w-full bg-white border border-slate-300 rounded-2xl py-3.5 pl-11 pr-10 text-slate-900 placeholder-slate-400 text-sm font-semibold focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-500/30 shadow-sm"
           />
           <Search className="w-5 h-5 text-slate-400 absolute left-3.5 pointer-events-none" />
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="absolute right-3 p-1 rounded-full text-slate-400 hover:text-white"
+              className="absolute right-3 p-1 rounded-full text-slate-400 hover:text-slate-800"
             >
               <X className="w-4 h-4" />
             </button>
@@ -216,29 +214,29 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
 
         {/* Autocomplete Dropdown */}
         {suggestions.length > 0 && (
-          <div className="absolute left-0 right-0 top-full mt-2 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl z-40 max-h-72 overflow-y-auto divide-y divide-slate-800">
+          <div className="absolute left-0 right-0 top-full mt-2 bg-white border border-slate-200 rounded-2xl shadow-xl z-40 max-h-72 overflow-y-auto divide-y divide-slate-100">
             {suggestions.map((party) => (
               <div
                 key={party.id}
                 onClick={() => handleSelectParty(party)}
-                className="p-3.5 hover:bg-slate-800 active:bg-blue-600 transition-colors cursor-pointer"
+                className="p-3.5 hover:bg-slate-50 active:bg-blue-50 transition-colors cursor-pointer"
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-mono font-black px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                  <span className="text-xs font-mono font-black px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
                     {party.party_code || 'MARG'}
                   </span>
-                  <span className="text-xs text-slate-400 font-bold">{party.city}</span>
+                  <span className="text-xs text-slate-500 font-bold">{party.city}</span>
                 </div>
-                <div className="font-extrabold text-white text-sm mt-1">
+                <div className="font-extrabold text-slate-900 text-sm mt-1">
                   {party.party_name}
                 </div>
                 {party.party_name_gu && (
-                  <div className="text-xs text-slate-400 font-medium">
+                  <div className="text-xs text-slate-500 font-medium">
                     {party.party_name_gu}
                   </div>
                 )}
                 {party.route_1 && (
-                  <div className="text-[10px] text-amber-400 font-bold mt-0.5">
+                  <div className="text-[10px] text-amber-700 font-bold mt-0.5">
                     Route: {party.route_1}
                   </div>
                 )}
@@ -248,24 +246,24 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
         )}
       </div>
 
-      {/* 2. SELECTED PARTY CARD */}
+      {/* 2. SELECTED PARTY CARD (LIGHT THEME) */}
       {selectedParty ? (
-        <div className="bg-slate-900/90 border border-blue-500/30 rounded-2xl p-4 shadow-xl relative space-y-3">
+        <div className="bg-white border border-blue-200 rounded-2xl p-4 shadow-sm relative space-y-3">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-mono font-black px-2 py-0.5 rounded-md bg-blue-600 text-white shadow-sm">
                   {selectedParty.party_code || 'MARG'}
                 </span>
-                <span className="text-xs text-emerald-400 font-bold bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded-md">
+                <span className="text-xs text-emerald-700 font-bold bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
                   Active Selection
                 </span>
               </div>
-              <h3 className="text-base font-black text-white mt-1.5 leading-snug">
+              <h3 className="text-base font-black text-slate-900 mt-1.5 leading-snug">
                 {selectedParty.party_name}
               </h3>
               {selectedParty.party_name_gu && (
-                <div className="text-xs text-slate-400 font-medium mt-0.5">
+                <div className="text-xs text-slate-500 font-medium mt-0.5">
                   {selectedParty.party_name_gu}
                 </div>
               )}
@@ -274,7 +272,7 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
             {/* Clear Selection Button */}
             <button
               onClick={() => setSelectedParty(null)}
-              className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white"
+              className="p-1.5 rounded-lg bg-slate-100 text-slate-500 hover:text-slate-800 hover:bg-slate-200 transition-all cursor-pointer"
               title="Clear Selected Party"
             >
               <X className="w-4 h-4" />
@@ -282,17 +280,17 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
           </div>
 
           {/* Address Details */}
-          <div className="pt-2 border-t border-slate-800 text-xs text-slate-300 space-y-1">
+          <div className="pt-2 border-t border-slate-100 text-xs text-slate-600 space-y-1">
             <div className="flex items-start gap-1.5">
-              <MapPin className="w-3.5 h-3.5 text-blue-400 flex-shrink-0 mt-0.5" />
+              <MapPin className="w-3.5 h-3.5 text-blue-600 flex-shrink-0 mt-0.5" />
               <span>
                 {selectedParty.address}
                 {selectedParty.city && `, ${selectedParty.city}`}
               </span>
             </div>
             {selectedParty.mobile_no && (
-              <div className="flex items-center gap-1.5 text-slate-400">
-                <Phone className="w-3.5 h-3.5 text-emerald-400" />
+              <div className="flex items-center gap-1.5 text-slate-600">
+                <Phone className="w-3.5 h-3.5 text-emerald-600" />
                 <span>{selectedParty.mobile_no}</span>
               </div>
             )}
@@ -301,33 +299,33 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
           {/* Route Tags */}
           <div className="flex flex-wrap gap-1.5 pt-1">
             {selectedParty.route_1 && (
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/30">
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200">
                 R1: {selectedParty.route_1}
               </span>
             )}
             {selectedParty.route_2 && (
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200">
                 R2: {selectedParty.route_2}
               </span>
             )}
           </div>
 
           {/* Envelope Print Language Toggle */}
-          <div className="flex items-center justify-between pt-2 border-t border-slate-800">
-            <span className="text-xs font-bold text-slate-400">Envelope Language:</span>
-            <div className="flex items-center bg-slate-800 p-0.5 rounded-xl border border-slate-700">
+          <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+            <span className="text-xs font-bold text-slate-600">Envelope Language:</span>
+            <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200">
               <button
                 onClick={() => setLanguage('gu')}
-                className={`px-3 py-1 rounded-lg text-xs font-black transition-all ${
-                  language === 'gu' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+                className={`px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                  language === 'gu' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 Gujarati
               </button>
               <button
                 onClick={() => setLanguage('en')}
-                className={`px-3 py-1 rounded-lg text-xs font-black transition-all ${
-                  language === 'en' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+                className={`px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                  language === 'en' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 English
@@ -336,41 +334,41 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
           </div>
         </div>
       ) : (
-        <div className="p-8 rounded-2xl bg-slate-900/80 border border-dashed border-slate-800 text-center text-slate-400 text-xs">
+        <div className="p-8 rounded-2xl bg-white border border-dashed border-slate-300 text-center text-slate-500 text-xs shadow-sm">
           Search or select a party above to configure your envelope print.
         </div>
       )}
 
-      {/* 3. TACTILE CASE STEPPER */}
-      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-lg space-y-3">
+      {/* 3. TACTILE CASE STEPPER (LIGHT THEME) */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-3">
         <div className="flex items-center justify-between">
-          <label className="text-xs font-black uppercase tracking-wider text-slate-400">
+          <label className="text-xs font-black uppercase tracking-wider text-slate-500 font-mono">
             Total Dispatch Cases
           </label>
-          <span className="text-[11px] font-bold text-blue-400">
+          <span className="text-[11px] font-bold text-blue-600">
             {totalCases === 0 ? 'Address-Only Envelope' : `${totalCases} Parcel Case(s)`}
           </span>
         </div>
 
         {/* Stepper Controls */}
-        <div className="flex items-center justify-between gap-3 bg-slate-950 p-2 rounded-2xl border border-slate-800">
+        <div className="flex items-center justify-between gap-3 bg-slate-50 p-2 rounded-2xl border border-slate-200">
           <button
             onClick={() => setTotalCases(prev => Math.max(0, prev - 1))}
-            className="w-14 h-14 rounded-xl bg-slate-800 hover:bg-slate-700 text-white active:scale-90 transition-all flex items-center justify-center font-black text-2xl border border-slate-700 shadow-sm"
+            className="w-14 h-14 rounded-xl bg-white hover:bg-slate-100 text-rose-600 active:scale-90 transition-all flex items-center justify-center font-black text-2xl border border-slate-200 shadow-sm cursor-pointer"
           >
-            <Minus className="w-6 h-6 text-rose-400" />
+            <Minus className="w-6 h-6 text-rose-600" />
           </button>
 
           <div className="text-center min-w-[80px]">
-            <div className="text-3xl font-black text-white">{totalCases}</div>
-            <div className="text-[10px] font-bold text-slate-400">
+            <div className="text-3xl font-black text-slate-900">{totalCases}</div>
+            <div className="text-[10px] font-bold text-slate-500">
               {totalCases === 0 ? 'Address Only' : 'Cases'}
             </div>
           </div>
 
           <button
             onClick={() => setTotalCases(prev => prev + 1)}
-            className="w-14 h-14 rounded-xl bg-blue-600 hover:bg-blue-500 text-white active:scale-90 transition-all flex items-center justify-center font-black text-2xl shadow-md shadow-blue-600/30"
+            className="w-14 h-14 rounded-xl bg-blue-600 hover:bg-blue-700 text-white active:scale-90 transition-all flex items-center justify-center font-black text-2xl shadow-sm cursor-pointer"
           >
             <Plus className="w-6 h-6 text-white" />
           </button>
@@ -380,10 +378,10 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
           <button
             onClick={() => setTotalCases(0)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all border ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all border cursor-pointer ${
               totalCases === 0 
-                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' 
-                : 'bg-slate-800 text-slate-400 border-slate-700'
+                ? 'bg-amber-50 text-amber-800 border-amber-300 shadow-sm' 
+                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
             }`}
           >
             0 (Address Only)
@@ -392,10 +390,10 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
             <button
               key={c}
               onClick={() => setTotalCases(c)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all border ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all border cursor-pointer ${
                 totalCases === c 
-                  ? 'bg-blue-600 text-white border-blue-500 shadow-sm' 
-                  : 'bg-slate-800 text-slate-400 border-slate-700'
+                  ? 'bg-blue-600 text-white border-blue-600 shadow-sm' 
+                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
               }`}
             >
               {c} {c === 1 ? 'Case' : 'Cases'}
@@ -404,14 +402,14 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
         </div>
       </div>
 
-      {/* 4. IV FLUIDS BREAKDOWN (200ML EXCLUDED) */}
+      {/* 4. IV FLUIDS BREAKDOWN (200ML EXCLUDED - LIGHT THEME) */}
       {totalCases > 0 && (
-        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-lg space-y-3">
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-black uppercase tracking-wider text-slate-400">
+            <span className="text-xs font-black uppercase tracking-wider text-slate-500 font-mono">
               IV Fluids & Bottle Breakdown
             </span>
-            <span className="text-[10px] text-amber-400 font-bold bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-md">
+            <span className="text-[10px] text-amber-800 font-bold bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
               200ML Excluded
             </span>
           </div>
@@ -420,12 +418,12 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
           <div className="grid grid-cols-4 gap-1.5">
             {fluidTypes.map(f => (
               <div key={f} className="space-y-1">
-                <div className="text-[10px] font-black text-center text-slate-400">{f}</div>
+                <div className="text-[10px] font-black text-center text-slate-600">{f}</div>
                 {fluidVolumes.map(v => (
                   <button
                     key={`${f}_${v}`}
                     onClick={() => handleAddFluidItem(f, v)}
-                    className="w-full py-1 rounded-lg bg-slate-800 hover:bg-blue-600 active:scale-95 text-[10px] font-bold text-slate-200 border border-slate-700 transition-all text-center block"
+                    className="w-full py-1.5 rounded-lg bg-slate-50 hover:bg-blue-50 hover:text-blue-700 active:scale-95 text-[10px] font-bold text-slate-700 border border-slate-200 transition-all text-center block cursor-pointer"
                   >
                     +{v}
                   </button>
@@ -436,16 +434,16 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
 
           {/* Added items tags */}
           {caseItems.length > 0 && (
-            <div className="pt-2 border-t border-slate-800 flex flex-wrap gap-1.5">
+            <div className="pt-2 border-t border-slate-100 flex flex-wrap gap-1.5">
               {caseItems.map((item, idx) => (
                 <span
                   key={idx}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-500/20 text-blue-200 border border-blue-500/30 text-xs font-bold"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 text-xs font-bold"
                 >
                   <span>{item.type} {item.volume} ({item.qty})</span>
                   <button
                     onClick={() => handleRemoveFluidItem(idx)}
-                    className="text-slate-400 hover:text-rose-400 ml-1 font-black"
+                    className="text-slate-400 hover:text-rose-600 ml-1 font-black cursor-pointer"
                   >
                     ×
                   </button>
@@ -456,21 +454,21 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
         </div>
       )}
 
-      {/* 5. SUCCESS CARD AFTER PRINT */}
+      {/* 5. SUCCESS CARD AFTER PRINT (LIGHT THEME) */}
       {successJob && (
-        <div className="bg-emerald-950/80 border border-emerald-500/40 rounded-2xl p-4 shadow-xl space-y-3">
-          <div className="flex items-center gap-2.5 text-emerald-300">
-            <CheckCircle2 className="w-5 h-5" />
+        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 shadow-sm space-y-3">
+          <div className="flex items-center gap-2.5 text-emerald-800">
+            <CheckCircle2 className="w-5 h-5 text-emerald-600" />
             <span className="text-sm font-black">Envelope Generated Successfully!</span>
           </div>
-          <div className="text-xs text-slate-200">
-            Job ID: <span className="font-mono font-bold text-white">{successJob.job_number}</span>
+          <div className="text-xs text-slate-700">
+            Job ID: <span className="font-mono font-bold text-slate-900">{successJob.job_number}</span>
           </div>
 
           <div className="flex items-center gap-2 pt-1">
             <button
               onClick={() => downloadEnvelopePDF({ job_id: successJob.id, language: language })}
-              className="flex-1 py-2.5 rounded-xl bg-blue-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition-all"
+              className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer"
             >
               <Printer className="w-4 h-4" />
               <span>Download PDF</span>
@@ -488,7 +486,7 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
                 }, language) || '#'}
                 target="_blank"
                 rel="noreferrer"
-                className="py-2.5 px-3 rounded-xl bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition-all"
+                className="py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer"
               >
                 <Share2 className="w-4 h-4" />
                 <span>WhatsApp</span>
@@ -497,7 +495,7 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
 
             <button
               onClick={resetForm}
-              className="py-2.5 px-3 rounded-xl bg-slate-800 text-slate-200 font-bold text-xs hover:bg-slate-700 active:scale-95 transition-all"
+              className="py-2.5 px-3 rounded-xl bg-white border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-50 active:scale-95 transition-all cursor-pointer"
             >
               New
             </button>
@@ -505,16 +503,16 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
         </div>
       )}
 
-      {/* 6. STICKY BOTTOM PRINT BUTTON BAR */}
-      <div className="fixed bottom-[max(env(safe-area-inset-bottom),64px)] left-0 right-0 p-3 bg-gradient-to-t from-slate-950 via-slate-950/90 to-transparent z-20">
+      {/* 6. STICKY BOTTOM PRINT BUTTON BAR (LIGHT THEME) */}
+      <div className="fixed bottom-[max(env(safe-area-inset-bottom),64px)] left-0 right-0 p-3 bg-gradient-to-t from-slate-100 via-slate-100/95 to-transparent z-20">
         <div className="max-w-lg mx-auto">
           <button
             onClick={handleExecutePrint}
             disabled={!selectedParty || printing}
-            className={`w-full py-4 rounded-2xl font-black text-base shadow-2xl flex items-center justify-center gap-2.5 transition-all active:scale-[0.98] ${
+            className={`w-full py-4 rounded-2xl font-black text-base shadow-lg flex items-center justify-center gap-2.5 transition-all active:scale-[0.98] cursor-pointer ${
               !selectedParty
-                ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
-                : 'bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 hover:from-blue-500 hover:to-indigo-500 text-white shadow-blue-600/40 ring-2 ring-amber-400'
+                ? 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
+                : 'bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 hover:from-blue-500 hover:to-indigo-500 text-white shadow-blue-500/25 ring-2 ring-blue-300'
             }`}
           >
             <Printer className="w-6 h-6 text-amber-300" />

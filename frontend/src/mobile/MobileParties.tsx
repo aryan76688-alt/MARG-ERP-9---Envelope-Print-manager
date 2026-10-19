@@ -178,8 +178,8 @@ export const MobileParties: React.FC<MobilePartiesProps> = ({
   };
 
   return (
-    <div className="p-4 space-y-4 max-w-lg mx-auto pb-28">
-      {/* 1. SEARCH & SHORTCUT ACTION BAR */}
+    <div className="p-4 space-y-4 max-w-lg mx-auto pb-28 font-sans">
+      {/* 1. SEARCH & SHORTCUT ACTION BAR (LIGHT THEME) */}
       <div className="flex items-center gap-2">
         <div className="relative flex-1">
           <input
@@ -187,13 +187,13 @@ export const MobileParties: React.FC<MobilePartiesProps> = ({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search party code, name, city..."
-            className="w-full bg-slate-900/90 border border-slate-700/80 rounded-2xl py-3 pl-10 pr-9 text-white placeholder-slate-500 text-sm font-semibold focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 shadow-md"
+            className="w-full bg-white border border-slate-300 rounded-2xl py-3 pl-10 pr-9 text-slate-900 placeholder-slate-400 text-sm font-semibold focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-500/30 shadow-sm"
           />
           <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5 pointer-events-none" />
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-3 p-1 text-slate-400 hover:text-white"
+              className="absolute right-3 top-3 p-1 text-slate-400 hover:text-slate-800"
             >
               <X className="w-4 h-4" />
             </button>
@@ -203,7 +203,7 @@ export const MobileParties: React.FC<MobilePartiesProps> = ({
         {/* All Parties Map Shortcut */}
         <button
           onClick={() => onNavigate('map')}
-          className="p-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md active:scale-95 transition-all flex items-center gap-1.5 flex-shrink-0"
+          className="p-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm active:scale-95 transition-all flex items-center gap-1.5 flex-shrink-0 cursor-pointer"
           title="All Parties Map"
         >
           <MapPin className="w-4 h-4" />
@@ -213,7 +213,7 @@ export const MobileParties: React.FC<MobilePartiesProps> = ({
         {/* Route Manager Trigger */}
         <button
           onClick={() => setRouteModalOpen(true)}
-          className="p-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md active:scale-95 transition-all flex items-center gap-1.5 flex-shrink-0"
+          className="p-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-sm active:scale-95 transition-all flex items-center gap-1.5 flex-shrink-0 cursor-pointer"
           title="Route & Sheet Sync Manager"
         >
           <Map className="w-4 h-4" />
@@ -221,16 +221,16 @@ export const MobileParties: React.FC<MobilePartiesProps> = ({
         </button>
       </div>
 
-      {/* 2. WEEKDAY FILTER CHIPS CAROUSEL */}
+      {/* 2. WEEKDAY FILTER CHIPS CAROUSEL (LIGHT THEME) */}
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
         {weekdays.map((w) => (
           <button
             key={w.id}
             onClick={() => setWeekdayFilter(w.id)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all border ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all border cursor-pointer ${
               weekdayFilter === w.id
-                ? 'bg-blue-600 text-white border-blue-500 shadow-md ring-1 ring-blue-400'
-                : 'bg-slate-900/80 text-slate-400 border-slate-800 hover:text-white'
+                ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                : 'bg-white text-slate-600 border-slate-200 hover:text-slate-900 hover:border-slate-300'
             }`}
           >
             {w.label}
@@ -239,25 +239,25 @@ export const MobileParties: React.FC<MobilePartiesProps> = ({
       </div>
 
       {/* 3. METRIC COUNT HEADER */}
-      <div className="flex items-center justify-between text-xs px-1 text-slate-400">
-        <span className="font-bold">
-          Found <span className="text-white font-black">{filteredParties.length}</span> parties
+      <div className="flex items-center justify-between text-xs px-1 text-slate-500">
+        <span className="font-semibold">
+          Found <span className="text-slate-900 font-black">{filteredParties.length}</span> parties
         </span>
         {totalPages > 1 && (
-          <span className="font-semibold text-slate-400">
+          <span className="font-semibold text-slate-500">
             Page {page} of {totalPages}
           </span>
         )}
       </div>
 
-      {/* 4. PARTY CARDS LIST */}
+      {/* 4. PARTY CARDS LIST (LIGHT THEME) */}
       {loading ? (
-        <div className="p-12 text-center text-slate-400 text-xs flex flex-col items-center gap-2">
-          <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+        <div className="p-12 text-center text-slate-500 text-xs flex flex-col items-center gap-2">
+          <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
           <span>Loading parties directory...</span>
         </div>
       ) : paginatedParties.length === 0 ? (
-        <div className="p-8 rounded-2xl bg-slate-900/80 border border-slate-800 text-center text-slate-400 text-xs">
+        <div className="p-8 rounded-2xl bg-white border border-slate-200 text-center text-slate-500 text-xs shadow-sm">
           No parties found matching your search.
         </div>
       ) : (
@@ -266,23 +266,23 @@ export const MobileParties: React.FC<MobilePartiesProps> = ({
             return (
               <div
                 key={party.id}
-                className="bg-slate-900/90 border border-slate-800 hover:border-slate-700/80 rounded-2xl p-4 shadow-lg space-y-3 transition-all"
+                className="bg-white border border-slate-200/90 hover:border-blue-300 rounded-2xl p-4 shadow-sm space-y-3 transition-all"
               >
                 {/* Header row: Code, City, Edit */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-[11px] font-mono font-black px-2 py-0.5 rounded-md bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                    <span className="text-[11px] font-mono font-black px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200">
                       {party.party_code || 'MARG'}
                     </span>
                     {party.city && (
-                      <span className="text-xs font-bold text-slate-400 truncate">
+                      <span className="text-xs font-bold text-slate-500 truncate">
                         • {party.city}
                       </span>
                     )}
                   </div>
                   <button
                     onClick={() => handleEditParty(party)}
-                    className="p-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white active:scale-95 transition-all"
+                    className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 active:scale-95 transition-all border border-slate-200 cursor-pointer"
                     title="Edit Party Details"
                   >
                     <Edit className="w-3.5 h-3.5" />
@@ -291,11 +291,11 @@ export const MobileParties: React.FC<MobilePartiesProps> = ({
 
                 {/* Party Name */}
                 <div>
-                  <h4 className="font-black text-sm text-white leading-tight">
+                  <h4 className="font-black text-sm text-slate-900 leading-tight">
                     {party.party_name}
                   </h4>
                   {party.party_name_gu && (
-                    <div className="text-xs text-slate-400 font-medium mt-0.5">
+                    <div className="text-xs text-slate-500 font-medium mt-0.5">
                       {party.party_name_gu}
                     </div>
                   )}
@@ -303,8 +303,8 @@ export const MobileParties: React.FC<MobilePartiesProps> = ({
 
                 {/* Address snippet */}
                 {party.address && (
-                  <div className="text-xs text-slate-300 flex items-start gap-1.5 line-clamp-2">
-                    <MapPin className="w-3.5 h-3.5 text-blue-400 flex-shrink-0 mt-0.5" />
+                  <div className="text-xs text-slate-600 flex items-start gap-1.5 line-clamp-2">
+                    <MapPin className="w-3.5 h-3.5 text-blue-600 flex-shrink-0 mt-0.5" />
                     <span>{party.address_gu || party.address}</span>
                   </div>
                 )}
@@ -312,34 +312,34 @@ export const MobileParties: React.FC<MobilePartiesProps> = ({
                 {/* Route tags */}
                 <div className="flex flex-wrap gap-1.5 pt-0.5">
                   {party.route_1 && (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200">
                       R1: {party.route_1}
                     </span>
                   )}
                   {party.route_2 && (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200">
                       R2: {party.route_2}
                     </span>
                   )}
                   {party.route_3 && (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-purple-500/10 text-purple-300 border border-purple-500/20">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200">
                       R3: {party.route_3}
                     </span>
                   )}
                 </div>
 
-                {/* Dedicated Location & GPS Navigation Row */}
-                <div className="flex items-center justify-between gap-1.5 p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80">
+                {/* Dedicated Location & GPS Navigation Row (Light Theme) */}
+                <div className="flex items-center justify-between gap-1.5 p-2.5 rounded-xl bg-slate-50 border border-slate-200">
                   {party.latitude && party.longitude ? (
                     <>
                       <div className="flex items-center gap-2 min-w-0">
-                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse flex-shrink-0"></span>
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse flex-shrink-0"></span>
                         <div className="truncate">
                           <div className="flex items-center gap-1">
-                            <span className="text-[10px] font-black text-emerald-300">GPS Verified</span>
-                            <span className="text-[9px] text-slate-400">({party.geofence_radius_meters || 75}m)</span>
+                            <span className="text-[10px] font-black text-emerald-700">GPS Verified</span>
+                            <span className="text-[9px] text-slate-500">({party.geofence_radius_meters || 75}m)</span>
                           </div>
-                          <div className="text-[9px] font-mono text-slate-400 truncate">
+                          <div className="text-[9px] font-mono text-slate-500 truncate">
                             {Number(party.latitude).toFixed(4)}, {Number(party.longitude).toFixed(4)}
                           </div>
                         </div>
@@ -349,7 +349,7 @@ export const MobileParties: React.FC<MobilePartiesProps> = ({
                           href={`https://www.google.com/maps/dir/?api=1&destination=${party.latitude},${party.longitude}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-[11px] shadow-sm flex items-center gap-1 active:scale-95 transition-all"
+                          className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[11px] shadow-sm flex items-center gap-1 active:scale-95 transition-all cursor-pointer"
                           title="Navigate directly via Google Maps"
                         >
                           <Navigation className="w-3 h-3" />
@@ -358,24 +358,24 @@ export const MobileParties: React.FC<MobilePartiesProps> = ({
                         <button
                           type="button"
                           onClick={() => setMapPickerParty(party)}
-                          className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 active:scale-95 transition-all"
+                          className="p-1.5 rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 active:scale-95 transition-all cursor-pointer"
                           title="Adjust Pin on Map"
                         >
-                          <Edit3 className="w-3.5 h-3.5 text-amber-400" />
+                          <Edit3 className="w-3.5 h-3.5 text-amber-600" />
                         </button>
                       </div>
                     </>
                   ) : (
                     <>
                       <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="w-2 h-2 rounded-full bg-amber-400/80 flex-shrink-0"></span>
-                        <span className="text-[10px] font-bold text-amber-400/90 truncate">No GPS Pin</span>
+                        <span className="w-2 h-2 rounded-full bg-amber-500 flex-shrink-0"></span>
+                        <span className="text-[10px] font-bold text-amber-700 truncate">No GPS Pin</span>
                       </div>
                       <div className="flex items-center gap-1.5 flex-shrink-0">
                         <button
                           type="button"
                           onClick={() => setMapPickerParty(party)}
-                          className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] shadow-sm flex items-center gap-1 active:scale-95 transition-all"
+                          className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] shadow-sm flex items-center gap-1 active:scale-95 transition-all cursor-pointer"
                           title="Pin location on interactive map"
                         >
                           <MapPin className="w-3 h-3 text-white" />
@@ -385,7 +385,7 @@ export const MobileParties: React.FC<MobilePartiesProps> = ({
                           type="button"
                           onClick={() => handlePinPartyGPS(party)}
                           disabled={pinningPartyId === party.id}
-                          className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[10px] font-bold active:scale-95 transition-all"
+                          className="px-2 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-bold active:scale-95 transition-all cursor-pointer"
                           title="Save device current GPS location"
                         >
                           {pinningPartyId === party.id ? '...' : 'GPS'}
@@ -396,11 +396,11 @@ export const MobileParties: React.FC<MobilePartiesProps> = ({
                 </div>
 
                 {/* Action Buttons Row: 1-Tap Print, Call, WhatsApp */}
-                <div className="flex items-center gap-2 pt-2 border-t border-slate-800/80">
+                <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
                   {/* Print Button */}
                   <button
                     onClick={() => onNavigate('print', { selectedParty: party })}
-                    className="flex-1 py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition-all"
+                    className="flex-1 py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer"
                   >
                     <Printer className="w-4 h-4 text-amber-300" />
                     <span>Print Envelope</span>
@@ -410,7 +410,7 @@ export const MobileParties: React.FC<MobilePartiesProps> = ({
                   {party.mobile_no && (
                     <a
                       href={`tel:${party.mobile_no}`}
-                      className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 active:scale-95 transition-all"
+                      className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-emerald-700 border border-slate-200 active:scale-95 transition-all cursor-pointer"
                       title="Call Party"
                     >
                       <Phone className="w-4 h-4" />
@@ -423,7 +423,7 @@ export const MobileParties: React.FC<MobilePartiesProps> = ({
                       href={`https://wa.me/91${party.mobile_no.replace(/[^0-9]/g, '')}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="p-2 rounded-xl bg-emerald-600 text-white shadow-md active:scale-95 transition-all"
+                      className="p-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm active:scale-95 transition-all cursor-pointer"
                       title="Chat on WhatsApp"
                     >
                       <MessageCircle className="w-4 h-4" />
@@ -436,24 +436,24 @@ export const MobileParties: React.FC<MobilePartiesProps> = ({
         </div>
       )}
 
-      {/* 5. PAGINATION CONTROLS */}
+      {/* 5. PAGINATION CONTROLS (LIGHT THEME) */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between pt-3 pb-6">
           <button
             onClick={() => setPage(p => Math.max(1, p - 1))}
             disabled={page === 1}
-            className="flex items-center gap-1 px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 disabled:opacity-40 text-xs font-bold"
+            className="flex items-center gap-1 px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40 text-xs font-bold shadow-sm cursor-pointer"
           >
             <ChevronLeft className="w-4 h-4" />
             <span>Previous</span>
           </button>
-          <span className="text-xs font-bold text-slate-400">
+          <span className="text-xs font-bold text-slate-600">
             {page} / {totalPages}
           </span>
           <button
             onClick={() => setPage(p => Math.min(totalPages, p + 1))}
             disabled={page === totalPages}
-            className="flex items-center gap-1 px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 disabled:opacity-40 text-xs font-bold"
+            className="flex items-center gap-1 px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40 text-xs font-bold shadow-sm cursor-pointer"
           >
             <span>Next</span>
             <ChevronRight className="w-4 h-4" />
@@ -464,7 +464,7 @@ export const MobileParties: React.FC<MobilePartiesProps> = ({
       {/* 6. FLOATING ACTION BUTTON (FAB) FOR ADDING NEW PARTY */}
       <button
         onClick={handleAddParty}
-        className="fixed bottom-[max(env(safe-area-inset-bottom),76px)] right-4 w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white shadow-2xl flex items-center justify-center ring-4 ring-emerald-500/30 active:scale-90 transition-all z-20"
+        className="fixed bottom-[max(env(safe-area-inset-bottom),76px)] right-4 w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white shadow-xl flex items-center justify-center ring-4 ring-emerald-200 active:scale-90 transition-all z-20 cursor-pointer"
         title="Add New Party"
       >
         <Plus className="w-7 h-7" />

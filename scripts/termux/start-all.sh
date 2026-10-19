@@ -234,6 +234,15 @@ else
     echo -e "\n${YELLOW}[!] cloudflared is not installed. Run: pkg install cloudflared -y${NC}"
 fi
 
+# Ensure 30-min auto-restart script is present in BASE_DIR
+if [ -f "${ENVELOPE_DIR}/scripts/termux/auto-restart-30m.sh" ]; then
+    cp -f "${ENVELOPE_DIR}/scripts/termux/auto-restart-30m.sh" "${BASE_DIR}/auto-restart-30m.sh" 2>/dev/null || true
+    chmod +x "${BASE_DIR}/auto-restart-30m.sh" 2>/dev/null || true
+elif [ -f "${ORDERBOOK_DIR}/scripts/termux/auto-restart-30m.sh" ]; then
+    cp -f "${ORDERBOOK_DIR}/scripts/termux/auto-restart-30m.sh" "${BASE_DIR}/auto-restart-30m.sh" 2>/dev/null || true
+    chmod +x "${BASE_DIR}/auto-restart-30m.sh" 2>/dev/null || true
+fi
+
 # 6. Launch 24/7 Auto-Healer & Live Auto-Updater Watchdog
 echo -e "\n${BLUE}[5/5] Activating 24/7 Watchdog (Auto-Heal + Auto-Update)...${NC}"
 WATCHDOG_SCRIPT="${BASE_DIR}/watchdog.sh"
