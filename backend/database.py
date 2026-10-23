@@ -2,7 +2,7 @@ import os
 import datetime
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import sessionmaker, Session
-from models import Base, Party, SenderSettings, AppSettings, PrintJob, PrintCase, User
+from models import Base, Party, SenderSettings, AppSettings, PrintJob, PrintCase, User, Item
 import barcode_generator
 
 RAW_DATABASE_URL = os.environ.get("DATABASE_URL")

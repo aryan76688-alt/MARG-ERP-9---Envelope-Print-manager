@@ -26,7 +26,11 @@ import {
   Trash2,
   Droplets,
   FileSpreadsheet,
-  HelpCircle
+  HelpCircle,
+  Server,
+  Terminal,
+  Activity,
+  GitBranch
 } from 'lucide-react';
 import { WebhookHelpModal } from '../components/WebhookHelpModal';
 import { SenderSettings, AppSettings, DualBrainStatus } from '../types';
@@ -53,6 +57,11 @@ import {
   sendGmailDispatchSummary,
   sendGmailPartiesList,
   GDriveBackupItem,
+  fetchServerStatus,
+  toggleAutoUpdate,
+  triggerServerUpdate,
+  triggerServerRestart,
+  ServerStatusResponse,
   API_BASE
 } from '../api/client';
 
@@ -150,6 +159,83 @@ export const Settings: React.FC = () => {
   const [gmailSending, setGmailSending] = useState<boolean>(false);
   const [gmailStatusMessage, setGmailStatusMessage] = useState<string | null>(null);
   const [webhookHelpOpen, setWebhookHelpOpen] = useState<boolean>(false);
+
+  // Server Status & Live Auto-Update Control State
+  const [serverStatus, setServerStatus] = useState<ServerStatusResponse | null>(null);
+  const [loadingServerStatus, setLoadingServerStatus] = useState<boolean>(false);
+  const [updatingServer, setUpdatingServer] = useState<boolean>(false);
+  const [restartingServer, setRestartingServer] = useState<boolean>(false);
+  const [serverActionMsg, setServerActionMsg] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [reconnectCountdown, setReconnectCountdown] = useState<number | null>(null);
+
+  const loadServerStatus = async () => {
+    setLoadingServerStatus(true);
+    setServerActionMsg(null);
+    try {
+      const status = await fetchServerStatus();
+      setServerStatus(status);
+    } catch (err: any) {
+      console.warn('Failed to fetch server status:', err);
+    } finally {
+      setLoadingServerStatus(false);
+    }
+  };
+
+  const handleToggleAutoUpdate = async (enabled: boolean) => {
+    try {
+      const res = await toggleAutoUpdate(enabled);
+      setServerStatus(prev => prev ? { ...prev, auto_update_enabled: res.auto_update_enabled } : null);
+      setServerActionMsg({ text: res.message, type: 'success' });
+    } catch (err: any) {
+      setServerActionMsg({ text: err.message || 'Failed to update setting', type: 'error' });
+    }
+  };
+
+  const handleTriggerServerUpdate = async () => {
+    if (!confirm('🚀 Update Server Now?\n\nThis will pull the latest code and features from GitHub and restart background services. Continue?')) {
+      return;
+    }
+    setUpdatingServer(true);
+    setServerActionMsg({ text: 'Starting update from GitHub... Server will restart in a few seconds.', type: 'info' });
+    try {
+      const res = await triggerServerUpdate();
+      setServerActionMsg({ text: res.message, type: 'success' });
+      let count = res.estimated_restart_seconds || 10;
+      setReconnectCountdown(count);
+      const timer = setInterval(() => {
+        count -= 1;
+        setReconnectCountdown(count);
+        if (count <= 0) {
+          clearInterval(timer);
+          setReconnectCountdown(null);
+          setUpdatingServer(false);
+          loadServerStatus();
+        }
+      }, 1000);
+    } catch (err: any) {
+      setServerActionMsg({ text: err.message || 'Failed to trigger update', type: 'error' });
+      setUpdatingServer(false);
+    }
+  };
+
+  const handleTriggerServerRestart = async () => {
+    if (!confirm('🔄 Restart Server Services?\n\nThis will gracefully restart the background web services. Continue?')) {
+      return;
+    }
+    setRestartingServer(true);
+    setServerActionMsg({ text: 'Restarting server services...', type: 'info' });
+    try {
+      const res = await triggerServerRestart();
+      setServerActionMsg({ text: res.message, type: 'success' });
+      setTimeout(() => {
+        setRestartingServer(false);
+        loadServerStatus();
+      }, 6000);
+    } catch (err: any) {
+      setServerActionMsg({ text: err.message || 'Failed to restart server', type: 'error' });
+      setRestartingServer(false);
+    }
+  };
 
   const isApk = typeof window !== 'undefined' && (
     window.location.search.includes('mode=apk') ||
@@ -610,6 +696,12 @@ export const Settings: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    if (activeTab === 'server') {
+      loadServerStatus();
+    }
+  }, [activeTab]);
+
   const tabs = [
     { id: 'company', label: 'COMPANY DETAILS', icon: Building },
     { id: 'general', label: 'GENERAL', icon: SettingsIcon },
@@ -618,6 +710,7 @@ export const Settings: React.FC = () => {
     { id: 'layout', label: 'LAYOUT & MARGINS', icon: Layout },
     { id: 'template', label: 'TEMPLATE TOGGLES', icon: FileText },
     { id: 'backup', label: 'BACKUP & EXPORTS', icon: Database },
+    { id: 'server', label: 'SERVER & AUTO-UPDATE', icon: Server },
   ];
 
   return (
@@ -1975,8 +2068,244 @@ export const Settings: React.FC = () => {
           </div>
         )}
 
+        {/* TAB 8: SERVER & AUTO-UPDATE */}
+        {activeTab === 'server' && (
+          <div className="space-y-6">
+            {/* Reconnection Countdown Banner */}
+            {reconnectCountdown !== null && (
+              <div className="p-4 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 flex items-center justify-between animate-pulse">
+                <div className="flex items-center gap-3">
+                  <RefreshCw className="w-5 h-5 text-blue-600 animate-spin" />
+                  <div>
+                    <div className="font-black text-sm">Server is updating and restarting in background...</div>
+                    <div className="text-xs text-blue-700">Reconnecting automatically in {reconnectCountdown} seconds...</div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {serverActionMsg && (
+              <div className={`p-4 rounded-xl border flex items-center gap-3 text-xs font-bold ${
+                serverActionMsg.type === 'success' 
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-900' 
+                  : serverActionMsg.type === 'error'
+                  ? 'bg-red-50 border-red-200 text-red-900'
+                  : 'bg-blue-50 border-blue-200 text-blue-900'
+              }`}>
+                {serverActionMsg.type === 'success' ? <CheckCircle2 className="w-4 h-4 text-emerald-600" /> : <AlertCircle className="w-4 h-4 text-red-600" />}
+                <span>{serverActionMsg.text}</span>
+              </div>
+            )}
+
+            {/* Live Status Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Current Version */}
+              <div className="p-4 rounded-xl bg-slate-900 text-white shadow-sm space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-black tracking-wider text-slate-400 uppercase">Current Commit</span>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-black bg-blue-500/20 text-blue-400 border border-blue-500/30 font-mono">
+                    {serverStatus?.current_commit || '...'}
+                  </span>
+                </div>
+                <div className="text-xs text-slate-300 font-medium truncate" title={serverStatus?.commit_message}>
+                  {serverStatus?.commit_message || 'Loading details...'}
+                </div>
+                <div className="text-[10px] text-slate-500">
+                  Updated {serverStatus?.commit_date || 'recently'}
+                </div>
+              </div>
+
+              {/* GitHub Sync Status */}
+              <div className={`p-4 rounded-xl border shadow-sm space-y-2 ${
+                serverStatus?.update_available 
+                  ? 'bg-amber-50/70 border-amber-300 text-amber-950' 
+                  : 'bg-emerald-50/70 border-emerald-200 text-emerald-950'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-black tracking-wider uppercase flex items-center gap-1.5">
+                    <GitBranch className="w-3.5 h-3.5" />
+                    GitHub Remote
+                  </span>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                    serverStatus?.update_available ? 'bg-amber-500 text-white animate-pulse' : 'bg-emerald-600 text-white'
+                  }`}>
+                    {serverStatus?.update_available ? 'Update Waiting' : 'Up to Date'}
+                  </span>
+                </div>
+                <div className="text-xs font-bold">
+                  {serverStatus?.update_available ? (
+                    <span className="text-amber-800">New code available on GitHub!</span>
+                  ) : (
+                    <span className="text-emerald-800">Server matches origin/main</span>
+                  )}
+                </div>
+                <div className="text-[10px] opacity-75 font-mono">
+                  Remote: {serverStatus?.remote_commit || '...'}
+                </div>
+              </div>
+
+              {/* Watchdog Auto-Healer */}
+              <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-sm space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-black tracking-wider text-slate-500 uppercase flex items-center gap-1.5">
+                    <Activity className="w-3.5 h-3.5 text-blue-600" />
+                    Watchdog 24/7
+                  </span>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-black ${
+                    serverStatus?.watchdog_running ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
+                  }`}>
+                    {serverStatus?.watchdog_running ? 'ACTIVE' : 'STANDBY'}
+                  </span>
+                </div>
+                <div className="text-xs font-bold text-slate-800">
+                  Auto-Healer & Keep-Alive
+                </div>
+                <div className="text-[10px] text-slate-500">
+                  Android CPU wake-lock + tunnel healer
+                </div>
+              </div>
+            </div>
+
+            {/* Auto-Update Control Card */}
+            <div className="p-5 rounded-xl border border-slate-200 bg-white shadow-sm space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="font-black text-slate-900 text-sm flex items-center gap-2">
+                    <RefreshCw className="w-4 h-4 text-blue-600" />
+                    <span>Automatic Updates from GitHub (સ્વચાલિત અપડેટ)</span>
+                  </div>
+                  <p className="text-xs text-slate-500 max-w-xl">
+                    When enabled, the Termux background watchdog checks GitHub every 2 minutes. Whenever new features are committed to GitHub, the server automatically updates itself and reloads with ZERO manual intervention.
+                  </p>
+                </div>
+
+                {/* Toggle Switch */}
+                <button
+                  type="button"
+                  onClick={() => handleToggleAutoUpdate(!serverStatus?.auto_update_enabled)}
+                  className={`relative inline-flex h-7 w-14 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    serverStatus?.auto_update_enabled ? 'bg-emerald-600' : 'bg-slate-300'
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      serverStatus?.auto_update_enabled ? 'translate-x-7' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                <span className={`w-2.5 h-2.5 rounded-full ${serverStatus?.auto_update_enabled ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
+                <span className="text-xs font-bold text-slate-700">
+                  {serverStatus?.auto_update_enabled 
+                    ? 'Auto-Update is ENABLED: Any new feature pushed to GitHub will auto-deploy within 2 minutes.' 
+                    : 'Auto-Update is PAUSED: Server will only update when you click "Update Server Now" or run termux command.'}
+                </span>
+              </div>
+            </div>
+
+            {/* On-Demand Actions */}
+            <div className="p-5 rounded-xl border border-slate-200 bg-white shadow-sm space-y-4">
+              <div className="font-black text-slate-900 text-sm">On-Demand Server Actions</div>
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={loadServerStatus}
+                  disabled={loadingServerStatus}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold text-xs transition-all disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-4 h-4 ${loadingServerStatus ? 'animate-spin' : ''}`} />
+                  <span>{loadingServerStatus ? 'Checking GitHub...' : 'Check for Updates'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleTriggerServerUpdate}
+                  disabled={updatingServer}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-xs shadow-md shadow-blue-600/20 transition-all disabled:opacity-50"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span>{updatingServer ? 'Updating Server...' : '🚀 Update Server Now'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleTriggerServerRestart}
+                  disabled={restartingServer}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-extrabold text-xs shadow-md shadow-amber-600/20 transition-all disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-4 h-4 ${restartingServer ? 'animate-spin' : ''}`} />
+                  <span>{restartingServer ? 'Restarting...' : '🔄 Restart All Services'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Active Network Ports */}
+            <div className="p-5 rounded-xl border border-slate-200 bg-white shadow-sm space-y-3">
+              <div className="font-black text-slate-900 text-sm flex items-center gap-2">
+                <Server className="w-4 h-4 text-indigo-600" />
+                <span>Service & Port Health Status</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                <div className="p-3 rounded-lg border border-slate-100 bg-slate-50 flex items-center justify-between">
+                  <div className="text-xs font-bold text-slate-700">MARG Envelope Manager</div>
+                  <span className="text-[11px] font-black px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                    Port 8080 : ONLINE
+                  </span>
+                </div>
+                <div className="p-3 rounded-lg border border-slate-100 bg-slate-50 flex items-center justify-between">
+                  <div className="text-xs font-bold text-slate-700">Shreeji Order Book</div>
+                  <span className={`text-[11px] font-black px-2 py-0.5 rounded ${
+                    serverStatus?.ports?.['3000_orderbook'] ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'
+                  }`}>
+                    Port 3000 : {serverStatus?.ports?.['3000_orderbook'] ? 'ONLINE' : 'OFFLINE'}
+                  </span>
+                </div>
+                <div className="p-3 rounded-lg border border-slate-100 bg-slate-50 flex items-center justify-between">
+                  <div className="text-xs font-bold text-slate-700">PostgreSQL Database</div>
+                  <span className={`text-[11px] font-black px-2 py-0.5 rounded ${
+                    serverStatus?.ports?.['5432_postgres'] ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'
+                  }`}>
+                    Port 5432 : {serverStatus?.ports?.['5432_postgres'] ? 'ONLINE' : 'LOCAL DB'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Terminal Reference Card */}
+            <div className="p-5 rounded-xl border border-slate-200 bg-slate-900 text-white shadow-sm space-y-3">
+              <div className="font-black text-sm flex items-center gap-2 text-slate-200">
+                <Terminal className="w-4 h-4 text-emerald-400" />
+                <span>Termux Terminal Command Shortcuts</span>
+              </div>
+              <p className="text-xs text-slate-400">
+                You can also execute these shortcuts directly inside the Termux app on your phone:
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-mono">
+                <div className="p-2.5 rounded bg-slate-800/80 border border-slate-700">
+                  <div className="text-emerald-400 font-bold">bash ~/shreeji/update.sh</div>
+                  <div className="text-[11px] text-slate-400 font-sans mt-0.5">Pulls latest code & restarts cleanly</div>
+                </div>
+                <div className="p-2.5 rounded bg-slate-800/80 border border-slate-700">
+                  <div className="text-emerald-400 font-bold">bash ~/shreeji/status.sh</div>
+                  <div className="text-[11px] text-slate-400 font-sans mt-0.5">Displays URLs, tunnels & running ports</div>
+                </div>
+                <div className="p-2.5 rounded bg-slate-800/80 border border-slate-700">
+                  <div className="text-emerald-400 font-bold">bash ~/shreeji/start-all.sh</div>
+                  <div className="text-[11px] text-slate-400 font-sans mt-0.5">Starts all services with Android wake-lock</div>
+                </div>
+                <div className="p-2.5 rounded bg-slate-800/80 border border-slate-700">
+                  <div className="text-emerald-400 font-bold">bash ~/shreeji/stop-all.sh</div>
+                  <div className="text-[11px] text-slate-400 font-sans mt-0.5">Stops all background processes</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Save Footer Button */}
-        {activeTab !== 'backup' && (
+        {activeTab !== 'backup' && activeTab !== 'server' && (
           <div className="pt-4 border-t border-slate-200 flex items-center justify-end">
             <button
               type="submit"

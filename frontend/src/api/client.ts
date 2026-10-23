@@ -498,6 +498,61 @@ export async function saveSettings(payload: { sender?: SenderSettings; app?: Par
   if (!res.ok) throw new Error('Failed to save settings to server');
 }
 
+export interface ServerStatusResponse {
+  status: string;
+  current_commit: string;
+  commit_date: string;
+  commit_message: string;
+  remote_commit: string;
+  update_available: boolean;
+  auto_update_enabled: boolean;
+  watchdog_running: boolean;
+  is_termux: boolean;
+  ports: {
+    '8080_envelope': boolean;
+    '3000_orderbook': boolean;
+    '5432_postgres': boolean;
+  };
+  server_time: string;
+}
+
+export async function fetchServerStatus(): Promise<ServerStatusResponse> {
+  const res = await fetchApi(`${API_BASE}/system/server-status`);
+  if (!res.ok) throw new Error('Failed to fetch server status');
+  return await res.json();
+}
+
+export async function toggleAutoUpdate(enabled: boolean): Promise<{ success: boolean; auto_update_enabled: boolean; message: string }> {
+  const res = await fetchApi(`${API_BASE}/system/toggle-auto-update`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ enabled }),
+  });
+  if (!res.ok) throw new Error('Failed to toggle auto-update');
+  return await res.json();
+}
+
+export async function triggerServerUpdate(): Promise<{ success: boolean; message: string; estimated_restart_seconds: number }> {
+  const res = await fetchApi(`${API_BASE}/system/server-update`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to trigger update' }));
+    throw new Error(err.detail || 'Failed to trigger update');
+  }
+  return await res.json();
+}
+
+export async function triggerServerRestart(): Promise<{ success: boolean; message: string; estimated_restart_seconds: number }> {
+  const res = await fetchApi(`${API_BASE}/system/server-restart`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  if (!res.ok) throw new Error('Failed to trigger restart');
+  return await res.json();
+}
+
 export async function downloadEnvelopePDF(payload: {
   job_id?: number;
   job_ids?: number[];

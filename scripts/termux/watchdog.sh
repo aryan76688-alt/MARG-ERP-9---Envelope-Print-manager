@@ -218,7 +218,8 @@ while true; do
     check_and_heal_tunnel "8080" "envelope"
 
     # 5. Auto Code Update Check from GitHub (Runs every ~2 minutes / 8 cycles)
-    if [ $((loop_count % 8)) -eq 0 ]; then
+    # Skipped if user explicitly paused auto-updates via Settings / .auto_update_disabled
+    if [ $((loop_count % 8)) -eq 0 ] && [ ! -f "${BASE_DIR}/.auto_update_disabled" ]; then
         # Check Order Book repo
         if [ -d "${ORDERBOOK_DIR}/.git" ]; then
             cd "${ORDERBOOK_DIR}"

@@ -5872,6 +5872,139 @@ def get_app_version():
     }
 
 # -------------------------------------------------------------
+# System Server Status, Auto-Update & Process Management
+# -------------------------------------------------------------
+import socket
+
+def _get_system_base_dir() -> str:
+    home_dir = os.path.expanduser("~")
+    return os.path.join(home_dir, "shreeji")
+
+@app.get("/api/system/server-status")
+def get_system_server_status():
+    repo_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    base_dir = _get_system_base_dir()
+    auto_update_flag = os.path.join(base_dir, ".auto_update_disabled")
+    
+    # 1. Local Git Info
+    try:
+        current_commit = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD'], cwd=repo_dir, timeout=3).decode().strip()
+        commit_date = subprocess.check_output(['git', 'log', '-1', '--format=%cd', '--date=relative'], cwd=repo_dir, timeout=3).decode().strip()
+        commit_message = subprocess.check_output(['git', 'log', '-1', '--pretty=%s'], cwd=repo_dir, timeout=3).decode().strip()
+    except Exception as e:
+        current_commit, commit_date, commit_message = "unknown", "", str(e)
+
+    # 2. Remote Git Info from GitHub
+    try:
+        ls_out = subprocess.check_output(['git', 'ls-remote', 'origin', 'refs/heads/main'], cwd=repo_dir, timeout=5).decode().strip()
+        remote_commit = ls_out.split()[0][:7] if ls_out else current_commit
+    except Exception:
+        remote_commit = current_commit
+
+    update_available = (current_commit != remote_commit) and (remote_commit != "unknown")
+
+    # 3. Watchdog Process Status
+    watchdog_running = False
+    try:
+        pg_out = subprocess.check_output(['pgrep', '-f', 'watchdog.sh']).decode().strip()
+        watchdog_running = bool(pg_out)
+    except Exception:
+        watchdog_running = False
+
+    # 4. Port Health Checks
+    def _is_port_open(port: int) -> bool:
+        try:
+            with socket.create_connection(('127.0.0.1', port), timeout=0.2):
+                return True
+        except Exception:
+            return False
+
+    is_termux = os.path.exists("/data/data/com.termux") or "com.termux" in os.environ.get("PREFIX", "")
+
+    return {
+        "status": "healthy",
+        "current_commit": current_commit,
+        "commit_date": commit_date,
+        "commit_message": commit_message,
+        "remote_commit": remote_commit,
+        "update_available": update_available,
+        "auto_update_enabled": not os.path.exists(auto_update_flag),
+        "watchdog_running": watchdog_running,
+        "is_termux": is_termux,
+        "ports": {
+            "8080_envelope": _is_port_open(8080),
+            "3000_orderbook": _is_port_open(3000),
+            "5432_postgres": _is_port_open(5432),
+        },
+        "server_time": datetime.datetime.now().isoformat()
+    }
+
+@app.post("/api/system/toggle-auto-update")
+def toggle_auto_update(payload: dict = Body(...)):
+    enabled = payload.get("enabled", True)
+    base_dir = _get_system_base_dir()
+    os.makedirs(base_dir, exist_ok=True)
+    auto_update_flag = os.path.join(base_dir, ".auto_update_disabled")
+    
+    if enabled:
+        if os.path.exists(auto_update_flag):
+            try:
+                os.remove(auto_update_flag)
+            except Exception:
+                pass
+        return {"success": True, "auto_update_enabled": True, "message": "Automatic updates every 2 minutes are now ENABLED."}
+    else:
+        try:
+            with open(auto_update_flag, "w") as f:
+                f.write(datetime.datetime.now().isoformat())
+        except Exception:
+            pass
+        return {"success": True, "auto_update_enabled": False, "message": "Automatic updates paused. Updates will only happen when manually triggered."}
+
+@app.post("/api/system/server-update")
+def trigger_server_update():
+    base_dir = _get_system_base_dir()
+    repo_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    update_script = os.path.join(base_dir, "update.sh")
+    repo_script = os.path.join(repo_dir, "scripts", "termux", "update.sh")
+
+    if os.path.exists(update_script):
+        cmd = f"bash {update_script}"
+    elif os.path.exists(repo_script):
+        cmd = f"bash {repo_script}"
+    else:
+        cmd = f"cd {repo_dir} && git fetch origin main && git reset --hard origin/main"
+
+    try:
+        subprocess.Popen(f"nohup {cmd} > /tmp/server_update.log 2>&1 &", shell=True, start_new_session=True)
+        return {
+            "success": True,
+            "message": "Server update initiated in background! Pulling latest GitHub code and restarting services.",
+            "estimated_restart_seconds": 8
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to start update: {str(e)}")
+
+@app.post("/api/system/server-restart")
+def trigger_server_restart():
+    base_dir = _get_system_base_dir()
+    restart_script = os.path.join(base_dir, "restart-all.sh")
+    if os.path.exists(restart_script):
+        cmd = f"bash {restart_script}"
+    else:
+        cmd = "pkill -f 'uvicorn.*main:app'"
+
+    try:
+        subprocess.Popen(f"nohup {cmd} > /tmp/server_restart.log 2>&1 &", shell=True, start_new_session=True)
+        return {
+            "success": True,
+            "message": "Server restart initiated. Back online in ~5 seconds.",
+            "estimated_restart_seconds": 5
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to trigger restart: {str(e)}")
+
+# -------------------------------------------------------------
 # Component 4: User-Wise Local Storage & Folder Management
 # -------------------------------------------------------------
 STORAGE_ROOT = os.environ.get("STORAGE_ROOT", os.path.expanduser("~/storage"))
