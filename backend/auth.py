@@ -27,7 +27,7 @@ except ImportError:
 
 SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "b304c000e3cf14a1a9a83ebfc481358a9e701a238622fba5e808c160")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7 # 7 days
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 3650 # 10 years (Permanent One-Time Login)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 def verify_password(plain_password, hashed_password):

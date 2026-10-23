@@ -19,7 +19,9 @@ import {
   RouteBatchUpdateItem,
   GoogleSheetsSyncResult,
   RouteSyncErrorItem,
-  LiveUserLocation
+  LiveUserLocation,
+  Item,
+  ItemsResponse
 } from '../types';
 
 
@@ -58,8 +60,13 @@ export const API_BASE = {
   [Symbol.toPrimitive]: () => getApiBase(),
 } as any as string;
 
-export function getAuthToken() {
-  return localStorage.getItem('token');
+export function getAuthToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  const token = localStorage.getItem('token');
+  if (!token || token === 'undefined' || token === 'null' || !token.trim()) {
+    return null;
+  }
+  return token.trim();
 }
 
 async function fetchApi(url: string, options: RequestInit = {}) {
@@ -70,10 +77,8 @@ async function fetchApi(url: string, options: RequestInit = {}) {
   }
   try {
     const res = await fetch(url, { ...options, headers });
-    if (res.status === 401 && window.location.hash !== '#login') {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.hash = 'login';
+    if (res.status === 401) {
+      console.warn('[Auth] Received 401 from server, retaining local session for offline resilience.');
     }
     return res;
   } catch (err: any) {
@@ -365,6 +370,19 @@ export async function createPrintJob(payload: {
   return res.json();
 }
 
+export async function updatePrintJob(jobId: number, payload: any): Promise<any> {
+  const res = await fetchApi(`${API_BASE}/print-jobs/${jobId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to update print job' }));
+    throw new Error(err.detail || 'Failed to update print job');
+  }
+  return res.json();
+}
+
 export async function createBulkPrintJobs(payload: {
   party_ids: number[];
   case_breakdown?: CaseBreakdownItem[];
@@ -512,6 +530,7 @@ export async function downloadEnvelopePDF(payload: {
   address_line_3_gu?: string;
   city_gu?: string;
   state_gu?: string;
+  bill_inside?: boolean;
 }): Promise<void> {
   const res = await fetchApi(`${API_BASE}/pdf/generate`, {
     method: 'POST',
@@ -906,6 +925,7 @@ export async function printEnvelopePDF(payload: {
   address_line_3_gu?: string;
   city_gu?: string;
   state_gu?: string;
+  bill_inside?: boolean;
   auto_print?: boolean;
 }): Promise<void> {
   const res = await fetchApi(`${API_BASE}/pdf/generate`, {
@@ -978,12 +998,57 @@ export function getExportHistoryUrl(): string {
   return `${API_BASE}/export/history.xlsx`;
 }
 
+export async function importPrintJobs(file: File): Promise<{ success: boolean; imported: number; skipped: number; message: string }> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const token = localStorage.getItem('token');
+  const headers: Record<string, string> = {};
+  if (token && !token.startsWith('offline_token_')) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  const res = await fetch(`${API_BASE}/print-jobs/import`, {
+    method: 'POST',
+    headers,
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to import print history' }));
+    throw new Error(err.detail || 'Failed to import print history');
+  }
+  return res.json();
+}
+
 export function getSampleTemplateUrl(): string {
   return `${API_BASE}/import/sample-template`;
 }
 
 export function getBackupExportUrl(): string {
   return `${API_BASE}/backup/export`;
+}
+
+export function getBackupSqliteUrl(): string {
+  const token = getAuthToken();
+  return `${API_BASE}/backup/download-sqlite${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+}
+
+export async function restoreSqliteBackup(file: File): Promise<{ status: string; message: string }> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const token = getAuthToken();
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  const res = await fetch(`${API_BASE}/backup/restore-sqlite`, {
+    method: 'POST',
+    headers,
+    body: formData,
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({ detail: 'Failed to restore SQLite database' }));
+    throw new Error(errorData.detail || 'Failed to restore SQLite database');
+  }
+  return res.json();
 }
 
 export function getPrintJobPdfUrl(jobId: number, autoPrint: boolean = false): string {
@@ -1199,6 +1264,7 @@ export async function fetchDriverJobs(params: {
 
 export async function recordPOD(data: {
   job_id: number;
+  delivered_by?: string;
   pod_signature?: string;
   pod_photo?: string;
   pod_notes?: string;
@@ -1416,4 +1482,42 @@ export async function fetchLiveUserLocations(): Promise<LiveUserLocation[]> {
     return [];
   }
 }
+
+export async function searchItems(q: string, limit: number = 30): Promise<Item[]> {
+  const cleanQ = q.trim();
+  if (!cleanQ) return [];
+  const res = await fetchApi(`${API_BASE}/items/search?q=${encodeURIComponent(cleanQ)}&limit=${limit}`);
+  if (!res.ok) throw new Error('Failed to search items catalog');
+  return res.json();
+}
+
+export async function fetchItems(params?: { q?: string; limit?: number; offset?: number }): Promise<ItemsResponse> {
+  const p = new URLSearchParams();
+  if (params?.q) p.append('q', params.q);
+  if (params?.limit) p.append('limit', String(params.limit));
+  if (params?.offset) p.append('offset', String(params.offset));
+  const qs = p.toString();
+  const res = await fetchApi(`${API_BASE}/items${qs ? `?${qs}` : ''}`);
+  if (!res.ok) throw new Error('Failed to fetch items');
+  return res.json();
+}
+
+export async function uploadItemsExcel(file: File): Promise<any> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const token = getAuthToken();
+  const headers: Record<string, string> = {};
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const res = await fetch(`${API_BASE}/items/import-excel`, {
+    method: 'POST',
+    headers,
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Upload failed' }));
+    throw new Error(err.detail || 'Failed to upload stock items excel');
+  }
+  return res.json();
+}
+
 

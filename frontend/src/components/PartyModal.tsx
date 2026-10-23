@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, AlertCircle, Building2, Calendar, MapPin, Map, Clipboard } from 'lucide-react';
+import { X, Save, AlertCircle, Building2, Calendar, MapPin, Map, Clipboard, Plus } from 'lucide-react';
 import { Party } from '../types';
 import { fetchNextPartyCode } from '../api/client';
 import { PartyMapPickerModal } from './PartyMapPickerModal';
@@ -41,13 +41,30 @@ export const PartyModal: React.FC<PartyModalProps> = ({
     is_active: true,
   });
 
+  const [drugLicenses, setDrugLicenses] = useState<string[]>(['']);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [mapPickerOpen, setMapPickerOpen] = useState(false);
   const [loadingNextCode, setLoadingNextCode] = useState(false);
+  const [capturingGPS, setCapturingGPS] = useState(false);
 
   useEffect(() => {
     if (initialParty) {
+      // Parse existing drug licenses
+      if (initialParty.drug_licenses) {
+        try {
+          const parsed = JSON.parse(initialParty.drug_licenses);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setDrugLicenses(parsed);
+          } else {
+            setDrugLicenses(['']);
+          }
+        } catch {
+          setDrugLicenses([initialParty.drug_licenses]);
+        }
+      } else {
+        setDrugLicenses(['']);
+      }
       setFormData({
         id: initialParty.id,
         party_name: initialParty.party_name || '',
@@ -148,8 +165,6 @@ export const PartyModal: React.FC<PartyModalProps> = ({
     setErrors({});
   }, [initialParty, isOpen]);
 
-  const [capturingGPS, setCapturingGPS] = useState(false);
-
   const handleCaptureGPS = () => {
     if (!navigator.geolocation) {
       alert("GPS not supported on this device");
@@ -223,7 +238,11 @@ export const PartyModal: React.FC<PartyModalProps> = ({
 
     setIsSubmitting(true);
     try {
-      await onSave(formData);
+      const cleanLicenses = drugLicenses.map((l) => l.trim()).filter(Boolean);
+      await onSave({
+        ...formData,
+        drug_licenses: cleanLicenses.length > 0 ? JSON.stringify(cleanLicenses) : null,
+      });
       onClose();
     } catch (err: any) {
       setErrors({ general: err.message || 'Failed to save party' });
@@ -324,6 +343,59 @@ export const PartyModal: React.FC<PartyModalProps> = ({
                 placeholder="e.g. 08ABCDE1234F1Z2"
                 className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs font-mono uppercase"
               />
+            </div>
+
+            {/* Dynamic Drug Licenses Section (Optional, with + Button) */}
+            <div className="sm:col-span-2 p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="block font-bold text-xs text-slate-800">
+                    Drug License Numbers (ડ્રગ લાયસન્સ નંબર)
+                  </label>
+                  <p className="text-[10px] text-slate-500">
+                    All drug license fields are optional (બધા લાયસન્સ વૈકલ્પિક છે).
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDrugLicenses([...drugLicenses, ''])}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-all shadow-xs active:scale-95 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>+ Add Drug License</span>
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                {drugLicenses.map((lic, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <span className="text-[11px] font-bold text-slate-500 w-16 shrink-0">
+                      License {index + 1}:
+                    </span>
+                    <input
+                      type="text"
+                      value={lic}
+                      onChange={(e) => {
+                        const updated = [...drugLicenses];
+                        updated[index] = e.target.value;
+                        setDrugLicenses(updated);
+                      }}
+                      placeholder={`e.g. 20B/21B-${1000 + index * 500} (Optional)`}
+                      className="flex-1 px-3 py-1.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs font-mono uppercase bg-white"
+                    />
+                    {drugLicenses.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => setDrugLicenses(drugLicenses.filter((_, i) => i !== index))}
+                        className="p-1.5 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 border border-rose-200 transition-colors"
+                        title="Remove License Field"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
 
             {/* Address Line 1 */}

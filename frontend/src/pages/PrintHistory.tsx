@@ -4,6 +4,8 @@ import {
   Search, 
   Filter, 
   Download, 
+  Upload,
+  FileSpreadsheet,
   Printer, 
   Eye, 
   RotateCcw, 
@@ -26,7 +28,8 @@ import {
   downloadEnvelopePDF, 
   getExportHistoryUrl,
   sendGmailDispatchSummary,
-  sendGmailInvoice
+  sendGmailInvoice,
+  importPrintJobs
 } from '../api/client';
 import { getCachedPrintJobs, setCachedPrintJobs } from '../offline/db';
 import { JobDetailsModal } from '../components/JobDetailsModal';
@@ -50,7 +53,7 @@ export const PrintHistory: React.FC<PrintHistoryProps> = ({ onNavigate }) => {
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
-  const [uniquePerDay, setUniquePerDay] = useState<boolean>(false);
+  const [uniquePerDay, setUniquePerDay] = useState<boolean>(true);
 
   // Selected job for modal
   const [selectedJob, setSelectedJob] = useState<PrintJobDetails | null>(null);
@@ -58,6 +61,28 @@ export const PrintHistory: React.FC<PrintHistoryProps> = ({ onNavigate }) => {
   const [deleteConfirmJob, setDeleteConfirmJob] = useState<PrintJob | null>(null);
   const [emailingSummary, setEmailingSummary] = useState<boolean>(false);
   const [emailingJobId, setEmailingJobId] = useState<number | null>(null);
+  const [importing, setImporting] = useState<boolean>(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImporting(true);
+    try {
+      const res = await importPrintJobs(file);
+      if (res.success) {
+        alert(res.message || `Imported ${res.imported} print records successfully!`);
+        loadJobs();
+      } else {
+        alert('Import failed: ' + (res.message || 'Unknown error'));
+      }
+    } catch (err: any) {
+      alert('Error importing file: ' + err.message);
+    } finally {
+      setImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   const loadJobs = async (silent: boolean = false) => {
     try {
@@ -212,6 +237,24 @@ export const PrintHistory: React.FC<PrintHistoryProps> = ({ onNavigate }) => {
             </span>
             <span>Auto-Sync: Live</span>
           </div>
+
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleImportFile}
+            accept=".xlsx,.xls,.csv,.json"
+            className="hidden"
+          />
+
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={importing}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-indigo-200 bg-indigo-50/80 text-indigo-800 hover:bg-indigo-100 font-bold text-xs transition-colors disabled:opacity-50 cursor-pointer shadow-xs"
+            title="Import print jobs from Excel (.xlsx/.xls), CSV, or JSON"
+          >
+            <Upload className={`w-4 h-4 ${importing ? 'animate-bounce text-indigo-600' : 'text-indigo-600'}`} />
+            <span>{importing ? 'Importing...' : 'Import History'}</span>
+          </button>
 
           <a
             href={getExportHistoryUrl()}

@@ -29,6 +29,7 @@ export interface Party {
   longitude?: number | null;
   geofence_radius_meters?: number;
   geofence_set_at?: string | null;
+  drug_licenses?: string | null;
   client_uuid?: string;
   is_active?: boolean;
   created_at?: string;
@@ -129,9 +130,45 @@ export interface CaseItem {
 
 export interface CaseBreakdownItem {
   title?: string;
-  type: string; // 'CASE' | 'NS CASE' | 'RL CASE' | 'DNS CASE' | 'METRO CASE' | 'PARCEL BAG' | custom fluid
-  volume?: string; // '100ML' | '250ML' | '500ML' | '1LTR'
+  type: string; // 'CASE' | 'NS CASE' | 'RL CASE' | 'DNS CASE' | 'METRO CASE' | 'PARCEL BAG' | custom fluid | item name
+  volume?: string; // '100ML' | '250ML' | '500ML' | '1LTR' | 'PCS' | 'PSC (PIECES)' | custom
   qty: number;
+}
+
+export interface Item {
+  id: number;
+  item_code: string;
+  item_name: string;
+  unit?: string | null;
+  company?: string | null;
+  mrp?: number | null;
+  sales_price?: number | null;
+  cost_price?: number | null;
+  stock_qty?: number | null;
+  packing?: string | null;
+  rack_no?: string | null;
+  is_active?: boolean;
+  created_at?: string;
+}
+
+export interface ItemsResponse {
+  total: number;
+  limit: number;
+  offset: number;
+  items: Item[];
+}
+
+export interface ItemCaseEntry {
+  id: string;
+  itemId?: number;
+  itemCode?: string;
+  itemName: string;
+  volume: string;
+  qty: number;
+  unit?: string | null;
+  company?: string | null;
+  mrp?: number | null;
+  stockQty?: number | null;
 }
 
 export interface UnprintedPartyItem extends Party {
@@ -196,6 +233,7 @@ export interface DriverStop {
   driver_name?: string | null;
   delivery_route?: string | null;
   delivery_status: 'Pending' | 'Delivered' | string;
+  delivered_by?: string | null;
   pod_signature?: string | null;
   pod_photo?: string | null;
   pod_notes?: string | null;
@@ -213,6 +251,7 @@ export interface DriverStop {
 export interface PODSubmission {
   id?: number;
   job_id: number;
+  delivered_by?: string | null;
   pod_signature?: string | null;
   pod_photo?: string | null;
   pod_notes?: string | null;
@@ -271,8 +310,13 @@ export interface DispatchSummaryJob {
   total_cases: number;
   case_breakdown?: CaseBreakdownItem[];
   delivery_boy_name?: string | null;
+  driver_name?: string | null;
   delivery_route?: string | null;
   status: string;
+  delivery_status?: string | null;
+  delivered_by?: string | null;
+  delivered_at?: string | null;
+  pod_notes?: string | null;
   created_at?: string;
 }
 
@@ -280,6 +324,10 @@ export interface DispatchSummaryData {
   date: string;
   total_parties: number;
   total_packages: number;
+  delivered_parties?: number;
+  delivered_cases?: number;
+  pending_parties?: number;
+  pending_cases?: number;
   breakdown_totals: Record<string, number>;
   available_delivery_boys: string[];
   available_routes: string[];

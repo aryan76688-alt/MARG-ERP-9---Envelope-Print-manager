@@ -39,9 +39,11 @@ def format_case_breakdown_line(c_type: str, c_vol: str = "", qty: int = 1) -> st
       - "METRO CASE" + "100ML" -> "METRO 100ML CASE: 1"
       - "CASE" -> "CASE: 1"
       - "PARCEL BAG" -> "PARCEL BAG: 1"
+      - "10ML SYRINGE ATPL*50 1PCS" + "PCS" -> "10ML SYRINGE ATPL*50 1PCS CASE: 1"
+      - "PARACETAMOL 500MG" + "PSC (PIECES)" -> "PARACETAMOL 500MG (PCS) CASE: 1"
     """
-    clean_type = str(c_type or "").strip().upper()
-    clean_vol = str(c_vol or "").strip().upper()
+    clean_type = str(c_type or "").strip()
+    clean_vol = str(c_vol or "").strip()
     
     # Check if string is already formatted like "NS CASE 100ML: 1", "NS 100 CASE: 1" or "NS 100ML CASE: 1"
     m = re.match(r"^(NS|DNS|RL|METRO)\s*(?:CASE)?\s*(\d+)\s*(ML|LTR)?\s*(?:CASE)?:\s*(\d+)$", clean_type, re.IGNORECASE)
@@ -49,19 +51,37 @@ def format_case_breakdown_line(c_type: str, c_vol: str = "", qty: int = 1) -> st
         unit = m.group(3).upper() if m.group(3) else "ML"
         return f"{m.group(1).upper()} {m.group(2)}{unit} CASE: {m.group(4)}"
 
-    type_base = clean_type.replace(" CASE", "").replace("CASE", "").strip()
+    upper_type = clean_type.upper()
+    upper_vol = clean_vol.upper()
 
-    if type_base in ("NS", "DNS", "RL", "METRO") and clean_vol:
-        vol_display = f"{clean_vol}ML" if clean_vol.isdigit() else clean_vol
-        return f"{type_base} {vol_display} CASE: {qty}"
-    elif clean_vol:
-        vol_display = f"{clean_vol}ML" if clean_vol.isdigit() else clean_vol
-        prefix = type_base if type_base else clean_type
-        return f"{prefix} {vol_display} CASE: {qty}"
+    # Normalization of volume
+    if upper_vol.isdigit():
+        vol_display = f"{upper_vol}ML"
+    elif re.match(r"^(PSC|PCS)(\s*\(PIECES\))?$", upper_vol, re.I):
+        vol_display = "PCS"
     else:
-        if not clean_type.endswith("CASE") and clean_type not in ("PARCEL BAG", "BOX", "CARTON", "BAG"):
-            return f"{clean_type} CASE: {qty}"
+        vol_display = upper_vol
+
+    # Standard fluids: NS, DNS, RL, METRO
+    type_base = re.sub(r"\s+CASE$", "", upper_type, flags=re.I).strip()
+    if type_base in ("NS", "DNS", "RL", "METRO"):
+        if vol_display:
+            return f"{type_base} {vol_display} CASE: {qty}"
+        return f"{type_base} CASE: {qty}"
+
+    if upper_type == "CASE":
+        if vol_display:
+            return f"CASE ({vol_display}): {qty}"
+        return f"CASE: {qty}"
+
+    if upper_type in ("PARCEL BAG", "BOX", "CARTON", "BAG"):
         return f"{clean_type}: {qty}"
+
+    # Specific item cases (e.g. "10ML SYRINGE ATPL*50 1PCS" or "PARACETAMOL 500MG")
+    base_item = re.sub(r"\s+CASE$", "", clean_type, flags=re.I).strip()
+    if vol_display and vol_display not in base_item.upper():
+        return f"{base_item} ({vol_display}) CASE: {qty}"
+    return f"{base_item} CASE: {qty}"
 
 
 def get_case_breakdown_lines(
@@ -199,7 +219,13 @@ def render_single_envelope_html(
         mob_label = "મો. નં.: "
         mail_label = "ઈમેલ: "
     else:
-        sender_name = (sender_data.get("business_name") or "SHREEJI HEALTHCARE-HEALTHCARE").strip().upper()
+        raw_bname = (sender_data.get("business_name") or "SHREEJI HEALTHCARE").strip()
+        clean_bname = re.sub(r'[\-_]HEALTHCARE', '', raw_bname, flags=re.I).strip()
+        if clean_bname.upper().endswith("HEALTHCARE"):
+            sender_name = clean_bname.upper()
+        else:
+            sender_name = f"{clean_bname} HEALTHCARE".strip().upper()
+
         sender_addr = (sender_data.get("address") or "SHOP 3&4 GF-NARAYAN COMPLEX, DEHGAM-MODASA ROAD, DEHGAM-382305").strip().upper()
         if "DEHGAM-MODASA ROAD" in sender_addr:
             sender_addr_1 = "SHOP 3&4 GF-NARAYAN COMPLEX, DEHGAM-MODASA ROAD,"
@@ -233,6 +259,12 @@ def render_single_envelope_html(
     # Dynamic Case Breakdown lines
     case_lines = get_case_breakdown_lines(job_data, case_data, settings, language=language)
 
+    # Bill Inside stamp
+    bill_inside = bool(job_data.get("bill_inside") or case_data.get("bill_inside") or settings.get("bill_inside"))
+    bill_inside_text = "📄 બિલ અંદર છે / BILL INSIDE" if language == "gu" else "📄 BILL INSIDE / બિલ અંદર છે"
+    bill_stamp_html = f'<div class="bill-inside-stamp" style="display: inline-block; border: 2.2px solid #000; padding: 2.5px 8px; font-size: 13px; font-weight: 900; letter-spacing: 0.5px; text-transform: uppercase; margin: 4px 0 6px 0; border-radius: 4px; background: #fff; text-align: center;">{bill_inside_text}</div>' if bill_inside else ""
+    bill_grid_stamp = f'<div style="font-weight: 900; border: 1.8px solid #000; padding: 2px 4px; margin-top: 4px; font-size: 10.5px; text-align: center; background: #fff;">{bill_inside_text}</div>' if bill_inside else ""
+
     # 3. Format Branching
     if template_format == "marg_grid_22":
         # Classic 22-row MARG ERP grid table layout (Previous Function restored)
@@ -242,10 +274,11 @@ def render_single_envelope_html(
             case_box_html = f"""
                   <div class="case-highlight-box">{case_badge}</div>
                   {extra_cases_html}
+                  {bill_grid_stamp}
                 """
         else:
-            # 0 cases: Print address only, no case highlight box
-            case_box_html = ""
+            # 0 cases: Print address only, or bill stamp if enabled
+            case_box_html = bill_grid_stamp
 
         sender_addr_2_row = f"""
         <tr class="h-row">
@@ -371,6 +404,7 @@ def render_single_envelope_html(
           </div>
           <div class="right-col">
             {case_block_html}
+            {bill_stamp_html}
             <div class="sender-block">
               <div class="from-title">{from_title}</div>
               <div class="sender-name">{sender_name}</div>
@@ -852,22 +886,109 @@ def build_bulk_html_document(
       padding-top: 1mm;
       letter-spacing: 2px;
     }}
-    .left-col {{ width: 58%; display: flex; flex-direction: column; justify-content: flex-start; }}
-    .right-col {{ width: 40%; display: flex; flex-direction: column; justify-content: space-between; text-align: right; }}
-    .to-title {{ font-size: 15.5pt; font-weight: 800; text-decoration: underline; text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.3px; }}
-    .party-name {{ font-size: 13.5pt; font-weight: 800; line-height: 1.25; text-transform: uppercase; letter-spacing: 0.1px; }}
-    .address-lines {{ font-size: 11.5pt; font-weight: 700; line-height: 1.3; margin-top: 6px; margin-bottom: 6px; text-transform: uppercase; }}
-    .state-notes {{ font-size: 11.5pt; font-weight: 700; line-height: 1.3; text-transform: uppercase; margin-bottom: 10px; }}
-    .mobile-no {{ font-size: 13pt; font-weight: 800; text-decoration: underline; letter-spacing: 0.2px; }}
-    .case-block {{ text-align: right; padding-top: 2px; }}
-    .case-item {{ font-size: 13.5pt; font-weight: 900; line-height: 1.2; letter-spacing: 0.2px; color: #000000; border: 2px solid #000000; border-radius: 4px; padding: 2px 7px; margin-bottom: 3px; background: #ffffff; display: inline-block; white-space: nowrap; }}
+    .left-col {{
+      width: 58%;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+    }}
+    .right-col {{
+      width: 40%;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      text-align: right;
+    }}
+    .to-title {{
+      font-size: 18pt;
+      font-weight: 900;
+      text-decoration: underline;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+      letter-spacing: 0.3px;
+    }}
+    .party-name {{
+      font-size: 17pt;
+      font-weight: 900;
+      line-height: 1.25;
+      text-transform: uppercase;
+      letter-spacing: 0.2px;
+    }}
+    .address-lines {{
+      font-size: 14pt;
+      font-weight: 800;
+      line-height: 1.3;
+      margin-top: 6px;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+    }}
+    .state-notes, .state-line {{
+      font-size: 14pt;
+      font-weight: 800;
+      line-height: 1.3;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }}
+    .mobile-no {{
+      font-size: 15.5pt;
+      font-weight: 900;
+      text-decoration: underline;
+      letter-spacing: 0.2px;
+    }}
+    .case-block {{
+      text-align: right;
+      padding-top: 2px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+    }}
+    .case-item {{
+      font-size: 14pt;
+      font-weight: 900;
+      line-height: 1.2;
+      letter-spacing: 0.2px;
+      color: #000000;
+      border: 2px solid #000000;
+      border-radius: 4px;
+      padding: 2.5px 8px;
+      margin-bottom: 3.5px;
+      background: #ffffff;
+      display: inline-block;
+      white-space: nowrap;
+    }}
 
-    .sender-block {{ text-align: left; margin-top: auto; padding-left: 10px; }}
-    .from-title {{ font-size: 12.5pt; font-weight: 800; margin-bottom: 3px; }}
-    .sender-name {{ font-size: 11.5pt; font-weight: 800; line-height: 1.25; margin-bottom: 2px; }}
-    .sender-addr {{ font-size: 10pt; font-weight: 700; line-height: 1.25; margin-bottom: 3px; }}
-    .sender-mob {{ font-size: 11pt; font-weight: 800; text-decoration: underline; margin-bottom: 2px; }}
-    .sender-mail {{ font-size: 10pt; font-weight: 700; }}
+    .sender-block {{
+      text-align: left;
+      margin-top: auto;
+      padding-left: 10px;
+    }}
+    .from-title {{
+      font-size: 14pt;
+      font-weight: 900;
+      margin-bottom: 3px;
+    }}
+    .sender-name {{
+      font-size: 13.5pt;
+      font-weight: 900;
+      line-height: 1.25;
+      margin-bottom: 2px;
+    }}
+    .sender-addr {{
+      font-size: 11.5pt;
+      font-weight: 800;
+      line-height: 1.25;
+      margin-bottom: 3px;
+    }}
+    .sender-mob {{
+      font-size: 12.5pt;
+      font-weight: 900;
+      text-decoration: underline;
+      margin-bottom: 2px;
+    }}
+    .sender-mail {{
+      font-size: 11pt;
+      font-weight: 800;
+    }}
 
     /* Classic MARG 22-Row Grid Table Format */
     .marg-envelope-wrapper {{
@@ -1071,7 +1192,12 @@ def generate_dispatch_summary_pdf(
     Supports English ('en') and Gujarati ('gu') languages.
     """
     is_gu = (language == "gu")
-    business_name = (sender_data.get("business_name") or "SHREEJI HEALTHCARE").strip()
+    raw_bname = (sender_data.get("business_name") or "SHREEJI HEALTHCARE").strip()
+    clean_bname = re.sub(r'[\-_]HEALTHCARE', '', raw_bname, flags=re.I).strip()
+    if clean_bname.upper().endswith("HEALTHCARE"):
+        business_name = clean_bname
+    else:
+        business_name = f"{clean_bname} HEALTHCARE".strip()
 
     if is_gu:
         company_name_display = "શ્રીજી હેલ્થકેર" if ("SHREEJI" in business_name.upper() or not business_name) else ai_service.fast_translate_phrase(business_name)
@@ -1220,6 +1346,23 @@ def generate_dispatch_summary_pdf(
             party_cell_html = f'<div style="font-weight: 800; font-size: 10pt;">{party_name_en}</div>'
             city_cell_html = f'<div style="font-weight: 700;">{city_en}</div>'
 
+        is_delivered = (d.get("delivery_status") == "Delivered")
+        delivered_by_user = (d.get("delivered_by") or "").strip()
+        delivered_time = (d.get("delivered_at") or "").strip()
+
+        if is_delivered:
+            sign_cell_html = f"""
+            <div style="font-size: 7.5pt; font-weight: 800; color: #047857; text-align: center; line-height: 1.1;">
+              &#10003; DELIVERED
+            </div>
+            <div style="font-size: 7pt; font-weight: 700; color: #0f172a; text-align: center; margin-top: 1px;">
+              By: {delivered_by_user or 'Driver'}
+            </div>
+            {f'<div style="font-size: 6.5pt; color: #64748b; text-align: center;">{delivered_time}</div>' if delivered_time else ''}
+            """
+        else:
+            sign_cell_html = '<div style="height: 26px;"></div>'
+
         rows_html.append(f"""
         <tr>
           <td style="text-align: center; font-weight: bold;">{idx}</td>
@@ -1228,33 +1371,47 @@ def generate_dispatch_summary_pdf(
           <td style="font-family: monospace; font-size: 9pt;">{mobile}</td>
           <td style="font-size: 9pt; font-weight: 700; color: #1e3a8a;">{breakdown_str}</td>
           <td style="text-align: center; font-weight: 800; font-size: 11pt;">{pkg_count}</td>
-          <td style="border: 1px dashed #999; height: 28px;"></td>
+          <td style="border: 1px dashed #999; vertical-align: middle; padding: 2px;">{sign_cell_html}</td>
         </tr>
         """)
 
     breakdown_total_label = f"કુલ: {total_pkgs} પાર્સલ" if is_gu else f"TOTAL: {total_pkgs} PKGS"
 
-    breakdown_badges_html = "".join([
-        f"""
-        <div style="background: #ffffff; border: 1.5px solid #1e3a8a; border-radius: 6px; padding: 4px 6px; text-align: center;">
-          <div style="font-size: 7.5pt; font-weight: 800; color: #1e3a8a; text-transform: uppercase;">
-            {k}
-          </div>
-          <div style="font-size: 13pt; font-weight: 900; color: #000000; margin-top: 1px;">{v}</div>
-        </div>
-        """
-        for k, v in sorted(full_breakdown_counts.items())
-    ]) if full_breakdown_counts else '<div style="font-size: 9pt; color: #64748b;">No items</div>'
+    # Compact 4-column table for case breakdown to prevent awkward orphan page splits
+    items_list = sorted(full_breakdown_counts.items())
+    num_cols = 4
+    table_rows = []
+    for i in range(0, len(items_list), num_cols):
+        chunk = items_list[i:i + num_cols]
+        cells_html = []
+        for k, v in chunk:
+            cells_html.append(f"""
+            <td style="width: 25%; padding: 2px 4px; vertical-align: top;">
+              <div style="background: #ffffff; border: 1.5px solid #1e3a8a; border-radius: 5px; padding: 3px 5px; text-align: center;">
+                <div style="font-size: 7pt; font-weight: 800; color: #1e3a8a; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                  {k}
+                </div>
+                <div style="font-size: 11pt; font-weight: 900; color: #000000; margin-top: 1px;">{v}</div>
+              </div>
+            </td>
+            """)
+        while len(cells_html) < num_cols:
+            cells_html.append('<td style="width: 25%; padding: 2px 4px;"></td>')
+        table_rows.append(f"<tr>{''.join(cells_html)}</tr>")
+
+    breakdown_table_html = f"""
+    <table style="width: 100%; border-collapse: collapse; margin-top: 2px;">
+      {''.join(table_rows)}
+    </table>
+    """ if items_list else '<div style="font-size: 8.5pt; color: #64748b;">No items</div>'
 
     detailed_breakdown_box = f"""
-    <div style="margin-top: 10px; border: 1.5px solid #000000; border-radius: 6px; padding: 8px 12px; background: #f8fafc;">
-      <div style="font-size: 9pt; font-weight: 900; color: #0f172a; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #cbd5e1; padding-bottom: 3px; display: flex; justify-content: space-between;">
+    <div style="margin-top: 6px; border: 1.5px solid #000000; border-radius: 6px; padding: 6px 10px; background: #f8fafc; page-break-inside: avoid; break-inside: avoid;">
+      <div style="font-size: 8.5pt; font-weight: 900; color: #0f172a; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #cbd5e1; padding-bottom: 2px; display: flex; justify-content: space-between;">
         <span>{breakdown_box_header}</span>
         <span style="color: #1e3a8a;">{breakdown_total_label}</span>
       </div>
-      <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 6px;">
-        {breakdown_badges_html}
-      </div>
+      {breakdown_table_html}
     </div>
     """
 
@@ -1332,44 +1489,54 @@ def generate_dispatch_summary_pdf(
       padding: 5px 8px;
       vertical-align: middle;
     }}
-    tr:nth-child(even) {{
-      background: #f8fafc;
+    tr {{
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }}
+    .footer-block {{
+      page-break-inside: avoid;
+      break-inside: avoid;
+      margin-top: 6px;
     }}
     .summary-box {{
-      margin-top: 10px;
+      margin-top: 4px;
       display: flex;
       justify-content: space-between;
       border: 1.5px solid #000000;
       border-radius: 6px;
-      padding: 8px 14px;
+      padding: 6px 12px;
       background: #f8fafc;
+      page-break-inside: avoid;
+      break-inside: avoid;
     }}
     .kpi-item {{
       text-align: center;
     }}
     .kpi-num {{
-      font-size: 14pt;
+      font-size: 13pt;
       font-weight: 900;
       color: #0f172a;
     }}
     .kpi-label {{
-      font-size: 8pt;
+      font-size: 7.5pt;
       font-weight: 700;
       text-transform: uppercase;
       color: #64748b;
     }}
     .signatures {{
-      margin-top: 24px;
+      margin-top: 14px;
       display: flex;
       justify-content: space-between;
       padding: 0 10px;
+      page-break-inside: avoid;
+      break-inside: avoid;
     }}
     .sign-col {{
       text-align: center;
       width: 30%;
       border-top: 1.5px solid #000000;
-      padding-top: 6px;
-      font-size: 8.5pt;
+      padding-top: 4px;
+      font-size: 8pt;
       font-weight: 800;
     }}
   </style>
@@ -1410,35 +1577,37 @@ def generate_dispatch_summary_pdf(
     </tbody>
   </table>
 
-  <div class="summary-box">
-    <div class="kpi-item">
-      <div class="kpi-num">{total_parties}</div>
-      <div class="kpi-label">{kpi_parties_label}</div>
+  <div class="footer-block">
+    <div class="summary-box">
+      <div class="kpi-item">
+        <div class="kpi-num">{total_parties}</div>
+        <div class="kpi-label">{kpi_parties_label}</div>
+      </div>
+      <div class="kpi-item">
+        <div class="kpi-num">{total_pkgs}</div>
+        <div class="kpi-label">{kpi_pkgs_label}</div>
+      </div>
+      <div class="kpi-item">
+        <div class="kpi-num">{total_standard_cases}</div>
+        <div class="kpi-label">{kpi_standard_label}</div>
+      </div>
+      <div class="kpi-item">
+        <div class="kpi-num">{total_fluid_cases}</div>
+        <div class="kpi-label">{kpi_fluid_label}</div>
+      </div>
+      <div class="kpi-item">
+        <div class="kpi-num">{total_bags}</div>
+        <div class="kpi-label">{kpi_bag_label}</div>
+      </div>
     </div>
-    <div class="kpi-item">
-      <div class="kpi-num">{total_pkgs}</div>
-      <div class="kpi-label">{kpi_pkgs_label}</div>
-    </div>
-    <div class="kpi-item">
-      <div class="kpi-num">{total_standard_cases}</div>
-      <div class="kpi-label">{kpi_standard_label}</div>
-    </div>
-    <div class="kpi-item">
-      <div class="kpi-num">{total_fluid_cases}</div>
-      <div class="kpi-label">{kpi_fluid_label}</div>
-    </div>
-    <div class="kpi-item">
-      <div class="kpi-num">{total_bags}</div>
-      <div class="kpi-label">{kpi_bag_label}</div>
-    </div>
-  </div>
 
-  {detailed_breakdown_box}
+    {detailed_breakdown_box}
 
-  <div class="signatures">
-    <div class="sign-col">{sign_driver}</div>
-    <div class="sign-col">{sign_manager}</div>
-    <div class="sign-col">{sign_security}</div>
+    <div class="signatures">
+      <div class="sign-col">{sign_driver}</div>
+      <div class="sign-col">{sign_manager}</div>
+      <div class="sign-col">{sign_security}</div>
+    </div>
   </div>
 </body>
 </html>

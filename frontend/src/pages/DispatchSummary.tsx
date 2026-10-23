@@ -15,7 +15,8 @@ import {
   X,
   Languages,
   Sparkles,
-  MessageSquare
+  MessageSquare,
+  Clock
 } from "lucide-react";
 import { fetchDispatchSummary, updateDispatchJobs, downloadDispatchSummaryPDF, printDispatchSummaryPDF } from "../api/client";
 import { DispatchSummaryData, DispatchSummaryJob } from "../types";
@@ -273,88 +274,138 @@ export const DispatchSummary: React.FC = () => {
         </div>
       </div>
 
-      {/* 2. Filters & KPIs Bar */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
-        {/* KPI 1: Total Stops / Parties */}
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center font-black text-xl">
-            {data?.total_parties || 0}
-          </div>
-          <div>
-            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-              {isGu ? "કુલ સ્ટોપ (પાર્ટી)" : "Total Stops (Parties)"}
-            </div>
-            <div className="text-sm font-extrabold text-slate-900">
-              {isGu ? `${selectedDate} માટે` : `For ${selectedDate}`}
-            </div>
-          </div>
-        </div>
+      {/* 2. KPIs & Summary Stats Bar */}
+      {(() => {
+        const deliveredCases = filteredDispatches
+          .filter((d) => d.delivery_status === "Delivered")
+          .reduce((acc, curr) => acc + (curr.total_cases || 1), 0);
+        const deliveredParties = filteredDispatches.filter((d) => d.delivery_status === "Delivered").length;
+        const pendingCases = filteredDispatches
+          .filter((d) => d.delivery_status !== "Delivered")
+          .reduce((acc, curr) => acc + (curr.total_cases || 1), 0);
+        const pendingParties = filteredDispatches.length - deliveredParties;
 
-        {/* KPI 2: Total Packages */}
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-black text-xl">
-            {data?.total_packages || 0}
-          </div>
-          <div>
-            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-              {isGu ? "કુલ પાર્સલ / કેસ" : "Total Packages / Cases"}
+        return (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {/* KPI 1: Total Stops / Parties */}
+              <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs flex items-center gap-3">
+                <div className="w-11 h-11 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center font-black text-lg border border-blue-100 shrink-0">
+                  {data?.total_parties || 0}
+                </div>
+                <div>
+                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                    {isGu ? "કુલ સ્ટોપ (પાર્ટી)" : "Total Stops (Parties)"}
+                  </div>
+                  <div className="text-sm font-black text-slate-900">
+                    {data?.total_packages || 0} {isGu ? "કુલ કેસ" : "Total Cases"}
+                  </div>
+                </div>
+              </div>
+
+              {/* KPI 2: Delivered Cases & Parties */}
+              <div className="bg-white p-3.5 rounded-xl border border-emerald-200 bg-emerald-50/20 shadow-2xs flex items-center gap-3">
+                <div className="w-11 h-11 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-black text-lg border border-emerald-300 shrink-0">
+                  {deliveredCases}
+                </div>
+                <div>
+                  <div className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                    <span>{isGu ? "ડિલિવર થયેલ કેસ" : "Delivered Cases"}</span>
+                  </div>
+                  <div className="text-sm font-black text-emerald-950">
+                    {deliveredParties} {isGu ? "પાર્ટી પૂર્ણ" : "Parties Completed"}
+                  </div>
+                </div>
+              </div>
+
+              {/* KPI 3: Pending Delivery Cases */}
+              <div className="bg-white p-3.5 rounded-xl border border-amber-200 bg-amber-50/20 shadow-2xs flex items-center gap-3">
+                <div className="w-11 h-11 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-black text-lg border border-amber-300 shrink-0">
+                  {pendingCases}
+                </div>
+                <div>
+                  <div className="text-[10px] font-bold text-amber-700 uppercase tracking-wider flex items-center gap-1">
+                    <Clock className="w-3 h-3 text-amber-600" />
+                    <span>{isGu ? "ડિલિવરી બાકી કેસ" : "Pending Cases"}</span>
+                  </div>
+                  <div className="text-sm font-black text-amber-950">
+                    {pendingParties} {isGu ? "પાર્ટી બાકી" : "Parties Pending"}
+                  </div>
+                </div>
+              </div>
+
+              {/* KPI 4: Completion Rate */}
+              <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs flex items-center gap-3">
+                <div className="w-11 h-11 rounded-xl bg-slate-100 text-slate-800 flex items-center justify-center font-black text-sm border border-slate-200 shrink-0">
+                  {data?.total_packages ? Math.round((deliveredCases / data.total_packages) * 100) : 0}%
+                </div>
+                <div>
+                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                    {isGu ? "પૂર્ણતા દર" : "Delivery Completion"}
+                  </div>
+                  <div className="text-sm font-black text-slate-900">
+                    {deliveredCases}/{data?.total_packages || 0} {isGu ? "કેસ પૂરા" : "Cases Done"}
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="text-sm font-extrabold text-slate-900">
-              {isGu ? "ડિસ્પેચ માટે તૈયાર" : "Ready for Dispatch"}
+
+            {/* Filter Controls Row */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Filter: Date Selector */}
+              <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs space-y-1">
+                <span className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
+                  <Calendar className="w-3 h-3 text-blue-600" />
+                  <span>{isGu ? "તારીખ (Date)" : "Dispatch Date"}</span>
+                </span>
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 font-extrabold text-slate-900 text-xs bg-slate-50 focus:bg-white"
+                />
+              </div>
+
+              {/* Filter: Driver Name */}
+              <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs space-y-1">
+                <span className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
+                  <UserCheck className="w-3 h-3 text-emerald-600" />
+                  <span>{isGu ? "ડ્રાઈવર ફિલ્ટર (Driver)" : "Filter Driver"}</span>
+                </span>
+                <select
+                  value={selectedDriver}
+                  onChange={(e) => setSelectedDriver(e.target.value)}
+                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 font-bold text-slate-900 text-xs bg-slate-50 focus:bg-white"
+                >
+                  <option value="">{isGu ? "બધા ડ્રાઈવર (All Drivers)" : "All Drivers"}</option>
+                  {(data?.available_delivery_boys || []).map((boy) => (
+                    <option key={boy} value={boy}>{boy}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Filter: Route Wise */}
+              <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs space-y-1">
+                <span className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
+                  <MapPin className="w-3 h-3 text-purple-600" />
+                  <span>{isGu ? "રૂટ ફિલ્ટર (Route)" : "Filter Route"}</span>
+                </span>
+                <select
+                  value={selectedRoute}
+                  onChange={(e) => setSelectedRoute(e.target.value)}
+                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 font-bold text-slate-900 text-xs bg-slate-50 focus:bg-white"
+                >
+                  <option value="">{isGu ? "બધા રૂટ (All Routes)" : "All Routes"}</option>
+                  {(data?.available_routes || []).map((r) => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
-        </div>
-
-        {/* Filter: Date Selector */}
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-1">
-          <span className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
-            <Calendar className="w-3 h-3 text-blue-600" />
-            <span>{isGu ? "તારીખ (Date)" : "Dispatch Date"}</span>
-          </span>
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 font-extrabold text-slate-900 text-xs bg-slate-50 focus:bg-white"
-          />
-        </div>
-
-        {/* Filter: Driver Name (Rebranded from Delivery Boy) */}
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-1">
-          <span className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
-            <UserCheck className="w-3 h-3 text-emerald-600" />
-            <span>{isGu ? "ડ્રાઈવર ફિલ્ટર (Driver)" : "Filter Driver"}</span>
-          </span>
-          <select
-            value={selectedDriver}
-            onChange={(e) => setSelectedDriver(e.target.value)}
-            className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 font-bold text-slate-900 text-xs bg-slate-50 focus:bg-white"
-          >
-            <option value="">{isGu ? "બધા ડ્રાઈવર (All Drivers)" : "All Drivers"}</option>
-            {(data?.available_delivery_boys || []).map((boy) => (
-              <option key={boy} value={boy}>{boy}</option>
-            ))}
-          </select>
-        </div>
-
-        {/* Filter: Route Wise */}
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-1">
-          <span className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
-            <MapPin className="w-3 h-3 text-purple-600" />
-            <span>{isGu ? "રૂટ ફિલ્ટર (Route)" : "Filter Route"}</span>
-          </span>
-          <select
-            value={selectedRoute}
-            onChange={(e) => setSelectedRoute(e.target.value)}
-            className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 font-bold text-slate-900 text-xs bg-slate-50 focus:bg-white"
-          >
-            <option value="">{isGu ? "બધા રૂટ (All Routes)" : "All Routes"}</option>
-            {(data?.available_routes || []).map((r) => (
-              <option key={r} value={r}>{r}</option>
-            ))}
-          </select>
-        </div>
-      </div>
+        );
+      })()}
 
       {/* Case Types Breakdown Banner */}
       {data && data.breakdown_totals && Object.keys(data.breakdown_totals).length > 0 && (
@@ -476,9 +527,9 @@ export const DispatchSummary: React.FC = () => {
                 <th className="p-3">{isGu ? "મોબાઈલ નં." : "Mobile No."}</th>
                 <th className="p-3">{isGu ? "કેસ વિગત" : "Case Breakdown"}</th>
                 <th className="p-3 text-center">{isGu ? "પાર્સલ" : "Pkgs"}</th>
-                <th className="p-3">{isGu ? "ડ્રાઈવરનું નામ" : "Driver Name"}</th>
+                <th className="p-3">{isGu ? "સોંપાયેલ ડ્રાઈવર" : "Assigned Driver"}</th>
                 <th className="p-3">{isGu ? "રૂટ" : "Route"}</th>
-                <th className="p-3 text-center">{isGu ? "સ્થિતિ" : "Status"}</th>
+                <th className="p-3 text-center">{isGu ? "ડિલિવરી સ્થિતિ / કરનાર" : "Delivery Status / By"}</th>
                 <th className="p-3 text-center">{isGu ? "વોટ્સએપ" : "WhatsApp"}</th>
               </tr>
             </thead>
@@ -552,11 +603,11 @@ export const DispatchSummary: React.FC = () => {
                       </td>
                       <td className="p-3 font-bold text-slate-800">
                         {job.delivery_boy_name ? (
-                          <span className="bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded border border-emerald-200 font-extrabold">
+                          <span className="bg-slate-100 text-slate-800 px-2 py-0.5 rounded border border-slate-200 font-bold text-xs">
                             {job.delivery_boy_name}
                           </span>
                         ) : (
-                          <span className="text-slate-400 italic">
+                          <span className="text-slate-400 italic text-xs">
                             {isGu ? "બિન-સોંપાયેલ" : "Unassigned"}
                           </span>
                         )}
@@ -565,10 +616,32 @@ export const DispatchSummary: React.FC = () => {
                         {job.delivery_route || "-"}
                       </td>
                       <td className="p-3 text-center">
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold bg-blue-100 text-blue-800">
-                          <CheckCircle2 className="w-3 h-3 text-blue-600" />
-                          <span>{job.status}</span>
-                        </span>
+                        {job.delivery_status === 'Delivered' || job.delivered_by ? (
+                          <div className="flex flex-col items-center gap-1">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-100 text-emerald-900 border border-emerald-300 shadow-2xs">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                              <span>{isGu ? "ડિલિવર થયેલ" : "Delivered"}</span>
+                            </span>
+                            <div className="text-[11px] font-extrabold text-emerald-950 flex items-center justify-center gap-1">
+                              <span className="text-slate-500 font-semibold">{isGu ? "દ્વારા:" : "By:"}</span>
+                              <span className="bg-emerald-50 text-emerald-900 px-1.5 py-0.5 rounded border border-emerald-200 font-black">
+                                👤 {job.delivered_by || job.delivery_boy_name || "Driver"}
+                              </span>
+                            </div>
+                            {job.delivered_at && (
+                              <div className="text-[10px] text-slate-400 font-mono">
+                                {new Date(job.delivered_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center gap-0.5">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold bg-amber-50 text-amber-800 border border-amber-200">
+                              <Clock className="w-3 h-3 text-amber-600 shrink-0" />
+                              <span>{isGu ? "બાકી (Pending)" : "Pending Delivery"}</span>
+                            </span>
+                          </div>
+                        )}
                       </td>
                       <td className="p-3 text-center">
                         {(() => {

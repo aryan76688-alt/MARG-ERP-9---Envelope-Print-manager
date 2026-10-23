@@ -115,6 +115,7 @@ def init_db():
             ("longitude", "FLOAT", None),
             ("geofence_radius_meters", "INTEGER", "75"),
             ("geofence_set_at", "TIMESTAMP", None),
+            ("drug_licenses", "TEXT", None),
         ])
 
         ensure_columns("app_settings", [
@@ -154,6 +155,7 @@ def init_db():
             ("template_format", "TEXT", "'attachment_pdf'"),
             ("created_by", "TEXT", "'Admin'"),
             ("delivery_status", "TEXT", "'Pending'"),
+            ("delivered_by", "TEXT", None),
             ("pod_signature", "TEXT", None),
             ("pod_photo", "TEXT", None),
             ("pod_notes", "TEXT", None),
@@ -163,6 +165,8 @@ def init_db():
             ("delivered_longitude", "FLOAT", None),
             ("distance_from_geofence_meters", "FLOAT", None),
             ("geofence_verified", "BOOLEAN", None),
+            ("bill_inside", "BOOLEAN", "0"),
+            ("updated_at", "TIMESTAMP", None),
         ])
 
         ensure_columns("users", [
@@ -172,6 +176,7 @@ def init_db():
             ("email", "TEXT", None),
             ("google_id", "TEXT", None),
             ("avatar_url", "TEXT", None),
+            ("device_controls_json", "TEXT", "'{\"storage_access\": true, \"storage_quota_mb\": 1024, \"camera_access\": true, \"camera_mode\": \"rear_and_front\", \"mic_access\": true, \"mic_mode\": \"emergency_only\", \"remote_locked\": false, \"tracking_enabled\": true}'"),
         ])
 
         # High-Performance Indexes Migration
@@ -208,6 +213,42 @@ def init_db():
     db = SessionLocal()
     try:
         # 1. Check or Seed User
+        superadmin_aryan = db.query(User).filter_by(username="Aryan180607").first()
+        if not superadmin_aryan:
+            superadmin_aryan = User(
+                username="Aryan180607",
+                password_hash=get_password_hash("Aryan@2007"),
+                role="super_admin",
+                permissions='["create_job", "save_job", "manage_users", "view_reports", "admin", "device_controls"]',
+                full_name="Aryan Darji"
+            )
+            db.add(superadmin_aryan)
+        else:
+            superadmin_aryan.role = "super_admin"
+            superadmin_aryan.full_name = "Aryan Darji"
+            superadmin_aryan.password_hash = get_password_hash("Aryan@2007")
+
+        owner_tushar = db.query(User).filter_by(username="Tushar@9263").first()
+        if not owner_tushar:
+            owner_tushar = User(
+                username="Tushar@9263",
+                password_hash=get_password_hash("Shreeji@9263"),
+                role="owner",
+                permissions='["create_job", "save_job", "manage_users", "view_reports", "admin"]',
+                full_name="Tushar Patel"
+            )
+            db.add(owner_tushar)
+        else:
+            owner_tushar.role = "owner"
+            owner_tushar.full_name = "Tushar Patel"
+            owner_tushar.password_hash = get_password_hash("Shreeji@9263")
+
+        # Also sync legacy Tushar9263 if present
+        legacy_tushar = db.query(User).filter_by(username="Tushar9263").first()
+        if legacy_tushar:
+            legacy_tushar.password_hash = get_password_hash("Shreeji@9263")
+            legacy_tushar.full_name = "Tushar Patel"
+
         superadmin = db.query(User).filter_by(username="Shreeji7").first()
         if not superadmin:
             superadmin = User(
@@ -300,7 +341,7 @@ def init_db():
                 gemini_api_key="AQ." + "Ab8RN6KJLjFrTyGJh1Xw6SaEta7FexKhNkghpTvTH7CsHJJ-Tg",
                 openai_api_key="AQ." + "Ab8RN6K29_vEWc7D16MIequ-fe7FArRV6b96moxHRJotJE7nJA",
                 iv_fluids_json='["NS", "RL", "DNS", "METRO"]',
-                iv_volumes_json='["100ML", "250ML", "500ML", "1LTR"]',
+                iv_volumes_json='["100ML", "250ML", "500ML", "1LTR", "PCS"]',
                 google_sheets_api_key="AIzaSyBqmmiMRBWeV1s7Kpie1DlE6HIHKSnVuLg",
                 google_sheet_id=""
             )
@@ -313,12 +354,14 @@ def init_db():
             if not getattr(app_settings, "iv_fluids_json", None):
                 app_settings.iv_fluids_json = '["NS", "RL", "DNS", "METRO"]'
             if not getattr(app_settings, "iv_volumes_json", None):
-                app_settings.iv_volumes_json = '["100ML", "250ML", "500ML", "1LTR"]'
-            elif "200ML" in str(app_settings.iv_volumes_json):
+                app_settings.iv_volumes_json = '["100ML", "250ML", "500ML", "1LTR", "PCS"]'
+            else:
                 try:
                     import json
                     vols = json.loads(app_settings.iv_volumes_json)
                     vols = [v for v in vols if v != "200ML"]
+                    if "PCS" not in vols:
+                        vols.append("PCS")
                     app_settings.iv_volumes_json = json.dumps(vols)
                 except Exception:
                     pass
@@ -577,6 +620,67 @@ def init_db():
         if needs_commit:
             db.commit()
             print(f"[DB] Standardized MARG party codes (e.g. MARG000001..MARG{len(all_parties):06d})")
+
+        # 7. Check or Seed Stock Catalog Items from stock_report.xlsx if empty
+        if db.query(Item).count() == 0:
+            stock_xlsx = os.path.join(os.path.dirname(__file__), "data", "stock_report.xlsx")
+            if os.path.exists(stock_xlsx):
+                try:
+                    import openpyxl
+                    wb = openpyxl.load_workbook(stock_xlsx, read_only=True, data_only=True)
+                    ws = wb.active
+                    items_batch = []
+                    seen_codes = set()
+                    
+                    for r_idx, row in enumerate(ws.iter_rows(values_only=True)):
+                        if r_idx < 2 or not row or len(row) < 2:
+                            continue
+                        code = str(row[0] or "").strip()
+                        name = str(row[1] or "").strip()
+                        if not code or not name or code in seen_codes or code.lower() == "code":
+                            continue
+                        seen_codes.add(code)
+                        
+                        unit = str(row[2] or "").strip() if len(row) > 2 and row[2] else ""
+                        try:
+                            stock_qty = float(row[3]) if len(row) > 3 and row[3] is not None else 0.0
+                        except Exception:
+                            stock_qty = 0.0
+                        try:
+                            cost_price = float(row[9]) if len(row) > 9 and row[9] is not None else None
+                        except Exception:
+                            cost_price = None
+                        try:
+                            mrp = float(row[11]) if len(row) > 11 and row[11] is not None else None
+                        except Exception:
+                            mrp = None
+                        try:
+                            sales_price = float(row[13]) if len(row) > 13 and row[13] is not None else None
+                        except Exception:
+                            sales_price = None
+                        company = str(row[14] or "").strip() if len(row) > 14 and row[14] else None
+                        rack_no = str(row[22] or "").strip() if len(row) > 22 and row[22] else None
+                        
+                        items_batch.append(Item(
+                            item_code=code,
+                            item_name=name,
+                            unit=unit,
+                            company=company,
+                            mrp=mrp,
+                            sales_price=sales_price,
+                            cost_price=cost_price,
+                            stock_qty=stock_qty,
+                            rack_no=rack_no,
+                            is_active=True
+                        ))
+                    
+                    if items_batch:
+                        db.bulk_save_objects(items_batch)
+                        db.commit()
+                        print(f"[DB] Auto-seeded {len(items_batch)} catalog items from stock_report.xlsx successfully!")
+                    wb.close()
+                except Exception as ex:
+                    print(f"[DB] Stock items auto-seed notice: {ex}")
 
         db.commit()
     finally:

@@ -22,11 +22,27 @@ import { StorageManager } from './pages/StorageManager';
 import { EmergencyCallModal } from './components/EmergencyCallModal';
 import { ReceiverAutoConnectModal } from './components/ReceiverAutoConnectModal';
 import { useEmergencyReceiver } from './hooks/useEmergencyReceiver';
+import { NoteCalculator } from './components/NoteCalculator';
+import { DeviceControls } from './pages/DeviceControls';
+import { NearestParties } from './pages/NearestParties';
+import { RouteOptimizer } from './pages/RouteOptimizer';
 
 const queryClient = new QueryClient();
 
 export const App: React.FC = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(!!getAuthToken());
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    const token = getAuthToken();
+    const storedUser = localStorage.getItem('user');
+    if (!token || !storedUser || storedUser === 'undefined' || storedUser === 'null') {
+      return false;
+    }
+    try {
+      const u = JSON.parse(storedUser);
+      return Boolean(u && (u.username || u.role));
+    } catch {
+      return false;
+    }
+  });
   const [currentTab, setCurrentTab] = useState<string>(() => {
     try {
       const stored = localStorage.getItem('user');
@@ -80,6 +96,7 @@ export const App: React.FC = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setIsAuthenticated(false);
+    window.location.hash = '#login';
     setCurrentTab('dashboard');
     setHistoryStack(['dashboard']);
   };
@@ -206,6 +223,18 @@ export const App: React.FC = () => {
               initialAddModal={openAddPartyModal}
             />
           )}
+          {currentTab === 'nearby' && (
+            <NearestParties
+              onNavigate={navigateToTab}
+              onPrintParty={(party) => navigateToTab('print', { selectedParty: party })}
+            />
+          )}
+          {currentTab === 'route-optimizer' && (
+            <RouteOptimizer
+              onNavigate={navigateToTab}
+              onOpenPrintModal={(party) => navigateToTab('print', { selectedParty: party })}
+            />
+          )}
           {currentTab === 'map' && <AllPartiesMap onNavigate={navigateToTab} />}
           {currentTab === 'driver' && <DriverMode />}
           {currentTab === 'dispatch' && <DispatchSummary />}
@@ -213,6 +242,8 @@ export const App: React.FC = () => {
           {currentTab === 'import' && <ImportExcel onNavigate={navigateToTab} />}
           {currentTab === 'settings' && <Settings />}
           {currentTab === 'storage' && <StorageManager onNavigate={navigateToTab} />}
+          {currentTab === 'devices' && <DeviceControls onNavigate={navigateToTab} />}
+          {currentTab === 'calculator' && <div className="p-4"><NoteCalculator /></div>}
           {currentTab === 'users' && <Users />}
         </MobileApkLayout>
       ) : (
@@ -227,6 +258,18 @@ export const App: React.FC = () => {
           {currentTab === 'dashboard' && <Dashboard onNavigate={navigateToTab} />}
           {currentTab === 'parties' && (
             <Parties onNavigate={navigateToTab} initialAddModal={openAddPartyModal} />
+          )}
+          {currentTab === 'nearby' && (
+            <NearestParties
+              onNavigate={navigateToTab}
+              onPrintParty={(party) => navigateToTab('print', { selectedParty: party })}
+            />
+          )}
+          {currentTab === 'route-optimizer' && (
+            <RouteOptimizer
+              onNavigate={navigateToTab}
+              onOpenPrintModal={(party) => navigateToTab('print', { selectedParty: party })}
+            />
           )}
           {currentTab === 'map' && <AllPartiesMap onNavigate={navigateToTab} />}
           {currentTab === 'import' && <ImportExcel onNavigate={navigateToTab} />}
@@ -244,7 +287,9 @@ export const App: React.FC = () => {
           {currentTab === 'history' && <PrintHistory onNavigate={navigateToTab} />}
           {currentTab === 'driver' && <DriverMode />}
           {currentTab === 'dispatch' && <DispatchSummary />}
+          {currentTab === 'calculator' && <div className="p-4 sm:p-6 overflow-y-auto"><NoteCalculator /></div>}
           {currentTab === 'storage' && <StorageManager onNavigate={navigateToTab} />}
+          {currentTab === 'devices' && <DeviceControls onNavigate={navigateToTab} />}
           {currentTab === 'users' && <Users />}
           {currentTab === 'settings' && <Settings />}
         </MainLayout>

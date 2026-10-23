@@ -9,10 +9,11 @@ import {
   Truck, 
   X, 
   Phone, 
-  CheckCircle2 
+  CheckCircle2,
+  Box
 } from 'lucide-react';
-import { Party, CaseBreakdownItem } from '../types';
-import { autocompleteParties, createPrintJob, downloadEnvelopePDF } from '../api/client';
+import { Party, CaseBreakdownItem, Item } from '../types';
+import { autocompleteParties, createPrintJob, updatePrintJob, downloadEnvelopePDF, searchItems } from '../api/client';
 import { searchPartiesOffline, queueOfflineJob } from '../offline/db';
 import { generateWhatsAppDispatchUrl } from '../utils/whatsapp';
 
@@ -41,11 +42,19 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
   const [driverName, setDriverName] = useState<string>('');
   const [printing, setPrinting] = useState<boolean>(false);
   const [successJob, setSuccessJob] = useState<any | null>(null);
+  const [editingJobId, setEditingJobId] = useState<number | null>(reprintJob?.id || null);
+  const [isEditReprintMode, setIsEditReprintMode] = useState<boolean>(!!reprintJob);
 
-  // IV Fluid items (200ML permanently excluded)
+  // IV Fluid items (200ML permanently excluded, PCS included)
   const [caseItems, setCaseItems] = useState<CaseBreakdownItem[]>([]);
   const fluidTypes = ['NS', 'RL', 'DNS', 'METRO'];
-  const fluidVolumes = ['100ML', '250ML', '500ML', '1LTR'];
+  const fluidVolumes = ['100ML', '250ML', '500ML', '1LTR', 'PCS'];
+
+  // Item Full Cases search state (4,343 stock catalog items)
+  const [mobileItemQuery, setMobileItemQuery] = useState<string>('');
+  const [mobileItemResults, setMobileItemResults] = useState<Item[]>([]);
+  const [isSearchingMobileItems, setIsSearchingMobileItems] = useState<boolean>(false);
+  const [showMobileItemDropdown, setShowMobileItemDropdown] = useState<boolean>(false);
 
   useEffect(() => {
     if (initialParty) {
@@ -56,9 +65,33 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
 
   useEffect(() => {
     if (reprintJob) {
+      setEditingJobId(reprintJob.id || null);
+      setIsEditReprintMode(true);
       setTotalCases(reprintJob.total_cases ?? 1);
       setDeliveryRoute(reprintJob.delivery_route || '');
       setDriverName(reprintJob.driver_name || '');
+      if (reprintJob.party) {
+        setSelectedParty(reprintJob.party);
+      } else if (reprintJob.party_name || reprintJob.party_name_snap) {
+        setSelectedParty({
+          id: reprintJob.party_id,
+          party_name: reprintJob.party_name || reprintJob.party_name_snap,
+          party_name_gu: reprintJob.party_name_gu,
+          party_code: reprintJob.party_code || reprintJob.party_code_snap,
+          address: reprintJob.address || reprintJob.party_address_snap || '',
+          city: reprintJob.city || reprintJob.party_city_snap || '',
+          state: reprintJob.state || reprintJob.party_state_snap || '',
+          mobile_no: reprintJob.mobile || reprintJob.party_mobile_snap || ''
+        } as any);
+      }
+      if (reprintJob.case_breakdown && Array.isArray(reprintJob.case_breakdown)) {
+        setCaseItems(reprintJob.case_breakdown);
+      } else if (reprintJob.case_breakdown_json) {
+        try {
+          const parsed = typeof reprintJob.case_breakdown_json === 'string' ? JSON.parse(reprintJob.case_breakdown_json) : reprintJob.case_breakdown_json;
+          if (Array.isArray(parsed)) setCaseItems(parsed);
+        } catch {}
+      }
     }
   }, [reprintJob]);
 
@@ -107,8 +140,48 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
     }
   };
 
+  const handleSearchMobileItems = async (q: string) => {
+    if (!q || q.trim().length < 1) {
+      setMobileItemResults([]);
+      setShowMobileItemDropdown(false);
+      return;
+    }
+    setIsSearchingMobileItems(true);
+    setShowMobileItemDropdown(true);
+    try {
+      const res = await searchItems(q.trim(), 20);
+      setMobileItemResults(res || []);
+    } catch {
+      setMobileItemResults([]);
+    } finally {
+      setIsSearchingMobileItems(false);
+    }
+  };
+
+  const handleAddItemCaseMobile = (item: Item, volume: string = 'PCS') => {
+    const typeLabel = `${item.item_name} CASE`;
+    const vol = volume || (item.unit && item.unit.toUpperCase().includes('PCS') ? 'PSC (PIECES)' : item.unit || 'PCS');
+    const existingIdx = caseItems.findIndex(i => i.type === typeLabel && i.volume === vol);
+    if (existingIdx >= 0) {
+      const updated = [...caseItems];
+      updated[existingIdx].qty += 1;
+      setCaseItems(updated);
+    } else {
+      setCaseItems([...caseItems, { type: typeLabel, volume: vol, qty: 1 }]);
+    }
+    setMobileItemQuery('');
+    setMobileItemResults([]);
+    setShowMobileItemDropdown(false);
+    // Auto-increment total cases if totalCases matches caseItems sum
+    setTotalCases(prev => prev + 1);
+  };
+
   const handleRemoveFluidItem = (index: number) => {
+    const item = caseItems[index];
     setCaseItems(caseItems.filter((_, i) => i !== index));
+    if (item) {
+      setTotalCases(prev => Math.max(0, prev - item.qty));
+    }
   };
 
   const handleExecutePrint = async () => {
@@ -146,7 +219,15 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
         case_breakdown: caseItems.length > 0 ? caseItems : undefined
       };
 
-      const res = await createPrintJob(jobPayload);
+      let res;
+      if (isEditReprintMode && editingJobId) {
+        res = await updatePrintJob(editingJobId, jobPayload);
+      } else {
+        res = await createPrintJob({
+          ...jobPayload,
+          allow_duplicate: true
+        });
+      }
       setSuccessJob(res);
       if (onJobCreated) onJobCreated();
     } catch (err: any) {
@@ -184,6 +265,8 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
     setTotalCases(1);
     setCaseItems([]);
     setSuccessJob(null);
+    setEditingJobId(null);
+    setIsEditReprintMode(false);
   };
 
   return (
@@ -425,11 +508,72 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
                     onClick={() => handleAddFluidItem(f, v)}
                     className="w-full py-1.5 rounded-lg bg-slate-50 hover:bg-blue-50 hover:text-blue-700 active:scale-95 text-[10px] font-bold text-slate-700 border border-slate-200 transition-all text-center block cursor-pointer"
                   >
-                    +{v}
+                    +{v === 'PCS' ? 'PSC' : v}
                   </button>
                 ))}
               </div>
             ))}
+          </div>
+
+          {/* Item Full Cases Search on Mobile */}
+          <div className="pt-2 border-t border-slate-100 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-black uppercase text-indigo-700 flex items-center gap-1">
+                <Box className="w-3.5 h-3.5" /> Item Full Case (આઇટમ કેસ)
+              </span>
+              <span className="text-[9px] text-slate-500 font-bold">4,343 items</span>
+            </div>
+
+            <div className="relative">
+              <input
+                type="text"
+                value={mobileItemQuery}
+                onChange={(e) => {
+                  setMobileItemQuery(e.target.value);
+                  handleSearchMobileItems(e.target.value);
+                }}
+                placeholder="Search product from XLSX (e.g. SYRINGE, ATPL)..."
+                className="w-full px-2.5 py-1.5 text-xs font-bold rounded-lg border border-slate-300 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              {mobileItemQuery && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileItemQuery('');
+                    setMobileItemResults([]);
+                    setShowMobileItemDropdown(false);
+                  }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 p-0.5"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+
+              {showMobileItemDropdown && mobileItemResults.length > 0 && (
+                <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-300 rounded-xl shadow-xl z-50 max-h-48 overflow-y-auto divide-y divide-slate-100">
+                  {mobileItemResults.map((it) => (
+                    <div
+                      key={it.id || it.item_code}
+                      onClick={() => handleAddItemCaseMobile(it, 'PSC (PIECES)')}
+                      className="p-2 hover:bg-indigo-50 active:bg-indigo-100 cursor-pointer flex items-center justify-between"
+                    >
+                      <div className="flex-1 min-w-0 pr-2">
+                        <div className="font-black text-xs text-slate-900 truncate">{it.item_name}</div>
+                        <div className="text-[10px] text-slate-500 font-bold">
+                          {it.company} • Stock: {it.stock_qty ?? 0} {it.unit || 'PCS'}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className="px-2 py-1 bg-indigo-600 text-white rounded text-[10px] font-black"
+                      >
+                        + Case
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Added items tags */}

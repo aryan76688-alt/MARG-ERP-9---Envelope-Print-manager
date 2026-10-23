@@ -25,13 +25,17 @@ import {
   Plus,
   Trash2,
   Droplets,
-  FileSpreadsheet
+  FileSpreadsheet,
+  HelpCircle
 } from 'lucide-react';
+import { WebhookHelpModal } from '../components/WebhookHelpModal';
 import { SenderSettings, AppSettings, DualBrainStatus } from '../types';
 import { 
   fetchSettings, 
   saveSettings, 
   getBackupExportUrl, 
+  getBackupSqliteUrl,
+  restoreSqliteBackup,
   getExportPartiesUrl, 
   getExportHistoryUrl, 
   testGeminiAI,
@@ -56,7 +60,7 @@ import {
 export const Settings: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>('company');
   const [sender, setSender] = useState<SenderSettings>({
-    business_name: 'SHREEJI HEALTHCARE-HEALTHCARE',
+    business_name: 'SHREEJI HEALTHCARE',
     address: 'SHOP 3&4 GF-NARAYAN COMPLEX, DEHGAM-MODASA ROAD, DEHGAM-382305',
     city: 'DEHGAM',
     state: 'GUJARAT',
@@ -106,6 +110,9 @@ export const Settings: React.FC = () => {
   const [openAiTestSuccess, setOpenAiTestSuccess] = useState<boolean | null>(null);
   const [brainStatus, setBrainStatus] = useState<DualBrainStatus | null>(null);
   const backupFileInputRef = useRef<HTMLInputElement>(null);
+  const sqliteFileInputRef = useRef<HTMLInputElement>(null);
+  const [downloadingSqlite, setDownloadingSqlite] = useState<boolean>(false);
+  const [restoringSqlite, setRestoringSqlite] = useState<boolean>(false);
 
   const [currentUser] = useState(() => {
     try {
@@ -142,6 +149,15 @@ export const Settings: React.FC = () => {
   const [gdriveStatusMessage, setGdriveStatusMessage] = useState<string | null>(null);
   const [gmailSending, setGmailSending] = useState<boolean>(false);
   const [gmailStatusMessage, setGmailStatusMessage] = useState<string | null>(null);
+  const [webhookHelpOpen, setWebhookHelpOpen] = useState<boolean>(false);
+
+  const isApk = typeof window !== 'undefined' && (
+    window.location.search.includes('mode=apk') ||
+    Boolean((window as any).isAndroidApp) ||
+    Boolean((window as any).AndroidBridge) ||
+    navigator.userAgent.toLowerCase().includes('shreejienvelope') ||
+    (navigator.userAgent.toLowerCase().includes('android') && Boolean((window as any).chrome?.webview))
+  );
 
   // IV Fluids & Volumes Configuration
   const [ivFluids, setIvFluids] = useState<string[]>(() => {
@@ -156,11 +172,12 @@ export const Settings: React.FC = () => {
     try {
       const saved = localStorage.getItem('iv_fluid_volumes');
       if (saved) {
-        const parsed = JSON.parse(saved);
-        return parsed.filter((v: string) => v !== '200ML');
+        const parsed = JSON.parse(saved).filter((v: string) => v !== '200ML');
+        if (!parsed.includes('PCS')) parsed.push('PCS');
+        return parsed;
       }
     } catch {}
-    return ['100ML', '250ML', '500ML', '1LTR'];
+    return ['100ML', '250ML', '500ML', '1LTR', 'PCS'];
   });
 
   const [newFluidName, setNewFluidName] = useState<string>('');
@@ -254,8 +271,8 @@ export const Settings: React.FC = () => {
       alert('200ML has been permanently removed.');
       return;
     }
-    if (!clean.endsWith('ML') && !clean.endsWith('LTR')) {
-      clean = `${clean}ML`;
+    if (!clean.endsWith('ML') && !clean.endsWith('LTR') && !clean.includes('PCS') && !clean.includes('PSC') && !clean.includes('PIECES')) {
+      if (/^\d+$/.test(clean)) clean = `${clean}ML`;
     }
     if (ivVolumes.includes(clean)) {
       alert(`Volume "${clean}" already exists!`);
@@ -501,6 +518,95 @@ export const Settings: React.FC = () => {
       window.location.reload();
     } catch (err: any) {
       alert('Failed to restore backup: ' + err.message);
+    }
+  };
+
+  const handleRestoreSqliteBackup = async (file: File) => {
+    if (!confirm('⚠️ Are you sure you want to restore this binary SQLite database file? The current active database will be backed up safely to .db.bak and completely overwritten.')) {
+      return;
+    }
+    try {
+      setRestoringSqlite(true);
+      const res = await restoreSqliteBackup(file);
+      alert(`✅ ${res.message || 'SQLite database restored successfully!'}`);
+      window.location.reload();
+    } catch (err: any) {
+      alert('❌ Failed to restore SQLite database: ' + err.message);
+    } finally {
+      setRestoringSqlite(false);
+    }
+  };
+
+  const handleSaveSqliteToAndroid = async () => {
+    try {
+      setDownloadingSqlite(true);
+      const url = getBackupSqliteUrl();
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('Failed to download SQLite database from server');
+      const blob = await res.blob();
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64Data = (reader.result as string).split(',')[1];
+        const dateStr = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        const filename = `envelope_manager_${dateStr}.db`;
+        if ((window as any).AndroidBridge && typeof (window as any).AndroidBridge.saveDatabaseToStorage === 'function') {
+          const success = (window as any).AndroidBridge.saveDatabaseToStorage(base64Data, filename);
+          if (success) {
+            alert(`✅ Database successfully saved to device Download/ShreejiBackups/${filename}`);
+          } else {
+            alert('❌ Device storage write failed. Please ensure full storage permissions are granted.');
+          }
+        } else {
+          // Standard browser fallback
+          const blobUrl = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = blobUrl;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(blobUrl);
+        }
+        setDownloadingSqlite(false);
+      };
+      reader.readAsDataURL(blob);
+    } catch (err: any) {
+      setDownloadingSqlite(false);
+      alert('Error saving SQLite database: ' + err.message);
+    }
+  };
+
+  const handleRequestStoragePermission = () => {
+    if ((window as any).AndroidBridge && typeof (window as any).AndroidBridge.requestStorageAccess === 'function') {
+      (window as any).AndroidBridge.requestStorageAccess();
+    } else {
+      alert('Storage permission request is only applicable inside the Android APK.');
+    }
+  };
+
+  const handleCheckUpdate = async () => {
+    if ((window as any).AndroidBridge && typeof (window as any).AndroidBridge.checkForUpdate === 'function') {
+      (window as any).AndroidBridge.checkForUpdate();
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/app/version`);
+      if (res.ok) {
+        const data = await res.json();
+        alert(`ℹ️ Current App Version: v2.4.0\nLatest Available: v${data.version || '2.4.0'}\n\n${data.release_notes || 'All features are up to date.'}`);
+      } else {
+        alert('Could not connect to update server.');
+      }
+    } catch (err: any) {
+      alert('Update check error: ' + err.message);
+    }
+  };
+
+  const handleManualUpdateApk = () => {
+    if ((window as any).AndroidBridge && typeof (window as any).AndroidBridge.triggerUpdate === 'function') {
+      (window as any).AndroidBridge.triggerUpdate('/downloads/EnvelopeManager.apk');
+    } else {
+      window.location.href = `${API_BASE}/download/apk`;
     }
   };
 
@@ -1489,10 +1595,19 @@ export const Settings: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 {/* Webhook URL */}
                 <div className="sm:col-span-2">
-                  <label className="font-extrabold text-slate-700 block mb-1 flex items-center justify-between">
-                    <span>Google Apps Script Webhook URL:</span>
-                    <span className="text-[10px] text-blue-600 font-semibold">Script in scripts/google/GoogleSyncWebhook.gs</span>
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-extrabold text-slate-700 flex items-center gap-1.5">
+                      <span>Google Apps Script Webhook URL:</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setWebhookHelpOpen(true)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-100 hover:bg-blue-200 text-blue-800 text-[11px] font-extrabold transition-all border border-blue-200 shadow-2xs hover:scale-102"
+                    >
+                      <HelpCircle className="w-3.5 h-3.5 text-blue-600" />
+                      <span>How to get Webhook URL? (વેબહુક URL કેવી રીતે મેળવવું?)</span>
+                    </button>
+                  </div>
                   <input
                     type="url"
                     disabled={!canEditBackup}
@@ -1653,7 +1768,7 @@ export const Settings: React.FC = () => {
               )}
             </div>
 
-            {/* Android Mobile App (.APK) Download Card */}
+            {/* Android Mobile App (.APK) Download & In-App Manual Update Card */}
             <div className="p-5 rounded-2xl border-2 border-emerald-200 bg-gradient-to-br from-emerald-50/80 via-white to-teal-50/40 shadow-sm space-y-3">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
@@ -1663,30 +1778,118 @@ export const Settings: React.FC = () => {
                   <div>
                     <div className="flex items-center gap-2">
                       <h4 className="font-black text-slate-900 text-sm">
-                        Standalone Android Mobile App (.APK)
+                        {isApk ? 'Shreeji Envelope Manager Android APK' : 'Standalone Android Mobile App (.APK)'}
                       </h4>
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 uppercase tracking-wide">
-                        Full-Stack Standalone Edition
+                        v2.4.0 (Latest Release)
                       </span>
                     </div>
                     <p className="text-[11px] text-slate-500 font-medium">
-                      Self-contained APK bundling all offline assets locally + auto-syncing with PostgreSQL cloud database. Features dedicated mobile navigation buttons (◀ Back, ● Home, ≡ Menu) active only on mobile.
+                      {isApk
+                        ? 'Includes 30-min background auto-restart watchdog, Scoped Storage bypass, and automatic native APK installer.'
+                        : 'Self-contained APK bundling all offline assets locally + auto-syncing with PostgreSQL cloud database.'}
                     </p>
                   </div>
                 </div>
 
-                <a
-                  href="/api/download/apk"
-                  download="Shreeji_Envelope_Manager.apk"
-                  className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-md shadow-emerald-600/30 transition-all hover:scale-102 shrink-0"
-                >
-                  <Download className="w-4 h-4" />
-                  <span>Download APK (6.7 MB)</span>
-                </a>
+                <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                  {isApk ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={handleCheckUpdate}
+                        className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs border border-slate-300 transition-all shadow-xs"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5 text-slate-600" />
+                        <span>Check for Updates (અપડેટ તપાસો)</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleManualUpdateApk}
+                        className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-md shadow-emerald-600/30 transition-all active:scale-95"
+                      >
+                        <Download className="w-4 h-4" />
+                        <span>Update APK Now (મેન્યુઅલ અપડેટ કરો)</span>
+                      </button>
+                    </>
+                  ) : (
+                    <a
+                      href="/downloads/EnvelopeManager.apk"
+                      download="EnvelopeManager.apk"
+                      className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-md shadow-emerald-600/30 transition-all hover:scale-102 shrink-0"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>Download APK (75.9 MB)</span>
+                    </a>
+                  )}
+                </div>
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Native SQLite Raw Database Storage (.db file) */}
+              <div className="sm:col-span-2 p-5 rounded-xl border-2 border-indigo-200 bg-gradient-to-br from-indigo-50/70 to-blue-50/50 shadow-sm space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="font-black text-indigo-950 text-sm flex items-center gap-2">
+                    <Database className="w-5 h-5 text-indigo-600" />
+                    <span>NATIVE SQLITE RAW DATABASE STORAGE (.db)</span>
+                    <span className="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-extrabold text-[10px]">WAL-FLUSHED</span>
+                  </div>
+                  {isApk && (
+                    <button
+                      type="button"
+                      onClick={handleRequestStoragePermission}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm"
+                    >
+                      <ShieldCheck className="w-4 h-4 text-white" />
+                      <span>Grant All-Files Storage Access</span>
+                    </button>
+                  )}
+                </div>
+                <p className="text-slate-700 text-xs leading-relaxed">
+                  Full binary backup and restore for SQLite. Automatically executes a Write-Ahead Log flush (<code className="bg-indigo-100/80 text-indigo-900 px-1 py-0.5 rounded font-mono font-bold">PRAGMA wal_checkpoint(FULL);</code>) so 100% of master parties, GPS pins, envelope records, and drivers are synchronized to disk.
+                </p>
+                <div className="flex flex-wrap items-center gap-3 pt-1">
+                  <a
+                    href={getBackupSqliteUrl()}
+                    download
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md shadow-indigo-600/20 transition-transform active:scale-95"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Download Raw Database (.db)</span>
+                  </a>
+
+                  {isApk && (
+                    <button
+                      type="button"
+                      onClick={handleSaveSqliteToAndroid}
+                      disabled={downloadingSqlite}
+                      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition-transform active:scale-95"
+                    >
+                      <Smartphone className="w-4 h-4" />
+                      <span>{downloadingSqlite ? 'Flushing & Saving...' : 'Save to Android Storage (Downloads/ShreejiBackups)'}</span>
+                    </button>
+                  )}
+
+                  <input
+                    ref={sqliteFileInputRef}
+                    type="file"
+                    accept=".db,.sqlite,.sqlite3"
+                    onChange={(e) => e.target.files && e.target.files[0] && handleRestoreSqliteBackup(e.target.files[0])}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => sqliteFileInputRef.current?.click()}
+                    disabled={restoringSqlite}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-sm transition-transform active:scale-95"
+                  >
+                    <Upload className="w-4 h-4 text-slate-300" />
+                    <span>{restoringSqlite ? 'Restoring Database...' : 'Restore from .db File'}</span>
+                  </button>
+                </div>
+              </div>
+
               {/* Database Export */}
               <div className="p-4 rounded-xl border border-blue-200 bg-blue-50/40 space-y-3">
                 <div className="font-bold text-blue-950 text-sm flex items-center gap-2">
@@ -1786,6 +1989,12 @@ export const Settings: React.FC = () => {
           </div>
         )}
       </form>
+
+      {/* Google Apps Script Webhook Help Modal */}
+      <WebhookHelpModal
+        isOpen={webhookHelpOpen}
+        onClose={() => setWebhookHelpOpen(false)}
+      />
     </div>
   );
 };

@@ -38,10 +38,12 @@ if command -v termux-wake-lock >/dev/null 2>&1; then
     echo -e "${GREEN}[✓] Android Wake Lock acquired.${NC}"
 fi
 
+git config --global --add safe.directory "*" 2>/dev/null || true
+
 # 2. Update Termux Packages and Install Core Dependencies
 echo -e "\n${BLUE}[1/6] Updating Termux packages and installing dependencies...${NC}"
 pkg update -y
-pkg install -y git nodejs-lts python postgresql libjpeg-turbo freetype clang make rsync curl termux-tools lsof psmisc
+pkg install -y git nodejs-lts python postgresql libjpeg-turbo freetype clang make rsync curl termux-tools lsof psmisc cronie sqlite
 
 # Install Cloudflare Tunnel for free public web access
 pkg install -y cloudflared 2>/dev/null || true
@@ -203,12 +205,27 @@ mkdir -p "${BOOT_DIR}"
 cat << 'BOOT_EOF' > "${BOOT_DIR}/start-shreeji.sh"
 #!/data/data/com.termux/files/usr/bin/bash
 termux-wake-lock
+crond 2>/dev/null || true
 sleep 10
 bash $HOME/shreeji/start-all.sh
 BOOT_EOF
 chmod +x "${BOOT_DIR}/start-shreeji.sh"
 
-echo -e "${GREEN}[✓] Shortcuts installed (type 'start', 'stop', 'status', or 'watchdog' anytime).${NC}"
+# Configure hardware 30-minute auto-restart cron job
+if command -v crond >/dev/null 2>&1; then
+    pgrep crond >/dev/null 2>&1 || crond
+    CRON_DIR="${PREFIX_DIR}/var/spool/cron/crontabs"
+    mkdir -p "${CRON_DIR}"
+    CRON_USER="${USER:-$(whoami 2>/dev/null || echo 'u0_a0')}"
+    CRON_FILE="${CRON_DIR}/${CRON_USER}"
+    if [ ! -f "${CRON_FILE}" ] || ! grep -q "auto-restart-30m.sh" "${CRON_FILE}"; then
+        echo "*/30 * * * * bash ${BASE_DIR}/auto-restart-30m.sh >> ${BASE_DIR}/logs/auto-restart.log 2>&1" >> "${CRON_FILE}"
+        chmod 600 "${CRON_FILE}"
+    fi
+    echo -e "${GREEN}[✓] 30-Minute Hardware Auto-Restart Cron Job active.${NC}"
+fi
+
+echo -e "${GREEN}[✓] Shortcuts installed (type 'start', 'stop', 'status', 'update', or 'restart' anytime).${NC}"
 
 # 8. Start both servers immediately
 echo -e "\n${BLUE}[6/6] Launching all services...${NC}"

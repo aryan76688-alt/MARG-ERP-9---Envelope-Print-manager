@@ -7,7 +7,6 @@ import {
   User, 
   Crown, 
   Server, 
-  Check, 
   AlertCircle,
   Lock,
   Printer,
@@ -20,10 +19,9 @@ interface LoginProps {
 }
 
 export const Login: React.FC<LoginProps> = ({ onLogin }) => {
-  const [username, setUsername] = useState('owner');
-  const [password, setPassword] = useState('Aryan@2007');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [selectedRoleId, setSelectedRoleId] = useState<string>('owner');
   const [formError, setFormError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showServerConfig, setShowServerConfig] = useState(false);
@@ -34,55 +32,30 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
 
 
-  const roles = [
+  // Fixed accounts for offline authentication resilience
+  const fixedOfflineUsers = [
     {
-      id: 'owner',
-      title: 'Owner',
-      titleGu: 'માલિક',
-      icon: Crown,
-      username: 'owner',
+      username: 'Aryan180607',
       password: 'Aryan@2007',
       role: 'super_admin',
-      fullName: 'Owner',
+      fullName: 'Aryan Darji',
+      permissions: ['create_job', 'save_job', 'manage_users', 'view_reports', 'admin', 'device_controls'],
     },
     {
-      id: 'driver',
-      title: 'Driver',
-      titleGu: 'ડ્રાઈવર',
-      icon: Truck,
+      username: 'Tushar@9263',
+      password: 'Shreeji@9263',
+      role: 'owner',
+      fullName: 'Tushar Patel',
+      permissions: ['create_job', 'save_job', 'manage_users', 'view_reports', 'admin'],
+    },
+    {
       username: 'driver',
       password: 'driver123',
       role: 'driver',
       fullName: 'Driver',
-    },
-    {
-      id: 'admin',
-      title: 'Admin',
-      titleGu: 'એડમિન',
-      icon: Shield,
-      username: 'Aryan007',
-      password: 'Aryan@2007',
-      role: 'admin',
-      fullName: 'Aryan',
-    },
-    {
-      id: 'employee',
-      title: 'Employee',
-      titleGu: 'સ્ટાફ',
-      icon: User,
-      username: 'employee',
-      password: 'employee123',
-      role: 'employee',
-      fullName: 'Staff',
+      permissions: ['create_job'],
     },
   ];
-
-  const handleSelectRole = (r: typeof roles[0]) => {
-    setSelectedRoleId(r.id);
-    setUsername(r.username);
-    setPassword(r.password);
-    setFormError('');
-  };
 
   const executeLogin = async (usr: string, pwd: string) => {
     setLoading(true);
@@ -114,19 +87,25 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
             const userData = await userRes.json();
             localStorage.setItem('user', JSON.stringify(userData));
           } else {
-            const matchedRole = roles.find(r => r.username.toLowerCase() === usr.toLowerCase());
+            const matched = fixedOfflineUsers.find(
+              r => r.username.toLowerCase() === usr.toLowerCase()
+            );
             localStorage.setItem('user', JSON.stringify({
               username: usr,
-              role: matchedRole ? matchedRole.role : 'employee',
-              full_name: matchedRole ? matchedRole.fullName : usr
+              role: matched ? matched.role : 'super_admin',
+              full_name: matched ? matched.fullName : usr,
+              permissions: matched ? matched.permissions : ['create_job', 'save_job']
             }));
           }
         } catch {
-          const matchedRole = roles.find(r => r.username.toLowerCase() === usr.toLowerCase());
+          const matched = fixedOfflineUsers.find(
+            r => r.username.toLowerCase() === usr.toLowerCase()
+          );
           localStorage.setItem('user', JSON.stringify({
             username: usr,
-            role: matchedRole ? matchedRole.role : 'employee',
-            full_name: matchedRole ? matchedRole.fullName : usr
+            role: matched ? matched.role : 'super_admin',
+            full_name: matched ? matched.fullName : usr,
+            permissions: matched ? matched.permissions : ['create_job', 'save_job']
           }));
         }
 
@@ -142,19 +121,19 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
     } catch (err: any) {
       console.warn('Network or server login error:', err);
 
-      // OFFLINE FALLBACK: If network fails or server is unreachable, allow standard offline accounts
-      const matchedRole = roles.find(
+      // OFFLINE FALLBACK: If network fails or server is unreachable, allow fixed offline accounts
+      const matched = fixedOfflineUsers.find(
         r => r.username.toLowerCase() === usr.trim().toLowerCase() && r.password === pwd
       );
 
-      if (matchedRole) {
-        const offlineToken = `offline_token_${matchedRole.id}_${Date.now()}`;
+      if (matched) {
+        const offlineToken = `offline_token_${matched.username}_${Date.now()}`;
         const offlineUser = {
-          id: matchedRole.id === 'owner' ? 1 : matchedRole.id === 'driver' ? 2 : 3,
-          username: matchedRole.username,
-          full_name: matchedRole.fullName,
-          role: matchedRole.role,
-          permissions: ['create_job', 'save_job'],
+          id: matched.username === 'Aryan180607' ? 1 : (matched.username === 'Tushar@9263' ? 2 : 3),
+          username: matched.username,
+          full_name: matched.fullName,
+          role: matched.role,
+          permissions: matched.permissions,
           is_offline_session: true,
         };
 
@@ -244,36 +223,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
               placeholder="http://192.168.1.10:8080 or https://..."
               className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg font-mono text-xs text-slate-800 focus:ring-2 focus:ring-blue-500"
             />
-            {/* Quick 1-Tap Server Presets */}
-            <div className="flex flex-wrap items-center gap-1.5 pt-1">
-              <span className="text-[11px] font-medium text-slate-500">Quick presets:</span>
-              <button
-                type="button"
-                onClick={() => {
-                  const url = 'http://192.168.1.10:8080';
-                  setCustomServerUrl(url);
-                  localStorage.setItem('api_server_url', url);
-                  setSaveServerMsg('Connected to Office Wi-Fi PC! Reloading...');
-                  setTimeout(() => window.location.reload(), 600);
-                }}
-                className="px-2 py-1 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded text-[11px] font-medium cursor-pointer transition-colors"
-              >
-                🏢 Office PC (192.168.1.10:8080)
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const url = 'http://localhost:8080';
-                  setCustomServerUrl(url);
-                  localStorage.setItem('api_server_url', url);
-                  setSaveServerMsg('Connected to Localhost! Reloading...');
-                  setTimeout(() => window.location.reload(), 600);
-                }}
-                className="px-2 py-1 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded text-[11px] font-medium cursor-pointer transition-colors"
-              >
-                💻 Localhost:8080
-              </button>
-            </div>
+
             <div className="flex items-center gap-2 pt-1">
               <button
                 type="button"
@@ -303,65 +253,6 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
         {/* Content Container */}
         <div className="p-5 sm:p-8 space-y-5 flex-1">
 
-          {/* Issue 7 & 11 fix: Balanced Quick Role Selection without visual clutter */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-                <span>Quick Role Select • હોદ્દો પસંદ કરો</span>
-              </label>
-              {/* Issue 8 fix: Harmonized badge styling */}
-              <span className="text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200/80 px-2 py-0.5 rounded-full">
-                1-Tap Auto Fill
-              </span>
-            </div>
-
-            {/* Issue 11 fix: Simplified cards removing redundant badges & unifying color styles */}
-            <div className="grid grid-cols-2 gap-2">
-              {roles.map((r) => {
-                const Icon = r.icon;
-                const isSelected = selectedRoleId === r.id;
-                return (
-                  <button
-                    key={r.id}
-                    type="button"
-                    onClick={() => handleSelectRole(r)}
-                    className={`relative p-2.5 rounded-xl border text-left transition-all duration-150 flex items-center gap-2.5 cursor-pointer ${
-                      isSelected
-                        ? 'border-blue-600 bg-blue-50/70 ring-2 ring-blue-500/20 shadow-sm'
-                        : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50/80 bg-white'
-                    }`}
-                  >
-                    <div
-                      className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${
-                        isSelected
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-slate-100 text-slate-600'
-                      }`}
-                    >
-                      <Icon className="w-4 h-4" />
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold text-slate-900 text-xs leading-tight">
-                          {r.title}
-                        </span>
-                        {isSelected && (
-                          <span className="w-3.5 h-3.5 rounded-full bg-blue-600 text-white flex items-center justify-center">
-                            <Check className="w-2.5 h-2.5 stroke-[3]" />
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-xs text-slate-500 font-normal leading-tight mt-0.5">
-                        {r.titleGu}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
           {/* Form Error Message */}
           {formError && (
             <div role="alert" className="bg-red-50 border border-red-200 text-red-700 p-3 rounded-xl text-xs sm:text-sm flex items-start gap-2.5 shadow-sm">
@@ -386,10 +277,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 <input
                   type="text"
                   value={username}
-                  onChange={(e) => {
-                    setUsername(e.target.value);
-                    setSelectedRoleId('');
-                  }}
+                  onChange={(e) => setUsername(e.target.value)}
                   placeholder="Enter username"
                   className="w-full pl-10 pr-4 py-2.5 text-xs sm:text-sm bg-slate-50/70 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium text-slate-900 transition-colors"
                   required
@@ -408,10 +296,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={password}
-                  onChange={(e) => {
-                    setPassword(e.target.value);
-                    setSelectedRoleId('');
-                  }}
+                  onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter password"
                   className="w-full pl-10 pr-12 py-2.5 text-xs sm:text-sm bg-slate-50/70 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium text-slate-900 transition-colors"
                   required

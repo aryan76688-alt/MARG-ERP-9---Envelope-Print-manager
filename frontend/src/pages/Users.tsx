@@ -8,13 +8,17 @@ export const Users: React.FC = () => {
   const [editingUser, setEditingUser] = useState<any>(null);
   const [showForm, setShowForm] = useState(false);
 
-  const { data: users = [], isLoading } = useQuery({
+  const { data: users = [], isLoading, error, refetch } = useQuery({
     queryKey: ['users'],
     queryFn: async () => {
-      const res = await fetch(`${API_BASE}/users`, {
-        headers: { Authorization: `Bearer ${getAuthToken()}` }
-      });
-      if (!res.ok) throw new Error('Failed to load users');
+      const token = getAuthToken();
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(`${API_BASE}/users`, { headers });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.detail || `Server error (${res.status})`);
+      }
       return res.json();
     }
   });
@@ -112,7 +116,10 @@ export const Users: React.FC = () => {
               <label className="block text-sm font-medium text-slate-700 mb-1">Role</label>
               <select name="role" defaultValue={editingUser?.role || 'employee'} className="w-full border border-slate-300 p-2 rounded-lg text-sm bg-white">
                 <option value="super_admin">Super Admin</option>
+                <option value="owner">Owner</option>
                 <option value="admin">Admin</option>
+                <option value="driver">Driver</option>
+                <option value="salesman">Salesman</option>
                 <option value="employee">Employee</option>
               </select>
             </div>
@@ -164,6 +171,15 @@ export const Users: React.FC = () => {
           <tbody className="divide-y divide-slate-100 text-sm">
             {isLoading ? (
               <tr><td colSpan={4} className="p-8 text-center text-slate-500">Loading...</td></tr>
+            ) : error ? (
+              <tr>
+                <td colSpan={4} className="p-8 text-center text-rose-600 font-medium">
+                  Failed to load users: {(error as any)?.message || 'Authentication required'}.
+                  <button onClick={() => refetch()} className="ml-2 underline text-blue-600 font-bold cursor-pointer">Retry</button>
+                </td>
+              </tr>
+            ) : users.length === 0 ? (
+              <tr><td colSpan={4} className="p-8 text-center text-slate-500">No users found. Click &quot;Add User&quot; above to create one.</td></tr>
             ) : (
               users.map((u: any) => (
                 <tr key={u.id} className="hover:bg-slate-50">

@@ -28,8 +28,10 @@ import {
   MessageCircle,
   Calendar,
   ExternalLink,
-  Mail
+  Mail,
+  Compass
 } from 'lucide-react';
+import { VoiceSearchInput } from '../components/VoiceSearchInput';
 import { Party } from '../types';
 import { 
   fetchParties, 
@@ -118,6 +120,17 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
   };
 
   const [syncingOrderBook, setSyncingOrderBook] = useState<boolean>(false);
+
+  const isNewParty = (party: Party): boolean => {
+    if (!party.created_at) return false;
+    try {
+      const createdDate = new Date(party.created_at).getTime();
+      const tenDaysAgo = Date.now() - (10 * 24 * 60 * 60 * 1000);
+      return createdDate >= tenDaysAgo;
+    } catch {
+      return false;
+    }
+  };
 
   const handleSyncAllToOrderBook = async () => {
     if (!window.confirm(`Sync all ${total} parties to Shreeji Healthcare Order Book app now?`)) return;
@@ -437,6 +450,16 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
 
           <button
             type="button"
+            onClick={() => onNavigate('nearby')}
+            className="btn-secondary text-blue-700 bg-blue-50/80 border-blue-200 hover:bg-blue-100 hover:border-blue-300 transition-all font-bold"
+            title="View Nearest Parties by GPS Proximity"
+          >
+            <Compass className="w-4 h-4 text-blue-600" />
+            <span>Nearest Parties</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => onNavigate('map')}
             className="btn-secondary text-emerald-700 bg-emerald-50/80 border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300 transition-all font-bold"
             title="Open Interactive Map with All Pinned Parties"
@@ -541,18 +564,15 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
 
       {/* Filter Controls Row (Standardized Grid with 3-Route & Weekdays) */}
       <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 text-xs">
-        {/* Search (Spans 2 columns on desktop) */}
-        <div className="relative sm:col-span-2">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-          <input
-            type="text"
+        {/* Search with Voice (Spans 2 columns on desktop) */}
+        <div className="sm:col-span-2">
+          <VoiceSearchInput
             placeholder="Search party name, code, mobile..."
             value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
+            onChange={(val) => {
+              setSearch(val);
               setPage(1);
             }}
-            className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
           />
         </div>
 
@@ -639,6 +659,7 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
             className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700 bg-white"
           >
             <option value="all">All Status</option>
+            <option value="new_10_days">✨ New Parties (Last 10 Days)</option>
             <option value="active">Active Only</option>
             <option value="inactive">Inactive Only</option>
           </select>
@@ -778,6 +799,8 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
                     className={`group bg-white rounded-2xl border transition-all duration-200 shadow-sm hover:shadow-md hover:border-blue-400 flex flex-col justify-between overflow-hidden relative ${
                       isSelected
                         ? 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-50/20'
+                        : isNewParty(p)
+                        ? 'border-emerald-400 ring-2 ring-emerald-400/25 bg-gradient-to-br from-emerald-50/40 via-white to-white'
                         : 'border-slate-200'
                     }`}
                   >
@@ -797,6 +820,11 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
                               <h3 className="font-extrabold text-slate-900 text-sm sm:text-base leading-snug truncate capitalize">
                                 {p.party_name.toLowerCase()}
                               </h3>
+                              {isNewParty(p) && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded-full shadow-xs">
+                                  ✨ NEW • નવી પાર્ટી
+                                </span>
+                              )}
                               {!p.is_active && (
                                 <span className="text-[10px] bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded font-black">
                                   Inactive
@@ -1052,6 +1080,11 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
                         <td className="px-4 py-3 font-bold text-slate-900 text-sm">
                           <div className="flex items-center gap-2">
                             <span className="capitalize">{p.party_name.toLowerCase()}</span>
+                            {isNewParty(p) && (
+                              <span className="text-[10px] bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded-full font-black shadow-xs">
+                                ✨ NEW
+                              </span>
+                            )}
                             {!p.is_active && (
                               <span className="text-xs bg-rose-100 text-rose-700 px-2 py-0.5 rounded font-bold">
                                 Inactive

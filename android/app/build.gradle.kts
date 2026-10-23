@@ -10,8 +10,8 @@ android {
         applicationId = "com.shreeji.envelope"
         minSdk = 24
         targetSdk = 36
-        versionCode = 4
-        versionName = "2.0.0"
+        versionCode = 240
+        versionName = "2.4.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

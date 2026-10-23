@@ -7,7 +7,6 @@ import {
   MessageSquare, 
   MapPin, 
   Camera, 
-  PenTool, 
   RotateCcw, 
   Check, 
   Search, 
@@ -16,7 +15,8 @@ import {
   AlertCircle,
   Navigation,
   ShieldCheck,
-  Compass
+  Compass,
+  User
 } from 'lucide-react';
 import { DriverStop, PODSubmission } from '../types';
 import { fetchDriverJobs, recordPOD, fetchDriverList, updatePartyGeofence } from '../api/client';
@@ -36,6 +36,17 @@ export const DriverMode: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [driversList, setDriversList] = useState<string[]>([]);
 
+  // Current logged in user profile for delivery attribution
+  const currentUser = (() => {
+    try {
+      const raw = localStorage.getItem('user');
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  })();
+  const currentUserName: string = currentUser?.full_name || currentUser?.username || 'Driver';
+
   // Live GPS tracking state
   const [driverLocation, setDriverLocation] = useState<{
     lat: number;
@@ -54,10 +65,8 @@ export const DriverMode: React.FC = () => {
   const [submittingPOD, setSubmittingPOD] = useState<boolean>(false);
   const [podSuccessMsg, setPodSuccessMsg] = useState<string | null>(null);
 
-  // Canvas Signature Pad
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [isDrawing, setIsDrawing] = useState<boolean>(false);
-  const [hasSignature, setHasSignature] = useState<boolean>(false);
+  // Direct Mobile Camera Input Ref
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
 
   // Watch Driver GPS Location
   useEffect(() => {
@@ -144,11 +153,20 @@ export const DriverMode: React.FC = () => {
     }
   };
 
-  // Open modal and prep pin toggle
-  const openPODModal = (stop: DriverStop) => {
+  // Open modal and prep camera / pin toggle
+  const openPODModal = (stop: DriverStop, autoCamera: boolean = false) => {
     setSelectedStop(stop);
+    setPodNotes('');
+    setPodPhotoBase64(null);
+    setPodSuccessMsg(null);
     // If party has no GPS coordinates yet, default auto-pin to true
     setPinShopGeofence(!stop.latitude || !stop.longitude);
+
+    if (autoCamera && stop.delivery_status !== 'Delivered') {
+      setTimeout(() => {
+        cameraInputRef.current?.click();
+      }, 150);
+    }
   };
 
   // Load available drivers
@@ -180,57 +198,7 @@ export const DriverMode: React.FC = () => {
     loadStops();
   }, [date, driver, route, statusFilter]);
 
-  // Signature Canvas Helpers
-  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    e.preventDefault();
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-
-    ctx.beginPath();
-    ctx.moveTo(clientX - rect.left, clientY - rect.top);
-    setIsDrawing(true);
-  };
-
-  const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    if (!isDrawing) return;
-    e.preventDefault();
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-
-    ctx.lineWidth = 2.5;
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = '#0284c7';
-    ctx.lineTo(clientX - rect.left, clientY - rect.top);
-    ctx.stroke();
-    setHasSignature(true);
-  };
-
-  const stopDrawing = () => {
-    setIsDrawing(false);
-  };
-
-  const clearSignature = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    setHasSignature(false);
-  };
-
-  // Handle Photo input
+  // Handle Photo input (Compress to high quality web jpeg)
   const handlePhotoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -239,8 +207,8 @@ export const DriverMode: React.FC = () => {
     reader.onload = (event) => {
       const img = new Image();
       img.onload = () => {
-        // Compress image to max width 800px
-        const maxDim = 800;
+        // Compress image to max width 900px
+        const maxDim = 900;
         let width = img.width;
         let height = img.height;
         if (width > maxDim || height > maxDim) {
@@ -258,28 +226,25 @@ export const DriverMode: React.FC = () => {
         const ctx = canvas.getContext('2d');
         if (ctx) {
           ctx.drawImage(img, 0, 0, width, height);
-          const compressed = canvas.toDataURL('image/jpeg', 0.7);
+          const compressed = canvas.toDataURL('image/jpeg', 0.8);
           setPodPhotoBase64(compressed);
         }
       };
       img.src = event.target?.result as string;
     };
     reader.readAsDataURL(file);
+    // Reset file input value so re-taking the photo works smoothly
+    e.target.value = '';
   };
 
-  // Submit Proof of Delivery
+  // Submit Proof of Delivery (with delivered_by user attribution)
   const handleRecordPOD = async () => {
     if (!selectedStop) return;
     setSubmittingPOD(true);
 
-    let signatureData: string | undefined = undefined;
-    if (canvasRef.current && hasSignature) {
-      signatureData = canvasRef.current.toDataURL('image/png');
-    }
-
     const podPayload: PODSubmission = {
       job_id: selectedStop.id,
-      pod_signature: signatureData,
+      delivered_by: currentUserName,
       pod_photo: podPhotoBase64 || undefined,
       pod_notes: podNotes.trim() || undefined,
       delivered_at: new Date().toISOString(),
@@ -303,7 +268,7 @@ export const DriverMode: React.FC = () => {
       if (isOnline) {
         const res = await recordPOD({
           job_id: selectedStop.id,
-          pod_signature: signatureData,
+          delivered_by: currentUserName,
           pod_photo: podPhotoBase64 || undefined,
           pod_notes: podNotes.trim() || undefined,
           delivered_latitude: driverLocation?.lat ?? null,
@@ -325,8 +290,8 @@ export const DriverMode: React.FC = () => {
       setStops(prev => prev.map(s => s.id === selectedStop.id ? {
         ...s,
         delivery_status: 'Delivered',
+        delivered_by: currentUserName,
         delivered_at: new Date().toISOString(),
-        pod_signature: signatureData,
         pod_photo: podPhotoBase64 || undefined,
         pod_notes: podNotes.trim() || undefined,
         delivered_latitude: driverLocation?.lat ?? null,
@@ -344,7 +309,6 @@ export const DriverMode: React.FC = () => {
         setPodSuccessMsg(null);
         setPodNotes('');
         setPodPhotoBase64(null);
-        setHasSignature(false);
       }, 1300);
 
     } catch (err: any) {
@@ -636,13 +600,24 @@ export const DriverMode: React.FC = () => {
                         </span>
                       </p>
 
-                      {/* Driver & Route Info */}
-                      <div className="flex flex-wrap items-center gap-3 pt-1 text-xs text-slate-500">
-                        {stop.driver_name && (
+                      {/* Driver & Delivery User Attribution Info */}
+                      <div className="flex flex-wrap items-center gap-2 pt-1 text-xs text-slate-500">
+                        {isDelivered ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-300 font-extrabold shadow-2xs">
+                            <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                            <span>Delivered by: <strong className="text-emerald-950 font-black">{stop.delivered_by || stop.driver_name || 'Driver'}</strong></span>
+                            {stop.delivered_at && (
+                              <span className="text-[10px] text-emerald-700 font-mono">
+                                ({new Date(stop.delivered_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})
+                              </span>
+                            )}
+                          </span>
+                        ) : stop.driver_name ? (
                           <span className="flex items-center gap-1">
                             <span className="font-semibold text-slate-700">Driver:</span> {stop.driver_name}
                           </span>
-                        )}
+                        ) : null}
+
                         {stop.delivery_route && (
                           <span className="flex items-center gap-1">
                             <span className="font-semibold text-slate-700">Route:</span> {stop.delivery_route}
@@ -698,18 +673,18 @@ export const DriverMode: React.FC = () => {
 
                       {!isDelivered ? (
                         <button
-                          onClick={() => openPODModal(stop)}
-                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold flex items-center gap-1.5 shadow-sm transition-colors"
+                          onClick={() => openPODModal(stop, true)}
+                          className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer"
                         >
-                          <PenTool className="w-4 h-4" />
-                          Mark Delivered
+                          <Camera className="w-4 h-4" />
+                          <span>Take Photo & Deliver</span>
                         </button>
                       ) : (
                         <button
-                          onClick={() => openPODModal(stop)}
-                          className="px-3 py-2 bg-emerald-100 text-emerald-800 rounded-lg text-xs font-semibold flex items-center gap-1 border border-emerald-200"
+                          onClick={() => openPODModal(stop, false)}
+                          className="px-3 py-2 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-xl text-xs font-extrabold flex items-center gap-1 border border-emerald-300 transition-all cursor-pointer"
                         >
-                          <CheckCircle className="w-4 h-4" />
+                          <CheckCircle className="w-4 h-4 text-emerald-700" />
                           View POD
                         </button>
                       )}
@@ -809,7 +784,27 @@ export const DriverMode: React.FC = () => {
                   </div>
 
                   {/* Recorded Timestamp & Receiver Details */}
-                  <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs text-slate-700 space-y-1.5">
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs text-slate-700 space-y-2">
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-black text-sm shadow-2xs">
+                          {(selectedStop.delivered_by || selectedStop.driver_name || 'D').charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">
+                            Delivered By (ડિલિવરી કરનાર વપરાશકર્તા)
+                          </div>
+                          <div className="font-black text-sm text-emerald-950">
+                            {selectedStop.delivered_by || selectedStop.driver_name || 'Driver'}
+                          </div>
+                        </div>
+                      </div>
+                      {selectedStop.delivered_at && (
+                        <div className="text-right text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2 py-1 rounded border border-emerald-200">
+                          {new Date(selectedStop.delivered_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      )}
+                    </div>
                     {selectedStop.delivered_at && (
                       <div><span className="font-semibold text-slate-900">Delivered At:</span> {new Date(selectedStop.delivered_at).toLocaleString()}</div>
                     )}
@@ -818,11 +813,11 @@ export const DriverMode: React.FC = () => {
                     )}
                     <div><span className="font-semibold text-slate-900">Total Cases:</span> {selectedStop.total_cases}</div>
                     {selectedStop.driver_name && (
-                      <div><span className="font-semibold text-slate-900">Driver:</span> {selectedStop.driver_name}</div>
+                      <div><span className="font-semibold text-slate-900">Assigned Driver:</span> {selectedStop.driver_name}</div>
                     )}
                   </div>
 
-                  {/* Customer Signature Display */}
+                  {/* Customer Signature Display (Historical Only) */}
                   {selectedStop.pod_signature && (
                     <div>
                       <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1.5">
@@ -832,7 +827,7 @@ export const DriverMode: React.FC = () => {
                         <img 
                           src={selectedStop.pod_signature} 
                           alt="Customer Signature" 
-                          className="h-28 mx-auto object-contain"
+                          className="h-28 mx-auto object-contain" 
                         />
                       </div>
                     </div>
@@ -842,9 +837,9 @@ export const DriverMode: React.FC = () => {
                   {selectedStop.pod_photo && (
                     <div>
                       <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1.5">
-                        Parcel Delivery Photo
+                        Parcel Delivery Photo (કાઉન્ટર ફોટો)
                       </label>
-                      <div className="border border-slate-200 rounded-xl overflow-hidden">
+                      <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm">
                         <img 
                           src={selectedStop.pod_photo} 
                           alt="Parcel Delivery Photo" 
@@ -926,81 +921,75 @@ export const DriverMode: React.FC = () => {
                     )}
                   </div>
 
-                  {/* 1. Signature Pad */}
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                        <PenTool className="w-4 h-4 text-blue-600" />
-                        Receiver's Signature
-                      </label>
-                      {hasSignature && (
-                        <button
-                          type="button"
-                          onClick={clearSignature}
-                          className="text-xs text-rose-600 hover:text-rose-700 flex items-center gap-1 font-semibold"
-                        >
-                          <RotateCcw className="w-3.5 h-3.5" /> Clear
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="border-2 border-dashed border-slate-300 rounded-xl bg-slate-50/50 overflow-hidden relative">
-                      <canvas
-                        ref={canvasRef}
-                        width={460}
-                        height={180}
-                        className="w-full h-44 cursor-crosshair touch-none"
-                        onMouseDown={startDrawing}
-                        onMouseMove={draw}
-                        onMouseUp={stopDrawing}
-                        onMouseLeave={stopDrawing}
-                        onTouchStart={startDrawing}
-                        onTouchMove={draw}
-                        onTouchEnd={stopDrawing}
-                      />
-                      {!hasSignature && (
-                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-slate-400 text-xs font-medium">
-                          Sign here with finger or stylus
-                        </div>
-                      )}
-                    </div>
+                  {/* Delivery User Attribution */}
+                  <div className="bg-blue-50/80 p-3 rounded-xl border border-blue-200 text-xs flex items-center justify-between">
+                    <span className="font-semibold text-blue-900 flex items-center gap-1.5">
+                      <User className="w-3.5 h-3.5 text-blue-600" /> Delivering as (વપરાશકર્તા):
+                    </span>
+                    <span className="font-black text-blue-950 bg-white px-2.5 py-0.5 rounded-lg border border-blue-200 shadow-2xs">
+                      {currentUserName}
+                    </span>
                   </div>
 
-                  {/* 2. Photo Upload / Camera Capture */}
-                  <div>
-                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
-                      <Camera className="w-4 h-4 text-blue-600" />
-                      Delivery Photo (Optional)
-                    </label>
+                  {/* Direct Camera Proof of Delivery (Replacing signature) */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                        <Camera className="w-4 h-4 text-blue-600" />
+                        Parcel Proof Photo (કાઉન્ટર ફોટો)
+                      </label>
+                      <span className="text-[11px] font-extrabold text-blue-600">📸 Direct Camera</span>
+                    </div>
 
                     {podPhotoBase64 ? (
-                      <div className="relative rounded-xl overflow-hidden border border-slate-200">
+                      <div className="relative rounded-2xl overflow-hidden border-2 border-emerald-500 shadow-md">
                         <img 
                           src={podPhotoBase64} 
                           alt="Delivery Proof" 
-                          className="w-full h-44 object-cover" 
+                          className="w-full h-52 object-cover" 
                         />
-                        <button
-                          type="button"
-                          onClick={() => setPodPhotoBase64(null)}
-                          className="absolute top-2 right-2 bg-rose-600 text-white text-xs px-2.5 py-1 rounded-md font-semibold shadow-md"
-                        >
-                          Remove Photo
-                        </button>
+                        <div className="absolute top-2.5 right-2.5 flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => cameraInputRef.current?.click()}
+                            className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-1.5 rounded-lg font-bold shadow-md flex items-center gap-1 cursor-pointer active:scale-95 transition-all"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" /> Retake Photo
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPodPhotoBase64(null)}
+                            className="bg-rose-600 hover:bg-rose-700 text-white text-xs px-2.5 py-1.5 rounded-lg font-bold shadow-md cursor-pointer active:scale-95 transition-all"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                        <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent p-3 text-white flex items-center justify-between">
+                          <span className="text-xs font-bold flex items-center gap-1.5 text-emerald-300">
+                            <Check className="w-4 h-4 text-emerald-400" /> Counter Photo Captured
+                          </span>
+                          {driverLocation && (
+                            <span className="text-[10px] font-mono text-slate-200 bg-black/50 px-2 py-0.5 rounded">
+                              GPS: {driverLocation.lat.toFixed(4)}, {driverLocation.lng.toFixed(4)}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     ) : (
-                      <label className="border-2 border-dashed border-slate-300 hover:border-blue-400 bg-slate-50 hover:bg-blue-50/20 rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer transition-colors">
-                        <Camera className="w-6 h-6 text-slate-400 mb-1" />
-                        <span className="text-xs font-semibold text-slate-700">Take Photo or Upload Image</span>
-                        <span className="text-[11px] text-slate-400">Capture parcel at party location</span>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          capture="environment"
-                          onChange={handlePhotoCapture}
-                          className="hidden"
-                        />
-                      </label>
+                      <button
+                        type="button"
+                        onClick={() => cameraInputRef.current?.click()}
+                        className="w-full py-8 px-4 border-2 border-dashed border-blue-400 hover:border-blue-600 bg-blue-50/60 hover:bg-blue-100/70 rounded-2xl flex flex-col items-center justify-center gap-2.5 cursor-pointer transition-all active:scale-98 shadow-xs"
+                      >
+                        <div className="w-16 h-16 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-lg shadow-blue-500/30">
+                          <Camera className="w-8 h-8" />
+                        </div>
+                        <div className="text-center">
+                          <div className="text-base font-extrabold text-slate-900">📸 Open Camera & Take Photo</div>
+                          <div className="text-xs font-bold text-blue-700 mt-0.5">કેમેરા ખોલો અને પાર્સલનો ફોટો પાડો</div>
+                          <div className="text-[11px] text-slate-500 mt-1">Directly opens camera to photograph parcel at pharmacy counter</div>
+                        </div>
+                      </button>
                     )}
                   </div>
 
@@ -1054,6 +1043,16 @@ export const DriverMode: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Hidden direct mobile camera input (Always mounted for instant camera launch) */}
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={handlePhotoCapture}
+        className="hidden"
+      />
     </div>
   );
 };

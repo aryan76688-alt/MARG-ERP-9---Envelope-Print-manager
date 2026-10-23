@@ -13,6 +13,7 @@ interface EnvelopeTemplateProps {
   isPrintMode?: boolean;
   templateFormat?: 'attachment_pdf' | 'marg_grid_22';
   language?: 'en' | 'gu';
+  billInside?: boolean;
 }
 
 const normalizeDigits = (str?: string | null): string => {
@@ -22,8 +23,8 @@ const normalizeDigits = (str?: string | null): string => {
 };
 
 export const formatCaseBreakdownItem = (typeStr?: string, volStr?: string, qty: number = 1): string => {
-  const cleanType = (typeStr || 'CASE').trim().toUpperCase();
-  const cleanVol = (volStr || '').trim().toUpperCase();
+  const cleanType = (typeStr || 'CASE').trim();
+  const cleanVol = (volStr || '').trim();
 
   // Check if string is already formatted like "NS CASE 100ML: 1", "NS 100 CASE: 1" or "NS 100ML CASE: 1"
   const m = cleanType.match(/^(NS|DNS|RL|METRO)\s*(?:CASE)?\s*(\d+)\s*(ML|LTR)?\s*(?:CASE)?:\s*(\d+)$/i);
@@ -32,21 +33,44 @@ export const formatCaseBreakdownItem = (typeStr?: string, volStr?: string, qty: 
     return `${m[1].toUpperCase()} ${m[2]}${unit} CASE: ${m[4]}`;
   }
 
-  const typeBase = cleanType.replace(/\s*CASE/g, '').trim();
+  const upperType = cleanType.toUpperCase();
+  const upperVol = cleanVol.toUpperCase();
 
-  if (['NS', 'DNS', 'RL', 'METRO'].includes(typeBase) && cleanVol) {
-    const volDisplay = /^\d+$/.test(cleanVol) ? `${cleanVol}ML` : cleanVol;
-    return `${typeBase} ${volDisplay} CASE: ${qty}`;
-  } else if (cleanVol) {
-    const volDisplay = /^\d+$/.test(cleanVol) ? `${cleanVol}ML` : cleanVol;
-    const prefix = typeBase || cleanType;
-    return `${prefix} ${volDisplay} CASE: ${qty}`;
-  } else {
-    if (!cleanType.endsWith('CASE') && !['PARCEL BAG', 'BOX', 'CARTON', 'BAG'].includes(cleanType)) {
-      return `${cleanType} CASE: ${qty}`;
-    }
-    return `${cleanType}: ${qty}`;
+  // Normalize volume
+  let volDisplay = upperVol;
+  if (/^\d+$/.test(cleanVol)) {
+    volDisplay = `${cleanVol}ML`;
+  } else if (/^(PSC|PCS)$/i.test(cleanVol) || /^(PSC|PCS)\s*\(PIECES\)$/i.test(cleanVol)) {
+    volDisplay = 'PCS';
   }
+
+  // Check if it's one of the common fluids: NS, DNS, RL, METRO
+  const isSpecialFluid = ['NS', 'DNS', 'RL', 'METRO'].some(
+    (f) => upperType === f || upperType === `${f} CASE`
+  );
+  if (isSpecialFluid) {
+    const base = upperType.replace(/\s+CASE$/i, '').trim();
+    if (volDisplay) {
+      return `${base} ${volDisplay} CASE: ${qty}`;
+    }
+    return `${base} CASE: ${qty}`;
+  }
+
+  if (upperType === 'CASE') {
+    if (volDisplay) return `CASE (${volDisplay}): ${qty}`;
+    return `CASE: ${qty}`;
+  }
+
+  if (['PARCEL BAG', 'BOX', 'CARTON', 'BAG'].includes(upperType)) {
+    return `${upperType}: ${qty}`;
+  }
+
+  // Specific item full case (e.g. "10ML SYRINGE ATPL*50 1PCS" or "PARACETAMOL 500MG")
+  const baseItem = cleanType.replace(/\s+CASE$/i, '').trim();
+  if (volDisplay && !baseItem.toUpperCase().includes(volDisplay.toUpperCase())) {
+    return `${baseItem} (${volDisplay}) CASE: ${qty}`;
+  }
+  return `${baseItem} CASE: ${qty}`;
 };
 
 
@@ -61,9 +85,11 @@ export const EnvelopeTemplate: React.FC<EnvelopeTemplateProps> = ({
   isPrintMode = false,
   templateFormat = 'attachment_pdf',
   language = 'en',
+  billInside = false,
 }) => {
   const showCaseNumber = settings?.show_case_number ?? true;
   const isGu = language === 'gu';
+  const billInsideText = isGu ? '📄 બિલ અંદર છે / BILL INSIDE' : '📄 BILL INSIDE / બિલ અંદર છે';
 
   // Recipient details based on language (Strictly keep numbers in 0-9 digits)
   const partyName = normalizeDigits(
@@ -201,19 +227,28 @@ export const EnvelopeTemplate: React.FC<EnvelopeTemplateProps> = ({
               <td className="border-l border-r border-gray-300"></td>
               <td className="border-r border-gray-300"></td>
               <td className="border-r border-gray-300"></td>
-              <td className="px-2 text-right font-black border-l border-gray-300">
-                {hasCases && (
+              <td className="text-right px-2">
+                {hasCases ? (
                   <>
-                    <div className="inline-block border-[1.8px] border-black rounded px-2 py-0.5 text-[12.5px] font-black text-black bg-white whitespace-nowrap mb-0.5">
+                    <div className="inline-block border-[1.8px] border-black rounded px-2 py-0.5 text-[12px] font-black text-black bg-white max-w-[280px] truncate mb-0.5" title={caseBadge}>
                       {caseBadge}
                     </div>
                     {extraCases.map((ec, i) => (
-                      <div key={i} className="inline-block border-[1.8px] border-black rounded px-2 py-0.5 text-[12.5px] font-black text-black bg-white whitespace-nowrap mt-0.5">
+                      <div key={i} className="inline-block border-[1.8px] border-black rounded px-2 py-0.5 text-[12px] font-black text-black bg-white max-w-[280px] truncate mt-0.5" title={ec}>
                         {ec}
                       </div>
                     ))}
+                    {billInside && (
+                      <div className="inline-block border-[1.8px] border-black rounded px-2 py-0.5 text-[10.5px] font-black text-black bg-white whitespace-nowrap mt-1">
+                        {billInsideText}
+                      </div>
+                    )}
                   </>
-                )}
+                ) : billInside ? (
+                  <div className="inline-block border-[1.8px] border-black rounded px-2 py-0.5 text-[10.5px] font-black text-black bg-white whitespace-nowrap mb-0.5">
+                    {billInsideText}
+                  </div>
+                ) : null}
               </td>
             </tr>
 
@@ -351,11 +386,17 @@ export const EnvelopeTemplate: React.FC<EnvelopeTemplateProps> = ({
             {breakdownLines.map((line, idx) => (
               <div 
                 key={idx} 
-                className="inline-block border-2 border-black rounded px-2.5 py-0.5 text-[15px] font-black text-black tracking-tight bg-white mb-1.5 whitespace-nowrap shadow-none"
+                className="inline-block border-2 border-black rounded px-2.5 py-0.5 text-[14px] font-black text-black tracking-tight bg-white mb-1.5 max-w-[340px] truncate shadow-none"
+                title={line}
               >
                 {line}
               </div>
             ))}
+            {billInside && (
+              <div className="inline-block border-2 border-black rounded px-2.5 py-0.5 text-[13px] font-black text-black tracking-tight bg-white mb-1.5 whitespace-nowrap shadow-none">
+                {billInsideText}
+              </div>
+            )}
           </div>
 
 

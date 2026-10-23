@@ -243,6 +243,11 @@ elif [ -f "${ORDERBOOK_DIR}/scripts/termux/auto-restart-30m.sh" ]; then
     chmod +x "${BASE_DIR}/auto-restart-30m.sh" 2>/dev/null || true
 fi
 
+# Ensure crond daemon is running for hardware 30-min timer
+if command -v crond >/dev/null 2>&1; then
+    pgrep crond >/dev/null 2>&1 || crond
+fi
+
 # 6. Launch 24/7 Auto-Healer & Live Auto-Updater Watchdog
 echo -e "\n${BLUE}[5/5] Activating 24/7 Watchdog (Auto-Heal + Auto-Update)...${NC}"
 WATCHDOG_SCRIPT="${BASE_DIR}/watchdog.sh"

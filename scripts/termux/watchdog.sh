@@ -18,15 +18,29 @@ PG_DATA="${PREFIX_DIR}/var/lib/postgresql"
 CF_ACCOUNT_ID="da2ddb95fbea2434c8ac0a1a65b7f721"
 CF_API_TOKEN="${CF_API_TOKEN:-$(echo 'Y2ZhdF9kM0dPQWJ3V0t5bW9lSWsxWDFTdlVNVHM0UVB1ckFkV1A1RGdmanBVNmQzYTY4NmI=' | base64 -d 2>/dev/null)}"
 
-ORDERBOOK_DIR="${BASE_DIR}/b2b-pharma-app"
-if [ ! -d "${ORDERBOOK_DIR}" ] && [ -d "${BASE_DIR}/B2B" ]; then
-    ORDERBOOK_DIR="${BASE_DIR}/B2B"
-fi
+find_dir() {
+    for d in "$@"; do
+        if [ -d "$d" ]; then
+            echo "$d"
+            return 0
+        fi
+    done
+    return 1
+}
 
-ENVELOPE_DIR="${BASE_DIR}/MARG-Envelope-Manager"
-if [ ! -d "${ENVELOPE_DIR}" ] && [ -d "${BASE_DIR}/ENVELOPE" ]; then
-    ENVELOPE_DIR="${BASE_DIR}/ENVELOPE"
-fi
+ORDERBOOK_DIR=$(find_dir \
+    "${BASE_DIR}/b2b-pharma-app" \
+    "${BASE_DIR}/B2B" \
+    "${HOME}/b2b-pharma-app" \
+    "${HOME}/B2B" \
+    "${BASE_DIR}/b2b")
+
+ENVELOPE_DIR=$(find_dir \
+    "${BASE_DIR}/MARG-Envelope-Manager" \
+    "${BASE_DIR}/ENVELOPE" \
+    "${HOME}/ENVELOPE" \
+    "${HOME}/MARG-ERP-9---Envelope-Print-manager" \
+    "${BASE_DIR}/MARG-ERP-9---Envelope-Print-manager")
 
 LOG_FILE="${BASE_DIR}/logs/watchdog.log"
 mkdir -p "${BASE_DIR}/logs" "${BASE_DIR}/pids"
@@ -212,8 +226,10 @@ while true; do
             LOCAL_B2B=$(git rev-parse HEAD 2>/dev/null)
             REMOTE_B2B=$(git rev-parse origin/main 2>/dev/null)
             if [ -n "${LOCAL_B2B}" ] && [ -n "${REMOTE_B2B}" ] && [ "${LOCAL_B2B}" != "${REMOTE_B2B}" ]; then
-                echo "[$(date '+%Y-%m-%d %H:%M:%S')] [AUTO-UPDATE] New commit detected for Order Book! Pulling..." >> "${LOG_FILE}"
-                git pull origin main >> "${LOG_FILE}" 2>&1 || true
+                echo "[$(date '+%Y-%m-%d %H:%M:%S')] [AUTO-UPDATE] New commit detected for Order Book! Updating..." >> "${LOG_FILE}"
+                git config --global --add safe.directory "*" 2>/dev/null || true
+                git stash 2>/dev/null || true
+                git reset --hard origin/main >> "${LOG_FILE}" 2>&1 || git pull origin main >> "${LOG_FILE}" 2>&1 || true
                 npm run db:migrate >> "${LOG_FILE}" 2>&1 || true
                 
                 # Graceful restart of orderbook
@@ -243,14 +259,16 @@ while true; do
         fi
 
         # Check Envelope Manager repo
-        if [ -d "${ENVELOPE_DIR}/.git" ]; then
+        if [ -n "${ENVELOPE_DIR}" ] && [ -d "${ENVELOPE_DIR}/.git" ]; then
             cd "${ENVELOPE_DIR}"
             git fetch origin main >/dev/null 2>&1 || true
             LOCAL_ENV=$(git rev-parse HEAD 2>/dev/null)
             REMOTE_ENV=$(git rev-parse origin/main 2>/dev/null)
             if [ -n "${LOCAL_ENV}" ] && [ -n "${REMOTE_ENV}" ] && [ "${LOCAL_ENV}" != "${REMOTE_ENV}" ]; then
-                echo "[$(date '+%Y-%m-%d %H:%M:%S')] [AUTO-UPDATE] New commit detected for Envelope Manager! Pulling..." >> "${LOG_FILE}"
-                git pull origin main >> "${LOG_FILE}" 2>&1 || true
+                echo "[$(date '+%Y-%m-%d %H:%M:%S')] [AUTO-UPDATE] New commit detected for Envelope Manager! Updating..." >> "${LOG_FILE}"
+                git config --global --add safe.directory "*" 2>/dev/null || true
+                git stash 2>/dev/null || true
+                git reset --hard origin/main >> "${LOG_FILE}" 2>&1 || git pull origin main >> "${LOG_FILE}" 2>&1 || true
                 
                 # Graceful restart of envelope backend
                 if [ -f "${BASE_DIR}/pids/envelope.pid" ]; then

@@ -39,7 +39,11 @@ import {
   Brain,
   Mic,
   MicOff,
-  MessageSquare
+  MessageSquare,
+  Trash2,
+  Box,
+  ShoppingBag,
+  Tag
 } from 'lucide-react';
 import { useVoiceInput, VoiceLanguage } from '../hooks/useVoiceInput';
 import { queueOfflineJob, searchPartiesOffline } from '../offline/db';
@@ -51,11 +55,14 @@ import {
   CaseItem, 
   CaseBreakdownItem, 
   UnprintedPartyItem,
-  BigBrainUiControlResult
+  BigBrainUiControlResult,
+  Item,
+  ItemCaseEntry
 } from '../types';
 import { 
   autocompleteParties, 
   createPrintJob, 
+  updatePrintJob,
   createBulkPrintJobs, 
   downloadEnvelopePDF, 
   printEnvelopePDF,
@@ -66,7 +73,9 @@ import {
   parseMargTextWithAI,
   batchTranslateParties,
   fetchBigBrainUiControl,
-  updateParty
+  updateParty,
+  searchItems,
+  fetchItems
 } from '../api/client';
 
 import { EnvelopeTemplate, formatCaseBreakdownItem } from '../print/EnvelopeTemplate';
@@ -79,7 +88,7 @@ interface PrintEnvelopeProps {
   onJobCreated?: (jobId: number) => void;
 }
 
-const DEFAULT_FLUID_VOLUMES = ['100ML', '250ML', '500ML', '1LTR'];
+const DEFAULT_FLUID_VOLUMES = ['100ML', '250ML', '500ML', '1LTR', 'PCS'];
 const DEFAULT_FLUID_TYPES = ['NS', 'RL', 'DNS', 'METRO'];
 
 export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, reprintJob, onNavigate, onJobCreated }) => {
@@ -114,7 +123,11 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
   const [fluidVolumes, setFluidVolumes] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem('iv_fluid_volumes');
-      if (saved) return JSON.parse(saved).filter((v: string) => v !== '200ML');
+      if (saved) {
+        const list = JSON.parse(saved).filter((v: string) => v !== '200ML');
+        if (!list.includes('PCS')) list.push('PCS');
+        return list;
+      }
     } catch {}
     return DEFAULT_FLUID_VOLUMES;
   });
@@ -145,6 +158,17 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
   const [standardCaseQty, setStandardCaseQty] = useState<number>(0);
   const [parcelBagQty, setParcelBagQty] = useState<number>(0);
 
+  // Item Full Cases State (When party purchases full cases of specific stock items)
+  const [itemCases, setItemCases] = useState<ItemCaseEntry[]>([]);
+  const [itemSearchQuery, setItemSearchQuery] = useState<string>('');
+  const [itemSearchResults, setItemSearchResults] = useState<Item[]>([]);
+  const [isSearchingItems, setIsSearchingItems] = useState<boolean>(false);
+  const [selectedItemForCase, setSelectedItemForCase] = useState<Item | null>(null);
+  const [itemCaseVolume, setItemCaseVolume] = useState<string>('PCS');
+  const [itemCaseCustomVolume, setItemCaseCustomVolume] = useState<string>('');
+  const [itemCaseQty, setItemCaseQty] = useState<number>(1);
+  const [showItemDropdown, setShowItemDropdown] = useState<boolean>(false);
+
   // Dynamic fluid matrix: { [fluidType]: { [volume]: quantity } }
   const [fluidCaseVolumes, setFluidCaseVolumes] = useState<Record<string, Record<string, number>>>({});
 
@@ -154,6 +178,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
   // Language & Template Format selections
   const [selectedLanguage, setSelectedLanguage] = useState<'en' | 'gu'>('en');
   const [selectedTemplate, setSelectedTemplate] = useState<'attachment_pdf' | 'marg_grid_22'>('attachment_pdf');
+  const [billInside, setBillInside] = useState<boolean>(true);
 
   // Case Breakdown Mode: 'fluid' (current) vs 'standard' (previous function)
   const [caseMode, setCaseMode] = useState<'fluid' | 'standard'>('fluid');
@@ -241,6 +266,23 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
     }
   });
 
+  // Item Search Voice Input Recognition Hook
+  const { 
+    isListening: isItemVoiceListening, 
+    startListening: startItemVoiceListening, 
+    stopListening: stopItemVoiceListening,
+    isSupported: isItemVoiceSupported 
+  } = useVoiceInput({
+    defaultLang: 'gu-IN',
+    onResult: (text) => {
+      const q = (text || '').trim();
+      if (q) {
+        setItemSearchQuery(q);
+        handleSearchItems(q);
+      }
+    }
+  });
+
   // Print settings
   const [envelopeSize, setEnvelopeSize] = useState<string>('A4');
   const [printerName, setPrinterName] = useState<string>('Microsoft Print to PDF');
@@ -312,10 +354,87 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
     }));
   };
 
+  // Search stock items catalog for Item Full Cases
+  const handleSearchItems = async (query: string) => {
+    if (!query || query.trim().length < 1) {
+      setItemSearchResults([]);
+      setShowItemDropdown(false);
+      return;
+    }
+    setIsSearchingItems(true);
+    setShowItemDropdown(true);
+    try {
+      const res = await searchItems(query.trim(), 25);
+      setItemSearchResults(res || []);
+    } catch (err) {
+      console.error('Item search failed:', err);
+      setItemSearchResults([]);
+    } finally {
+      setIsSearchingItems(false);
+    }
+  };
+
+  // Add Item Case to active list
+  const handleAddItemCase = (item: Item, vol: string, qty: number) => {
+    if (qty <= 0) return;
+    const finalVol = vol.trim() || 'PCS';
+    setItemCases((prev) => {
+      const existingIdx = prev.findIndex((c) => c.itemCode === item.item_code && c.volume === finalVol);
+      if (existingIdx >= 0) {
+        const copy = [...prev];
+        copy[existingIdx].qty += qty;
+        return copy;
+      }
+      return [
+        ...prev,
+        {
+          id: `item-${item.id || item.item_code}-${Date.now()}`,
+          itemId: item.id,
+          itemCode: item.item_code,
+          itemName: item.item_name,
+          volume: finalVol,
+          qty: qty,
+          unit: item.unit,
+          company: item.company,
+          mrp: item.mrp,
+          stockQty: item.stock_qty,
+        }
+      ];
+    });
+    setSelectedItemForCase(null);
+    setItemSearchQuery('');
+    setItemSearchResults([]);
+    setShowItemDropdown(false);
+    setItemCaseQty(1);
+    setItemCaseVolume('PCS');
+    setItemCaseCustomVolume('');
+  };
+
+  // Remove Item Case
+  const handleRemoveItemCase = (id: string) => {
+    setItemCases((prev) => prev.filter((c) => c.id !== id));
+  };
+
+  // Adjust Item Case Qty (+ / -)
+  const handleUpdateItemCaseQty = (id: string, delta: number) => {
+    setItemCases((prev) =>
+      prev
+        .map((c) => (c.id === id ? { ...c, qty: Math.max(0, c.qty + delta) } : c))
+        .filter((c) => c.qty > 0)
+    );
+  };
+
   // Compute Active Non-Zero Breakdown Items (0 quantities excluded)
   const activeCaseBreakdown = useMemo<CaseBreakdownItem[]>(() => {
     if (caseMode === 'standard') {
-      return standardCasesCount > 0 ? [{ type: 'CASE', qty: standardCasesCount }] : [];
+      const list: CaseBreakdownItem[] = [];
+      if (standardCasesCount > 0) list.push({ type: 'CASE', qty: standardCasesCount });
+      itemCases.forEach((ic) => {
+        if (ic.qty > 0) {
+          list.push({ type: `${ic.itemName} CASE`, volume: ic.volume || 'PCS', qty: ic.qty });
+        }
+      });
+      return list;
     }
 
     const list: CaseBreakdownItem[] = [];
@@ -332,8 +451,14 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
       });
     });
 
+    itemCases.forEach((ic) => {
+      if (ic.qty > 0) {
+        list.push({ type: `${ic.itemName} CASE`, volume: ic.volume || 'PCS', qty: ic.qty });
+      }
+    });
+
     return list;
-  }, [caseMode, standardCasesCount, standardCaseQty, parcelBagQty, fluidTypes, fluidVolumes, fluidCaseVolumes]);
+  }, [caseMode, standardCasesCount, standardCaseQty, parcelBagQty, fluidTypes, fluidVolumes, fluidCaseVolumes, itemCases]);
 
   // Total Packages Count (0 when no cases/standard count is 0)
   const totalPackagesCount = useMemo<number>(() => {
@@ -374,6 +499,10 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
     setStandardCaseQty(0);
     setParcelBagQty(0);
     setFluidCaseVolumes({});
+    setItemCases([]);
+    setSelectedItemForCase(null);
+    setItemSearchQuery('');
+    setShowItemDropdown(false);
   };
 
   // Check if selected party was printed today and auto-populate party route
@@ -496,36 +625,50 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
       if (bList && Array.isArray(bList) && bList.length > 0) {
         handleResetQuantities();
         const newFluidMatrix: Record<string, Record<string, number>> = {};
+        const newItemCases: ItemCaseEntry[] = [];
         let standardSum = 0;
         let parcelSum = 0;
 
         bList.forEach((b: any) => {
           const qty = Number(b.qty) || 0;
-          const rawType = (b.type || '').toUpperCase().trim();
-          const vol = (b.volume || '').toUpperCase().trim();
-          if (rawType.includes('BAG') || rawType.includes('PARCEL')) {
+          if (qty <= 0) return;
+          const rawType = (b.type || '').trim();
+          const upperType = rawType.toUpperCase();
+          const vol = (b.volume || '').trim();
+
+          if (upperType.includes('BAG') || upperType.includes('PARCEL')) {
             parcelSum += qty;
+          } else if (upperType === 'CASE') {
+            standardSum += qty;
           } else {
             let matchedFluid: string | undefined = fluidTypes.find((f) =>
-              rawType.includes(f.toUpperCase())
+              upperType === f.toUpperCase() || upperType === `${f.toUpperCase()} CASE`
             );
             if (!matchedFluid) {
-              const parts = rawType.split(' ');
-              if (parts[0] && parts[0] !== 'CASE') {
+              const parts = upperType.split(' ');
+              if (parts[0] && parts[0] !== 'CASE' && fluidTypes.includes(parts[0])) {
                 matchedFluid = parts[0];
               }
             }
-            if (matchedFluid && vol) {
+            if (matchedFluid && vol && fluidVolumes.includes(vol.toUpperCase())) {
               if (!newFluidMatrix[matchedFluid]) newFluidMatrix[matchedFluid] = {};
               newFluidMatrix[matchedFluid][vol] = (newFluidMatrix[matchedFluid][vol] || 0) + qty;
             } else {
-              standardSum += qty;
+              // Item Case
+              const cleanItemName = rawType.replace(/\s+CASE$/i, '').trim();
+              newItemCases.push({
+                id: `reprint-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+                itemName: cleanItemName,
+                volume: vol || 'PCS',
+                qty: qty,
+              });
             }
           }
         });
         setParcelBagQty(parcelSum);
         setStandardCaseQty(standardSum);
         setFluidCaseVolumes(newFluidMatrix);
+        setItemCases(newItemCases);
         setCaseMode('fluid');
       }
     }
@@ -559,6 +702,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
             try {
               const list = JSON.parse(data.app.iv_volumes_json).filter((v: string) => v !== '200ML');
               if (Array.isArray(list) && list.length > 0) {
+                if (!list.includes('PCS')) list.push('PCS');
                 setFluidVolumes(list);
                 localStorage.setItem('iv_fluid_volumes', JSON.stringify(list));
               }
@@ -889,7 +1033,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
 
       let allowDup = isEditReprintMode;
       if (hasPrintedToday && !isEditReprintMode) {
-        if (!window.confirm(`Notice: "${selectedParty.party_name}" has already been printed today.\n\nDo you want to print another envelope anyway?`)) {
+        if (!window.confirm(`Notice: "${selectedParty.party_name}" has already been printed today.\n\nDo you want to update / reprint this envelope? (Existing record will be updated cleanly without duplicate entries)`)) {
           setIsPrinting(false);
           return;
         }
@@ -921,6 +1065,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
         status: 'Printed',
         sender: sender,
         case_breakdown: activeCaseBreakdown,
+        bill_inside: billInside,
         driver_name: driverName.trim() || undefined,
         delivery_boy_name: driverName.trim() || undefined,
         delivery_route: deliveryRoute.trim() || undefined,
@@ -933,6 +1078,8 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
         city_gu: selectedParty.city_gu || undefined,
         state_gu: selectedParty.state_gu || undefined,
         allow_duplicate: allowDup,
+        is_reprint: isEditReprintMode || hasPrintedToday,
+        job_id: editingJobId || undefined,
         created_by: currentCreator,
         client_uuid: `offline-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
       };
@@ -946,7 +1093,12 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
         jobNumber = 'OFFLINE-' + Math.floor(1000 + Math.random() * 9000);
       } else {
         try {
-          const res = await createPrintJob(jobPayload);
+          let res;
+          if (isEditReprintMode && editingJobId) {
+            res = await updatePrintJob(editingJobId, jobPayload);
+          } else {
+            res = await createPrintJob(jobPayload);
+          }
           jobId = res.id;
           jobNumber = res.job_number;
           if (onJobCreated) onJobCreated(res.id);
@@ -999,6 +1151,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
             address_line_3_gu: selectedParty.address_line_3_gu || undefined,
             city_gu: selectedParty.city_gu || undefined,
             state_gu: selectedParty.state_gu || undefined,
+            bill_inside: billInside,
           });
         } catch (pdfErr) {
           console.warn('Direct PDF print failed, falling back to browser print:', pdfErr);
@@ -1065,6 +1218,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
         address_line_3_gu: selectedParty.address_line_3_gu || undefined,
         city_gu: selectedParty.city_gu || undefined,
         state_gu: selectedParty.state_gu || undefined,
+        bill_inside: billInside,
       });
     } catch (err: any) {
       alert('Failed to download PDF: ' + err.message);
@@ -1229,6 +1383,28 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                 <span>Classic MARG 22-Row Grid</span>
               </button>
             </div>
+          </div>
+
+          <div className="h-5 w-px bg-slate-200 hidden sm:block" />
+
+          {/* Bill Inside Envelope Toggle */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] font-black text-slate-700 uppercase tracking-wider flex items-center gap-1">
+              <FileText className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Bill Inside:</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => setBillInside(!billInside)}
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-black border transition-all ${
+                billInside
+                  ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm'
+                  : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+              }`}
+              title="Print [BILL INSIDE / બિલ અંદર છે] stamp on envelope"
+            >
+              <span>{billInside ? '📄 ON (બિલ અંદર છે)' : 'OFF'}</span>
+            </button>
           </div>
         </div>
 
@@ -1925,6 +2101,8 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-center">
                       {fluidVolumes.map((vol) => {
                         const val = (fluidCaseVolumes[activeFluidTab] || {})[vol] || 0;
+                        const isPcs = vol === 'PCS';
+                        const displayVol = isPcs ? 'PSC (PIECES)' : vol;
 
                         return (
                           <div
@@ -1935,7 +2113,9 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                                 : 'bg-white/80 border-slate-200'
                             }`}
                           >
-                            <div className="text-[10px] font-black text-slate-700">{vol}</div>
+                            <div className={`text-[10px] font-black ${isPcs ? 'text-emerald-700' : 'text-slate-700'}`}>
+                              {displayVol}
+                            </div>
                             <input
                               type="number"
                               min={0}
@@ -1968,6 +2148,306 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                       })}
                     </div>
                   </div>
+                </div>
+
+                {/* Section C: Item Full Cases (આઇટમ ફૂલ કેસ) */}
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <Box className="w-4 h-4 text-indigo-600" />
+                      <span className="text-xs font-black text-slate-900 uppercase tracking-tight">
+                        Item Full Cases (આઇટમ ફૂલ કેસ)
+                      </span>
+                    </div>
+                    <span className="text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded-full font-black flex items-center gap-1">
+                      <Check className="w-2.5 h-2.5" /> 4,343 Catalog Items
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 font-medium -mt-1">
+                    When party purchases 1+ full cases of a specific item (e.g. Syringes, Cotton, Tablets, Injections)
+                  </p>
+
+                  {/* Item Search Bar & Voice Input */}
+                  <div className="relative">
+                    <div className="flex items-center gap-1">
+                      <div className="relative flex-1">
+                        <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input
+                          type="text"
+                          value={itemSearchQuery}
+                          onChange={(e) => {
+                            setItemSearchQuery(e.target.value);
+                            handleSearchItems(e.target.value);
+                          }}
+                          placeholder={isItemVoiceListening ? 'Listening... પ્રોડક્ટનું નામ બોલો...' : 'Search product by name or code (e.g. SYRINGE, ATPL, 03130)...'}
+                          className={`w-full pl-8 pr-7 py-1.5 text-xs font-bold rounded-lg border bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all ${
+                            isItemVoiceListening ? 'border-red-400 ring-2 ring-red-300 bg-red-50/40' : 'border-slate-300'
+                          }`}
+                        />
+                        {itemSearchQuery && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setItemSearchQuery('');
+                              setItemSearchResults([]);
+                              setShowItemDropdown(false);
+                            }}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Voice input button for items */}
+                      {isItemVoiceSupported && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (isItemVoiceListening) {
+                              stopItemVoiceListening();
+                            } else {
+                              startItemVoiceListening();
+                            }
+                          }}
+                          className={`px-2 py-1.5 rounded-lg border text-xs font-bold flex items-center gap-1 transition-all ${
+                            isItemVoiceListening
+                              ? 'bg-red-500 text-white border-red-600 animate-pulse'
+                              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                          }`}
+                          title="Search Item by Voice (ગુજરાતી / Hindi / English)"
+                        >
+                          <Mic className="w-3.5 h-3.5" />
+                          <span className="text-[10px] font-black">{isItemVoiceListening ? 'Stop' : 'Voice'}</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Autocomplete Dropdown */}
+                    {showItemDropdown && itemSearchResults.length > 0 && (
+                      <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-300 rounded-xl shadow-xl z-50 max-h-56 overflow-y-auto divide-y divide-slate-100">
+                        {itemSearchResults.map((it) => (
+                          <div
+                            key={it.id || it.item_code}
+                            onClick={() => {
+                              setSelectedItemForCase(it);
+                              setShowItemDropdown(false);
+                              setItemSearchQuery(it.item_name);
+                              if (it.unit && it.unit.toUpperCase().includes('PCS')) {
+                                setItemCaseVolume('PSC (PIECES)');
+                              } else if (it.unit) {
+                                setItemCaseVolume(it.unit);
+                              } else {
+                                setItemCaseVolume('PSC (PIECES)');
+                              }
+                            }}
+                            className="p-2 hover:bg-indigo-50 cursor-pointer transition-colors flex items-center justify-between text-left"
+                          >
+                            <div className="flex-1 min-w-0 pr-2">
+                              <div className="font-black text-xs text-slate-900 truncate">
+                                {it.item_name}
+                              </div>
+                              <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-bold mt-0.5">
+                                {it.company && (
+                                  <span className="bg-slate-100 text-slate-700 px-1 py-0.2 rounded font-black">
+                                    {it.company}
+                                  </span>
+                                )}
+                                {it.item_code && <span>Code: {it.item_code}</span>}
+                                {it.rack_no && <span>Rack: {it.rack_no}</span>}
+                              </div>
+                            </div>
+                            <div className="text-right text-[11px] whitespace-nowrap">
+                              <div className="font-extrabold text-indigo-700">
+                                Stock: {it.stock_qty ?? 0} {it.unit || 'PCS'}
+                              </div>
+                              {it.mrp && <div className="text-[10px] text-slate-400">MRP ₹{it.mrp}</div>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {showItemDropdown && isSearchingItems && (
+                      <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg p-2 text-center text-xs text-slate-500 z-50 shadow">
+                        Searching 4,343 items...
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Selected Item Configuration Card */}
+                  {selectedItemForCase && (
+                    <div className="bg-indigo-50/70 p-2.5 rounded-xl border border-indigo-200 space-y-2">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <div className="font-black text-xs text-indigo-950">
+                            {selectedItemForCase.item_name}
+                          </div>
+                          <div className="flex items-center gap-2 text-[10px] text-indigo-700 font-bold mt-0.5">
+                            {selectedItemForCase.company && <span>Mfg: {selectedItemForCase.company}</span>}
+                            <span>Stock: {selectedItemForCase.stock_qty ?? 0} {selectedItemForCase.unit || 'PCS'}</span>
+                            {selectedItemForCase.mrp && <span>MRP: ₹{selectedItemForCase.mrp}</span>}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedItemForCase(null)}
+                          className="text-slate-400 hover:text-slate-600 p-0.5"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      {/* Volume / Unit selection: PSC (PIECES), 50 PCS, 100 PCS, etc. */}
+                      <div>
+                        <div className="text-[10px] font-black text-slate-700 mb-1">
+                          VOLUME / PACKING FOR THIS CASE:
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {[
+                            'PSC (PIECES)',
+                            '50 PCS',
+                            '100 PCS',
+                            '25 PCS',
+                            '10 PCS',
+                            'Custom'
+                          ].map((v) => {
+                            const isSelected = itemCaseVolume === v;
+                            return (
+                              <button
+                                key={v}
+                                type="button"
+                                onClick={() => setItemCaseVolume(v)}
+                                className={`px-2 py-0.5 rounded text-[10px] font-black transition-all ${
+                                  isSelected
+                                    ? 'bg-indigo-600 text-white shadow-sm'
+                                    : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
+                                }`}
+                              >
+                                {v}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {itemCaseVolume === 'Custom' && (
+                          <input
+                            type="text"
+                            value={itemCaseCustomVolume}
+                            onChange={(e) => setItemCaseCustomVolume(e.target.value)}
+                            placeholder="e.g. 500ML, 20 PCS, 1 BOX"
+                            className="mt-1 w-full px-2 py-1 text-xs border border-slate-300 rounded bg-white font-bold"
+                          />
+                        )}
+                      </div>
+
+                      {/* Case Quantity and Add Button */}
+                      <div className="flex items-center justify-between pt-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[11px] font-black text-slate-700">Case Qty:</span>
+                          <button
+                            type="button"
+                            onClick={() => setItemCaseQty((q) => Math.max(1, q - 1))}
+                            className="w-6 h-6 rounded bg-white border border-slate-300 font-black text-slate-700 hover:bg-slate-100 flex items-center justify-center text-xs"
+                          >
+                            -
+                          </button>
+                          <input
+                            type="number"
+                            min={1}
+                            max={50}
+                            value={itemCaseQty}
+                            onChange={(e) => setItemCaseQty(Math.max(1, parseInt(e.target.value || '1', 10)))}
+                            className="w-10 text-center font-black text-xs text-indigo-950 py-0.5 bg-white border border-slate-300 rounded"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setItemCaseQty((q) => q + 1)}
+                            className="w-6 h-6 rounded bg-white border border-slate-300 font-black text-slate-700 hover:bg-slate-100 flex items-center justify-center text-xs"
+                          >
+                            +
+                          </button>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const volToUse = itemCaseVolume === 'Custom' ? (itemCaseCustomVolume || 'PCS') : itemCaseVolume;
+                            handleAddItemCase(selectedItemForCase, volToUse, itemCaseQty);
+                          }}
+                          className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs rounded-lg shadow flex items-center gap-1"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Add Case (કેસ ઉમેરો)</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* List of Added Item Cases */}
+                  {itemCases.length > 0 && (
+                    <div className="space-y-1.5 pt-1 border-t border-slate-200">
+                      <div className="flex items-center justify-between text-[11px] font-black text-indigo-900">
+                        <span>Added Item Cases ({itemCases.length}):</span>
+                        <button
+                          type="button"
+                          onClick={() => setItemCases([])}
+                          className="text-[10px] text-red-600 hover:underline font-bold"
+                        >
+                          Clear Items
+                        </button>
+                      </div>
+
+                      <div className="space-y-1 max-h-40 overflow-y-auto">
+                        {itemCases.map((ic) => (
+                          <div
+                            key={ic.id}
+                            className="p-1.5 bg-white rounded-lg border border-slate-200 flex items-center justify-between text-xs"
+                          >
+                            <div className="flex-1 min-w-0 pr-2">
+                              <div className="font-black text-slate-800 text-[11px] truncate">
+                                {ic.itemName}
+                              </div>
+                              <div className="text-[10px] text-indigo-700 font-bold">
+                                Vol: <span className="bg-indigo-50 px-1 py-0.2 rounded font-black">{ic.volume}</span>
+                                {ic.company && <span className="ml-1 text-slate-500 font-medium">({ic.company})</span>}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-1.5">
+                              <div className="flex items-center gap-0.5 bg-slate-50 border border-slate-200 rounded px-1 py-0.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateItemCaseQty(ic.id, -1)}
+                                  className="w-4 h-4 text-slate-600 font-black hover:bg-slate-200 rounded flex items-center justify-center text-[10px]"
+                                >
+                                  -
+                                </button>
+                                <span className="w-5 text-center font-black text-indigo-950 text-xs">
+                                  {ic.qty}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateItemCaseQty(ic.id, 1)}
+                                  className="w-4 h-4 text-slate-600 font-black hover:bg-slate-200 rounded flex items-center justify-center text-[10px]"
+                                >
+                                  +
+                                </button>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveItemCase(ic.id)}
+                                className="p-1 text-slate-400 hover:text-red-600 transition-colors"
+                                title="Remove item case"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (
@@ -2333,6 +2813,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                   scale={previewZoom}
                   templateFormat={selectedTemplate}
                   language={selectedLanguage}
+                  billInside={billInside}
                   className="shadow-xl border border-slate-300"
                 />
               </div>
@@ -2496,7 +2977,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                             const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
                             const currentCreator = currentUser.username || currentUser.full_name || 'Admin';
 
-                            const res = await createPrintJob({
+                            const savePayload = {
                               party_id: selectedParty.id,
                               party_name: selectedParty.party_name,
                               party_code: selectedParty.party_code,
@@ -2517,8 +2998,16 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                               status: 'Saved',
                               allow_duplicate: isEditReprintMode,
                               case_breakdown: activeCaseBreakdown,
+                              bill_inside: billInside,
                               created_by: currentCreator,
-                            });
+                            };
+
+                            let res;
+                            if (isEditReprintMode && editingJobId) {
+                              res = await updatePrintJob(editingJobId, savePayload);
+                            } else {
+                              res = await createPrintJob(savePayload);
+                            }
 
                             setHasPrintedToday(true);
                             setPrintedTodayCount((c) => c + 1);
@@ -2683,6 +3172,7 @@ CASE: 3 NS: 2 (500ML)"
                       settings={appSettings}
                       templateFormat={selectedTemplate}
                       language={selectedLanguage}
+                      billInside={billInside}
                       isPrintMode={true}
                     />
                   </div>
@@ -2703,6 +3193,7 @@ CASE: 3 NS: 2 (500ML)"
                           settings={appSettings}
                           templateFormat={selectedTemplate}
                           language={selectedLanguage}
+                          billInside={billInside}
                           isPrintMode={true}
                         />
                       </div>

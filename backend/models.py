@@ -18,6 +18,7 @@ class User(Base):
     email = Column(String(150), unique=True, nullable=True, index=True)
     google_id = Column(String(100), unique=True, nullable=True, index=True)
     avatar_url = Column(String(500), nullable=True)
+    device_controls_json = Column(Text, nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
@@ -57,6 +58,9 @@ class Party(Base):
     longitude = Column(Float, nullable=True)
     geofence_radius_meters = Column(Integer, default=75) # Safety zone radius in meters (default 75m)
     geofence_set_at = Column(DateTime, nullable=True)
+
+    # Optional Drug Licenses (JSON list of license strings)
+    drug_licenses = Column(Text, nullable=True)
 
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
@@ -181,6 +185,7 @@ class PrintJob(Base):
     
     # Driver Mode & Proof of Delivery (POD) fields
     delivery_status = Column(String(30), default="Pending") # 'Pending', 'Delivered'
+    delivered_by = Column(String(100), nullable=True) # User name who delivered the parcel
     pod_signature = Column(Text, nullable=True) # Base64 signature data
     pod_photo = Column(Text, nullable=True) # Base64 photo or image path
     pod_notes = Column(Text, nullable=True) # Receiver name or delivery remarks
@@ -192,8 +197,10 @@ class PrintJob(Base):
     delivered_longitude = Column(Float, nullable=True)
     distance_from_geofence_meters = Column(Float, nullable=True)
     geofence_verified = Column(Boolean, nullable=True)
+    bill_inside = Column(Boolean, default=False)
     
     created_at = Column(DateTime, default=datetime.datetime.utcnow, index=True)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow, index=True)
 
     # Relationships
     party = relationship("Party", back_populates="print_jobs")
@@ -246,3 +253,22 @@ class ImportErrorLog(Base):
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     import_job = relationship("ImportJob", back_populates="errors")
+
+
+class Item(Base):
+    __tablename__ = "items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    item_code = Column(String(100), nullable=True, index=True)
+    item_name = Column(String(255), nullable=False, index=True)
+    unit = Column(String(50), nullable=True) # e.g. PCS, STRI, SYP, AMP, etc.
+    company = Column(String(150), nullable=True, index=True)
+    mrp = Column(Float, nullable=True)
+    sales_price = Column(Float, nullable=True)
+    cost_price = Column(Float, nullable=True)
+    stock_qty = Column(Float, default=0.0)
+    packing = Column(String(100), nullable=True)
+    rack_no = Column(String(50), nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+

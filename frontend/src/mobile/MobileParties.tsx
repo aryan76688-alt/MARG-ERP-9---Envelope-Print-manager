@@ -16,7 +16,8 @@ import {
   ExternalLink,
   Edit3,
   Navigation,
-  Crosshair
+  Crosshair,
+  Compass
 } from 'lucide-react';
 import { Party } from '../types';
 import { fetchParties, createParty, updateParty, updatePartyGeofence } from '../api/client';
@@ -24,6 +25,7 @@ import { getPartiesOffline, ensureInitialPartiesLoaded } from '../offline/db';
 import { PartyModal } from '../components/PartyModal';
 import { RouteManagerModal } from '../components/RouteManagerModal';
 import { PartyMapPickerModal } from '../components/PartyMapPickerModal';
+import { VoiceSearchInput } from '../components/VoiceSearchInput';
 
 interface MobilePartiesProps {
   onNavigate: (tab: string, state?: any) => void;
@@ -181,24 +183,24 @@ export const MobileParties: React.FC<MobilePartiesProps> = ({
     <div className="p-4 space-y-4 max-w-lg mx-auto pb-28 font-sans">
       {/* 1. SEARCH & SHORTCUT ACTION BAR (LIGHT THEME) */}
       <div className="flex items-center gap-2">
-        <div className="relative flex-1">
-          <input
-            type="text"
+        <div className="flex-1">
+          <VoiceSearchInput
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(val) => setSearchQuery(val)}
             placeholder="Search party code, name, city..."
-            className="w-full bg-white border border-slate-300 rounded-2xl py-3 pl-10 pr-9 text-slate-900 placeholder-slate-400 text-sm font-semibold focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-500/30 shadow-sm"
+            inputClassName="rounded-2xl py-3 pl-10 pr-24 bg-white border-slate-300 shadow-sm"
           />
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5 pointer-events-none" />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-3 p-1 text-slate-400 hover:text-slate-800"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
         </div>
+
+        {/* Nearest Parties Shortcut */}
+        <button
+          onClick={() => onNavigate('nearby')}
+          className="p-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm active:scale-95 transition-all flex items-center gap-1.5 flex-shrink-0 cursor-pointer"
+          title="Nearest Parties by GPS"
+        >
+          <Compass className="w-4 h-4" />
+          <span className="hidden sm:inline">Nearby</span>
+        </button>
 
         {/* All Parties Map Shortcut */}
         <button

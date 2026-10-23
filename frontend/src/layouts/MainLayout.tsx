@@ -21,7 +21,11 @@ import {
   RefreshCw,
   MapPin,
   HardDrive,
-  PhoneCall
+  PhoneCall,
+  Banknote,
+  Smartphone,
+  Compass,
+  Route,
 } from 'lucide-react';
 import { useNetworkSync } from '../offline/syncManager';
 
@@ -118,6 +122,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
   const navItemsRaw = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'parties', label: 'Parties', icon: Users },
+    { id: 'nearby', label: 'Nearest Parties', icon: Compass },
+    { id: 'route-optimizer', label: 'Route Optimizer', icon: Route },
     { id: 'map', label: 'Parties Map', icon: MapPin },
     { id: 'import', label: 'Import Excel', icon: FileSpreadsheet },
     { id: 'print', label: 'Print Envelope', icon: Printer },
@@ -126,7 +132,9 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
     { id: 'history', label: 'Print History', icon: History },
     { id: 'settings', label: 'Settings', icon: SettingsIcon },
     { id: 'storage', label: userRole === 'super_admin' ? 'Mobile Storage' : 'My Storage', icon: HardDrive },
-    ...(['super_admin', 'admin'].includes(userRole) ? [{ id: 'users', label: 'User Management', icon: User }] : [])
+    ...(userRole === 'super_admin' ? [{ id: 'devices', label: 'Device Controls', icon: Smartphone }] : []),
+    ...(['super_admin', 'owner', 'admin'].includes(userRole) ? [{ id: 'calculator', label: 'Cash Calculator', icon: Banknote }] : []),
+    ...(['super_admin', 'owner', 'admin'].includes(userRole) ? [{ id: 'users', label: 'User Management', icon: User }] : [])
   ];
 
   const navItems = navItemsRaw;
@@ -134,12 +142,16 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
   const pageTitles: Record<string, string> = {
     dashboard: 'Dispatch Dashboard',
     parties: 'Parties Management',
+    nearby: 'Nearest Parties (સૌથી નજીકની પાર્ટીઓ)',
+    'route-optimizer': 'Delivery Route Optimizer (રૂટ ઓપ્ટિમાઇઝર)',
     map: 'All Parties Map (પાર્ટી મેપ)',
     import: 'Import Excel',
     print: 'Print Envelope',
     driver: 'Driver Mode (POD)',
     dispatch: 'Dispatch Summary',
     history: 'Print History',
+    calculator: 'Cash Note Calculator (રોકડ ગણતરી)',
+    devices: 'Hardware & Device Controls (Super Admin)',
     settings: 'Settings',
     storage: userRole === 'super_admin' ? 'Mobile Storage (User-Wise)' : 'My Mobile Storage',
     users: 'User Management',
@@ -421,8 +433,12 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
                   } catch { return 'U'; }
                 })()}
               </div>
-              <div className="hidden md:flex flex-col">
-                <span className="text-xs font-bold text-slate-800 leading-tight">
+              <div className="hidden lg:flex flex-col whitespace-nowrap">
+                <span className="text-xs font-bold text-slate-800 leading-tight truncate max-w-[120px]" title={(() => {
+                  try {
+                    return JSON.parse(localStorage.getItem('user') || '{}').full_name || 'User';
+                  } catch { return 'User'; }
+                })()}>
                   {(() => {
                     try {
                       return JSON.parse(localStorage.getItem('user') || '{}').full_name || 'User';

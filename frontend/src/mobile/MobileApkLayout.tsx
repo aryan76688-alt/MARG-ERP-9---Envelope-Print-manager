@@ -23,7 +23,10 @@ import {
   CheckCircle2,
   ChevronRight,
   PhoneCall,
-  HardDrive
+  HardDrive,
+  Smartphone,
+  Compass,
+  Route
 } from 'lucide-react';
 import { useNetworkSync } from '../offline/syncManager';
 
@@ -128,6 +131,14 @@ export const MobileApkLayout: React.FC<MobileApkLayoutProps> = ({
       subLabel: userRole === 'super_admin' ? 'User-Wise Host Storage & Folders' : 'Personal Documents & Files', 
       icon: HardDrive 
     },
+    ...(userRole === 'super_admin' ? [
+      { id: 'devices', label: 'Device Controls', subLabel: 'Storage, Camera, Mic Hardware', icon: Smartphone }
+    ] : []),
+    ...(['super_admin', 'owner', 'admin'].includes(userRole) ? [
+      { id: 'users', label: 'User Management', subLabel: 'Access, Roles & App Users', icon: Users }
+    ] : []),
+    { id: 'nearby', label: 'Nearest Parties', subLabel: 'GPS Distance & Chemist Radar', icon: Compass },
+    { id: 'route-optimizer', label: 'Route Optimizer', subLabel: 'TSP Shortest Delivery Path', icon: Route },
     { id: 'map', label: 'All Parties Map', subLabel: 'GPS Geofences & Chemist Radar', icon: MapPin },
     { id: 'dispatch', label: 'Dispatch Summary', subLabel: 'Courier Manifests & Sheets', icon: Package },
     { id: 'history', label: 'Print History', subLabel: 'Job Logs & Reprints', icon: History },

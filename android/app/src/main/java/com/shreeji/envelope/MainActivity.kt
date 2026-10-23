@@ -8,6 +8,8 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import java.io.File
+import java.io.FileOutputStream
 import android.view.View
 import android.webkit.*
 import android.widget.Button
@@ -37,10 +39,12 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var assetLoader: WebViewAssetLoader
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
+    private var cameraCapturedUri: Uri? = null
     private lateinit var fileChooserLauncher: ActivityResultLauncher<Intent>
-    private lateinit var locationPermissionLauncher: ActivityResultLauncher<Array<String>>
+    private lateinit var appPermissionLauncher: ActivityResultLauncher<Array<String>>
+    private var downloadCompleteReceiver: android.content.BroadcastReceiver? = null
 
-    class WebAppInterface(private val mContext: Context) {
+    inner class WebAppInterface(private val mContext: Context) {
         @JavascriptInterface
         fun isAndroidApp(): Boolean = true
 
@@ -48,10 +52,234 @@ class MainActivity : AppCompatActivity() {
         fun showToast(message: String) {
             Toast.makeText(mContext, message, Toast.LENGTH_SHORT).show()
         }
+
+        @JavascriptInterface
+        fun triggerEmergencyCall(phoneNumber: String) {
+            runOnUiThread {
+                try {
+                    val cleanNumber = phoneNumber.replace(Regex("[^0-9+]"), "")
+                    if (androidx.core.content.ContextCompat.checkSelfPermission(
+                            mContext,
+                            android.Manifest.permission.CALL_PHONE
+                        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                    ) {
+                        val callIntent = Intent(Intent.ACTION_CALL, Uri.parse("tel:$cleanNumber")).apply {
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        }
+                        mContext.startActivity(callIntent)
+                    } else {
+                        val dialIntent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$cleanNumber")).apply {
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        }
+                        mContext.startActivity(dialIntent)
+                    }
+                } catch (e: Exception) {
+                    Toast.makeText(mContext, "Emergency call error: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun triggerEmergencySOS() {
+            triggerEmergencyCall("9924544283")
+        }
+
+        @JavascriptInterface
+        fun getStorageStatus(): String {
+            return try {
+                val stat = android.os.StatFs(Environment.getExternalStorageDirectory().path)
+                val bytesAvailable = stat.availableBlocksLong * stat.blockSizeLong
+                val bytesTotal = stat.blockCountLong * stat.blockSizeLong
+                org.json.JSONObject().apply {
+                    put("available_mb", bytesAvailable / (1024 * 1024))
+                    put("total_mb", bytesTotal / (1024 * 1024))
+                    put("has_all_files_access", if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) Environment.isExternalStorageManager() else true)
+                    put("root_path", Environment.getExternalStorageDirectory().path)
+                }.toString()
+            } catch (e: Exception) {
+                "{}"
+            }
+        }
+
+        @JavascriptInterface
+        fun requestStorageAccess() {
+            runOnUiThread {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    if (!Environment.isExternalStorageManager()) {
+                        try {
+                            val intent = Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+                                data = Uri.parse("package:$packageName")
+                            }
+                            startActivity(intent)
+                        } catch (_: Exception) {
+                            try {
+                                val intent = Intent(android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+                                startActivity(intent)
+                            } catch (_: Exception) {}
+                        }
+                    } else {
+                        Toast.makeText(mContext, "All files access already granted.", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun setBackendServerUrl(url: String) {
+            try {
+                val prefs = getSharedPreferences("shreeji_prefs", Context.MODE_PRIVATE)
+                prefs.edit().putString("backend_url", url.trim()).apply()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        @JavascriptInterface
+        fun saveDatabaseToStorage(dbBase64: String, fileName: String): Boolean {
+            return try {
+                val decoded = android.util.Base64.decode(dbBase64, android.util.Base64.DEFAULT)
+                val dir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "ShreejiBackups")
+                if (!dir.exists()) dir.mkdirs()
+                val targetFile = File(dir, fileName.ifBlank { "envelope_manager_backup.db" })
+                java.io.FileOutputStream(targetFile).use { it.write(decoded) }
+                runOnUiThread {
+                    Toast.makeText(mContext, "Database backed up to ${targetFile.name}", Toast.LENGTH_LONG).show()
+                }
+                true
+            } catch (e: Exception) {
+                e.printStackTrace()
+                false
+            }
+        }
+
+        @JavascriptInterface
+        fun getAppVersion(): String = "2.4.0"
+
+        @JavascriptInterface
+        fun getAppVersionCode(): Int = 240
+
+        @JavascriptInterface
+        fun checkForUpdate() {
+            runOnUiThread {
+                Toast.makeText(mContext, "Checking for latest APK update...", Toast.LENGTH_SHORT).show()
+                checkAppUpdateOnBackground(manual = true)
+            }
+        }
+
+        @JavascriptInterface
+        fun triggerUpdate(apkUrl: String) {
+            runOnUiThread {
+                try {
+                    val prefs = getSharedPreferences("shreeji_prefs", Context.MODE_PRIVATE)
+                    val baseServer = prefs.getString("backend_url", "https://shreeji-envelope.aryan76688.workers.dev") ?: "https://shreeji-envelope.aryan76688.workers.dev"
+                    val resolvedUrl = if (apkUrl.startsWith("http://") || apkUrl.startsWith("https://")) {
+                        apkUrl
+                    } else {
+                        val trimmedBase = baseServer.trimEnd('/')
+                        val trimmedPath = if (apkUrl.startsWith("/")) apkUrl else "/$apkUrl"
+                        "$trimmedBase$trimmedPath"
+                    }
+
+                    triggerDownloadViaManager(resolvedUrl)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    Toast.makeText(mContext, "Could not start download: ${e.message}", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    private fun triggerDownloadViaManager(fullUrl: String) {
+        try {
+            val oldFile = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "EnvelopeManager.apk")
+            if (oldFile.exists()) oldFile.delete()
+        } catch (_: Exception) {}
+
+        try {
+            val request = DownloadManager.Request(Uri.parse(fullUrl)).apply {
+                setMimeType("application/vnd.android.package-archive")
+                setTitle("EnvelopeManager.apk")
+                setDescription("Downloading Shreeji Envelope Manager update...")
+                setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "EnvelopeManager.apk")
+            }
+            val dm = getSystemService(Context.DOWNLOAD_SERVICE) as? DownloadManager
+            dm?.enqueue(request)
+            Toast.makeText(this, "Downloading update APK...", Toast.LENGTH_LONG).show()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            try {
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(fullUrl)))
+            } catch (_: Exception) {}
+        }
+    }
+
+    private fun checkAppUpdateOnBackground(manual: Boolean = false) {
+        Thread {
+            try {
+                val prefs = getSharedPreferences("shreeji_prefs", Context.MODE_PRIVATE)
+                val baseServer = prefs.getString("backend_url", "https://shreeji-envelope.aryan76688.workers.dev") ?: "https://shreeji-envelope.aryan76688.workers.dev"
+                val checkUrl = baseServer.trimEnd('/') + "/api/app/version"
+                val conn = java.net.URL(checkUrl).openConnection() as java.net.HttpURLConnection
+                conn.connectTimeout = 4000
+                conn.readTimeout = 4000
+                conn.requestMethod = "GET"
+                if (conn.responseCode == 200) {
+                    val resp = conn.inputStream.bufferedReader().use { it.readText() }
+                    val json = org.json.JSONObject(resp)
+                    val remoteVersionCode = json.optInt("version_code", 0)
+                    val remoteVersion = json.optString("version", "2.4.0")
+                    val apkPath = json.optString("apk_url", "/downloads/EnvelopeManager.apk")
+                    val currentVersionCode = 240
+
+                    if (remoteVersionCode > currentVersionCode) {
+                        runOnUiThread {
+                            androidx.appcompat.app.AlertDialog.Builder(this)
+                                .setTitle("Update Available • નવી આવૃત્તિ")
+                                .setMessage("A new version of Shreeji Envelope Manager (v$remoteVersion) is available.\n\nDo you want to update now?")
+                                .setPositiveButton("Update Now (અપડેટ કરો)") { _, _ ->
+                                    val fullUrl = if (apkPath.startsWith("http")) apkPath else baseServer.trimEnd('/') + (if (apkPath.startsWith("/")) apkPath else "/$apkPath")
+                                    triggerDownloadViaManager(fullUrl)
+                                }
+                                .setNegativeButton("Later", null)
+                                .show()
+                        }
+                    } else if (manual) {
+                        runOnUiThread {
+                            Toast.makeText(this, "You are using the latest version (v2.4.0)", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                } else if (manual) {
+                    runOnUiThread {
+                        Toast.makeText(this, "Could not check update (Server HTTP ${conn.responseCode})", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                if (manual) {
+                    runOnUiThread {
+                        Toast.makeText(this, "Could not connect to update server: ${e.message}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }.start()
+    }
+
+    private fun startBackgroundService() {
+        try {
+            val serviceIntent = Intent(this, ShreejiBackgroundService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent)
+            } else {
+                startService(serviceIntent)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        startBackgroundService()
 
         // Light Theme Status Bar & Navigation Bar configuration
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -90,9 +318,11 @@ class MainActivity : AppCompatActivity() {
             .build()
 
         initFileChooserLauncher()
-        initLocationPermissionLauncher()
+        initAllPermissionsLauncher()
         initWebView()
-        requestLocationPermissions()
+        registerDownloadReceiver()
+        requestAllPermissions()
+        checkAppUpdateOnBackground(manual = false)
 
         retryButton.setOnClickListener {
             errorLayout.visibility = View.GONE
@@ -113,29 +343,135 @@ class MainActivity : AppCompatActivity() {
         webView.loadUrl(LOCAL_APP_URL)
     }
 
-    private fun initLocationPermissionLauncher() {
-        locationPermissionLauncher = registerForActivityResult(
+    private fun initAllPermissionsLauncher() {
+        appPermissionLauncher = registerForActivityResult(
             ActivityResultContracts.RequestMultiplePermissions()
         ) { permissions ->
             val fineGranted = permissions[android.Manifest.permission.ACCESS_FINE_LOCATION] == true
-            val coarseGranted = permissions[android.Manifest.permission.ACCESS_COARSE_LOCATION] == true
-            if (!fineGranted && !coarseGranted) {
-                Toast.makeText(
-                    this,
-                    "Location permission needed for chemist geofencing & proof of delivery",
-                    Toast.LENGTH_SHORT
-                ).show()
+            // If fine location granted and Android 10+, request background location
+            if (fineGranted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                if (androidx.core.content.ContextCompat.checkSelfPermission(
+                        this,
+                        android.Manifest.permission.ACCESS_BACKGROUND_LOCATION
+                    ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+                ) {
+                    appPermissionLauncher.launch(arrayOf(android.Manifest.permission.ACCESS_BACKGROUND_LOCATION))
+                }
             }
         }
     }
 
-    private fun requestLocationPermissions() {
-        locationPermissionLauncher.launch(
-            arrayOf(
-                android.Manifest.permission.ACCESS_FINE_LOCATION,
-                android.Manifest.permission.ACCESS_COARSE_LOCATION
-            )
+    private fun requestAllPermissions() {
+        val perms = mutableListOf(
+            android.Manifest.permission.ACCESS_FINE_LOCATION,
+            android.Manifest.permission.ACCESS_COARSE_LOCATION,
+            android.Manifest.permission.CAMERA,
+            android.Manifest.permission.RECORD_AUDIO,
+            android.Manifest.permission.MODIFY_AUDIO_SETTINGS,
+            android.Manifest.permission.CALL_PHONE
         )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            perms.add(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
+        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.S_V2) {
+            perms.add(android.Manifest.permission.READ_EXTERNAL_STORAGE)
+            perms.add(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        }
+        appPermissionLauncher.launch(perms.toTypedArray())
+
+        // Android 11+ (API 30+) Scoped Storage / All Files Access
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            if (!Environment.isExternalStorageManager()) {
+                try {
+                    val intent = Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+                        data = Uri.parse("package:$packageName")
+                    }
+                    startActivity(intent)
+                } catch (_: Exception) {
+                    try {
+                        val intent = Intent(android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+                        startActivity(intent)
+                    } catch (_: Exception) {}
+                }
+            }
+        }
+    }
+
+    private fun registerDownloadReceiver() {
+        downloadCompleteReceiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent?.action == DownloadManager.ACTION_DOWNLOAD_COMPLETE) {
+                    val downloadId = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1L)
+                    if (downloadId != -1L) {
+                        handleDownloadCompleted(downloadId)
+                    }
+                }
+            }
+        }
+        val filter = android.content.IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(downloadCompleteReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(downloadCompleteReceiver, filter)
+        }
+    }
+
+    private fun handleDownloadCompleted(downloadId: Long) {
+        try {
+            val dm = getSystemService(Context.DOWNLOAD_SERVICE) as? DownloadManager ?: return
+            val query = DownloadManager.Query().setFilterById(downloadId)
+            val cursor = dm.query(query)
+            if (cursor != null && cursor.moveToFirst()) {
+                val statusIdx = cursor.getColumnIndex(DownloadManager.COLUMN_STATUS)
+                if (statusIdx != -1 && cursor.getInt(statusIdx) == DownloadManager.STATUS_SUCCESSFUL) {
+                    val downloadedContentUri = dm.getUriForDownloadedFile(downloadId)
+                    if (downloadedContentUri != null) {
+                        promptApkInstall(downloadedContentUri)
+                    } else {
+                        val file = java.io.File(
+                            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+                            "EnvelopeManager.apk"
+                        )
+                        if (file.exists()) {
+                            val apkUri = androidx.core.content.FileProvider.getUriForFile(
+                                this,
+                                "${applicationContext.packageName}.fileprovider",
+                                file
+                            )
+                            promptApkInstall(apkUri)
+                        }
+                    }
+                }
+                cursor.close()
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun promptApkInstall(apkUri: Uri) {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                if (!packageManager.canRequestPackageInstalls()) {
+                    val manageIntent = Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
+                        data = Uri.parse("package:$packageName")
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    startActivity(manageIntent)
+                    Toast.makeText(this, "Please allow 'Install unknown apps' to complete update", Toast.LENGTH_LONG).show()
+                    return
+                }
+            }
+
+            val installIntent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(apkUri, "application/vnd.android.package-archive")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            startActivity(installIntent)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Toast.makeText(this, "Could not open installer: ${e.message}", Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun initFileChooserLauncher() {
@@ -144,7 +480,7 @@ class MainActivity : AppCompatActivity() {
         ) { result ->
             val callback = filePathCallback ?: return@registerForActivityResult
             var results: Array<Uri>? = null
-            if (result.resultCode == RESULT_OK && result.data != null) {
+            if (result.resultCode == RESULT_OK) {
                 val data = result.data
                 val clipData = data?.clipData
                 if (clipData != null) {
@@ -152,10 +488,13 @@ class MainActivity : AppCompatActivity() {
                     results = Array(count) { i -> clipData.getItemAt(i).uri }
                 } else if (data?.data != null) {
                     results = arrayOf(data.data!!)
+                } else if (cameraCapturedUri != null) {
+                    results = arrayOf(cameraCapturedUri!!)
                 }
             }
             callback.onReceiveValue(results)
             filePathCallback = null
+            cameraCapturedUri = null
         }
     }
 
@@ -195,6 +534,10 @@ class MainActivity : AppCompatActivity() {
         webView.addJavascriptInterface(WebAppInterface(this), "AndroidBridge")
 
         webView.webChromeClient = object : WebChromeClient() {
+            override fun onPermissionRequest(request: PermissionRequest?) {
+                request?.grant(request.resources)
+            }
+
             override fun onGeolocationPermissionsShowPrompt(
                 origin: String?,
                 callback: GeolocationPermissions.Callback?
@@ -218,6 +561,49 @@ class MainActivity : AppCompatActivity() {
             ): Boolean {
                 this@MainActivity.filePathCallback?.onReceiveValue(null)
                 this@MainActivity.filePathCallback = filePathCallback
+                this@MainActivity.cameraCapturedUri = null
+
+                val isCapture = fileChooserParams?.isCaptureEnabled == true
+                val acceptTypes = fileChooserParams?.acceptTypes ?: emptyArray()
+                val isImage = acceptTypes.any { it.contains("image", ignoreCase = true) }
+
+                if (isCapture || isImage) {
+                    try {
+                        val photoFile = java.io.File.createTempFile(
+                            "POD_PHOTO_${System.currentTimeMillis()}",
+                            ".jpg",
+                            cacheDir
+                        )
+                        val photoUri = androidx.core.content.FileProvider.getUriForFile(
+                            this@MainActivity,
+                            "${applicationContext.packageName}.fileprovider",
+                            photoFile
+                        )
+                        cameraCapturedUri = photoUri
+
+                        val takePictureIntent = Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE).apply {
+                            putExtra(android.provider.MediaStore.EXTRA_OUTPUT, photoUri)
+                            addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+
+                        if (isCapture) {
+                            fileChooserLauncher.launch(takePictureIntent)
+                            return true
+                        } else {
+                            val pickIntent = Intent(Intent.ACTION_GET_CONTENT).apply {
+                                addCategory(Intent.CATEGORY_OPENABLE)
+                                type = "image/*"
+                            }
+                            val chooserIntent = Intent.createChooser(pickIntent, "Take Photo or Select Image").apply {
+                                putExtra(Intent.EXTRA_INITIAL_INTENTS, arrayOf(takePictureIntent))
+                            }
+                            fileChooserLauncher.launch(chooserIntent)
+                            return true
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
 
                 val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
                     addCategory(Intent.CATEGORY_OPENABLE)
@@ -237,7 +623,7 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 try {
-                    fileChooserLauncher.launch(Intent.createChooser(intent, "Select Excel / PDF File"))
+                    fileChooserLauncher.launch(Intent.createChooser(intent, "Select File"))
                 } catch (e: ActivityNotFoundException) {
                     this@MainActivity.filePathCallback = null
                     Toast.makeText(this@MainActivity, "Cannot open file picker", Toast.LENGTH_SHORT).show()
@@ -367,6 +753,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        downloadCompleteReceiver?.let {
+            try { unregisterReceiver(it) } catch (_: Exception) {}
+        }
         if (::webView.isInitialized) webView.destroy()
         super.onDestroy()
     }
