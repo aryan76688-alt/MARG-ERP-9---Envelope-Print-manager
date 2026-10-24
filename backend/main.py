@@ -1754,6 +1754,195 @@ def batch_update_routes(req: BatchUpdateRoutesRequest, db: Session = Depends(get
     db.commit()
     return {"success": True, "updated_count": updated_count, "message": f"Successfully updated routes for {updated_count} parties."}
 
+# -------------------------------------------------------------
+# Google Maps Real Road Directions (Routes API v2 computeRoutes)
+# -------------------------------------------------------------
+class LocationPoint(BaseModel):
+    lat: float
+    lng: float
+    place_id: Optional[str] = None
+    name: Optional[str] = None
+
+class ComputeRouteRequest(BaseModel):
+    origin: LocationPoint
+    destination: LocationPoint
+    intermediates: Optional[List[LocationPoint]] = []
+    travel_mode: Optional[str] = "DRIVING" # "DRIVING", "WALKING", "BICYCLING", "TWO_WHEELER"
+
+def _decode_google_polyline(encoded: str) -> List[Dict[str, float]]:
+    """Decodes Google encoded polyline string into an array of {lat, lng} road points."""
+    points = []
+    index = 0
+    length = len(encoded)
+    lat = 0
+    lng = 0
+    while index < length:
+        shift = 0
+        result = 0
+        while True:
+            b = ord(encoded[index]) - 63
+            index += 1
+            result |= (b & 0x1f) << shift
+            shift += 5
+            if b < 0x20:
+                break
+        dlat = ~(result >> 1) if (result & 1) else (result >> 1)
+        lat += dlat
+
+        shift = 0
+        result = 0
+        while True:
+            b = ord(encoded[index]) - 63
+            index += 1
+            result |= (b & 0x1f) << shift
+            shift += 5
+            if b < 0x20:
+                break
+        dlng = ~(result >> 1) if (result & 1) else (result >> 1)
+        lng += dlng
+        points.append({"lat": round(lat / 1e5, 6), "lng": round(lng / 1e5, 6)})
+    return points
+
+@app.post("/api/routes/compute-route")
+def compute_road_route(req: ComputeRouteRequest):
+    """
+    Computes a real road-following route using Google Maps Routes API (Directions v2 computeRoutes).
+    Returns real road geometry points, distance in meters & km, duration in seconds & minutes,
+    and turn-by-turn navigation instructions. Never returns a straight line.
+    """
+    api_key = os.environ.get("GOOGLE_MAPS_API_KEY")
+    if not api_key:
+        env_path = os.path.join(os.path.dirname(__file__), ".env")
+        if os.path.exists(env_path):
+            with open(env_path, "r") as f:
+                for line in f:
+                    if line.startswith("GOOGLE_MAPS_API_KEY="):
+                        api_key = line.split("=", 1)[1].strip()
+                        break
+    if not api_key:
+        api_key = "AIzaSyCqJ08p5J1pYJQvJqrkV5_8AIl6pP8CfXA"
+
+    travel_mode_map = {
+        "DRIVING": "DRIVE",
+        "WALKING": "WALK",
+        "BICYCLING": "BICYCLE",
+        "TWO_WHEELER": "TWO_WHEELER"
+    }
+    mode = travel_mode_map.get(req.travel_mode.upper(), "DRIVE")
+
+    origin_obj = {}
+    if req.origin.place_id:
+        origin_obj["placeId"] = req.origin.place_id
+    else:
+        origin_obj["location"] = {"latLng": {"latitude": req.origin.lat, "longitude": req.origin.lng}}
+
+    dest_obj = {}
+    if req.destination.place_id:
+        dest_obj["placeId"] = req.destination.place_id
+    else:
+        dest_obj["location"] = {"latLng": {"latitude": req.destination.lat, "longitude": req.destination.lng}}
+
+    payload = {
+        "origin": origin_obj,
+        "destination": dest_obj,
+        "travelMode": mode
+    }
+    # Note: Google Routes API only allows routingPreference for DRIVE and TWO_WHEELER
+    if mode in ("DRIVE", "TWO_WHEELER"):
+        payload["routingPreference"] = "TRAFFIC_UNAWARE"
+
+    if req.intermediates:
+        intermediates_list = []
+        for p in req.intermediates:
+            if p.place_id:
+                intermediates_list.append({"placeId": p.place_id})
+            else:
+                intermediates_list.append({"location": {"latLng": {"latitude": p.lat, "longitude": p.lng}}})
+        if intermediates_list:
+            payload["intermediates"] = intermediates_list
+
+    routes_url = "https://routes.googleapis.com/directions/v2:computeRoutes"
+    headers = {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": api_key,
+        "X-Goog-FieldMask": "routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline,routes.legs.steps,routes.legs.distanceMeters,routes.legs.duration,routes.viewport"
+    }
+
+    try:
+        resp = requests.post(routes_url, headers=headers, json=payload, timeout=12)
+        if resp.status_code != 200:
+            err_data = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
+            err_msg = err_data.get("error", {}).get("message") or f"Google Routes API HTTP {resp.status_code}"
+            raise HTTPException(status_code=resp.status_code, detail=f"Routing Error: {err_msg}")
+
+        data = resp.json()
+        routes = data.get("routes", [])
+        if not routes:
+            raise HTTPException(status_code=404, detail="No real road route found between the specified locations.")
+
+        route = routes[0]
+        encoded_poly = route.get("polyline", {}).get("encodedPolyline", "")
+        path_points = _decode_google_polyline(encoded_poly) if encoded_poly else []
+
+        raw_dur = route.get("duration", "0s").rstrip("s")
+        try:
+            duration_seconds = int(raw_dur)
+        except Exception:
+            duration_seconds = 0
+
+        distance_meters = int(route.get("distanceMeters", 0))
+
+        legs_output = []
+        all_steps = []
+        for leg in route.get("legs", []):
+            leg_steps = []
+            for step in leg.get("steps", []):
+                s_dist = int(step.get("distanceMeters", 0))
+                s_dur = int(step.get("staticDuration", "0s").rstrip("s") or 0)
+                instr = step.get("navigationInstruction", {})
+                instr_text = instr.get("instructions", "")
+                maneuver = instr.get("maneuver", "STRAIGHT")
+                step_poly = step.get("polyline", {}).get("encodedPolyline", "")
+                step_points = _decode_google_polyline(step_poly) if step_poly else []
+
+                step_data = {
+                    "distance_meters": s_dist,
+                    "duration_seconds": s_dur,
+                    "instruction": instr_text or f"Continue for {s_dist}m",
+                    "maneuver": maneuver,
+                    "start_location": step.get("startLocation", {}).get("latLng", {}),
+                    "end_location": step.get("endLocation", {}).get("latLng", {}),
+                    "path": step_points
+                }
+                leg_steps.append(step_data)
+                all_steps.append(step_data)
+
+            legs_output.append({
+                "distance_meters": int(leg.get("distanceMeters", 0)),
+                "duration_seconds": int(leg.get("duration", "0s").rstrip("s") or 0),
+                "steps": leg_steps
+            })
+
+        return {
+            "success": True,
+            "travel_mode": req.travel_mode,
+            "distance_meters": distance_meters,
+            "distance_km": round(distance_meters / 1000.0, 2),
+            "duration_seconds": duration_seconds,
+            "duration_minutes": round(duration_seconds / 60.0, 1),
+            "viewport": route.get("viewport"),
+            "path": path_points,
+            "path_count": len(path_points),
+            "legs": legs_output,
+            "steps": all_steps
+        }
+    except HTTPException:
+        raise
+    except requests.exceptions.RequestException as req_err:
+        raise HTTPException(status_code=502, detail=f"Failed to connect to Google Routes API: {str(req_err)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error computing road route: {str(e)}")
+
 @app.post("/api/routes/sync-google-sheet")
 def sync_google_sheet_routes(req: SyncGoogleSheetRequest, db: Session = Depends(get_db)):
     """

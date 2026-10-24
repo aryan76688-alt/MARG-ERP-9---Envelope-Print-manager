@@ -20,7 +20,9 @@ import {
   Printer,
   Compass,
   Sparkles,
-  ArrowRight
+  ArrowRight,
+  Footprints,
+  Bike
 } from 'lucide-react';
 import { Party, PODSubmission } from '../types';
 import { fetchParties, recordPOD, updatePartyGeofence } from '../api/client';
@@ -28,6 +30,12 @@ import { getAllOfflineParties, queueOfflinePOD } from '../offline/db';
 import { useNetworkSync } from '../offline/syncManager';
 import { calculateDistanceKm, formatDistanceString } from './NearestParties';
 import { VoiceSearchInput } from '../components/VoiceSearchInput';
+import {
+  computeRoadRoute,
+  RoadRouteResult,
+  TravelMode,
+  TurnStep
+} from '../services/googleRoutesService';
 
 interface RouteOptimizerProps {
   onNavigate?: (tab: string, state?: any) => void;
@@ -82,6 +90,13 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markersLayerRef = useRef<L.LayerGroup | null>(null);
   const polylineRef = useRef<L.Polyline | null>(null);
+
+  // Google Maps Real Road Directions State
+  const [travelMode, setTravelMode] = useState<TravelMode>('DRIVING');
+  const [isComputingRoute, setIsComputingRoute] = useState<boolean>(false);
+  const [roadRouteResult, setRoadRouteResult] = useState<RoadRouteResult | null>(null);
+  const [routingError, setRoutingError] = useState<string | null>(null);
+  const [showTurnByTurn, setShowTurnByTurn] = useState<boolean>(false);
 
   // Current logged in user
   const currentUser = (() => {
@@ -357,19 +372,79 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
       `);
     });
 
-    // Draw route polyline
-    if (latLngs.length > 1) {
-      polylineRef.current = L.polyline(latLngs, {
-        color: '#2563eb',
-        weight: 4,
-        opacity: 0.8,
-        dashArray: '8, 8'
-      }).addTo(map);
+    // Calculate and draw REAL road-following route using Google Routes API
+    // Never connects endpoints directly with straight lines
+    if (optimizedStops.length > 0) {
+      setIsComputingRoute(true);
+      setRoutingError(null);
 
-      const bounds = L.latLngBounds(latLngs);
-      map.fitBounds(bounds, { padding: [50, 50] });
+      const origin = {
+        lat: startLat,
+        lng: startLng,
+        name: currentLocation ? 'Driver Live Location' : defaultWarehouse.label
+      };
+      const destStop = optimizedStops[optimizedStops.length - 1];
+      const destination = {
+        lat: Number(destStop.party.latitude),
+        lng: Number(destStop.party.longitude),
+        name: destStop.party.party_name
+      };
+
+      const intermediateStops = optimizedStops.slice(0, -1).map((s) => ({
+        lat: Number(s.party.latitude),
+        lng: Number(s.party.longitude),
+        name: s.party.party_name
+      }));
+
+      computeRoadRoute({
+        origin,
+        destination,
+        intermediates: intermediateStops,
+        travelMode
+      })
+        .then((result) => {
+          setRoadRouteResult(result);
+          setIsComputingRoute(false);
+
+          if (!mapInstanceRef.current) return;
+          if (polylineRef.current) {
+            mapInstanceRef.current.removeLayer(polylineRef.current);
+            polylineRef.current = null;
+          }
+
+          // Draw real road polyline following actual streets, bends, and turns
+          polylineRef.current = L.polyline(result.path, {
+            color: '#2563eb',
+            weight: 5,
+            opacity: 0.9,
+            lineJoin: 'round',
+            lineCap: 'round'
+          }).addTo(mapInstanceRef.current);
+
+          // Fit bounds to calculated road path
+          const bounds = L.latLngBounds(result.path);
+          mapInstanceRef.current.fitBounds(bounds, { padding: [50, 50] });
+        })
+        .catch((err: any) => {
+          console.error('Road routing calculation error:', err);
+          setIsComputingRoute(false);
+          setRoadRouteResult(null);
+          setRoutingError(err.message || 'Could not calculate real road route. Never drawing straight line.');
+
+          // Specification Requirement: Never silently substitute a straight line for a failed route!
+          if (polylineRef.current && mapInstanceRef.current) {
+            mapInstanceRef.current.removeLayer(polylineRef.current);
+            polylineRef.current = null;
+          }
+          if (latLngs.length > 1 && mapInstanceRef.current) {
+            mapInstanceRef.current.fitBounds(L.latLngBounds(latLngs), { padding: [50, 50] });
+          }
+        });
+    } else {
+      setRoadRouteResult(null);
+      setRoutingError(null);
     }
-  }, [optimizedStops, currentLocation]);
+  }, [optimizedStops, currentLocation, travelMode]);
 
   // Google Maps Multi-Stop Route Export URL
   const googleMapsUrl = useMemo(() => {
@@ -547,12 +622,16 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
               <p className="text-lg font-black text-white">{optimizedStops.length}</p>
             </div>
             <div className="bg-white/10 backdrop-blur-md px-3.5 py-2 rounded-xl border border-white/10 text-center">
-              <p className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">Estimated Dist</p>
-              <p className="text-lg font-black text-emerald-400">{formatDistanceString(totalTripKm)}</p>
+              <p className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">Road Distance</p>
+              <p className="text-lg font-black text-emerald-400">
+                {roadRouteResult ? roadRouteResult.distanceFormatted : formatDistanceString(totalTripKm)}
+              </p>
             </div>
             <div className="bg-white/10 backdrop-blur-md px-3.5 py-2 rounded-xl border border-white/10 text-center">
-              <p className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">Est. Time</p>
-              <p className="text-lg font-black text-amber-300">~{Math.round(totalEstimatedMins)} m</p>
+              <p className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">Road Time</p>
+              <p className="text-lg font-black text-amber-300">
+                {roadRouteResult ? roadRouteResult.durationFormatted : `~${Math.round(totalEstimatedMins)} m`}
+              </p>
             </div>
           </div>
         </div>
@@ -636,6 +715,142 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
         {/* MAP COLUMN */}
         <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden h-[420px] sm:h-[540px] relative">
           <div ref={mapContainerRef} className="w-full h-full" />
+
+          {/* Floating Navigation & Travel Mode Controls */}
+          <div className="absolute top-3 left-3 right-3 z-[1000] flex flex-wrap items-center justify-between gap-2 pointer-events-none">
+            {/* Travel Mode Selector */}
+            <div className="flex items-center bg-slate-900/90 backdrop-blur-md rounded-xl p-1 border border-slate-700 shadow-lg pointer-events-auto">
+              <button
+                type="button"
+                onClick={() => setTravelMode('DRIVING')}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1.5 transition-all ${
+                  travelMode === 'DRIVING'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+                title="Google Maps Driving Mode (Default)"
+              >
+                <Truck className="w-3.5 h-3.5" />
+                <span>Drive</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setTravelMode('WALKING')}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1.5 transition-all ${
+                  travelMode === 'WALKING'
+                    ? 'bg-emerald-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+                title="Google Maps Walking Mode"
+              >
+                <Footprints className="w-3.5 h-3.5" />
+                <span>Walk</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setTravelMode('BICYCLING')}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1.5 transition-all ${
+                  travelMode === 'BICYCLING'
+                    ? 'bg-amber-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+                title="Google Maps Bicycling Mode"
+              >
+                <Bike className="w-3.5 h-3.5" />
+                <span>Bike</span>
+              </button>
+            </div>
+
+            {/* Turn-by-Turn Directions Button */}
+            {roadRouteResult && roadRouteResult.steps.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowTurnByTurn(!showTurnByTurn)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold border shadow-lg flex items-center gap-1.5 pointer-events-auto transition-all ${
+                  showTurnByTurn
+                    ? 'bg-blue-600 text-white border-blue-500 shadow-blue-600/30'
+                    : 'bg-white/95 text-slate-800 border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                <Navigation className="w-3.5 h-3.5 text-blue-500" />
+                <span>{showTurnByTurn ? 'Hide Turns' : `Turns (${roadRouteResult.steps.length})`}</span>
+              </button>
+            )}
+          </div>
+
+          {/* Calculating Loading Overlay */}
+          {isComputingRoute && (
+            <div className="absolute inset-x-4 top-16 z-[1000] p-3 rounded-xl bg-slate-900/90 text-white backdrop-blur-md border border-slate-700 shadow-xl flex items-center justify-between text-xs font-bold animate-pulse">
+              <div className="flex items-center gap-2">
+                <RefreshCw className="w-4 h-4 text-blue-400 animate-spin" />
+                <span>Calculating real road route with Google Routes API...</span>
+              </div>
+              <span className="text-[10px] text-emerald-400 font-mono">Real-Road Geometry</span>
+            </div>
+          )}
+
+          {/* Routing Error Notice */}
+          {routingError && (
+            <div className="absolute inset-x-4 top-16 z-[1000] p-3 rounded-xl bg-red-950/95 text-red-200 backdrop-blur-md border border-red-700/80 shadow-xl flex items-center gap-2.5 text-xs font-bold">
+              <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+              <div className="flex-1">
+                <div>{routingError}</div>
+                <div className="text-[10px] text-red-400 font-normal mt-0.5">
+                  Straight-line substitute blocked. Please check destination coordinates or internet connection.
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Turn-by-Turn Navigation Overlay Panel */}
+          {showTurnByTurn && roadRouteResult && (
+            <div className="absolute top-16 right-3 bottom-14 w-80 max-w-[85%] z-[1000] bg-slate-900/95 backdrop-blur-md text-white rounded-2xl border border-slate-700 shadow-2xl flex flex-col overflow-hidden animate-in fade-in slide-in-from-right-4 duration-200">
+              <div className="p-3 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
+                <div className="flex items-center gap-2">
+                  <Compass className="w-4 h-4 text-blue-400" />
+                  <span className="font-black text-xs">Turn-by-Turn Instructions</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowTurnByTurn(false)}
+                  className="text-slate-400 hover:text-white text-xs font-bold p-1"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="p-2.5 bg-slate-800/60 border-b border-slate-800 flex items-center justify-between text-[11px] font-bold">
+                <span className="text-emerald-400">🛣️ {roadRouteResult.distanceFormatted}</span>
+                <span className="text-amber-300">⏱️ {roadRouteResult.durationFormatted}</span>
+                <span className="text-slate-400 capitalize">{roadRouteResult.travelMode.toLowerCase()}</span>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-2 space-y-1.5 divide-y divide-slate-800/40 text-xs">
+                {roadRouteResult.steps.map((step, idx) => (
+                  <div key={idx} className="pt-2 first:pt-0">
+                    <div className="flex items-start gap-2">
+                      <div className="w-5 h-5 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">
+                        {idx + 1}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div
+                          className="font-medium text-slate-200 text-[11px] leading-tight"
+                          dangerouslySetInnerHTML={{ __html: step.instruction }}
+                        />
+                        <div className="text-[10px] text-slate-400 mt-1 flex items-center gap-2 font-mono">
+                          <span>{step.distanceFormatted}</span>
+                          <span>•</span>
+                          <span>{step.durationFormatted}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Map Marker Legend */}
           <div className="absolute bottom-3 left-3 z-[1000] bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-200 shadow-md text-[11px] font-bold text-slate-700 flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-blue-600"></span> Start
             <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Pending Stop

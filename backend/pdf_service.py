@@ -259,8 +259,11 @@ def render_single_envelope_html(
     # Dynamic Case Breakdown lines
     case_lines = get_case_breakdown_lines(job_data, case_data, settings, language=language)
 
-    # Bill Inside stamp
-    bill_inside = bool(job_data.get("bill_inside") or case_data.get("bill_inside") or settings.get("bill_inside"))
+    # Bill Inside stamp: Print on ONE page only (Case 1 / First Package), NEVER on all pages
+    case_num = int(case_data.get("case_number") or 1)
+    is_first_case = (case_num == 1)
+    bill_inside_enabled = bool(job_data.get("bill_inside") or case_data.get("bill_inside") or settings.get("bill_inside"))
+    bill_inside = is_first_case and bill_inside_enabled
     bill_inside_text = "📄 બિલ અંદર છે / BILL INSIDE" if language == "gu" else "📄 BILL INSIDE / બિલ અંદર છે"
     bill_stamp_html = f'<div class="bill-inside-stamp" style="display: inline-block; border: 2.2px solid #000; padding: 2.5px 8px; font-size: 13px; font-weight: 900; letter-spacing: 0.5px; text-transform: uppercase; margin: 4px 0 6px 0; border-radius: 4px; background: #fff; text-align: center;">{bill_inside_text}</div>' if bill_inside else ""
     bill_grid_stamp = f'<div style="font-weight: 900; border: 1.8px solid #000; padding: 2px 4px; margin-top: 4px; font-size: 10.5px; text-align: center; background: #fff;">{bill_inside_text}</div>' if bill_inside else ""

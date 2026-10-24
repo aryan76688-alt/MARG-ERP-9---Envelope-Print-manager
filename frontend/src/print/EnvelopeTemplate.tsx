@@ -91,6 +91,11 @@ export const EnvelopeTemplate: React.FC<EnvelopeTemplateProps> = ({
   const isGu = language === 'gu';
   const billInsideText = isGu ? '📄 બિલ અંદર છે / BILL INSIDE' : '📄 BILL INSIDE / બિલ અંદર છે';
 
+  // Strictly print Bill Inside on Case 1 (one page / one package) only, never on all pages
+  const caseNum = caseItem?.case_number ? Number(caseItem.case_number) : 1;
+  const isFirstCase = caseNum === 1;
+  const effectiveBillInside = billInside && isFirstCase;
+
   // Recipient details based on language (Strictly keep numbers in 0-9 digits)
   const partyName = normalizeDigits(
     isGu
@@ -238,13 +243,13 @@ export const EnvelopeTemplate: React.FC<EnvelopeTemplateProps> = ({
                         {ec}
                       </div>
                     ))}
-                    {billInside && (
+                    {effectiveBillInside && (
                       <div className="inline-block border-[1.8px] border-black rounded px-2 py-0.5 text-[10.5px] font-black text-black bg-white whitespace-nowrap mt-1">
                         {billInsideText}
                       </div>
                     )}
                   </>
-                ) : billInside ? (
+                ) : effectiveBillInside ? (
                   <div className="inline-block border-[1.8px] border-black rounded px-2 py-0.5 text-[10.5px] font-black text-black bg-white whitespace-nowrap mb-0.5">
                     {billInsideText}
                   </div>
@@ -392,7 +397,7 @@ export const EnvelopeTemplate: React.FC<EnvelopeTemplateProps> = ({
                 {line}
               </div>
             ))}
-            {billInside && (
+            {effectiveBillInside && (
               <div className="inline-block border-2 border-black rounded px-2.5 py-0.5 text-[13px] font-black text-black tracking-tight bg-white mb-1.5 whitespace-nowrap shadow-none">
                 {billInsideText}
               </div>

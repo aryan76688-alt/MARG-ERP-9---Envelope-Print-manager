@@ -31,7 +31,9 @@ import {
   ChevronDown,
   ChevronUp,
   Target,
-  Sparkles
+  Sparkles,
+  Footprints,
+  Bike
 } from 'lucide-react';
 import { Party, LiveUserLocation } from '../types';
 import { fetchParties, fetchDriverJobs, fetchLiveUserLocations, updateLiveLocation } from '../api/client';
@@ -39,6 +41,11 @@ import { getAllOfflineParties, updatePartyInOfflineCache } from '../offline/db';
 import { PartyMapPickerModal } from '../components/PartyMapPickerModal';
 import { LocationPermissionModal } from '../components/LocationPermissionModal';
 import { VoiceSearchInput } from '../components/VoiceSearchInput';
+import {
+  computeRoadRoute,
+  RoadRouteResult,
+  TravelMode
+} from '../services/googleRoutesService';
 
 interface AllPartiesMapProps {
   onNavigate?: (tab: string, state?: any) => void;
@@ -353,6 +360,15 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
   const userAccuracyCircleRef = useRef<L.Circle | null>(null);
   const tileLayerRef = useRef<L.TileLayer | null>(null);
   const nearestLinesLayerRef = useRef<L.LayerGroup | null>(null);
+  const roadPolylineRef = useRef<L.Polyline | null>(null);
+
+  // Real Road Directions State
+  const [navigatingParty, setNavigatingParty] = useState<Party | null>(null);
+  const [navTravelMode, setNavTravelMode] = useState<TravelMode>('DRIVING');
+  const [navRouteResult, setNavRouteResult] = useState<RoadRouteResult | null>(null);
+  const [isCalculatingNav, setIsCalculatingNav] = useState<boolean>(false);
+  const [navRoutingError, setNavRoutingError] = useState<string | null>(null);
+  const [showNavTurns, setShowNavTurns] = useState<boolean>(false);
 
   // Authenticated User Role
   const currentUser = useMemo(() => {
@@ -870,45 +886,74 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
     });
   }, [otherStaffLocations, isAdminOrSuperAdmin]);
 
-  // Draw direct distance rays to the nearest 3 parties with KM
-  useEffect(() => {
-    const map = mapInstanceRef.current;
-    const linesLayer = nearestLinesLayerRef.current;
-    if (!map || !linesLayer) return;
+  // Real Road Navigation Handler: Computes real road route using Google Routes API
+  // Never connects endpoints directly with straight lines
+  const handleNavigateToParty = async (party: Party, mode: TravelMode = navTravelMode) => {
+    setNavigatingParty(party);
+    setNavTravelMode(mode);
+    setIsCalculatingNav(true);
+    setNavRoutingError(null);
 
-    linesLayer.clearLayers();
+    const startLat = userLocation?.lat || 23.0760;
+    const startLng = userLocation?.lng || 72.6750;
+    const pLat = Number(party.latitude);
+    const pLng = Number(party.longitude);
 
-    if (!showNearestThree || !userLocation || nearestThreeParties.length === 0) return;
+    if (isNaN(pLat) || isNaN(pLng) || pLat === 0 || pLng === 0) {
+      setIsCalculatingNav(false);
+      setNavRoutingError('Party has no valid GPS coordinates tagged.');
+      return;
+    }
 
-    nearestThreeParties.forEach((n) => {
-      const lat = Number(n.party.latitude);
-      const lng = Number(n.party.longitude);
-      if (isNaN(lat) || isNaN(lng) || lat === 0 || lng === 0) return;
+    try {
+      const result = await computeRoadRoute({
+        origin: { lat: startLat, lng: startLng, name: userLocation ? 'Current Location' : 'Shreeji Healthcare' },
+        destination: { lat: pLat, lng: pLng, name: party.party_name },
+        travelMode: mode
+      });
 
-      const rankColor = n.rank === 1 ? '#eab308' : n.rank === 2 ? '#9333ea' : '#059669';
-      const rankWeight = n.rank === 1 ? 3.5 : 2.5;
+      setNavRouteResult(result);
+      setIsCalculatingNav(false);
 
-      const polyline = L.polyline(
-        [
-          [userLocation.lat, userLocation.lng],
-          [lat, lng],
-        ],
-        {
-          color: rankColor,
-          weight: rankWeight,
-          dashArray: '6, 8',
-          opacity: 0.85,
+      if (mapInstanceRef.current) {
+        if (roadPolylineRef.current) {
+          mapInstanceRef.current.removeLayer(roadPolylineRef.current);
+          roadPolylineRef.current = null;
         }
-      );
 
-      polyline.bindTooltip(
-        `<strong>${n.rank === 1 ? '🥇' : n.rank === 2 ? '🥈' : '🥉'} #${n.rank} ${n.party.party_name_gu || n.party.party_name}</strong><br/>🚗 અંતર: <b>${n.distanceStr}</b>`,
-        { sticky: true, direction: 'top' }
-      );
+        // Draw real road polyline following actual street curves, bends, and turns
+        roadPolylineRef.current = L.polyline(result.path, {
+          color: '#2563eb',
+          weight: 5,
+          opacity: 0.9,
+          lineJoin: 'round',
+          lineCap: 'round'
+        }).addTo(mapInstanceRef.current);
 
-      polyline.addTo(linesLayer);
-    });
-  }, [userLocation, nearestThreeParties, showNearestThree]);
+        mapInstanceRef.current.fitBounds(L.latLngBounds(result.path), { padding: [60, 60] });
+      }
+    } catch (err: any) {
+      console.error('Road navigation error:', err);
+      setIsCalculatingNav(false);
+      setNavRouteResult(null);
+      setNavRoutingError(err.message || 'Failed to compute real road route');
+      if (roadPolylineRef.current && mapInstanceRef.current) {
+        mapInstanceRef.current.removeLayer(roadPolylineRef.current);
+        roadPolylineRef.current = null;
+      }
+    }
+  };
+
+  const handleClearNavigation = () => {
+    setNavigatingParty(null);
+    setNavRouteResult(null);
+    setNavRoutingError(null);
+    setShowNavTurns(false);
+    if (roadPolylineRef.current && mapInstanceRef.current) {
+      mapInstanceRef.current.removeLayer(roadPolylineRef.current);
+      roadPolylineRef.current = null;
+    }
+  };
 
   // Plot and update party markers whenever filtered parties or selection changes
   useEffect(() => {
@@ -1394,6 +1439,18 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                               type="button"
                               onClick={() => {
                                 setSelectedParty(p);
+                                handleNavigateToParty(p);
+                              }}
+                              className="px-2 py-0.5 rounded bg-blue-600/30 hover:bg-blue-600 text-blue-300 hover:text-white text-[10px] font-bold border border-blue-500/30 flex items-center gap-1 transition-all"
+                              title="Google Routes API રીયલ રોડ રૂટ"
+                            >
+                              <Route className="w-2.5 h-2.5 text-blue-400" />
+                              <span>રૂટ</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedParty(p);
                                 mapInstanceRef.current?.flyTo([Number(p.latitude), Number(p.longitude)], 17, { duration: 0.5 });
                               }}
                               className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-bold flex items-center gap-1"
@@ -1480,6 +1537,167 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
             <button onClick={() => setGpsMessage(null)} className="p-1 hover:text-white">
               <X className="w-3.5 h-3.5" />
             </button>
+          </div>
+        )}
+
+        {/* Real Road Navigation Floating Panel (Google Routes API) */}
+        {(navigatingParty || isCalculatingNav || navRouteResult || navRoutingError) && (
+          <div className="absolute top-14 left-3 right-3 sm:left-auto sm:right-3 sm:w-96 z-30 flex flex-col gap-2 pointer-events-none">
+            <div className="bg-slate-900/95 backdrop-blur-md rounded-2xl p-3 border border-blue-500/50 shadow-2xl text-white space-y-2 pointer-events-auto">
+              {/* Header: Destination & Close */}
+              <div className="flex items-center justify-between gap-2 border-b border-slate-800 pb-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-7 h-7 rounded-lg bg-blue-600/30 text-blue-400 flex items-center justify-center font-bold text-xs shrink-0">
+                    🛣️
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-[10px] text-blue-400 font-bold uppercase tracking-wider">
+                      Google Routes API • રીયલ રોડ રસ્તો
+                    </div>
+                    <div className="text-xs font-black text-white truncate">
+                      {navigatingParty?.party_name_gu || navigatingParty?.party_name || 'પાર્ટી રૂટ'}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleClearNavigation}
+                  className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                  title="રૂટ બંધ કરો (Close Route)"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Mode Selector & Status */}
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center bg-slate-950 rounded-xl p-1 border border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNavTravelMode('DRIVING');
+                      if (navigatingParty) handleNavigateToParty(navigatingParty, 'DRIVING');
+                    }}
+                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all ${
+                      navTravelMode === 'DRIVING'
+                        ? 'bg-blue-600 text-white shadow'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <Truck className="w-3 h-3" />
+                    <span>ડ્રાઇવ</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNavTravelMode('WALKING');
+                      if (navigatingParty) handleNavigateToParty(navigatingParty, 'WALKING');
+                    }}
+                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all ${
+                      navTravelMode === 'WALKING'
+                        ? 'bg-emerald-600 text-white shadow'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <Footprints className="w-3 h-3" />
+                    <span>ચાલતા</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNavTravelMode('BICYCLING');
+                      if (navigatingParty) handleNavigateToParty(navigatingParty, 'BICYCLING');
+                    }}
+                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all ${
+                      navTravelMode === 'BICYCLING'
+                        ? 'bg-amber-600 text-white shadow'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <Bike className="w-3 h-3" />
+                    <span>બાઇક</span>
+                  </button>
+                </div>
+
+                {navRouteResult && navRouteResult.steps.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowNavTurns(!showNavTurns)}
+                    className={`px-2 py-1 rounded-xl text-[10px] font-bold border transition-all flex items-center gap-1 ${
+                      showNavTurns
+                        ? 'bg-blue-600 text-white border-blue-500'
+                        : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
+                    }`}
+                  >
+                    <Navigation className="w-3 h-3 text-blue-400" />
+                    <span>{showNavTurns ? 'છુપાવો' : `વળાંક (${navRouteResult.steps.length})`}</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Calculating Loading State */}
+              {isCalculatingNav && (
+                <div className="p-2 rounded-xl bg-blue-950/60 border border-blue-700/50 flex items-center gap-2 text-xs font-bold text-blue-200 animate-pulse">
+                  <Loader2 className="w-4 h-4 text-blue-400 animate-spin shrink-0" />
+                  <span>Google Routes API થી રોડ રસ્તો ગણી રહ્યા છીએ...</span>
+                </div>
+              )}
+
+              {/* Routing Error Notice */}
+              {navRoutingError && (
+                <div className="p-2 rounded-xl bg-red-950/80 border border-red-700/80 text-red-200 text-xs font-bold space-y-1">
+                  <div className="flex items-center gap-1.5 text-red-300">
+                    <span>⚠️ {navRoutingError}</span>
+                  </div>
+                  <div className="text-[10px] text-red-400 font-normal">
+                    સીધી લાઈન (Straight Line) દોરવામાં આવતી નથી. કૃપા કરીને જીપીએસ લોકેશન અથવા કનેક્શન તપાસો.
+                  </div>
+                </div>
+              )}
+
+              {/* Route Summary (Distance & Duration) */}
+              {navRouteResult && (
+                <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800 text-center">
+                  <div className="p-1.5 rounded-xl bg-slate-950 border border-slate-800">
+                    <div className="text-[9px] text-slate-400 font-bold uppercase">અંતર (Distance)</div>
+                    <div className="text-sm font-black text-blue-400 font-mono">
+                      {navRouteResult.distanceFormatted}
+                    </div>
+                  </div>
+                  <div className="p-1.5 rounded-xl bg-slate-950 border border-slate-800">
+                    <div className="text-[9px] text-slate-400 font-bold uppercase">સમય (Duration)</div>
+                    <div className="text-sm font-black text-emerald-400 font-mono">
+                      {navRouteResult.durationFormatted}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Turn-by-Turn Steps List */}
+              {showNavTurns && navRouteResult && navRouteResult.steps.length > 0 && (
+                <div className="pt-2 border-t border-slate-800 max-h-48 overflow-y-auto space-y-1 pr-1">
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                    વળાંકવાર માર્ગદર્શન (Turn-by-Turn):
+                  </div>
+                  {navRouteResult.steps.map((st, i) => (
+                    <div
+                      key={i}
+                      className="p-1.5 rounded-lg bg-slate-950/80 border border-slate-800/80 text-[11px] text-slate-200 flex items-start gap-2"
+                    >
+                      <span className="w-4 h-4 rounded-full bg-blue-600/30 text-blue-400 text-[9px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                        {i + 1}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-slate-100">{st.instruction}</div>
+                        <div className="text-[9px] text-slate-400 font-mono">
+                          {st.distanceMeters > 0 ? `${st.distanceMeters} મીટર` : ''}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -1688,20 +1906,31 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
               )}
 
               {/* Row 3: Action Buttons (Single Row Grid) */}
-              <div className="grid grid-cols-5 gap-1.5 pt-1 border-t border-slate-800">
-                {/* 1. Navigate (Google Maps) */}
+              <div className="grid grid-cols-6 gap-1.5 pt-1 border-t border-slate-800">
+                {/* 1. Real Road Route on Map */}
+                <button
+                  type="button"
+                  onClick={() => handleNavigateToParty(selectedParty)}
+                  className="py-1.5 px-1 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-all text-center"
+                  title="Google Maps Real Road Route"
+                >
+                  <Route className="w-3.5 h-3.5 shrink-0" />
+                  <span>રોડ રૂટ</span>
+                </button>
+
+                {/* 2. Navigate (External Google Maps App) */}
                 <a
                   href={`https://www.google.com/maps/dir/?api=1&destination=${selectedParty.latitude},${selectedParty.longitude}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="py-1.5 px-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-all text-center"
-                  title="ગૂગલ મેપ્સ નેવિગેશન"
+                  title="ગૂગલ મેપ્સ એપમાં ખોલો"
                 >
                   <ExternalLink className="w-3.5 h-3.5 shrink-0" />
-                  <span>જાઓ</span>
+                  <span>Google</span>
                 </a>
 
-                {/* 2. Print Envelope */}
+                {/* 3. Print Envelope */}
                 {onNavigate ? (
                   <button
                     type="button"
@@ -1711,7 +1940,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                         deliveryRoute: selectedParty.route_1 || selectedParty.route,
                       })
                     }
-                    className="py-1.5 px-1 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-all text-center"
+                    className="py-1.5 px-1 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-all text-center"
                     title="કવર પ્રિન્ટ"
                   >
                     <Printer className="w-3.5 h-3.5 shrink-0" />
@@ -1721,7 +1950,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                   <div />
                 )}
 
-                {/* 3. Change Pin */}
+                {/* 4. Change Pin */}
                 <button
                   type="button"
                   onClick={() => setPickerModalParty(selectedParty)}
@@ -1732,7 +1961,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                   <span>પિન</span>
                 </button>
 
-                {/* 4. Call Phone */}
+                {/* 5. Call Phone */}
                 {selectedParty.mobile_no ? (
                   <a
                     href={`tel:${selectedParty.mobile_no}`}
@@ -1749,7 +1978,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                   </button>
                 )}
 
-                {/* 5. WhatsApp */}
+                {/* 6. WhatsApp */}
                 {selectedParty.mobile_no ? (
                   <a
                     href={`https://wa.me/91${selectedParty.mobile_no
@@ -1763,12 +1992,12 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                     title="વોટ્સએપ મેસેજ"
                   >
                     <MessageCircle className="w-3.5 h-3.5 shrink-0" />
-                    <span>WhatsApp</span>
+                    <span>WA</span>
                   </a>
                 ) : (
                   <button disabled className="py-1.5 px-1 rounded-xl bg-slate-800/50 text-slate-500 font-bold text-[11px] flex items-center justify-center gap-1">
                     <MessageCircle className="w-3.5 h-3.5 shrink-0" />
-                    <span>WhatsApp</span>
+                    <span>WA</span>
                   </button>
                 )}
               </div>

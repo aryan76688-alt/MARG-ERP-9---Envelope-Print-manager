@@ -1401,9 +1401,9 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                   ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm'
                   : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
               }`}
-              title="Print [BILL INSIDE / બિલ અંદર છે] stamp on envelope"
+              title="Print [BILL INSIDE / બિલ અંદર છે] stamp on Case 1 only (1 page only, not all pages)"
             >
-              <span>{billInside ? '📄 ON (બિલ અંદર છે)' : 'OFF'}</span>
+              <span>{billInside ? '📄 ON (1 Page / Case 1 Only)' : 'OFF'}</span>
             </button>
           </div>
         </div>
@@ -3172,7 +3172,7 @@ CASE: 3 NS: 2 (500ML)"
                       settings={appSettings}
                       templateFormat={selectedTemplate}
                       language={selectedLanguage}
-                      billInside={billInside}
+                      billInside={billInside && (firstCase?.case_number === 1 || (!firstCase?.case_number && pageIndex === 0))}
                       isPrintMode={true}
                     />
                   </div>
@@ -3193,7 +3193,7 @@ CASE: 3 NS: 2 (500ML)"
                           settings={appSettings}
                           templateFormat={selectedTemplate}
                           language={selectedLanguage}
-                          billInside={billInside}
+                          billInside={billInside && secondCase?.case_number === 1}
                           isPrintMode={true}
                         />
                       </div>
