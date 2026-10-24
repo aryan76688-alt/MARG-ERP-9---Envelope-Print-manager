@@ -1888,7 +1888,9 @@ def compute_road_route(req: ComputeRouteRequest):
     payload = {
         "origin": origin_obj,
         "destination": dest_obj,
-        "travelMode": mode
+        "travelMode": mode,
+        "languageCode": "en-US",
+        "units": "METRIC"
     }
     # Note: Google Routes API only allows routingPreference for DRIVE and TWO_WHEELER
     if mode in ("DRIVE", "TWO_WHEELER"):

@@ -202,6 +202,16 @@ export const PartyModal: React.FC<PartyModalProps> = ({
     setErrors({});
   }, [initialParty, isOpen]);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   const handleCaptureGPS = () => {
     if (!navigator.geolocation) {
       alert("GPS not supported on this device");

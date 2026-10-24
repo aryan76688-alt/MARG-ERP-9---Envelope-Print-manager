@@ -35,6 +35,16 @@ export const FullScreenPreviewModal: React.FC<FullScreenPreviewModalProps> = ({
   const [currentCaseIndex, setCurrentCaseIndex] = useState<number>(0);
   const [zoomScale, setZoomScale] = useState<number>(1.15);
 
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const currentCase = cases[currentCaseIndex] || {

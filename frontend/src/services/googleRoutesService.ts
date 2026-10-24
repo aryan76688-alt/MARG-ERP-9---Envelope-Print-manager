@@ -139,6 +139,8 @@ export async function computeRoadRoute(options: ComputeRoadRouteOptions): Promis
           destination: destination.placeId ? { placeId: destination.placeId } : { lat: destination.lat, lng: destination.lng },
           travelMode: modeMap[travelMode] || 'DRIVING',
           fields: ['path', 'legs', 'distanceMeters', 'duration', 'viewport'],
+          languageCode: 'en-US',
+          units: 'METRIC',
         };
 
         if (intermediates.length > 0) {

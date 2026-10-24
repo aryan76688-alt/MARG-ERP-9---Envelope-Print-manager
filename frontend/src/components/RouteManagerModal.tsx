@@ -125,6 +125,16 @@ export const RouteManagerModal: React.FC<RouteManagerModalProps> = ({
     }
   }, [isOpen]);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   // Initialize edited routes map whenever internalParties changes
   useEffect(() => {
     if (internalParties && internalParties.length > 0) {

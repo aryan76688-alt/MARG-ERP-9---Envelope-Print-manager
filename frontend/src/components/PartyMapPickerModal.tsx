@@ -138,6 +138,16 @@ export const PartyMapPickerModal: React.FC<PartyMapPickerModalProps> = ({
   const [searchResults, setSearchResults] = useState<Array<{ display_name: string; lat: string; lon: string }>>([]);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   // Coordinate parser from text, comma/space separation, or Google Maps URLs
   const extractCoordinates = (text: string): { lat: number; lng: number } | null => {
     if (!text) return null;

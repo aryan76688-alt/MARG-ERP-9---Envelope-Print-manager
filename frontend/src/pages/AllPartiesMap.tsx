@@ -533,7 +533,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
   // Acquire high-accuracy live GPS location for map centering & nearest 3 parties calculation
   const handleLocateMe = (flyToUser: boolean = true) => {
     if (!navigator.geolocation) {
-      setGpsMessage('આ ઉપકરણમાં GPS ઉપલબ્ધ નથી');
+      setGpsMessage('GPS is not available on this device');
       return;
     }
 
@@ -553,7 +553,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
       },
       (err) => {
         setIsLocating(false);
-        setGpsMessage(`GPS મેળવી શકાયું નથી: ${err.message}`);
+        setGpsMessage(`Could not acquire GPS: ${err.message}`);
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
@@ -709,9 +709,9 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
     if (!userLocation || !targetLat || !targetLng) return null;
     const dist = computeDistanceKm(userLocation.lat, userLocation.lng, Number(targetLat), Number(targetLng));
     if (dist < 1) {
-      return `${Math.round(dist * 1000)} મીટર`;
+      return `${Math.round(dist * 1000)} m`;
     }
-    return `${dist.toFixed(1)} કિમી`;
+    return `${dist.toFixed(1)} km`;
   };
 
   // Top 3 nearest parties relative to current user GPS location (with KM)
@@ -836,7 +836,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
         zIndexOffset: 1000,
       }).addTo(map);
 
-      marker.bindTooltip('📍 તમારું વર્તમાન લાઈવ લોકેશન (Your Live GPS)', {
+      marker.bindTooltip('📍 Your Live GPS Location', {
         direction: 'top',
         offset: [0, -16],
       });
@@ -879,7 +879,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
       });
 
       marker.bindTooltip(
-        `<strong>🛵 ${staff.full_name} (${staff.role.toUpperCase()})</strong><br/>લાઈવ અપડેટ: ${new Date(staff.updated_at).toLocaleTimeString()}`,
+        `<strong>🛵 ${staff.full_name} (${staff.role.toUpperCase()})</strong><br/>Live Update: ${new Date(staff.updated_at).toLocaleTimeString()}`,
         { direction: 'top', offset: [0, -32] }
       );
 
@@ -959,7 +959,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
   // Unset selected party's GPS pin
   const handleUnsetPartyLocation = async (party: Party) => {
     if (!party.id) return;
-    if (!window.confirm(`શું તમે '${party.party_name_gu || party.party_name}' નું લોકેશન મેપ પરથી હટાવવા (Unset કરવા) માંગો છો?`)) {
+    if (!window.confirm(`Are you sure you want to remove the GPS location for '${party.party_name}'?`)) {
       return;
     }
     try {
@@ -975,7 +975,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
       setSelectedParty(null);
       handleClearNavigation();
     } catch (err: any) {
-      alert('લોકેશન હટાવવામાં ભૂલ: ' + (err.message || 'અજ્ઞાત ભૂલ'));
+      alert('Error unsetting location: ' + (err.message || 'Unknown error'));
     }
   };
 
@@ -1027,7 +1027,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
 
       const marker = L.marker([lat, lng], {
         icon,
-        title: p.party_name_gu || p.party_name,
+        title: p.party_name,
         zIndexOffset: nearestInfo ? 1200 - nearestInfo.rank * 50 : (isSelected ? 900 : 100),
       });
 
@@ -1040,15 +1040,15 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
       // Tooltip on hover
       if (nearestInfo) {
         marker.bindTooltip(
-          `<strong>${nearestInfo.rank === 1 ? '🥇' : nearestInfo.rank === 2 ? '🥈' : '🥉'} #${nearestInfo.rank} સૌથી નજીકની પાર્ટી (${nearestInfo.distanceStr})</strong><br/><strong>${p.party_code || ''}</strong>: ${p.party_name_gu || p.party_name}${
-            casesCount > 0 ? ` <span style="color:#f59e0b;font-weight:bold;">(📦 ${casesCount} કેસ)</span>` : ''
+          `<strong>${nearestInfo.rank === 1 ? '🥇' : nearestInfo.rank === 2 ? '🥈' : '🥉'} #${nearestInfo.rank} Nearest Party (${nearestInfo.distanceStr})</strong><br/><strong>${p.party_code || ''}</strong>: ${p.party_name}${
+            casesCount > 0 ? ` <span style="color:#f59e0b;font-weight:bold;">(📦 ${casesCount} cases)</span>` : ''
           }${primaryRoute ? ` <br/><small style="color:#94a3b8;">🛣️ ${primaryRoute}</small>` : ''}`,
           { direction: 'top', offset: [0, -46] }
         );
       } else {
         marker.bindTooltip(
-          `<strong>${p.party_code || ''}</strong>: ${p.party_name_gu || p.party_name}${
-            casesCount > 0 ? ` <span style="color:#f59e0b;font-weight:bold;">(📦 ${casesCount} કેસ)</span>` : ''
+          `<strong>${p.party_code || ''}</strong>: ${p.party_name}${
+            casesCount > 0 ? ` <span style="color:#f59e0b;font-weight:bold;">(📦 ${casesCount} cases)</span>` : ''
           }${primaryRoute ? ` <br/><small style="color:#94a3b8;">🛣️ ${primaryRoute}</small>` : ''}`,
           { direction: 'top', offset: [0, -32] }
         );
@@ -1109,7 +1109,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
             <VoiceSearchInput
               value={search}
               onChange={(val) => setSearch(val)}
-              placeholder="શોધો (પાર્ટી, કોડ, શહેર, રૂટ...)"
+              placeholder="Search parties, code, city, route..."
               className="w-full"
               inputClassName="py-1.5 pl-8 pr-24 rounded-xl bg-slate-800/90 border-slate-700 text-xs text-white placeholder-slate-400 focus:border-blue-500"
             />
@@ -1120,10 +1120,10 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
             type="button"
             onClick={() => onNavigate && onNavigate('nearby')}
             className="px-2.5 py-1.5 rounded-xl border border-emerald-500/50 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 hover:text-white text-xs font-bold flex items-center gap-1 active:scale-95 transition-all shadow-xs shrink-0 cursor-pointer"
-            title="નજીકની પાર્ટીઓની લિસ્ટ જુઓ (Nearest Parties List)"
+            title="View Nearest Parties List"
           >
             <Compass className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="hidden sm:inline">નજીકની લિસ્ટ</span>
+            <span className="hidden sm:inline">Nearest List</span>
           </button>
 
           {/* Route Optimizer Button */}
@@ -1131,10 +1131,10 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
             type="button"
             onClick={() => onNavigate && onNavigate('route-optimizer')}
             className="px-2.5 py-1.5 rounded-xl border border-indigo-500/50 bg-indigo-950/80 hover:bg-indigo-900 text-indigo-300 hover:text-white text-xs font-bold flex items-center gap-1 active:scale-95 transition-all shadow-xs shrink-0 cursor-pointer"
-            title="ડિલિવરી રૂટ ઓપ્ટિમાઇઝર (Route Optimizer)"
+            title="Delivery Route Optimizer"
           >
             <Route className="w-3.5 h-3.5 text-indigo-400" />
-            <span className="hidden sm:inline">રૂટ ઓપ્ટિમાઇઝ</span>
+            <span className="hidden sm:inline">Route Optimizer</span>
           </button>
 
           {/* Filter Drawer Toggle Button */}
@@ -1146,10 +1146,10 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                 ? 'bg-blue-600 text-white border-blue-500 shadow-blue-500/20'
                 : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
             }`}
-            title="રૂટ અને ફિલ્ટર્સ બદલો"
+            title="Routes & Filters"
           >
             <Filter className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">ફિલ્ટર</span>
+            <span className="hidden sm:inline">Filters</span>
             {(filterMode !== 'all' || selectedRoute !== 'all') && (
               <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
             )}
@@ -1164,7 +1164,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
               switchTileLayer(next);
             }}
             className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-400 hover:text-cyan-300 border border-slate-700 active:scale-95 transition-all shadow-xs shrink-0"
-            title={mapMode === 'streets' ? 'સેટેલાઇટ મેપ જુઓ' : 'સામાન્ય મેપ જુઓ'}
+            title={mapMode === 'streets' ? 'Switch to Satellite Map' : 'Switch to Street Map'}
           >
             <Layers className="w-3.5 h-3.5" />
           </button>
@@ -1175,7 +1175,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
             onClick={() => handleLocateMe(true)}
             disabled={isLocating}
             className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-blue-400 hover:text-blue-300 border border-slate-700 active:scale-95 transition-all shadow-xs shrink-0"
-            title="મારું GPS લોકેશન બતાવો"
+            title="Center to My Live GPS Location"
           >
             <Compass className={`w-3.5 h-3.5 ${isLocating ? 'animate-spin' : ''}`} />
           </button>
@@ -1185,7 +1185,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
             type="button"
             onClick={handleFitAllMarkers}
             className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-400 hover:text-emerald-300 border border-slate-700 active:scale-95 transition-all shadow-xs shrink-0"
-            title="બધી પિન કરેલી પાર્ટીઓ બતાવો"
+            title="Fit All Pinned Parties"
           >
             <Navigation className="w-3.5 h-3.5" />
           </button>
@@ -1195,7 +1195,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
             type="button"
             onClick={handleToggleFullscreen}
             className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 active:scale-95 transition-all shadow-xs shrink-0"
-            title={isFullscreen ? 'સામાન્ય જુઓ' : 'ફુલ સ્ક્રીન'}
+            title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
           >
             {isFullscreen ? <Minimize className="w-3.5 h-3.5 text-amber-400" /> : <Maximize className="w-3.5 h-3.5 text-slate-300" />}
           </button>
@@ -1207,10 +1207,10 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
             {/* Header row with counts */}
             <div className="flex items-center justify-between text-xs pb-1.5 border-b border-slate-800">
               <div className="flex items-center gap-2">
-                <span className="font-black text-white">રૂટ અને પાર્ટી ફિલ્ટર્સ</span>
+                <span className="font-black text-white">Route & Party Filters</span>
                 {isAdminOrSuperAdmin && (
                   <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                    GPS એડમિન
+                    GPS Admin
                   </span>
                 )}
               </div>
@@ -1235,7 +1235,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                 }`}
               >
                 <Users className="w-3.5 h-3.5" />
-                <span>બધી ({setMapParties.length})</span>
+                <span>All ({setMapParties.length})</span>
               </button>
               <button
                 type="button"
@@ -1247,7 +1247,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                 }`}
               >
                 <Package className="w-3.5 h-3.5 text-amber-400" />
-                <span>કેસ વાળી ({partiesWithCasesCount})</span>
+                <span>With Cases ({partiesWithCasesCount})</span>
               </button>
               <button
                 type="button"
@@ -1259,7 +1259,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                 }`}
               >
                 <MapPin className="w-3.5 h-3.5 text-rose-400" />
-                <span>બાકી પિન ({unmappedParties.length})</span>
+                <span>Unmapped ({unmappedParties.length})</span>
               </button>
             </div>
 
@@ -1270,7 +1270,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                 onChange={(e) => setSelectedRoute(e.target.value)}
                 className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-xs font-bold text-white focus:outline-none focus:border-blue-500 appearance-none pr-8 cursor-pointer"
               >
-                <option value="all">🛣️ બધા રૂટ (All Routes)</option>
+                <option value="all">🛣️ All Routes</option>
                 {availableRoutes.map((r) => (
                   <option key={r} value={r}>
                     🛣️ {r}
@@ -1282,7 +1282,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
 
             {/* Quick POI Shortcuts */}
             <div className="flex items-center gap-1.5 overflow-x-auto text-[11px] pt-0.5">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0">નજીકના:</span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0">Nearby:</span>
               <a
                 href={
                   userLocation
@@ -1293,7 +1293,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                 rel="noopener noreferrer"
                 className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 font-bold flex items-center gap-1 shrink-0"
               >
-                <span>⛽ પેટ્રોલ પંપ</span>
+                <span>⛽ Petrol Pumps</span>
               </a>
               <a
                 href={
@@ -1305,7 +1305,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                 rel="noopener noreferrer"
                 className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-blue-300 border border-blue-500/30 font-bold flex items-center gap-1 shrink-0"
               >
-                <span>🏨 હોટેલ્સ</span>
+                <span>🏨 Hotels</span>
               </a>
               <a
                 href={
@@ -1317,7 +1317,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                 rel="noopener noreferrer"
                 className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-rose-300 border border-rose-500/30 font-bold flex items-center gap-1 shrink-0"
               >
-                <span>🏥 હોસ્પિટલ</span>
+                <span>🏥 Hospitals</span>
               </a>
             </div>
 
@@ -1327,7 +1327,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
               onClick={() => setFiltersExpanded(false)}
               className="w-full py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-colors"
             >
-              લાગુ કરો (Apply & View Map)
+              Apply Filters
             </button>
           </div>
         )}
@@ -1347,7 +1347,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
                 </span>
-                <span>🎯 સૌથી નજીકની ૩ ({nearestThreeParties[0]?.distanceStr || 'જુઓ'})</span>
+                <span>🎯 Top 3 Nearest ({nearestThreeParties[0]?.distanceStr || 'View'})</span>
                 <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
               </button>
             ) : (
@@ -1360,7 +1360,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                     </div>
                     <div className="min-w-0">
                       <h4 className="text-xs font-black text-white flex items-center gap-1.5">
-                        <span className="truncate">સૌથી નજીકની ૩ પાર્ટીઓ</span>
+                        <span className="truncate">Top 3 Nearest Parties</span>
                         <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-mono font-bold">
                           KM
                         </span>
@@ -1373,17 +1373,17 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                         type="button"
                         onClick={handleFocusNearestThree}
                         className="px-2 py-0.5 rounded-lg bg-blue-600/30 hover:bg-blue-600 text-blue-300 hover:text-white text-[10px] font-bold border border-blue-500/40 transition-all flex items-center gap-1"
-                        title="ત્રણેય પાર્ટીઓ મેપ પર એકસાથે જુઓ"
+                        title="Focus all 3 nearest parties on map"
                       >
                         <Navigation className="w-2.5 h-2.5" />
-                        <span>બધા જુઓ</span>
+                        <span>View All</span>
                       </button>
                     )}
                     <button
                       type="button"
                       onClick={() => setNearestWidgetMinimized(true)}
                       className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
-                      title="નાનું કરો"
+                      title="Minimize"
                     >
                       <ChevronUp className="w-3.5 h-3.5" />
                     </button>
@@ -1394,7 +1394,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                 {!userLocation ? (
                   <div className="p-2.5 rounded-xl bg-blue-950/40 border border-blue-500/30 text-center space-y-2">
                     <p className="text-[11px] text-blue-200">
-                      તમારા વર્તમાન GPS પરથી સૌથી નજીકની ૩ પાર્ટીઓ અને અંતર (KM) જોવા માટે લોકેશન સક્રિય કરો.
+                      Enable GPS to view the nearest 3 parties and actual road distance.
                     </p>
                     <button
                       type="button"
@@ -1402,12 +1402,12 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                       className="w-full py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow flex items-center justify-center gap-1.5 active:scale-95 transition-all"
                     >
                       <Compass className="w-3.5 h-3.5" />
-                      <span>📡 લાઈવ GPS શરૂ કરો</span>
+                      <span>📡 Enable Live GPS</span>
                     </button>
                   </div>
                 ) : nearestThreeParties.length === 0 ? (
                   <div className="p-2 text-center text-xs text-slate-400">
-                    મેપ પર કોઈ સેટ પાર્ટીઓ મળી નથી
+                    No mapped parties found on map
                   </div>
                 ) : (
                   <div className="space-y-1.5 max-h-60 overflow-y-auto pr-0.5">
@@ -1440,7 +1440,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                                 {p.party_code || 'MARG'}
                               </span>
                               <span className="text-xs font-black text-white truncate">
-                                {p.party_name_gu || p.party_name}
+                                {p.party_name}
                               </span>
                             </div>
                             <span className={`text-[11px] font-black px-2 py-0.5 rounded-full border shrink-0 font-mono ${rankStyles.tag}`}>
@@ -1449,10 +1449,10 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                           </div>
 
                           <div className="flex items-center justify-between text-[10px] text-slate-400 mt-1 pl-5">
-                            <span className="truncate">{p.city_gu || p.city || 'Gujarat'}{p.route_1 ? ` • 🛣️ ${p.route_1}` : ''}</span>
+                            <span className="truncate">{p.city || 'Gujarat'}{p.route_1 ? ` • 🛣️ ${p.route_1}` : ''}</span>
                             {casesCount > 0 && (
                               <span className="text-amber-400 font-bold shrink-0">
-                                📦 {casesCount} કેસ
+                                📦 {casesCount} cases
                               </span>
                             )}
                           </div>
@@ -1466,10 +1466,10 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                                 handleNavigateToParty(p);
                               }}
                               className="px-2 py-0.5 rounded bg-blue-600/30 hover:bg-blue-600 text-blue-300 hover:text-white text-[10px] font-bold border border-blue-500/30 flex items-center gap-1 transition-all"
-                              title="Google Routes API રીયલ રોડ રૂટ"
+                              title="Google Routes API Real Road Route"
                             >
                               <Route className="w-2.5 h-2.5 text-blue-400" />
-                              <span>રૂટ</span>
+                              <span>Route</span>
                             </button>
                             <button
                               type="button"
@@ -1480,7 +1480,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                               className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-bold flex items-center gap-1"
                             >
                               <Crosshair className="w-2.5 h-2.5 text-blue-400" />
-                              <span>જુઓ</span>
+                              <span>Focus</span>
                             </button>
                             <a
                               href={`https://www.google.com/maps/dir/?api=1&destination=${p.latitude},${p.longitude}`}
@@ -1497,7 +1497,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                                 className="px-2 py-0.5 rounded bg-blue-600/30 hover:bg-blue-600 text-blue-300 hover:text-white text-[10px] font-bold border border-blue-500/30 flex items-center gap-1 transition-all"
                               >
                                 <Phone className="w-2.5 h-2.5" />
-                                <span>કૉલ</span>
+                                <span>Call</span>
                               </a>
                             )}
                           </div>
@@ -1523,7 +1523,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
             }`}
           >
             <Layers className="w-3 h-3" />
-            <span>સામાન્ય (Street)</span>
+            <span>Street</span>
           </button>
           <button
             type="button"
@@ -1534,7 +1534,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                 : 'text-slate-400 hover:text-white'
             }`}
           >
-            <span>🛰️ સેટેલાઇટ (Satellite)</span>
+            <span>🛰️ Satellite</span>
           </button>
         </div>
 
@@ -1545,7 +1545,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
           className={`absolute ${selectedParty ? 'bottom-40' : 'bottom-6'} right-3 z-20 w-11 h-11 rounded-full bg-slate-900/95 hover:bg-slate-800 text-white shadow-2xl border border-slate-700/80 flex items-center justify-center active:scale-90 transition-all ${
             isLocating ? 'ring-2 ring-blue-500' : ''
           }`}
-          title="મારું લાઈવ લોકેશન બતાવો (Center on My Location)"
+          title="Center on My Location"
         >
           {isLocating ? (
             <Loader2 className="w-5 h-5 text-blue-400 animate-spin" />
@@ -1576,10 +1576,10 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                   </div>
                   <div className="min-w-0">
                     <div className="text-[10px] text-blue-400 font-bold uppercase tracking-wider">
-                      Google Routes API • રીયલ રોડ રસ્તો
+                      Google Routes API • Real Road Route
                     </div>
                     <div className="text-xs font-black text-white truncate">
-                      {navigatingParty?.party_name_gu || navigatingParty?.party_name || 'પાર્ટી રૂટ'}
+                      {navigatingParty?.party_name || 'Party Route'}
                     </div>
                   </div>
                 </div>
@@ -1587,7 +1587,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                   type="button"
                   onClick={handleClearNavigation}
                   className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-                  title="રૂટ બંધ કરો (Close Route)"
+                  title="Close Route"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -1609,7 +1609,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                     }`}
                   >
                     <Truck className="w-3 h-3" />
-                    <span>ડ્રાઇવ</span>
+                    <span>Drive</span>
                   </button>
                   <button
                     type="button"
@@ -1624,7 +1624,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                     }`}
                   >
                     <Footprints className="w-3 h-3" />
-                    <span>ચાલતા</span>
+                    <span>Walk</span>
                   </button>
                   <button
                     type="button"
@@ -1639,7 +1639,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                     }`}
                   >
                     <Bike className="w-3 h-3" />
-                    <span>બાઇક</span>
+                    <span>Bicycle</span>
                   </button>
                 </div>
 
@@ -1654,7 +1654,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                     }`}
                   >
                     <Navigation className="w-3 h-3 text-blue-400" />
-                    <span>{showNavTurns ? 'છુપાવો' : `વળાંક (${navRouteResult.steps.length})`}</span>
+                    <span>{showNavTurns ? 'Hide' : `Turns (${navRouteResult.steps.length})`}</span>
                   </button>
                 )}
               </div>
@@ -1663,7 +1663,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
               {isCalculatingNav && (
                 <div className="p-2 rounded-xl bg-blue-950/60 border border-blue-700/50 flex items-center gap-2 text-xs font-bold text-blue-200 animate-pulse">
                   <Loader2 className="w-4 h-4 text-blue-400 animate-spin shrink-0" />
-                  <span>Google Routes API થી રોડ રસ્તો ગણી રહ્યા છીએ...</span>
+                  <span>Calculating real road route with Google Routes API...</span>
                 </div>
               )}
 
@@ -1674,7 +1674,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                     <span>⚠️ {navRoutingError}</span>
                   </div>
                   <div className="text-[10px] text-red-400 font-normal">
-                    સીધી લાઈન (Straight Line) દોરવામાં આવતી નથી. કૃપા કરીને જીપીએસ લોકેશન અથવા કનેક્શન તપાસો.
+                    Real road route calculation failed. No straight lines are drawn. Please verify GPS coordinates or network connectivity.
                   </div>
                 </div>
               )}
@@ -1683,13 +1683,13 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
               {navRouteResult && (
                 <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800 text-center">
                   <div className="p-1.5 rounded-xl bg-slate-950 border border-slate-800">
-                    <div className="text-[9px] text-slate-400 font-bold uppercase">અંતર (Distance)</div>
+                    <div className="text-[9px] text-slate-400 font-bold uppercase">Distance</div>
                     <div className="text-sm font-black text-blue-400 font-mono">
                       {navRouteResult.distanceFormatted}
                     </div>
                   </div>
                   <div className="p-1.5 rounded-xl bg-slate-950 border border-slate-800">
-                    <div className="text-[9px] text-slate-400 font-bold uppercase">સમય (Duration)</div>
+                    <div className="text-[9px] text-slate-400 font-bold uppercase">Duration</div>
                     <div className="text-sm font-black text-emerald-400 font-mono">
                       {navRouteResult.durationFormatted}
                     </div>
@@ -1701,7 +1701,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
               {showNavTurns && navRouteResult && navRouteResult.steps.length > 0 && (
                 <div className="pt-2 border-t border-slate-800 max-h-48 overflow-y-auto space-y-1 pr-1">
                   <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-                    વળાંકવાર માર્ગદર્શન (Turn-by-Turn):
+                    Turn-by-Turn Directions:
                   </div>
                   {navRouteResult.steps.map((st, i) => (
                     <div
@@ -1714,7 +1714,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                       <div className="flex-1 min-w-0">
                         <div className="font-semibold text-slate-100">{st.instruction}</div>
                         <div className="text-[9px] text-slate-400 font-mono">
-                          {st.distanceMeters > 0 ? `${st.distanceMeters} મીટર` : ''}
+                          {st.distanceMeters > 0 ? (st.distanceMeters >= 1000 ? `${(st.distanceMeters / 1000).toFixed(1)} km` : `${st.distanceMeters} m`) : ''}
                         </div>
                       </div>
                     </div>
@@ -1734,8 +1734,8 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                   📍
                 </div>
                 <div>
-                  <h3 className="text-sm font-black text-white">પાર્ટી પિન સેટ કરો (Manual GPS Setup)</h3>
-                  <p className="text-[11px] text-slate-400">કોઈપણ પાર્ટી પર "પિન સેટ કરો" દબાવીને મેપ પર તેનું સાચું લોકેશન સેટ કરો.</p>
+                  <h3 className="text-sm font-black text-white">Set Party Pin (Manual GPS Setup)</h3>
+                  <p className="text-[11px] text-slate-400">Click "Set Pin" on any party to tag its exact location on the map.</p>
                 </div>
               </div>
               <button
@@ -1743,14 +1743,14 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                 onClick={() => setFilterMode('all')}
                 className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold"
               >
-                મેપ પર પાછા જાઓ ✕
+                Return to Map ✕
               </button>
             </div>
 
             <div className="flex-1 overflow-y-auto divide-y divide-slate-800/60 py-2 space-y-2">
               {filteredParties.length === 0 ? (
                 <div className="text-center py-16 text-slate-400 text-xs font-bold">
-                  કોઈ મેળ ખાતી પાર્ટી મળી નથી.
+                  No matching parties found.
                 </div>
               ) : (
                 filteredParties.slice(0, 100).map((p) => (
@@ -1758,7 +1758,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-bold">{p.party_code || 'MARG'}</span>
-                        <h4 className="text-xs font-black text-white truncate">{p.party_name_gu || p.party_name}</h4>
+                        <h4 className="text-xs font-black text-white truncate">{p.party_name}</h4>
                       </div>
                       <p className="text-[11px] text-slate-400 truncate mt-0.5">
                         {p.address ? `${p.address}, ` : ''}{p.city || 'Gujarat'}
@@ -1768,10 +1768,10 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                     <button
                       type="button"
                       onClick={() => setPickerModalParty(p)}
-                      className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white text-xs font-black shadow-md flex items-center gap-1.5 shrink-0 transition-all"
+                      className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white text-xs font-black shadow-md flex items-center gap-1.5 shrink-0 transition-all cursor-pointer"
                     >
                       <MapPin className="w-3.5 h-3.5" />
-                      <span>પિન સેટ કરો</span>
+                      <span>Set Pin</span>
                     </button>
                   </div>
                 ))
@@ -1789,38 +1789,38 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
               </div>
               <h3 className="font-black text-base text-white">
                 {filterMode === 'with_cases'
-                  ? 'કોઈ પાર્ટીના કેસ મળ્યા નથી'
-                  : 'કોઈ પાર્ટી મેપ પર સેટ નથી'}
+                  ? 'No parties with cases found'
+                  : 'No parties mapped on this view'}
               </h3>
               <p className="text-xs text-slate-400 leading-relaxed">
                 {filterMode === 'with_cases'
-                  ? 'હાલમાં પસંદ કરેલા રૂટમાં કોઈ પેન્ડિંગ કેસ નથી. બધી પાર્ટીઓ જોવા માટે "બધી પાર્ટીઓ" બટન દબાવો.'
-                  : 'બધી પાર્ટીઓનું લોકેશન મેન્યુઅલી સેટ કરવા માટે નીચેનું બટન દબાવો.'}
+                  ? 'There are no pending cases in the selected route filter. Click below to view all parties.'
+                  : 'Click below to manually tag party pins on the map.'}
               </p>
               {filterMode === 'with_cases' ? (
                 <button
                   onClick={() => setFilterMode('all')}
-                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md active:scale-95 transition-all inline-flex items-center gap-1.5"
+                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md active:scale-95 transition-all inline-flex items-center gap-1.5 cursor-pointer"
                 >
                   <Users className="w-4 h-4" />
-                  <span>બધી પાર્ટીઓ બતાવો (Show All Parties)</span>
+                  <span>Show All Parties</span>
                 </button>
               ) : (
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-2">
                   <button
                     onClick={() => setFilterMode('unmapped')}
-                    className="w-full sm:w-auto px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md active:scale-95 transition-all inline-flex items-center justify-center gap-1.5"
+                    className="w-full sm:w-auto px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md active:scale-95 transition-all inline-flex items-center justify-center gap-1.5 cursor-pointer"
                   >
                     <MapPin className="w-4 h-4" />
-                    <span>📍 પાર્ટી પિન સેટ કરો ({unmappedParties.length})</span>
+                    <span>📍 Set Party Pin ({unmappedParties.length})</span>
                   </button>
                   {onNavigate && (
                     <button
                       onClick={() => onNavigate('parties')}
-                      className="w-full sm:w-auto px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs border border-slate-700 active:scale-95 transition-all inline-flex items-center justify-center gap-1.5"
+                      className="w-full sm:w-auto px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs border border-slate-700 active:scale-95 transition-all inline-flex items-center justify-center gap-1.5 cursor-pointer"
                     >
                       <Users className="w-4 h-4" />
-                      <span>પાર્ટી લિસ્ટ</span>
+                      <span>Parties Directory</span>
                     </button>
                   )}
                 </div>
@@ -1840,13 +1840,17 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                     {selectedParty.party_code || 'MARG'}
                   </span>
                   <h3 className="font-black text-xs sm:text-sm text-white truncate">
-                    {selectedParty.party_name_gu || selectedParty.party_name}
+                    {selectedParty.party_name}
                   </h3>
-                  {getDistanceFromUser(selectedParty.latitude, selectedParty.longitude) && (
+                  {navRouteResult && navigatingParty?.id === selectedParty.id ? (
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 font-mono shrink-0">
+                      🛣️ Road: {navRouteResult.distanceFormatted} ({navRouteResult.durationFormatted})
+                    </span>
+                  ) : getDistanceFromUser(selectedParty.latitude, selectedParty.longitude) ? (
                     <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 font-mono shrink-0">
                       🚗 {getDistanceFromUser(selectedParty.latitude, selectedParty.longitude)}
                     </span>
-                  )}
+                  ) : null}
                 </div>
                 <button
                   type="button"
@@ -1866,7 +1870,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                 <div className="flex items-center gap-1 min-w-0 flex-1 truncate">
                   <MapPin className="w-3 h-3 text-red-400 shrink-0" />
                   <span className="truncate">
-                    {selectedParty.address_gu || selectedParty.address || selectedParty.city || 'લોકેશન સેટ છે'}
+                    {selectedParty.address || selectedParty.city || 'Location Tagged'}
                   </span>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
@@ -1884,7 +1888,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                   )}
                   {selectedParty.id && partyCasesMap[selectedParty.id] && (
                     <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                      📦 {partyCasesMap[selectedParty.id].total_cases} કેસ
+                      📦 {partyCasesMap[selectedParty.id].total_cases} cases
                     </span>
                   )}
                   <button
@@ -1892,7 +1896,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                     onClick={() => setPartyDetailsExpanded((prev) => !prev)}
                     className="text-[10px] font-bold text-blue-400 hover:underline px-1 py-0.5"
                   >
-                    {partyDetailsExpanded ? 'ઓછું' : 'વધુ'}
+                    {partyDetailsExpanded ? 'Less' : 'More'}
                   </button>
                 </div>
               </div>
@@ -1914,7 +1918,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                       className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 hover:text-white flex items-center gap-1"
                     >
                       {copiedCoords ? <Check className="w-2.5 h-2.5 text-emerald-400" /> : <Copy className="w-2.5 h-2.5" />}
-                      <span>{copiedCoords ? 'કોપી!' : 'કોપી'}</span>
+                      <span>{copiedCoords ? 'Copied!' : 'Copy'}</span>
                     </button>
                   </div>
                   {selectedParty.id && partyCasesMap[selectedParty.id]?.case_breakdown && partyCasesMap[selectedParty.id].case_breakdown!.length > 0 && (
@@ -1937,11 +1941,11 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                   <button
                     type="button"
                     onClick={() => handleNavigateToParty(selectedParty)}
-                    className="py-1.5 px-1 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-all text-center"
-                    title="Google Maps Real Road Route on map"
+                    className="py-1.5 px-1 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-all text-center cursor-pointer shadow-sm"
+                    title="Google Routes API Real Road Route on map"
                   >
                     <Route className="w-3.5 h-3.5 shrink-0" />
-                    <span>રોડ રૂટ</span>
+                    <span>Road Route</span>
                   </button>
 
                   {/* 2. Route Optimizer */}
@@ -1949,11 +1953,11 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                     <button
                       type="button"
                       onClick={() => onNavigate('routes', { selectedParty })}
-                      className="py-1.5 px-1 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-all text-center"
-                      title="રૂટ ઓપ્ટિમાઇઝરમાં ખોલો"
+                      className="py-1.5 px-1 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-all text-center cursor-pointer shadow-sm"
+                      title="Open in Route Optimizer"
                     >
                       <Sparkles className="w-3.5 h-3.5 shrink-0" />
-                      <span>ઓપ્ટિમાઇઝ</span>
+                      <span>Optimize</span>
                     </button>
                   ) : (
                     <div />
@@ -1964,8 +1968,8 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                     href={`https://www.google.com/maps/dir/?api=1&destination=${selectedParty.latitude},${selectedParty.longitude}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="py-1.5 px-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-all text-center"
-                    title="ગૂગલ મેપ્સ એપમાં ખોલો"
+                    className="py-1.5 px-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-all text-center shadow-sm"
+                    title="Open in Google Maps App"
                   >
                     <ExternalLink className="w-3.5 h-3.5 shrink-0" />
                     <span>Google</span>
@@ -1981,11 +1985,11 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                           deliveryRoute: selectedParty.route_1 || selectedParty.route,
                         })
                       }
-                      className="py-1.5 px-1 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-all text-center"
-                      title="કવર પ્રિન્ટ"
+                      className="py-1.5 px-1 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-all text-center cursor-pointer shadow-sm"
+                      title="Print Envelope"
                     >
                       <Printer className="w-3.5 h-3.5 shrink-0" />
-                      <span>પ્રિન્ટ</span>
+                      <span>Print</span>
                     </button>
                   ) : (
                     <div />
@@ -1998,22 +2002,22 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                   <button
                     type="button"
                     onClick={() => setPickerModalParty(selectedParty)}
-                    className="py-1.5 px-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-all text-center"
-                    title="પિન બદલો (Change Pin)"
+                    className="py-1.5 px-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-all text-center cursor-pointer"
+                    title="Change GPS Pin"
                   >
                     <Edit3 className="w-3.5 h-3.5 shrink-0" />
-                    <span>પિન બદલો</span>
+                    <span>Change Pin</span>
                   </button>
 
                   {/* 6. Unset Location Button */}
                   <button
                     type="button"
                     onClick={() => handleUnsetPartyLocation(selectedParty)}
-                    className="py-1.5 px-1 rounded-xl bg-red-950/80 hover:bg-red-900 text-red-300 border border-red-700/60 font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-all text-center"
-                    title="દુકાનનું લોકેશન હટાવો / અનસેટ કરો (Unset GPS Pin)"
+                    className="py-1.5 px-1 rounded-xl bg-red-950/80 hover:bg-red-900 text-red-300 border border-red-700/60 font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-all text-center cursor-pointer"
+                    title="Remove party location from map (Unset GPS Pin)"
                   >
                     <MapPinOff className="w-3.5 h-3.5 shrink-0" />
-                    <span>અનસેટ</span>
+                    <span>Unset Pin</span>
                   </button>
 
                   {/* 7. Call Phone */}
@@ -2021,15 +2025,15 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                     <a
                       href={`tel:${selectedParty.mobile_no}`}
                       className="py-1.5 px-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-all text-center"
-                      title={`કૉલ કરો (${selectedParty.mobile_no})`}
+                      title={`Call (${selectedParty.mobile_no})`}
                     >
                       <Phone className="w-3.5 h-3.5 shrink-0" />
-                      <span>કોલ</span>
+                      <span>Call</span>
                     </a>
                   ) : (
                     <button disabled className="py-1.5 px-1 rounded-xl bg-slate-800/50 text-slate-500 font-bold text-[11px] flex items-center justify-center gap-1">
                       <Phone className="w-3.5 h-3.5 shrink-0" />
-                      <span>કોલ</span>
+                      <span>Call</span>
                     </button>
                   )}
 
@@ -2039,20 +2043,20 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                       href={`https://wa.me/91${selectedParty.mobile_no
                         .replace(/\D/g, '')
                         .slice(-10)}?text=${encodeURIComponent(
-                        `શ્રીજી ડિસ્પેચ: નમસ્તે ${selectedParty.party_name_gu || selectedParty.party_name}`
+                        `Shreeji Dispatch: Hello ${selectedParty.party_name}`
                       )}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="py-1.5 px-1 rounded-xl bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border border-emerald-700/60 font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-all text-center"
-                      title="વોટ્સએપ મેસેજ"
+                      title="WhatsApp Message"
                     >
                       <MessageCircle className="w-3.5 h-3.5 shrink-0" />
-                      <span>WA</span>
+                      <span>WhatsApp</span>
                     </a>
                   ) : (
                     <button disabled className="py-1.5 px-1 rounded-xl bg-slate-800/50 text-slate-500 font-bold text-[11px] flex items-center justify-center gap-1">
                       <MessageCircle className="w-3.5 h-3.5 shrink-0" />
-                      <span>WA</span>
+                      <span>WhatsApp</span>
                     </button>
                   )}
                 </div>
