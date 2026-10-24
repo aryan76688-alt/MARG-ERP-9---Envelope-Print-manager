@@ -15,8 +15,10 @@ import {
   Info,
   ChevronDown,
   ChevronUp,
-  Languages
+  Languages,
+  Database
 } from 'lucide-react';
+import { DatabaseBackupModal } from '../components/DatabaseBackupModal';
 import { 
   uploadExcelFile, 
   validateImportRows, 
@@ -52,6 +54,7 @@ export const ImportExcel: React.FC<ImportExcelProps> = ({ onNavigate }) => {
   const [activeTab, setActiveTab] = useState<'upload' | 'history'>('upload');
   const [historyList, setHistoryList] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState<boolean>(false);
+  const [dbModalOpen, setDbModalOpen] = useState<boolean>(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -224,6 +227,34 @@ export const ImportExcel: React.FC<ImportExcelProps> = ({ onNavigate }) => {
             <span>Sample Template (.xlsx)</span>
           </a>
         </div>
+      </div>
+
+      {/* Full Database Export & Import Banner */}
+      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-4 rounded-2xl shadow-sm border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-indigo-300 shrink-0 shadow-inner">
+            <Database className="w-5 h-5 text-indigo-400" />
+          </div>
+          <div>
+            <h3 className="font-extrabold text-sm text-white flex items-center gap-2 font-display">
+              <span>Full Database Backup & Restore (ડેટાબેઝ બેકઅપ / રિસ્ટોર)</span>
+              <span className="text-[10px] font-mono font-black uppercase px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                .db / .json
+              </span>
+            </h3>
+            <p className="text-xs text-slate-300 mt-0.5">
+              Need to download or restore the entire offline SQLite database instead of just Excel ledger?
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => setDbModalOpen(true)}
+          className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white font-extrabold text-xs shadow-md shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0"
+        >
+          <Database className="w-4 h-4" />
+          <span>Export / Import Database (ડેટાબેઝ) →</span>
+        </button>
       </div>
 
       {activeTab === 'upload' ? (
@@ -777,6 +808,12 @@ export const ImportExcel: React.FC<ImportExcelProps> = ({ onNavigate }) => {
           </div>
         </div>
       )}
+
+      {/* Full Database Export & Import Modal */}
+      <DatabaseBackupModal
+        isOpen={dbModalOpen}
+        onClose={() => setDbModalOpen(false)}
+      />
     </div>
   );
 };

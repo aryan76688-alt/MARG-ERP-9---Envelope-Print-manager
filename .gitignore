@@ -23,5 +23,7 @@ backend/envelope_manager.db
 backend/envelope.db
 *.log
 backend/*.log
+*.bak
+backend/*.bak
 .wrangler/
 

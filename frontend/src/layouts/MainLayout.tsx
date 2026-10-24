@@ -26,8 +26,10 @@ import {
   Smartphone,
   Compass,
   Route,
+  Database,
 } from 'lucide-react';
 import { useNetworkSync } from '../offline/syncManager';
+import { DatabaseBackupModal } from '../components/DatabaseBackupModal';
 
 interface MainLayoutProps {
   currentTab: string;
@@ -52,6 +54,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
   const [currentDate, setCurrentDate] = useState<string>('');
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
   const [notificationsOpen, setNotificationsOpen] = useState<boolean>(false);
+  const [databaseModalOpen, setDatabaseModalOpen] = useState<boolean>(false);
   const [tabHistory, setTabHistory] = useState<string[]>(['dashboard']);
 
   const isApk = typeof window !== 'undefined' && (
@@ -331,6 +334,16 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
 
           {/* Right Controls: Date, Digital Clock, Notifications, Profile */}
           <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+            {/* Full Database Export & Import Modal Trigger */}
+            <button
+              onClick={() => setDatabaseModalOpen(true)}
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold text-xs transition-colors cursor-pointer"
+              title="Full Database Backup, Download & Import (.db / .json)"
+            >
+              <Database className="w-3.5 h-3.5 text-indigo-600" />
+              <span className="hidden sm:inline">Database (DB)</span>
+            </button>
+
             {/* Emergency SOS Call (Admin & Super Admin only) */}
             {['super_admin', 'admin'].includes(userRole) && onOpenEmergencyCall && (
               <button
@@ -501,6 +514,12 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
         <main className="flex-1 overflow-y-auto p-3 sm:p-6 bg-slate-100 pb-10 overscroll-contain">
           {children}
         </main>
+
+        {/* Full Database Export & Import Modal */}
+        <DatabaseBackupModal
+          isOpen={databaseModalOpen}
+          onClose={() => setDatabaseModalOpen(false)}
+        />
       </div>
     </div>
   );

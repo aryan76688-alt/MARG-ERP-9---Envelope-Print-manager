@@ -26,9 +26,11 @@ import {
   HardDrive,
   Smartphone,
   Compass,
-  Route
+  Route,
+  Database
 } from 'lucide-react';
 import { useNetworkSync } from '../offline/syncManager';
+import { DatabaseBackupModal } from '../components/DatabaseBackupModal';
 
 interface MobileApkLayoutProps {
   currentTab: string;
@@ -50,6 +52,7 @@ export const MobileApkLayout: React.FC<MobileApkLayoutProps> = ({
   children
 }) => {
   const [moreDrawerOpen, setMoreDrawerOpen] = useState<boolean>(false);
+  const [dbModalOpen, setDbModalOpen] = useState<boolean>(false);
   const [currentDateEn, setCurrentDateEn] = useState<string>('');
   const [showScrollTop, setShowScrollTop] = useState<boolean>(false);
   const mainScrollRef = useRef<HTMLElement>(null);
@@ -143,6 +146,7 @@ export const MobileApkLayout: React.FC<MobileApkLayoutProps> = ({
     { id: 'dispatch', label: 'Dispatch Summary', subLabel: 'Courier Manifests & Sheets', icon: Package },
     { id: 'history', label: 'Print History', subLabel: 'Job Logs & Reprints', icon: History },
     { id: 'import', label: 'Excel Import', subLabel: 'Bulk MARG Ledger Ingestion', icon: FileSpreadsheet },
+    { id: 'database', label: 'Database Backup (ડેટાબેઝ)', subLabel: 'Export & Import Full SQLite DB', icon: Database },
     { id: 'settings', label: 'Settings', subLabel: 'Server Config & Preferences', icon: SettingsIcon },
   ];
 
@@ -185,6 +189,16 @@ export const MobileApkLayout: React.FC<MobileApkLayoutProps> = ({
 
           {/* Right: Emergency Call & Sync Trigger */}
           <div className="flex items-center gap-1.5 flex-shrink-0">
+            {/* Database Quick Button */}
+            <button
+              onClick={() => setDbModalOpen(true)}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-[11px] font-black cursor-pointer shadow-sm transition-all active:scale-95"
+              title="Full Database Backup, Export & Import"
+            >
+              <Database className="w-3.5 h-3.5 text-indigo-600" />
+              <span>DB</span>
+            </button>
+
             {canInitiateCall && onOpenEmergencyCall && (
               <button
                 onClick={onOpenEmergencyCall}
@@ -365,7 +379,11 @@ export const MobileApkLayout: React.FC<MobileApkLayoutProps> = ({
                     key={item.id}
                     onClick={() => {
                       setMoreDrawerOpen(false);
-                      setCurrentTab(item.id);
+                      if (item.id === 'database') {
+                        setDbModalOpen(true);
+                      } else {
+                        setCurrentTab(item.id);
+                      }
                     }}
                     className={`flex items-center gap-3 p-3 rounded-2xl border text-left transition-all active:scale-95 cursor-pointer ${
                       isItemActive
@@ -421,6 +439,12 @@ export const MobileApkLayout: React.FC<MobileApkLayoutProps> = ({
           </div>
         </div>
       )}
+
+      {/* Full Database Export & Import Modal */}
+      <DatabaseBackupModal
+        isOpen={dbModalOpen}
+        onClose={() => setDbModalOpen(false)}
+      />
     </div>
   );
 };

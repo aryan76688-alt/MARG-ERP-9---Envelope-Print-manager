@@ -5198,6 +5198,102 @@ def export_database_backup(db: Session = Depends(get_db)):
         headers={"Content-Disposition": 'attachment; filename="MARG_Envelope_Backup.json"'}
     )
 
+@app.get("/api/database/info")
+def get_database_info(db: Session = Depends(get_db)):
+    """Returns database size, file stats, and record counts for export/import UI."""
+    try:
+        from database import DB_PATH, is_sqlite
+        file_size_bytes = 0
+        file_size_formatted = "0 KB"
+        last_modified = None
+        if is_sqlite and os.path.exists(DB_PATH):
+            file_size_bytes = os.path.getsize(DB_PATH)
+            wal_path = f"{DB_PATH}-wal"
+            if os.path.exists(wal_path):
+                file_size_bytes += os.path.getsize(wal_path)
+            
+            if file_size_bytes > 1024 * 1024:
+                file_size_formatted = f"{file_size_bytes / (1024 * 1024):.2f} MB"
+            else:
+                file_size_formatted = f"{file_size_bytes / 1024:.1f} KB"
+            last_modified = datetime.datetime.fromtimestamp(os.path.getmtime(DB_PATH)).isoformat()
+        
+        parties_count = db.query(Party).count()
+        jobs_count = db.query(PrintJob).count()
+        users_count = db.query(User).count()
+        
+        return {
+            "type": "SQLite" if is_sqlite else "PostgreSQL",
+            "file_name": os.path.basename(DB_PATH) if is_sqlite else "PostgreSQL Database",
+            "file_size_bytes": file_size_bytes,
+            "file_size_formatted": file_size_formatted,
+            "last_modified": last_modified,
+            "parties_count": parties_count,
+            "jobs_count": jobs_count,
+            "users_count": users_count,
+            "download_sqlite_url": "/api/backup/download-sqlite",
+            "export_json_url": "/api/backup/export"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/database/export")
+def export_database_alias(db: Session = Depends(get_db)):
+    """Alias for downloading the full raw binary SQLite database."""
+    return download_sqlite_database(db)
+
+@app.post("/api/database/import")
+async def import_database_file_endpoint(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    """Smart import endpoint accepting either binary SQLite (.db) or JSON backup."""
+    try:
+        from database import DB_PATH, is_sqlite
+        content = await file.read()
+        if len(content) == 0:
+            raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+
+        # Check if binary SQLite file
+        if content.startswith(b"SQLite format 3\x00"):
+            if not is_sqlite:
+                raise HTTPException(status_code=400, detail="Binary database restore only supported on SQLite")
+            db.close()
+            backup_path = f"{DB_PATH}.bak"
+            if os.path.exists(DB_PATH):
+                shutil.copy2(DB_PATH, backup_path)
+            with open(DB_PATH, "wb") as f:
+                f.write(content)
+            return {
+                "status": "success",
+                "format": "sqlite",
+                "message": "Full SQLite database restored successfully! All tables, parties, and records synchronized."
+            }
+        
+        # Try parsing as JSON backup
+        try:
+            text_str = content.decode("utf-8")
+            data = json.loads(text_str)
+            if isinstance(data, dict) and ("parties" in data or "sender" in data or "app_settings" in data):
+                import_database_backup(data, db)
+                parties_num = len(data.get("parties", []))
+                return {
+                    "status": "success",
+                    "format": "json",
+                    "message": f"Full database JSON backup restored successfully! Processed {parties_num} parties."
+                }
+            else:
+                raise ValueError("JSON file missing recognized backup schema keys.")
+        except Exception as json_err:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported file format. Please upload a valid SQLite (.db) database file or a JSON backup file. Details: {str(json_err)}"
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/api/backup/download-sqlite")
 def download_sqlite_database(db: Session = Depends(get_db)):
     """Flushes SQLite WAL to disk and streams the full raw binary database file."""

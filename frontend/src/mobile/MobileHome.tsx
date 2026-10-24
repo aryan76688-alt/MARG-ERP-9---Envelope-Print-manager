@@ -17,11 +17,15 @@ import {
   FileSpreadsheet,
   CheckCircle2,
   TrendingUp,
-  Radio
+  Radio,
+  Database,
+  Download,
+  Upload
 } from 'lucide-react';
 import { DashboardData, PrintJob } from '../types';
 import { fetchDashboard, fetchPrintJobs } from '../api/client';
 import { generateWhatsAppDispatchUrl } from '../utils/whatsapp';
+import { DatabaseBackupModal } from '../components/DatabaseBackupModal';
 
 interface MobileHomeProps {
   onNavigate: (tab: string, state?: any) => void;
@@ -32,6 +36,7 @@ export const MobileHome: React.FC<MobileHomeProps> = ({ onNavigate }) => {
   const [recentJobs, setRecentJobs] = useState<PrintJob[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [dbModalOpen, setDbModalOpen] = useState<boolean>(false);
 
   const loadData = async () => {
     try {
@@ -181,6 +186,59 @@ export const MobileHome: React.FC<MobileHomeProps> = ({ onNavigate }) => {
         </div>
         <div className="p-2 rounded-xl bg-slate-50 text-blue-600 border border-slate-200 flex-shrink-0">
           <ArrowRight className="w-4 h-4" />
+        </div>
+      </div>
+
+      {/* 3.5 FULL DATABASE BACKUP & RESTORE HERO CARD */}
+      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-2xl p-4 shadow-md border border-slate-800 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-indigo-400 shadow-inner">
+              <Database className="w-5 h-5 text-indigo-400" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-black text-sm text-white font-display">
+                  Database Hub (ડેટાબેઝ)
+                </h3>
+                <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                  SQLite WAL
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-300 font-medium">
+                Download or restore complete offline database
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setDbModalOpen(true)}
+            className="text-[11px] font-bold text-indigo-300 hover:text-white flex items-center gap-0.5 underline decoration-indigo-400/50 cursor-pointer"
+          >
+            <span>Options</span>
+            <ArrowRight className="w-3 h-3" />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 pt-0.5">
+          {/* Export Full Database Button */}
+          <button
+            type="button"
+            onClick={() => setDbModalOpen(true)}
+            className="py-2.5 px-3 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white font-extrabold text-xs shadow-md shadow-indigo-600/30 active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+          >
+            <Download className="w-4 h-4" />
+            <span>Export DB (ડાઉનલોડ)</span>
+          </button>
+
+          {/* Import Database Button */}
+          <button
+            type="button"
+            onClick={() => setDbModalOpen(true)}
+            className="py-2.5 px-3 rounded-xl bg-slate-800/90 hover:bg-slate-700/90 text-white font-extrabold text-xs border border-slate-700 active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+          >
+            <Upload className="w-4 h-4 text-emerald-400" />
+            <span>Import DB (રિસ્ટોર)</span>
+          </button>
         </div>
       </div>
 
@@ -384,6 +442,12 @@ export const MobileHome: React.FC<MobileHomeProps> = ({ onNavigate }) => {
           </div>
         )}
       </div>
+
+      {/* Full Database Export & Import Modal */}
+      <DatabaseBackupModal
+        isOpen={dbModalOpen}
+        onClose={() => setDbModalOpen(false)}
+      />
     </div>
   );
 };

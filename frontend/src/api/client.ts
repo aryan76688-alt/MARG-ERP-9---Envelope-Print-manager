@@ -1086,6 +1086,50 @@ export function getBackupSqliteUrl(): string {
   return `${API_BASE}/backup/download-sqlite${token ? `?token=${encodeURIComponent(token)}` : ''}`;
 }
 
+export function getDatabaseExportUrl(): string {
+  const token = getAuthToken();
+  return `${API_BASE}/database/export${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+}
+
+export interface DatabaseInfo {
+  type: string;
+  file_name: string;
+  file_size_bytes: number;
+  file_size_formatted: string;
+  last_modified: string | null;
+  parties_count: number;
+  jobs_count: number;
+  users_count: number;
+  download_sqlite_url: string;
+  export_json_url: string;
+}
+
+export async function fetchDatabaseInfo(): Promise<DatabaseInfo> {
+  const res = await fetchApi(`${API_BASE}/database/info`);
+  if (!res.ok) throw new Error('Failed to fetch database metadata');
+  return res.json();
+}
+
+export async function importDatabaseFile(file: File): Promise<{ status: string; message: string; format?: string }> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const token = getAuthToken();
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  const res = await fetch(`${API_BASE}/database/import`, {
+    method: 'POST',
+    headers,
+    body: formData,
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({ detail: 'Failed to import database file' }));
+    throw new Error(errorData.detail || 'Failed to import database file');
+  }
+  return res.json();
+}
+
 export async function restoreSqliteBackup(file: File): Promise<{ status: string; message: string }> {
   const formData = new FormData();
   formData.append('file', file);

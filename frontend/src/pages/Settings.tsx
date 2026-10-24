@@ -40,6 +40,7 @@ import {
   getBackupExportUrl, 
   getBackupSqliteUrl,
   restoreSqliteBackup,
+  importDatabaseFile,
   getExportPartiesUrl, 
   getExportHistoryUrl, 
   testGeminiAI,
@@ -608,16 +609,16 @@ export const Settings: React.FC = () => {
   };
 
   const handleRestoreSqliteBackup = async (file: File) => {
-    if (!confirm('⚠️ Are you sure you want to restore this binary SQLite database file? The current active database will be backed up safely to .db.bak and completely overwritten.')) {
+    if (!confirm(`⚠️ Are you sure you want to restore "${file.name}"? The database will be synchronized. A safety backup (.bak) will be created automatically before overwriting.`)) {
       return;
     }
     try {
       setRestoringSqlite(true);
-      const res = await restoreSqliteBackup(file);
-      alert(`✅ ${res.message || 'SQLite database restored successfully!'}`);
+      const res = await importDatabaseFile(file);
+      alert(`✅ ${res.message || 'Database restored successfully!'}`);
       window.location.reload();
     } catch (err: any) {
-      alert('❌ Failed to restore SQLite database: ' + err.message);
+      alert('❌ Failed to restore database: ' + err.message);
     } finally {
       setRestoringSqlite(false);
     }
@@ -1949,7 +1950,7 @@ export const Settings: React.FC = () => {
                     className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md shadow-indigo-600/20 transition-transform active:scale-95"
                   >
                     <Download className="w-4 h-4" />
-                    <span>Download Raw Database (.db)</span>
+                    <span>Export Full Database (ડાઉનલોડ .db)</span>
                   </a>
 
                   {isApk && (
@@ -1967,7 +1968,7 @@ export const Settings: React.FC = () => {
                   <input
                     ref={sqliteFileInputRef}
                     type="file"
-                    accept=".db,.sqlite,.sqlite3"
+                    accept=".db,.sqlite,.sqlite3,.json"
                     onChange={(e) => e.target.files && e.target.files[0] && handleRestoreSqliteBackup(e.target.files[0])}
                     className="hidden"
                   />
@@ -1975,10 +1976,10 @@ export const Settings: React.FC = () => {
                     type="button"
                     onClick={() => sqliteFileInputRef.current?.click()}
                     disabled={restoringSqlite}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-sm transition-transform active:scale-95"
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-sm transition-transform active:scale-95 cursor-pointer"
                   >
-                    <Upload className="w-4 h-4 text-slate-300" />
-                    <span>{restoringSqlite ? 'Restoring Database...' : 'Restore from .db File'}</span>
+                    <Upload className="w-4 h-4 text-emerald-400" />
+                    <span>{restoringSqlite ? 'Restoring Database...' : 'Import Database (રિસ્ટોર .db / .json)'}</span>
                   </button>
                 </div>
               </div>
