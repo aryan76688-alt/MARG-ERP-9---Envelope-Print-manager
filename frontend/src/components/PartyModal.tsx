@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, AlertCircle, Building2, Calendar, MapPin, Map, Clipboard, Plus } from 'lucide-react';
+import { X, Save, AlertCircle, Building2, Calendar, MapPin, Map, Clipboard, Plus, MapPinOff, Trash2, Phone } from 'lucide-react';
 import { Party } from '../types';
 import { fetchNextPartyCode } from '../api/client';
 import { PartyMapPickerModal } from './PartyMapPickerModal';
@@ -41,12 +41,47 @@ export const PartyModal: React.FC<PartyModalProps> = ({
     is_active: true,
   });
 
+  const [phoneNumbers, setPhoneNumbers] = useState<string[]>(['']);
   const [drugLicenses, setDrugLicenses] = useState<string[]>(['']);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [mapPickerOpen, setMapPickerOpen] = useState(false);
   const [loadingNextCode, setLoadingNextCode] = useState(false);
   const [capturingGPS, setCapturingGPS] = useState(false);
+
+  const extractNumbers = (raw?: string | null): string[] => {
+    if (!raw) return [''];
+    const parts = raw.split(/[,;\n/]+/).map((s) => s.trim()).filter(Boolean);
+    return parts.length > 0 ? parts : [''];
+  };
+
+  const handleAddPhoneNumber = () => {
+    setPhoneNumbers((prev) => [...prev, '']);
+  };
+
+  const handleUpdatePhoneNumber = (index: number, val: string) => {
+    setPhoneNumbers((prev) => {
+      const next = [...prev];
+      next[index] = val;
+      return next;
+    });
+  };
+
+  const handleRemovePhoneNumber = (index: number) => {
+    setPhoneNumbers((prev) => {
+      const next = prev.filter((_, i) => i !== index);
+      return next.length > 0 ? next : [''];
+    });
+  };
+
+  const handleUnsetLocation = () => {
+    setFormData((prev) => ({
+      ...prev,
+      latitude: null,
+      longitude: null,
+      geofence_set_at: null,
+    }));
+  };
 
   useEffect(() => {
     if (initialParty) {
@@ -97,7 +132,9 @@ export const PartyModal: React.FC<PartyModalProps> = ({
         geofence_radius_meters: initialParty.geofence_radius_meters ?? 75,
         is_active: initialParty.is_active ?? true,
       });
+      setPhoneNumbers(extractNumbers(initialParty.mobile_no));
     } else {
+      setPhoneNumbers(['']);
       setFormData({
         party_name: '',
         party_code: '',
@@ -239,8 +276,11 @@ export const PartyModal: React.FC<PartyModalProps> = ({
     setIsSubmitting(true);
     try {
       const cleanLicenses = drugLicenses.map((l) => l.trim()).filter(Boolean);
+      const cleanNumbers = phoneNumbers.map((n) => n.trim()).filter(Boolean);
+      const finalMobile = cleanNumbers.join(', ');
       await onSave({
         ...formData,
+        mobile_no: finalMobile || null,
         drug_licenses: cleanLicenses.length > 0 ? JSON.stringify(cleanLicenses) : null,
       });
       onClose();
@@ -620,6 +660,17 @@ export const PartyModal: React.FC<PartyModalProps> = ({
                     <Clipboard className="w-3.5 h-3.5" />
                     <span>📋 Paste Lat, Lng</span>
                   </button>
+                  {(formData.latitude !== null || formData.longitude !== null) && (
+                    <button
+                      type="button"
+                      onClick={handleUnsetLocation}
+                      className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold flex items-center gap-1 shadow-xs active:scale-95 transition-all cursor-pointer"
+                      title="લોકેશન હટાવો / અનસેટ કરો (Clear GPS Coordinates)"
+                    >
+                      <MapPinOff className="w-3.5 h-3.5" />
+                      <span>❌ લોકેશન હટાવો (Unset)</span>
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -687,18 +738,57 @@ export const PartyModal: React.FC<PartyModalProps> = ({
               )}
             </div>
 
-            {/* Mobile No. */}
-            <div>
-              <label className="block font-bold text-slate-700 mb-1">
-                Mobile Number
-              </label>
-              <input
-                type="text"
-                value={formData.mobile_no || ''}
-                onChange={(e) => setFormData({ ...formData, mobile_no: e.target.value })}
-                placeholder="e.g. 9829012345"
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs font-mono"
-              />
+            {/* Mobile & Contact Numbers (Multi-number support) */}
+            <div className="space-y-2 p-3 rounded-xl bg-slate-50 border border-slate-200">
+              <div className="flex items-center justify-between">
+                <label className="block font-bold text-slate-800 text-xs flex items-center gap-1.5">
+                  <Phone className="w-3.5 h-3.5 text-blue-600" />
+                  <span>મોબાઈલ અને સંપર્ક નંબરો (Mobile Numbers)</span>
+                </label>
+                <span className="text-[10px] font-bold text-slate-500 font-mono">
+                  {phoneNumbers.filter((n) => n.trim()).length} Number{phoneNumbers.filter((n) => n.trim()).length === 1 ? '' : 's'}
+                </span>
+              </div>
+
+              <div className="space-y-1.5">
+                {phoneNumbers.map((phone, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold font-mono px-2 py-1.5 rounded bg-white border border-slate-300 text-slate-600 shrink-0">
+                      #{idx + 1}
+                    </span>
+                    <input
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => handleUpdatePhoneNumber(idx, e.target.value)}
+                      placeholder={
+                        idx === 0
+                          ? 'પ્રાથમિક મોબાઈલ (Primary e.g. 9825012345)'
+                          : `બીજો નંબર #${idx + 1} (Alternate / WhatsApp)`
+                      }
+                      className="flex-1 px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs font-mono bg-white"
+                    />
+                    {phoneNumbers.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemovePhoneNumber(idx)}
+                        className="p-2 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 active:scale-95 transition-all shrink-0 cursor-pointer"
+                        title="નંબર હટાવો (Delete Number)"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={handleAddPhoneNumber}
+                className="w-full py-2 px-3 rounded-xl border border-dashed border-blue-400 bg-blue-50/70 hover:bg-blue-100 text-blue-700 font-bold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-98 cursor-pointer mt-1"
+              >
+                <Plus className="w-4 h-4" />
+                <span>+ બીજો નંબર ઉમેરો (+ Add Another Phone Number)</span>
+              </button>
             </div>
 
             {/* Landline */}

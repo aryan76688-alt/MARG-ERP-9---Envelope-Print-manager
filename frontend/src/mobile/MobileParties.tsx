@@ -17,10 +17,12 @@ import {
   Edit3,
   Navigation,
   Crosshair,
-  Compass
+  Compass,
+  MapPinOff,
+  Route
 } from 'lucide-react';
 import { Party } from '../types';
-import { fetchParties, createParty, updateParty, updatePartyGeofence } from '../api/client';
+import { fetchParties, createParty, updateParty, updatePartyGeofence, unsetPartyLocation } from '../api/client';
 import { getPartiesOffline, ensureInitialPartiesLoaded } from '../offline/db';
 import { PartyModal } from '../components/PartyModal';
 import { RouteManagerModal } from '../components/RouteManagerModal';
@@ -87,6 +89,31 @@ export const MobileParties: React.FC<MobilePartiesProps> = ({
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
+  };
+
+  // Unset Party GPS pin
+  const handleUnsetPartyGPS = async (party: Party) => {
+    if (!party.id) return;
+    if (!window.confirm(`શું તમે '${party.party_name}' નું લોકેશન હટાવવા (Unset કરવા) માંગો છો?`)) {
+      return;
+    }
+    try {
+      await unsetPartyLocation(party.id);
+      setParties((prev) =>
+        prev.map((p) =>
+          p.id === party.id
+            ? {
+                ...p,
+                latitude: null,
+                longitude: null,
+                geofence_set_at: null,
+              }
+            : p
+        )
+      );
+    } catch (err: any) {
+      alert(err.message || 'Failed to unset GPS location');
+    }
   };
 
   const weekdays = [
@@ -210,6 +237,16 @@ export const MobileParties: React.FC<MobilePartiesProps> = ({
         >
           <MapPin className="w-4 h-4" />
           <span className="hidden sm:inline">Map</span>
+        </button>
+
+        {/* Add Party Shortcut Button */}
+        <button
+          onClick={handleAddParty}
+          className="p-3 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs shadow-sm active:scale-95 transition-all flex items-center gap-1 flex-shrink-0 cursor-pointer"
+          title="Add New Party"
+        >
+          <Plus className="w-4 h-4" />
+          <span className="hidden sm:inline font-black">+ પાર્ટી</span>
         </button>
 
         {/* Route Manager Trigger */}
@@ -346,16 +383,25 @@ export const MobileParties: React.FC<MobilePartiesProps> = ({
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap justify-end">
+                        <button
+                          type="button"
+                          onClick={() => onNavigate('routes', { selectedParty: party })}
+                          className="px-2 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-extrabold text-[11px] shadow-sm flex items-center gap-1 active:scale-95 transition-all cursor-pointer"
+                          title="View Real Road Route in Route Optimizer"
+                        >
+                          <Route className="w-3 h-3" />
+                          <span>રૂટ</span>
+                        </button>
                         <a
                           href={`https://www.google.com/maps/dir/?api=1&destination=${party.latitude},${party.longitude}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[11px] shadow-sm flex items-center gap-1 active:scale-95 transition-all cursor-pointer"
+                          className="px-2 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[11px] shadow-sm flex items-center gap-1 active:scale-95 transition-all cursor-pointer"
                           title="Navigate directly via Google Maps"
                         >
                           <Navigation className="w-3 h-3" />
-                          <span>Navigate</span>
+                          <span>Google</span>
                         </a>
                         <button
                           type="button"
@@ -364,6 +410,14 @@ export const MobileParties: React.FC<MobilePartiesProps> = ({
                           title="Adjust Pin on Map"
                         >
                           <Edit3 className="w-3.5 h-3.5 text-amber-600" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleUnsetPartyGPS(party)}
+                          className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 active:scale-95 transition-all cursor-pointer"
+                          title="દુકાનનું લોકેશન હટાવો / અનસેટ કરો (Unset GPS Location)"
+                        >
+                          <MapPinOff className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </>
@@ -397,7 +451,27 @@ export const MobileParties: React.FC<MobilePartiesProps> = ({
                   )}
                 </div>
 
-                {/* Action Buttons Row: 1-Tap Print, Call, WhatsApp */}
+                {/* Multiple Phone Numbers Bar (if multiple numbers exist) */}
+                {party.mobile_no && party.mobile_no.includes(',') && (
+                  <div className="flex flex-wrap items-center gap-1 px-1 text-[10px] text-slate-500">
+                    <span className="font-bold">સંપર્ક નંબરો:</span>
+                    {party.mobile_no.split(/[,;\n/]+/).map((num, nIdx) => {
+                      const trimmed = num.trim();
+                      if (!trimmed) return null;
+                      return (
+                        <a
+                          key={nIdx}
+                          href={`tel:${trimmed}`}
+                          className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 border border-slate-200 font-mono font-bold"
+                        >
+                          📞 {trimmed}
+                        </a>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Action Buttons Row: 1-Tap Print, Route, Call, WhatsApp */}
                 <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
                   {/* Print Button */}
                   <button
@@ -408,10 +482,20 @@ export const MobileParties: React.FC<MobilePartiesProps> = ({
                     <span>Print Envelope</span>
                   </button>
 
+                  {/* Route Optimizer Button */}
+                  <button
+                    onClick={() => onNavigate('routes', { selectedParty: party })}
+                    className="py-2 px-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-extrabold text-xs flex items-center justify-center gap-1 shadow-sm active:scale-95 transition-all cursor-pointer"
+                    title="Directly Show Route in Optimizer"
+                  >
+                    <Route className="w-4 h-4" />
+                    <span>રૂટ</span>
+                  </button>
+
                   {/* Phone Call */}
                   {party.mobile_no && (
                     <a
-                      href={`tel:${party.mobile_no}`}
+                      href={`tel:${party.mobile_no.split(/[,;\n/]+/)[0].trim()}`}
                       className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-emerald-700 border border-slate-200 active:scale-95 transition-all cursor-pointer"
                       title="Call Party"
                     >
@@ -422,7 +506,7 @@ export const MobileParties: React.FC<MobilePartiesProps> = ({
                   {/* WhatsApp */}
                   {party.mobile_no && (
                     <a
-                      href={`https://wa.me/91${party.mobile_no.replace(/[^0-9]/g, '')}`}
+                      href={`https://wa.me/91${party.mobile_no.split(/[,;\n/]+/)[0].replace(/[^0-9]/g, '')}`}
                       target="_blank"
                       rel="noreferrer"
                       className="p-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm active:scale-95 transition-all cursor-pointer"

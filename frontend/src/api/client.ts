@@ -1341,15 +1341,15 @@ export async function recordPOD(data: {
 }
 
 export async function updatePartyGeofence(partyId: number, data: {
-  latitude: number;
-  longitude: number;
+  latitude: number | null;
+  longitude: number | null;
   radius_meters?: number;
 }): Promise<{
   success: boolean;
   party_id: number;
   party_name: string;
-  latitude: number;
-  longitude: number;
+  latitude: number | null;
+  longitude: number | null;
   geofence_radius_meters: number;
   geofence_set_at?: string;
 }> {
@@ -1361,6 +1361,43 @@ export async function updatePartyGeofence(partyId: number, data: {
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Failed to update pharmacy GPS pin' }));
     throw new Error(err.detail || 'Failed to update pharmacy GPS pin');
+  }
+  return res.json();
+}
+
+export async function unsetPartyLocation(partyId: number): Promise<{
+  success: boolean;
+  party_id: number;
+  party_name: string;
+  latitude: null;
+  longitude: null;
+  message: string;
+}> {
+  const res = await fetchApi(`${API_BASE}/parties/${partyId}/unset-location`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to unset party location' }));
+    throw new Error(err.detail || 'Failed to unset party location');
+  }
+  return res.json();
+}
+
+export async function bulkUnsetPartyLocations(partyIds: number[]): Promise<{
+  success: boolean;
+  updated_count: number;
+  party_ids: number[];
+  message: string;
+}> {
+  const res = await fetchApi(`${API_BASE}/parties/bulk-unset-location`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ party_ids: partyIds }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to bulk unset party locations' }));
+    throw new Error(err.detail || 'Failed to bulk unset party locations');
   }
   return res.json();
 }

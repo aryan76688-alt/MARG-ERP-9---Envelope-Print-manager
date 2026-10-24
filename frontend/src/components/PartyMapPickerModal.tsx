@@ -13,10 +13,11 @@ import {
   Loader2,
   Layers,
   Clipboard,
-  Copy
+  Copy,
+  MapPinOff
 } from 'lucide-react';
 import { Party } from '../types';
-import { updatePartyGeofence } from '../api/client';
+import { updatePartyGeofence, unsetPartyLocation } from '../api/client';
 import { updatePartyInOfflineCache } from '../offline/db';
 
 interface PartyMapPickerModalProps {
@@ -559,6 +560,42 @@ export const PartyMapPickerModal: React.FC<PartyMapPickerModalProps> = ({
     }
   };
 
+  const handleUnsetPin = async () => {
+    if (!party?.id) return;
+    if (!window.confirm(`શું તમે '${party.party_name_gu || party.party_name}' નું લોકેશન મેપ પરથી હટાવવા (Unset કરવા) માંગો છો?`)) {
+      return;
+    }
+    setIsSaving(true);
+    setFeedback(null);
+    try {
+      await unsetPartyLocation(party.id);
+      const updatedParty: Party = {
+        ...party,
+        latitude: null,
+        longitude: null,
+        geofence_set_at: null,
+      };
+      await updatePartyInOfflineCache(updatedParty);
+      if (onSaved) {
+        onSaved(updatedParty);
+      }
+      setFeedback({
+        type: 'success',
+        message: 'દુકાનનું લોકેશન સફળતાપૂર્વક હટાવી દેવામાં આવ્યું (Unset)!',
+      });
+      setTimeout(() => {
+        onClose();
+      }, 700);
+    } catch (err: any) {
+      setFeedback({
+        type: 'error',
+        message: err.message || 'લોકેશન હટાવવામાં ભૂલ આવી',
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   if (!isOpen || !party) return null;
 
   const isAlreadyPinned = party.latitude && party.longitude;
@@ -829,34 +866,49 @@ export const PartyMapPickerModal: React.FC<PartyMapPickerModalProps> = ({
           </div>
 
           {/* Action Buttons */}
-          <div className="flex items-center justify-between gap-2 pt-1">
+          <div className="flex items-center justify-between gap-2 pt-1 flex-wrap">
             <button
               type="button"
               onClick={onClose}
               disabled={isSaving}
-              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-all active:scale-95"
+              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-all active:scale-95 cursor-pointer"
             >
               રદ કરો (Cancel)
             </button>
 
-            <button
-              type="button"
-              onClick={handleSaveLocation}
-              disabled={isSaving}
-              className="flex-1 max-w-xs px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 hover:from-blue-500 hover:to-indigo-500 active:scale-95 text-xs font-black text-white shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2 transition-all disabled:opacity-50"
-            >
-              {isSaving ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>સેવ થાય છે...</span>
-                </>
-              ) : (
-                <>
-                  <Save className="w-4 h-4" />
-                  <span>લોકેશન સેવ કરો (Save Location)</span>
-                </>
+            <div className="flex items-center gap-2">
+              {isAlreadyPinned && (
+                <button
+                  type="button"
+                  onClick={handleUnsetPin}
+                  disabled={isSaving}
+                  className="px-3.5 py-2.5 rounded-xl bg-red-600/90 hover:bg-red-600 text-white text-xs font-black shadow-md flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+                  title="દુકાનનું લોકેશન હટાવો / અનસેટ કરો"
+                >
+                  <MapPinOff className="w-4 h-4" />
+                  <span>લોકેશન હટાવો (Unset)</span>
+                </button>
               )}
-            </button>
+
+              <button
+                type="button"
+                onClick={handleSaveLocation}
+                disabled={isSaving}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 hover:from-blue-500 hover:to-indigo-500 active:scale-95 text-xs font-black text-white shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>સેવ થાય છે...</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4" />
+                    <span>લોકેશન સેવ કરો (Save Location)</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </div>

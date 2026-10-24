@@ -33,10 +33,11 @@ import {
   Target,
   Sparkles,
   Footprints,
-  Bike
+  Bike,
+  MapPinOff
 } from 'lucide-react';
 import { Party, LiveUserLocation } from '../types';
-import { fetchParties, fetchDriverJobs, fetchLiveUserLocations, updateLiveLocation } from '../api/client';
+import { fetchParties, fetchDriverJobs, fetchLiveUserLocations, updateLiveLocation, unsetPartyLocation } from '../api/client';
 import { getAllOfflineParties, updatePartyInOfflineCache } from '../offline/db';
 import { PartyMapPickerModal } from '../components/PartyMapPickerModal';
 import { LocationPermissionModal } from '../components/LocationPermissionModal';
@@ -952,6 +953,29 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
     if (roadPolylineRef.current && mapInstanceRef.current) {
       mapInstanceRef.current.removeLayer(roadPolylineRef.current);
       roadPolylineRef.current = null;
+    }
+  };
+
+  // Unset selected party's GPS pin
+  const handleUnsetPartyLocation = async (party: Party) => {
+    if (!party.id) return;
+    if (!window.confirm(`શું તમે '${party.party_name_gu || party.party_name}' નું લોકેશન મેપ પરથી હટાવવા (Unset કરવા) માંગો છો?`)) {
+      return;
+    }
+    try {
+      await unsetPartyLocation(party.id);
+      const updated: Party = {
+        ...party,
+        latitude: null,
+        longitude: null,
+        geofence_set_at: null,
+      };
+      await updatePartyInOfflineCache(updated);
+      setParties((prev) => prev.map((p) => (p.id === party.id ? updated : p)));
+      setSelectedParty(null);
+      handleClearNavigation();
+    } catch (err: any) {
+      alert('લોકેશન હટાવવામાં ભૂલ: ' + (err.message || 'અજ્ઞાત ભૂલ'));
     }
   };
 
@@ -1905,101 +1929,133 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                 </div>
               )}
 
-              {/* Row 3: Action Buttons (Single Row Grid) */}
-              <div className="grid grid-cols-6 gap-1.5 pt-1 border-t border-slate-800">
-                {/* 1. Real Road Route on Map */}
-                <button
-                  type="button"
-                  onClick={() => handleNavigateToParty(selectedParty)}
-                  className="py-1.5 px-1 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-all text-center"
-                  title="Google Maps Real Road Route"
-                >
-                  <Route className="w-3.5 h-3.5 shrink-0" />
-                  <span>રોડ રૂટ</span>
-                </button>
-
-                {/* 2. Navigate (External Google Maps App) */}
-                <a
-                  href={`https://www.google.com/maps/dir/?api=1&destination=${selectedParty.latitude},${selectedParty.longitude}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="py-1.5 px-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-all text-center"
-                  title="ગૂગલ મેપ્સ એપમાં ખોલો"
-                >
-                  <ExternalLink className="w-3.5 h-3.5 shrink-0" />
-                  <span>Google</span>
-                </a>
-
-                {/* 3. Print Envelope */}
-                {onNavigate ? (
+              {/* Row 3: Action Buttons (Navigation & Location Management) */}
+              <div className="space-y-1.5 pt-1 border-t border-slate-800">
+                {/* Row 3A: Navigation & Operations (4 Buttons) */}
+                <div className="grid grid-cols-4 gap-1.5">
+                  {/* 1. Real Road Route on Map */}
                   <button
                     type="button"
-                    onClick={() =>
-                      onNavigate('print', {
-                        selectedParty,
-                        deliveryRoute: selectedParty.route_1 || selectedParty.route,
-                      })
-                    }
-                    className="py-1.5 px-1 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-all text-center"
-                    title="કવર પ્રિન્ટ"
+                    onClick={() => handleNavigateToParty(selectedParty)}
+                    className="py-1.5 px-1 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-all text-center"
+                    title="Google Maps Real Road Route on map"
                   >
-                    <Printer className="w-3.5 h-3.5 shrink-0" />
-                    <span>પ્રિન્ટ</span>
+                    <Route className="w-3.5 h-3.5 shrink-0" />
+                    <span>રોડ રૂટ</span>
                   </button>
-                ) : (
-                  <div />
-                )}
 
-                {/* 4. Change Pin */}
-                <button
-                  type="button"
-                  onClick={() => setPickerModalParty(selectedParty)}
-                  className="py-1.5 px-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-all text-center"
-                  title="પિન બદલો"
-                >
-                  <Edit3 className="w-3.5 h-3.5 shrink-0" />
-                  <span>પિન</span>
-                </button>
+                  {/* 2. Route Optimizer */}
+                  {onNavigate ? (
+                    <button
+                      type="button"
+                      onClick={() => onNavigate('routes', { selectedParty })}
+                      className="py-1.5 px-1 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-all text-center"
+                      title="રૂટ ઓપ્ટિમાઇઝરમાં ખોલો"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                      <span>ઓપ્ટિમાઇઝ</span>
+                    </button>
+                  ) : (
+                    <div />
+                  )}
 
-                {/* 5. Call Phone */}
-                {selectedParty.mobile_no ? (
+                  {/* 3. Navigate (External Google Maps App) */}
                   <a
-                    href={`tel:${selectedParty.mobile_no}`}
-                    className="py-1.5 px-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-all text-center"
-                    title={`કૉલ કરો (${selectedParty.mobile_no})`}
-                  >
-                    <Phone className="w-3.5 h-3.5 shrink-0" />
-                    <span>કોલ</span>
-                  </a>
-                ) : (
-                  <button disabled className="py-1.5 px-1 rounded-xl bg-slate-800/50 text-slate-500 font-bold text-[11px] flex items-center justify-center gap-1">
-                    <Phone className="w-3.5 h-3.5 shrink-0" />
-                    <span>કોલ</span>
-                  </button>
-                )}
-
-                {/* 6. WhatsApp */}
-                {selectedParty.mobile_no ? (
-                  <a
-                    href={`https://wa.me/91${selectedParty.mobile_no
-                      .replace(/\D/g, '')
-                      .slice(-10)}?text=${encodeURIComponent(
-                      `શ્રીજી ડિસ્પેચ: નમસ્તે ${selectedParty.party_name_gu || selectedParty.party_name}`
-                    )}`}
+                    href={`https://www.google.com/maps/dir/?api=1&destination=${selectedParty.latitude},${selectedParty.longitude}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="py-1.5 px-1 rounded-xl bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border border-emerald-700/60 font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-all text-center"
-                    title="વોટ્સએપ મેસેજ"
+                    className="py-1.5 px-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-all text-center"
+                    title="ગૂગલ મેપ્સ એપમાં ખોલો"
                   >
-                    <MessageCircle className="w-3.5 h-3.5 shrink-0" />
-                    <span>WA</span>
+                    <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+                    <span>Google</span>
                   </a>
-                ) : (
-                  <button disabled className="py-1.5 px-1 rounded-xl bg-slate-800/50 text-slate-500 font-bold text-[11px] flex items-center justify-center gap-1">
-                    <MessageCircle className="w-3.5 h-3.5 shrink-0" />
-                    <span>WA</span>
+
+                  {/* 4. Print Envelope */}
+                  {onNavigate ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onNavigate('print', {
+                          selectedParty,
+                          deliveryRoute: selectedParty.route_1 || selectedParty.route,
+                        })
+                      }
+                      className="py-1.5 px-1 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-all text-center"
+                      title="કવર પ્રિન્ટ"
+                    >
+                      <Printer className="w-3.5 h-3.5 shrink-0" />
+                      <span>પ્રિન્ટ</span>
+                    </button>
+                  ) : (
+                    <div />
+                  )}
+                </div>
+
+                {/* Row 3B: Location Settings & Contact (4 Buttons) */}
+                <div className="grid grid-cols-4 gap-1.5">
+                  {/* 5. Change Pin */}
+                  <button
+                    type="button"
+                    onClick={() => setPickerModalParty(selectedParty)}
+                    className="py-1.5 px-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-all text-center"
+                    title="પિન બદલો (Change Pin)"
+                  >
+                    <Edit3 className="w-3.5 h-3.5 shrink-0" />
+                    <span>પિન બદલો</span>
                   </button>
-                )}
+
+                  {/* 6. Unset Location Button */}
+                  <button
+                    type="button"
+                    onClick={() => handleUnsetPartyLocation(selectedParty)}
+                    className="py-1.5 px-1 rounded-xl bg-red-950/80 hover:bg-red-900 text-red-300 border border-red-700/60 font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-all text-center"
+                    title="દુકાનનું લોકેશન હટાવો / અનસેટ કરો (Unset GPS Pin)"
+                  >
+                    <MapPinOff className="w-3.5 h-3.5 shrink-0" />
+                    <span>અનસેટ</span>
+                  </button>
+
+                  {/* 7. Call Phone */}
+                  {selectedParty.mobile_no ? (
+                    <a
+                      href={`tel:${selectedParty.mobile_no}`}
+                      className="py-1.5 px-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-all text-center"
+                      title={`કૉલ કરો (${selectedParty.mobile_no})`}
+                    >
+                      <Phone className="w-3.5 h-3.5 shrink-0" />
+                      <span>કોલ</span>
+                    </a>
+                  ) : (
+                    <button disabled className="py-1.5 px-1 rounded-xl bg-slate-800/50 text-slate-500 font-bold text-[11px] flex items-center justify-center gap-1">
+                      <Phone className="w-3.5 h-3.5 shrink-0" />
+                      <span>કોલ</span>
+                    </button>
+                  )}
+
+                  {/* 8. WhatsApp */}
+                  {selectedParty.mobile_no ? (
+                    <a
+                      href={`https://wa.me/91${selectedParty.mobile_no
+                        .replace(/\D/g, '')
+                        .slice(-10)}?text=${encodeURIComponent(
+                        `શ્રીજી ડિસ્પેચ: નમસ્તે ${selectedParty.party_name_gu || selectedParty.party_name}`
+                      )}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="py-1.5 px-1 rounded-xl bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border border-emerald-700/60 font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-all text-center"
+                      title="વોટ્સએપ મેસેજ"
+                    >
+                      <MessageCircle className="w-3.5 h-3.5 shrink-0" />
+                      <span>WA</span>
+                    </a>
+                  ) : (
+                    <button disabled className="py-1.5 px-1 rounded-xl bg-slate-800/50 text-slate-500 font-bold text-[11px] flex items-center justify-center gap-1">
+                      <MessageCircle className="w-3.5 h-3.5 shrink-0" />
+                      <span>WA</span>
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           </div>

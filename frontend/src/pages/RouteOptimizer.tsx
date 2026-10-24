@@ -22,7 +22,11 @@ import {
   Sparkles,
   ArrowRight,
   Footprints,
-  Bike
+  Bike,
+  Layers,
+  Globe,
+  Maximize,
+  Minimize
 } from 'lucide-react';
 import { Party, PODSubmission } from '../types';
 import { fetchParties, recordPOD, updatePartyGeofence } from '../api/client';
@@ -40,6 +44,8 @@ import {
 interface RouteOptimizerProps {
   onNavigate?: (tab: string, state?: any) => void;
   onOpenPrintModal?: (party: Party) => void;
+  initialParty?: Party | null;
+  initialParties?: Party[] | null;
 }
 
 export interface OptimizedStop {
@@ -56,7 +62,9 @@ export interface OptimizedStop {
 
 export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
   onNavigate,
-  onOpenPrintModal
+  onOpenPrintModal,
+  initialParty,
+  initialParties
 }) => {
   const { isOnline, refreshPendingCount } = useNetworkSync();
   const [parties, setParties] = useState<Party[]>([]);
@@ -66,7 +74,7 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
   
   // Starting location (Defaults to Shreeji Healthcare Naroda / Driver Live GPS)
   const defaultWarehouse = { lat: 23.0760, lng: 72.6750, label: 'Shreeji Healthcare (Naroda)' };
-  const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number; accuracy?: number } | null>(null);
   const [gpsLoading, setGpsLoading] = useState<boolean>(false);
   const [gpsError, setGpsError] = useState<string | null>(null);
 
@@ -74,6 +82,10 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
   const [selectedPartyIds, setSelectedPartyIds] = useState<Set<number>>(new Set());
   const [optimizedStops, setOptimizedStops] = useState<OptimizedStop[]>([]);
   const [isOptimizing, setIsOptimizing] = useState<boolean>(false);
+
+  // Google Maps Layer & Full-Screen State
+  const [mapMode, setMapMode] = useState<'streets' | 'satellite'>('streets');
+  const [isMaximized, setIsMaximized] = useState<boolean>(false);
 
   // e-POD Modal State (Without Signature)
   const [activePodStop, setActivePodStop] = useState<OptimizedStop | null>(null);
@@ -88,8 +100,10 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
   // Leaflet Map Refs
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
+  const tileLayerRef = useRef<L.TileLayer | null>(null);
   const markersLayerRef = useRef<L.LayerGroup | null>(null);
   const polylineRef = useRef<L.Polyline | null>(null);
+  const userAccuracyCircleRef = useRef<L.Circle | null>(null);
 
   // Google Maps Real Road Directions State
   const [travelMode, setTravelMode] = useState<TravelMode>('DRIVING');
@@ -97,6 +111,9 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
   const [roadRouteResult, setRoadRouteResult] = useState<RoadRouteResult | null>(null);
   const [routingError, setRoutingError] = useState<string | null>(null);
   const [showTurnByTurn, setShowTurnByTurn] = useState<boolean>(false);
+
+  // Flag to avoid overwriting custom initial parties when routes change
+  const customSelectionAppliedRef = useRef<boolean>(false);
 
   // Current logged in user
   const currentUser = (() => {
@@ -110,7 +127,7 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
   const driverName: string = currentUser?.full_name || currentUser?.username || 'Driver';
 
   // Acquire Live GPS
-  const requestLocation = () => {
+  const requestLocation = (flyToUser: boolean = false) => {
     if (!navigator.geolocation) {
       setGpsError('Geolocation is not supported by your browser.');
       return;
@@ -119,17 +136,24 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
     setGpsError(null);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
+        const { latitude, longitude, accuracy } = pos.coords;
         setCurrentLocation({
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude
+          lat: latitude,
+          lng: longitude,
+          accuracy
         });
         setGpsLoading(false);
+        if (flyToUser && mapInstanceRef.current) {
+          mapInstanceRef.current.flyTo([latitude, longitude], 16, { animate: true });
+        }
       },
       (err) => {
         setGpsError(err.message || 'Unable to retrieve your location.');
         setGpsLoading(false);
-        // Fallback to warehouse location
-        setCurrentLocation({ lat: defaultWarehouse.lat, lng: defaultWarehouse.lng });
+        // Fallback to warehouse location if no location
+        if (!currentLocation) {
+          setCurrentLocation({ lat: defaultWarehouse.lat, lng: defaultWarehouse.lng });
+        }
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 10000 }
     );
@@ -203,14 +227,90 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
     });
   }, [parties, selectedRoute, search]);
 
-  // Auto-select all parties on route selection change
+  // Priority Selection for Passed Party / Parties
   useEffect(() => {
+    const targets: Party[] = [];
+    if (initialParties && initialParties.length > 0) {
+      targets.push(...initialParties);
+    } else if (initialParty) {
+      targets.push(initialParty);
+    }
+
+    if (targets.length === 0) return;
+
+    customSelectionAppliedRef.current = true;
+    setSelectedRoute('ALL');
+
+    setParties((prev) => {
+      const existingIds = new Set(prev.map((p) => p.id));
+      const missing = targets.filter((t) => t.id && !existingIds.has(t.id));
+      if (missing.length > 0) {
+        return [...missing, ...prev];
+      }
+      return prev;
+    });
+
+    const ids = new Set<number>();
+    targets.forEach((p) => {
+      if (p.id) ids.add(p.id);
+    });
+    setSelectedPartyIds(ids);
+  }, [initialParty, initialParties]);
+
+  // Auto-select all parties on route selection change, unless custom selection is active
+  useEffect(() => {
+    if (customSelectionAppliedRef.current) return;
     const ids = new Set<number>();
     routeParties.forEach((p) => {
       if (p.id) ids.add(p.id);
     });
     setSelectedPartyIds(ids);
   }, [selectedRoute, parties]);
+
+  // Switch between Google Detailed Roadmap and Google Satellite Hybrid tiles
+  const switchTileLayer = (mode: 'streets' | 'satellite') => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    if (tileLayerRef.current) {
+      map.removeLayer(tileLayerRef.current);
+    }
+    const layer = mode === 'satellite'
+      ? L.tileLayer('https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+          subdomains: ['0', '1', '2', '3'],
+          attribution: '&copy; Google Satellite & POIs',
+          maxZoom: 20,
+        })
+      : L.tileLayer('https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+          subdomains: ['0', '1', '2', '3'],
+          attribution: '&copy; Google Maps (Hotels, Petrol Pumps & Landmarks)',
+          maxZoom: 20,
+        });
+    layer.addTo(map);
+    tileLayerRef.current = layer;
+    setMapMode(mode);
+  };
+
+  const handleToggleMaximize = () => {
+    setIsMaximized((prev) => !prev);
+    setTimeout(() => {
+      mapInstanceRef.current?.invalidateSize();
+    }, 250);
+  };
+
+  const handleFitRoute = () => {
+    if (!mapInstanceRef.current) return;
+    if (roadRouteResult && roadRouteResult.path.length > 0) {
+      mapInstanceRef.current.fitBounds(L.latLngBounds(roadRouteResult.path), { padding: [50, 50] });
+    } else if (optimizedStops.length > 0) {
+      const pts = optimizedStops
+        .filter((s) => s.party.latitude && s.party.longitude)
+        .map((s) => [Number(s.party.latitude), Number(s.party.longitude)] as [number, number]);
+      if (currentLocation) pts.push([currentLocation.lat, currentLocation.lng]);
+      if (pts.length > 0) {
+        mapInstanceRef.current.fitBounds(L.latLngBounds(pts), { padding: [50, 50] });
+      }
+    }
+  };
 
   // Nearest Neighbor Traveling Salesperson (TSP) Algorithm
   const runRouteOptimization = () => {
@@ -301,11 +401,13 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
         zoomControl: true
       });
 
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '© OpenStreetMap contributors'
+      const initialLayer = L.tileLayer('https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+        subdomains: ['0', '1', '2', '3'],
+        attribution: '&copy; Google Maps (Hotels, Petrol Pumps & Landmarks)',
+        maxZoom: 20
       }).addTo(map);
 
+      tileLayerRef.current = initialLayer;
       markersLayerRef.current = L.layerGroup().addTo(map);
       mapInstanceRef.current = map;
     }
@@ -320,9 +422,25 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
       polylineRef.current = null;
     }
 
-    // Add Driver start marker
+    // Add Driver start marker & Live accuracy circle
     const startLat = currentLocation?.lat || defaultWarehouse.lat;
     const startLng = currentLocation?.lng || defaultWarehouse.lng;
+
+    if (currentLocation && currentLocation.accuracy) {
+      if (userAccuracyCircleRef.current) {
+        userAccuracyCircleRef.current.setLatLng([startLat, startLng]);
+        userAccuracyCircleRef.current.setRadius(currentLocation.accuracy);
+      } else {
+        userAccuracyCircleRef.current = L.circle([startLat, startLng], {
+          radius: currentLocation.accuracy,
+          color: '#2563eb',
+          fillColor: '#60a5fa',
+          fillOpacity: 0.15,
+          weight: 1
+        }).addTo(map);
+      }
+    }
+
     const startIcon = L.divIcon({
       className: 'driver-origin-marker',
       html: `
@@ -642,10 +760,13 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
             {/* Route Selector */}
             <select
               value={selectedRoute}
-              onChange={(e) => setSelectedRoute(e.target.value)}
+              onChange={(e) => {
+                customSelectionAppliedRef.current = false;
+                setSelectedRoute(e.target.value);
+              }}
               className="px-3 py-1.5 rounded-xl bg-white/10 border border-white/20 text-white font-bold text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 cursor-pointer"
             >
-              <option value="ALL" className="text-slate-900">All Delivery Routes</option>
+              <option value="ALL" className="text-slate-900">All Delivery Routes (બધા રૂટ)</option>
               {availableRoutes.map((r) => (
                 <option key={r} value={r} className="text-slate-900">
                   {r} Delivery Route
@@ -655,7 +776,7 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
 
             {/* Live GPS status */}
             <button
-              onClick={requestLocation}
+              onClick={() => requestLocation(true)}
               disabled={gpsLoading}
               className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-xs font-bold text-white flex items-center gap-1.5 transition-all cursor-pointer"
               title="Refresh live GPS location"
@@ -674,7 +795,7 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
               className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-md transition-all active:scale-95"
             >
               <Navigation className="w-4 h-4" />
-              <span>Open Full Route in Google Maps</span>
+              <span>ગૂગલ મેપ્સમાં આખો રૂટ જુઓ (Google Maps)</span>
               <ExternalLink className="w-3.5 h-3.5" />
             </a>
           )}
@@ -705,7 +826,7 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
             className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
           >
             <Sparkles className="w-3.5 h-3.5" />
-            <span>Re-Optimize</span>
+            <span>Re-Optimize (ફરી ગણો)</span>
           </button>
         </div>
       </div>
@@ -713,7 +834,13 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
       {/* 3. MAIN CONTENT: INTERACTIVE MAP & SEQUENCED STOPS */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         {/* MAP COLUMN */}
-        <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden h-[420px] sm:h-[540px] relative">
+        <div
+          className={`transition-all duration-300 ${
+            isMaximized
+              ? 'lg:col-span-12 h-[calc(100vh-140px)] min-h-[520px]'
+              : 'lg:col-span-7 h-[420px] sm:h-[560px]'
+          } bg-slate-900 rounded-2xl border border-slate-700/80 shadow-xl overflow-hidden relative`}
+        >
           <div ref={mapContainerRef} className="w-full h-full" />
 
           {/* Floating Navigation & Travel Mode Controls */}
@@ -761,21 +888,66 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
               </button>
             </div>
 
-            {/* Turn-by-Turn Directions Button */}
-            {roadRouteResult && roadRouteResult.steps.length > 0 && (
+            {/* Right Tools Group: Layer Switcher, Locate Me, Fit Bounds, Maximize, Turns */}
+            <div className="flex items-center gap-1.5 bg-slate-900/90 backdrop-blur-md rounded-xl p-1 border border-slate-700 shadow-lg pointer-events-auto">
+              {/* Tile Mode Switcher */}
               <button
                 type="button"
-                onClick={() => setShowTurnByTurn(!showTurnByTurn)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold border shadow-lg flex items-center gap-1.5 pointer-events-auto transition-all ${
-                  showTurnByTurn
-                    ? 'bg-blue-600 text-white border-blue-500 shadow-blue-600/30'
-                    : 'bg-white/95 text-slate-800 border-slate-200 hover:bg-slate-50'
-                }`}
+                onClick={() => switchTileLayer(mapMode === 'streets' ? 'satellite' : 'streets')}
+                className="px-2.5 py-1 rounded-lg text-[11px] font-black flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 transition-all cursor-pointer"
+                title={mapMode === 'streets' ? 'Switch to Google Satellite Hybrid' : 'Switch to Google Roadmap'}
               >
-                <Navigation className="w-3.5 h-3.5 text-blue-500" />
-                <span>{showTurnByTurn ? 'Hide Turns' : `Turns (${roadRouteResult.steps.length})`}</span>
+                <Layers className="w-3.5 h-3.5 text-blue-400" />
+                <span>{mapMode === 'streets' ? 'સેટેલાઇટ' : 'ગૂગલ મેપ'}</span>
               </button>
-            )}
+
+              {/* Locate Me */}
+              <button
+                type="button"
+                onClick={() => requestLocation(true)}
+                disabled={gpsLoading}
+                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-blue-400 hover:text-blue-300 transition-all cursor-pointer"
+                title="મારું GPS લોકેશન (Locate Me)"
+              >
+                <Compass className={`w-3.5 h-3.5 ${gpsLoading ? 'animate-spin' : ''}`} />
+              </button>
+
+              {/* Fit Route */}
+              <button
+                type="button"
+                onClick={handleFitRoute}
+                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-400 hover:text-emerald-300 transition-all cursor-pointer"
+                title="આખો રૂટ ફિટ કરો (Fit Route)"
+              >
+                <Navigation className="w-3.5 h-3.5" />
+              </button>
+
+              {/* Fullscreen / Maximize */}
+              <button
+                type="button"
+                onClick={handleToggleMaximize}
+                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-400 hover:text-amber-300 transition-all cursor-pointer"
+                title={isMaximized ? 'સામાન્ય કદ' : 'મોટો નકશો'}
+              >
+                {isMaximized ? <Minimize className="w-3.5 h-3.5" /> : <Maximize className="w-3.5 h-3.5" />}
+              </button>
+
+              {/* Turn-by-Turn Directions Button */}
+              {roadRouteResult && roadRouteResult.steps.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowTurnByTurn(!showTurnByTurn)}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all ${
+                    showTurnByTurn
+                      ? 'bg-blue-600 text-white border-blue-500 shadow-blue-600/30'
+                      : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+                  }`}
+                >
+                  <Navigation className="w-3 h-3 inline mr-1 text-blue-400" />
+                  <span>{showTurnByTurn ? 'Hide' : `Turns (${roadRouteResult.steps.length})`}</span>
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Calculating Loading Overlay */}
@@ -871,6 +1043,10 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
               const isDelivered = stop.deliveryStatus === 'Delivered';
               const p = stop.party;
               const directNavUrl = `https://www.google.com/maps/dir/?api=1&destination=${p.latitude},${p.longitude}`;
+              const phoneNumbers = (p.mobile_no || '')
+                .split(',')
+                .map((s) => s.trim())
+                .filter(Boolean);
 
               return (
                 <div
@@ -899,6 +1075,11 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
                           <h4 className="font-extrabold text-slate-900 text-sm truncate" title={p.party_name}>
                             {p.party_name}
                           </h4>
+                          {p.party_name_gu && (
+                            <span className="text-xs font-bold text-slate-500">
+                              ({p.party_name_gu})
+                            </span>
+                          )}
                           <span className="px-1.5 py-0.2 rounded text-[10px] font-mono font-bold bg-slate-100 text-slate-600">
                             {p.party_code}
                           </span>
@@ -906,7 +1087,41 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
 
                         <p className="text-xs text-slate-500 mt-0.5 truncate">{p.address || p.city}</p>
 
-                        <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-500 mt-1 flex-wrap">
+                        {/* Quick Contact Numbers (Call & WhatsApp) */}
+                        {phoneNumbers.length > 0 && (
+                          <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                            {phoneNumbers.map((phone, pIdx) => {
+                              const cleanPhone = phone.replace(/[^0-9]/g, '');
+                              const waPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
+                              return (
+                                <div
+                                  key={pIdx}
+                                  className="inline-flex items-center gap-1 bg-slate-100 hover:bg-slate-200 rounded-lg px-2 py-0.5 text-[11px] font-bold text-slate-700 transition-colors"
+                                >
+                                  <span className="font-mono">{phone}</span>
+                                  <a
+                                    href={`tel:${cleanPhone}`}
+                                    className="p-0.5 text-blue-600 hover:text-blue-800"
+                                    title={`Call ${phone}`}
+                                  >
+                                    <Phone className="w-3 h-3" />
+                                  </a>
+                                  <a
+                                    href={`https://wa.me/${waPhone}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="p-0.5 text-emerald-600 hover:text-emerald-800"
+                                    title={`WhatsApp ${phone}`}
+                                  >
+                                    <MessageCircle className="w-3 h-3" />
+                                  </a>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-500 mt-1.5 flex-wrap">
                           <span className="text-emerald-700 font-bold">
                             +{formatDistanceString(stop.distanceFromPreviousKm)}
                           </span>
@@ -929,7 +1144,7 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
 
                   {/* Actions Bar per Stop */}
                   <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       {/* 1-Tap Google Maps Navigation */}
                       <a
                         href={directNavUrl}
@@ -938,7 +1153,7 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
                         className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-shreeji-blue font-bold text-xs flex items-center gap-1 border border-blue-200 transition-colors"
                       >
                         <Navigation className="w-3 h-3 text-shreeji-blue" />
-                        <span>Navigate</span>
+                        <span>Google Go</span>
                       </a>
 
                       {/* Print Envelope Modal Trigger */}

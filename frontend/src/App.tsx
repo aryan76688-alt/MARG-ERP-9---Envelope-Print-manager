@@ -64,6 +64,8 @@ export const App: React.FC = () => {
   });
   const [selectedPartyForPrint, setSelectedPartyForPrint] = useState<Party | null>(null);
   const [reprintJobData, setReprintJobData] = useState<any | null>(null);
+  const [selectedPartyForRoute, setSelectedPartyForRoute] = useState<Party | null>(null);
+  const [selectedPartiesForRoute, setSelectedPartiesForRoute] = useState<Party[] | null>(null);
   const [openAddPartyModal, setOpenAddPartyModal] = useState<boolean>(false);
   const [emergencyCallerOpen, setEmergencyCallerOpen] = useState<boolean>(false);
   const { incomingCall, isReceivingCall, dismissCall } = useEmergencyReceiver();
@@ -102,6 +104,8 @@ export const App: React.FC = () => {
   };
 
   const navigateToTab = (tab: string, state?: any) => {
+    const resolvedTab = tab === 'routes' ? 'route-optimizer' : tab;
+
     if (tab === 'print' && state?.selectedParty) {
       setSelectedPartyForPrint(state.selectedParty);
       setReprintJobData(null);
@@ -128,16 +132,26 @@ export const App: React.FC = () => {
       });
     }
 
-    if (tab === 'parties' && state?.openAddModal) {
+    if (resolvedTab === 'route-optimizer') {
+      if (state?.selectedParties && state.selectedParties.length > 0) {
+        setSelectedPartiesForRoute(state.selectedParties);
+        setSelectedPartyForRoute(state.selectedParties[0] || null);
+      } else if (state?.selectedParty) {
+        setSelectedPartyForRoute(state.selectedParty);
+        setSelectedPartiesForRoute([state.selectedParty]);
+      }
+    }
+
+    if (resolvedTab === 'parties' && state?.openAddModal) {
       setOpenAddPartyModal(true);
     } else {
       setOpenAddPartyModal(false);
     }
 
-    if (tab !== currentTab) {
-      setHistoryStack((prev) => [...prev, tab]);
-      window.history.pushState({ tab }, '', '#' + tab);
-      setCurrentTab(tab);
+    if (resolvedTab !== currentTab) {
+      setHistoryStack((prev) => [...prev, resolvedTab]);
+      window.history.pushState({ tab: resolvedTab }, '', '#' + resolvedTab);
+      setCurrentTab(resolvedTab);
     }
   };
 
@@ -233,6 +247,8 @@ export const App: React.FC = () => {
             <RouteOptimizer
               onNavigate={navigateToTab}
               onOpenPrintModal={(party) => navigateToTab('print', { selectedParty: party })}
+              initialParty={selectedPartyForRoute}
+              initialParties={selectedPartiesForRoute}
             />
           )}
           {currentTab === 'map' && <AllPartiesMap onNavigate={navigateToTab} />}
@@ -269,6 +285,8 @@ export const App: React.FC = () => {
             <RouteOptimizer
               onNavigate={navigateToTab}
               onOpenPrintModal={(party) => navigateToTab('print', { selectedParty: party })}
+              initialParty={selectedPartyForRoute}
+              initialParties={selectedPartiesForRoute}
             />
           )}
           {currentTab === 'map' && <AllPartiesMap onNavigate={navigateToTab} />}

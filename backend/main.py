@@ -334,9 +334,12 @@ class PartyUpdate(PartyBase):
     pass
 
 class PartyGeofenceUpdateRequest(BaseModel):
-    latitude: float
-    longitude: float
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     radius_meters: Optional[int] = 75
+
+class BulkUnsetLocationRequest(BaseModel):
+    party_ids: List[int]
 
 class RouteUpdateItem(BaseModel):
     id: Optional[int] = None
@@ -1623,14 +1626,14 @@ def update_party(party_id: int, party_in: PartyUpdate, request: Request, db: Ses
 
     party.is_active = party_in.is_active
 
-    if party_in.latitude is not None:
-        party.latitude = party_in.latitude
-    if party_in.longitude is not None:
-        party.longitude = party_in.longitude
+    party.latitude = party_in.latitude
+    party.longitude = party_in.longitude
     if party_in.geofence_radius_meters is not None:
         party.geofence_radius_meters = party_in.geofence_radius_meters
     if party_in.latitude is not None and party_in.longitude is not None and not party.geofence_set_at:
         party.geofence_set_at = datetime.datetime.now(datetime.timezone.utc)
+    elif party_in.latitude is None or party_in.longitude is None:
+        party.geofence_set_at = None
 
     db.commit()
     db.refresh(party)
@@ -1653,7 +1656,7 @@ def update_party_geofence(party_id: int, req: PartyGeofenceUpdateRequest, db: Se
     party.longitude = req.longitude
     if req.radius_meters:
         party.geofence_radius_meters = req.radius_meters
-    party.geofence_set_at = datetime.datetime.now(datetime.timezone.utc)
+    party.geofence_set_at = datetime.datetime.now(datetime.timezone.utc) if (req.latitude is not None and req.longitude is not None) else None
     db.commit()
     db.refresh(party)
     cache_mgr.bump_version()
@@ -1665,6 +1668,46 @@ def update_party_geofence(party_id: int, req: PartyGeofenceUpdateRequest, db: Se
         "longitude": party.longitude,
         "geofence_radius_meters": party.geofence_radius_meters,
         "geofence_set_at": party.geofence_set_at.isoformat() if party.geofence_set_at else None
+    }
+
+@app.post("/api/parties/{party_id}/unset-location")
+@app.delete("/api/parties/{party_id}/geofence")
+def unset_party_location(party_id: int, db: Session = Depends(get_db)):
+    """Unsets/clears GPS coordinates for a single party."""
+    party = db.query(Party).filter(Party.id == party_id).first()
+    if not party:
+        raise HTTPException(status_code=404, detail="Party not found")
+    party.latitude = None
+    party.longitude = None
+    party.geofence_set_at = None
+    db.commit()
+    db.refresh(party)
+    cache_mgr.bump_version()
+    return {
+        "success": True,
+        "party_id": party.id,
+        "party_name": party.party_name,
+        "latitude": None,
+        "longitude": None,
+        "message": f"Successfully unset location for {party.party_name}"
+    }
+
+@app.post("/api/parties/bulk-unset-location")
+def bulk_unset_party_location(req: BulkUnsetLocationRequest, db: Session = Depends(get_db)):
+    """Bulk unsets/clears GPS coordinates for multiple selected parties."""
+    if not req.party_ids:
+        raise HTTPException(status_code=400, detail="No party IDs provided")
+    updated_count = db.query(Party).filter(Party.id.in_(req.party_ids)).update(
+        {Party.latitude: None, Party.longitude: None, Party.geofence_set_at: None},
+        synchronize_session=False
+    )
+    db.commit()
+    cache_mgr.bump_version()
+    return {
+        "success": True,
+        "updated_count": updated_count,
+        "party_ids": req.party_ids,
+        "message": f"Successfully unset location for {updated_count} selected parties."
     }
 
 @app.delete("/api/parties/{party_id}")

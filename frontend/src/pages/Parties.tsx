@@ -29,7 +29,9 @@ import {
   Calendar,
   ExternalLink,
   Mail,
-  Compass
+  Compass,
+  MapPinOff,
+  Route
 } from 'lucide-react';
 import { VoiceSearchInput } from '../components/VoiceSearchInput';
 import { Party } from '../types';
@@ -48,7 +50,9 @@ import {
   fetchTranslationStatus,
   printEnvelopePDF,
   sendGmailPartiesList,
-  getApiBase
+  getApiBase,
+  unsetPartyLocation,
+  bulkUnsetPartyLocations
 } from '../api/client';
 import { getPartiesOffline, ensureInitialPartiesLoaded } from '../offline/db';
 import { PartyModal } from '../components/PartyModal';
@@ -360,6 +364,33 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
       alert('Failed to delete all parties: ' + err.message);
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleBulkUnsetLocation = async () => {
+    if (selectedIds.length === 0) return;
+    if (!window.confirm(`Are you sure you want to unset/clear GPS location for ${selectedIds.length} selected parties?`)) {
+      return;
+    }
+    try {
+      await bulkUnsetPartyLocations(selectedIds);
+      setSelectedIds([]);
+      await loadParties();
+    } catch (err: any) {
+      alert('Failed to unset locations: ' + err.message);
+    }
+  };
+
+  const handleUnsetSinglePartyLocation = async (party: Party) => {
+    if (!party.id) return;
+    if (!window.confirm(`Are you sure you want to unset location for '${party.party_name}'?`)) {
+      return;
+    }
+    try {
+      await unsetPartyLocation(party.id);
+      await loadParties();
+    } catch (err: any) {
+      alert('Failed to unset location: ' + err.message);
     }
   };
 
@@ -705,6 +736,29 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
           <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={() => {
+                const selected = parties.filter((p) => selectedIds.includes(p.id!));
+                if (selected.length > 0) {
+                  onNavigate('routes', { selectedParties: selected });
+                }
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs shadow-sm transition-colors cursor-pointer"
+              title="View real road directions in Route Optimizer for selected parties"
+            >
+              <Route className="w-3.5 h-3.5" />
+              <span>Route Optimizer ({selectedIds.length})</span>
+            </button>
+
+            <button
+              onClick={handleBulkUnsetLocation}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shadow-sm transition-colors cursor-pointer"
+              title="Clear GPS coordinates for all selected parties"
+            >
+              <MapPinOff className="w-3.5 h-3.5" />
+              <span>Unset Location ({selectedIds.length})</span>
+            </button>
+
+            <button
+              onClick={() => {
                 setBulkRouteName('');
                 setBulkRouteModalOpen(true);
               }}
@@ -926,7 +980,16 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
                               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
                               <span className="font-bold text-emerald-700 truncate">Pinned ({p.geofence_radius_meters || 75}m)</span>
                             </div>
-                            <div className="flex items-center gap-1 shrink-0">
+                            <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end">
+                              <button
+                                type="button"
+                                onClick={() => onNavigate('routes', { selectedParty: p })}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-teal-600 hover:bg-teal-700 text-white font-extrabold text-[10px] shadow-sm transition-all"
+                                title="View Real Road Route in Route Optimizer"
+                              >
+                                <Route className="w-2.5 h-2.5" />
+                                <span>Route</span>
+                              </button>
                               <a
                                 href={`https://www.google.com/maps/dir/?api=1&destination=${p.latitude},${p.longitude}`}
                                 target="_blank"
@@ -935,7 +998,7 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
                                 title="Go Directly in Google Maps"
                               >
                                 <ExternalLink className="w-2.5 h-2.5" />
-                                <span>Go Directly</span>
+                                <span>Go</span>
                               </a>
                               <button
                                 type="button"
@@ -944,6 +1007,14 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
                                 title="Adjust Pin on Map"
                               >
                                 Pin
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleUnsetSinglePartyLocation(p)}
+                                className="px-1.5 py-0.5 rounded bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-bold text-[10px] transition-all"
+                                title="Unset / Clear GPS Location"
+                              >
+                                <MapPinOff className="w-2.5 h-2.5" />
                               </button>
                             </div>
                           </>
@@ -1152,11 +1223,20 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
                             {/* Map Location Actions */}
                             {p.latitude && p.longitude ? (
                               <div className="inline-flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => onNavigate('routes', { selectedParty: p })}
+                                  className="inline-flex items-center justify-center h-8 px-2 rounded-lg bg-teal-50 hover:bg-teal-600 text-teal-700 hover:text-white font-bold text-xs transition-colors cursor-pointer"
+                                  title="View Real Road Route in Route Optimizer"
+                                >
+                                  <Route className="w-3.5 h-3.5 mr-1" />
+                                  <span>Route</span>
+                                </button>
                                 <a
                                   href={`https://www.google.com/maps/dir/?api=1&destination=${p.latitude},${p.longitude}`}
                                   target="_blank"
                                   rel="noreferrer"
-                                  className="inline-flex items-center justify-center h-8 px-2.5 rounded-lg bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white font-bold text-xs transition-colors"
+                                  className="inline-flex items-center justify-center h-8 px-2 rounded-lg bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white font-bold text-xs transition-colors"
                                   title="Go Directly in Google Maps"
                                 >
                                   <ExternalLink className="w-3 h-3 mr-1" />
@@ -1165,10 +1245,18 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
                                 <button
                                   type="button"
                                   onClick={() => setMapPickerParty(p)}
-                                  className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-slate-100 transition-colors"
+                                  className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-colors"
                                   title="Adjust Pin on Map"
                                 >
                                   <MapPin className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleUnsetSinglePartyLocation(p)}
+                                  className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                                  title="Unset / Clear GPS Location"
+                                >
+                                  <MapPinOff className="w-3.5 h-3.5" />
                                 </button>
                               </div>
                             ) : (
