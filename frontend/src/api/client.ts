@@ -1656,4 +1656,265 @@ export async function uploadItemsExcel(file: File): Promise<any> {
   return res.json();
 }
 
+// ==========================================
+// ANTIGRAVITY 2.0 FLEET & TELEMETRY API
+// ==========================================
+
+export async function fetchFleetVehicles(): Promise<{ vehicles: any[] }> {
+  const res = await fetchApi(`${API_BASE}/fleet/vehicles`);
+  if (!res.ok) throw new Error('Failed to fetch fleet vehicles');
+  return res.json();
+}
+
+export async function createFleetVehicle(payload: {
+  vehicle_number: string;
+  model: string;
+  vehicle_type?: string;
+  fuel_type?: string;
+  fuel_capacity_liters?: number;
+  odometer_km?: number;
+  driver_id?: number;
+  status?: string;
+}): Promise<any> {
+  const res = await fetchApi(`${API_BASE}/fleet/vehicles`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to create vehicle' }));
+    throw new Error(err.detail || 'Failed to create vehicle');
+  }
+  return res.json();
+}
+
+export async function updateFleetVehicle(vehicleId: number, payload: any): Promise<any> {
+  const res = await fetchApi(`${API_BASE}/fleet/vehicles/${vehicleId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to update vehicle' }));
+    throw new Error(err.detail || 'Failed to update vehicle');
+  }
+  return res.json();
+}
+
+export async function deleteFleetVehicle(vehicleId: number): Promise<any> {
+  const res = await fetchApi(`${API_BASE}/fleet/vehicles/${vehicleId}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) throw new Error('Failed to delete vehicle');
+  return res.json();
+}
+
+export async function assignFleetVehicleDriver(vehicleId: number, driverId: number | null, notes?: string): Promise<any> {
+  const res = await fetchApi(`${API_BASE}/fleet/vehicles/${vehicleId}/assign`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ driver_id: driverId, notes }),
+  });
+  if (!res.ok) throw new Error('Failed to assign driver');
+  return res.json();
+}
+
+export async function fetchActiveFleetTrips(): Promise<{ trips: any[] }> {
+  const res = await fetchApi(`${API_BASE}/fleet/trips/active`);
+  if (!res.ok) throw new Error('Failed to fetch active fleet trips');
+  return res.json();
+}
+
+export async function fetchFleetTrips(params?: {
+  date_filter?: string;
+  driver_id?: number;
+  vehicle_id?: number;
+  status_filter?: string;
+  limit?: number;
+}): Promise<{ trips: any[] }> {
+  const p = new URLSearchParams();
+  if (params?.date_filter) p.append('date_filter', params.date_filter);
+  if (params?.driver_id) p.append('driver_id', String(params.driver_id));
+  if (params?.vehicle_id) p.append('vehicle_id', String(params.vehicle_id));
+  if (params?.status_filter) p.append('status_filter', params.status_filter);
+  if (params?.limit) p.append('limit', String(params.limit));
+  const qs = p.toString();
+  const res = await fetchApi(`${API_BASE}/fleet/trips${qs ? `?${qs}` : ''}`);
+  if (!res.ok) throw new Error('Failed to list fleet trips');
+  return res.json();
+}
+
+export async function fetchUsers(): Promise<any[]> {
+  const res = await fetchApi(`${API_BASE}/users`);
+  if (!res.ok) throw new Error('Failed to fetch users');
+  return res.json();
+}
+
+export async function startFleetTrip(payload: {
+  vehicle_id?: number;
+  route_name?: string;
+  start_odometer_km?: number;
+  party_ids: number[];
+  start_latitude?: number;
+  start_longitude?: number;
+  notes?: string;
+}): Promise<any> {
+  const res = await fetchApi(`${API_BASE}/fleet/trips/start`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to start trip' }));
+    throw new Error(err.detail || 'Failed to start trip');
+  }
+  return res.json();
+}
+
+export async function endFleetTrip(tripId: number, payload: {
+  end_odometer_km?: number;
+  end_latitude?: number;
+  end_longitude?: number;
+  notes?: string;
+}): Promise<any> {
+  const res = await fetchApi(`${API_BASE}/fleet/trips/${tripId}/end`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to end trip' }));
+    throw new Error(err.detail || 'Failed to end trip');
+  }
+  return res.json();
+}
+
+export async function updateTripStopStatus(tripId: number, payload: {
+  stop_id: number;
+  status: string;
+  cash_collected?: number;
+  pod_signature?: string | null;
+  pod_photo?: string | null;
+  failure_reason?: string | null;
+  notes?: string | null;
+}): Promise<any> {
+  const res = await fetchApi(`${API_BASE}/fleet/trips/${tripId}/stop-status`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error('Failed to update stop status');
+  return res.json();
+}
+
+export async function fetchTripReplay(tripId: number): Promise<any> {
+  const res = await fetchApi(`${API_BASE}/fleet/trips/${tripId}/replay`);
+  if (!res.ok) throw new Error('Failed to fetch trip replay');
+  return res.json();
+}
+
+export async function ingestFleetTelemetry(payload: {
+  latitude: number;
+  longitude: number;
+  accuracy?: number;
+  speed?: number;
+  speed_unit?: string;
+  speed_type?: string;
+  heading?: number;
+  battery?: number;
+  trip_id?: number;
+  vehicle_id?: number;
+  driver_id?: number;
+  source?: string;
+}): Promise<any> {
+  const res = await fetchApi(`${API_BASE}/fleet/telemetry/ingest`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error('Failed to ingest telemetry');
+  return res.json();
+}
+
+export async function fetchFleetAlerts(unresolvedOnly: boolean = true): Promise<{ alerts: any[] }> {
+  const res = await fetchApi(`${API_BASE}/fleet/alerts?unresolved_only=${unresolvedOnly}`);
+  if (!res.ok) throw new Error('Failed to fetch fleet alerts');
+  return res.json();
+}
+
+export async function resolveFleetAlert(alertId: number, notes?: string): Promise<any> {
+  const res = await fetchApi(`${API_BASE}/fleet/alerts/${alertId}/resolve`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ notes }),
+  });
+  if (!res.ok) throw new Error('Failed to resolve alert');
+  return res.json();
+}
+
+export async function fetchFuelRecords(vehicleId?: number): Promise<{ records: any[] }> {
+  const qs = vehicleId ? `?vehicle_id=${vehicleId}` : '';
+  const res = await fetchApi(`${API_BASE}/fleet/fuel${qs}`);
+  if (!res.ok) throw new Error('Failed to fetch fuel records');
+  return res.json();
+}
+
+export async function addFuelRecord(payload: {
+  vehicle_id: number;
+  fuel_liters: number;
+  cost_total: number;
+  odometer_km: number;
+  fuel_station?: string;
+  bill_number?: string;
+  receipt_photo?: string;
+}): Promise<any> {
+  const res = await fetchApi(`${API_BASE}/fleet/fuel`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to add fuel record' }));
+    throw new Error(err.detail || 'Failed to add fuel record');
+  }
+  return res.json();
+}
+
+export async function fetchMaintenanceRecords(vehicleId?: number): Promise<{ records: any[] }> {
+  const qs = vehicleId ? `?vehicle_id=${vehicleId}` : '';
+  const res = await fetchApi(`${API_BASE}/fleet/maintenance${qs}`);
+  if (!res.ok) throw new Error('Failed to fetch maintenance records');
+  return res.json();
+}
+
+export async function addMaintenanceRecord(payload: {
+  vehicle_id: number;
+  service_type: string;
+  odometer_km: number;
+  cost?: number;
+  service_center?: string;
+  service_date?: string;
+  next_due_km?: number;
+  next_due_date?: string;
+  notes?: string;
+}): Promise<any> {
+  const res = await fetchApi(`${API_BASE}/fleet/maintenance`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to add maintenance record' }));
+    throw new Error(err.detail || 'Failed to add maintenance record');
+  }
+  return res.json();
+}
+
+export async function fetchFleetSummaryKPI(): Promise<any> {
+  const res = await fetchApi(`${API_BASE}/fleet/reports/summary`);
+  if (!res.ok) throw new Error('Failed to fetch fleet KPI summary');
+  return res.json();
+}
+
+
 

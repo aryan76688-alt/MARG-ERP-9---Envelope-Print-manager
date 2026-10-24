@@ -135,6 +135,42 @@ class MainActivity : AppCompatActivity() {
         }
 
         @JavascriptInterface
+        fun setActiveTrip(tripId: Int, vehicleId: Int) {
+            try {
+                val prefs = getSharedPreferences("shreeji_prefs", Context.MODE_PRIVATE)
+                prefs.edit()
+                    .putInt("active_trip_id", tripId)
+                    .putInt("active_vehicle_id", vehicleId)
+                    .apply()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        @JavascriptInterface
+        fun clearActiveTrip() {
+            try {
+                val prefs = getSharedPreferences("shreeji_prefs", Context.MODE_PRIVATE)
+                prefs.edit()
+                    .remove("active_trip_id")
+                    .remove("active_vehicle_id")
+                    .apply()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        @JavascriptInterface
+        fun getBatteryLevel(): Int {
+            return try {
+                val bm = getSystemService(Context.BATTERY_SERVICE) as? android.os.BatteryManager
+                bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: 100
+            } catch (e: Exception) {
+                100
+            }
+        }
+
+        @JavascriptInterface
         fun saveDatabaseToStorage(dbBase64: String, fileName: String): Boolean {
             return try {
                 val decoded = android.util.Base64.decode(dbBase64, android.util.Base64.DEFAULT)

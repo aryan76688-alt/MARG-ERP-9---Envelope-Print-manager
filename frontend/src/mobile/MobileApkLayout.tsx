@@ -140,6 +140,7 @@ export const MobileApkLayout: React.FC<MobileApkLayoutProps> = ({
       { id: 'users', label: 'User Management', subLabel: 'Access, Roles & App Users', icon: Users }
     ] : []),
     { id: 'nearby', label: 'Nearest Parties', subLabel: 'GPS Distance & Chemist Radar', icon: Compass },
+    { id: 'fleet', label: 'Fleet & Tracking', subLabel: 'Live GPS, Speed & Telemetry', icon: Truck },
     { id: 'route-optimizer', label: 'Route Optimizer', subLabel: 'TSP Shortest Delivery Path', icon: Route },
     { id: 'map', label: 'All Parties Map', subLabel: 'GPS Geofences & Chemist Radar', icon: MapPin },
     { id: 'dispatch', label: 'Dispatch Summary', subLabel: 'Courier Manifests & Sheets', icon: Package },

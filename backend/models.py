@@ -272,3 +272,191 @@ class Item(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
+
+# ==========================================
+# ANTIGRAVITY 2.0 FLEET & LIVE TELEMETRY MODELS
+# ==========================================
+
+class Vehicle(Base):
+    __tablename__ = "vehicles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    vehicle_number = Column(String(50), unique=True, nullable=False, index=True) # e.g. GJ-01-AB-1234
+    model = Column(String(100), nullable=False, default="Delivery Van") # e.g. Tata Ace, Hero Splendor
+    vehicle_type = Column(String(50), default="truck") # bike, van, truck, auto
+    driver_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    driver_name = Column(String(100), nullable=True)
+    fuel_type = Column(String(30), default="Diesel") # Petrol, Diesel, CNG, Electric
+    fuel_capacity_liters = Column(Float, default=40.0)
+    odometer_km = Column(Float, default=0.0)
+    status = Column(String(30), default="active", index=True) # active, idle, en_route, maintenance, inactive
+    
+    # Real-time Telemetry Snapshot
+    last_latitude = Column(Float, nullable=True)
+    last_longitude = Column(Float, nullable=True)
+    last_speed_kmh = Column(Float, default=0.0)
+    last_speed_type = Column(String(20), default="measured") # measured or estimated
+    last_heading = Column(Float, nullable=True)
+    last_battery_pct = Column(Float, nullable=True)
+    last_telemetry_at = Column(DateTime, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+
+    # Relationships
+    driver = relationship("User", foreign_keys=[driver_id])
+    trips = relationship("Trip", back_populates="vehicle", cascade="all, delete-orphan")
+    fuel_records = relationship("FuelRecord", back_populates="vehicle", cascade="all, delete-orphan")
+    maintenance_records = relationship("VehicleMaintenance", back_populates="vehicle", cascade="all, delete-orphan")
+
+
+class VehicleAssignment(Base):
+    __tablename__ = "vehicle_assignments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    vehicle_id = Column(Integer, ForeignKey("vehicles.id", ondelete="CASCADE"), nullable=False, index=True)
+    driver_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    driver_name = Column(String(100), nullable=True)
+    assigned_by = Column(String(100), default="Admin")
+    assigned_at = Column(DateTime, default=datetime.datetime.utcnow)
+    unassigned_at = Column(DateTime, nullable=True)
+    notes = Column(Text, nullable=True)
+
+
+class Trip(Base):
+    __tablename__ = "trips"
+
+    id = Column(Integer, primary_key=True, index=True)
+    trip_number = Column(String(50), unique=True, nullable=False, index=True) # e.g. TRIP-2026-0001
+    vehicle_id = Column(Integer, ForeignKey("vehicles.id", ondelete="SET NULL"), nullable=True, index=True)
+    vehicle_number = Column(String(50), nullable=True)
+    driver_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    driver_name = Column(String(100), nullable=True)
+    route_name = Column(String(100), nullable=True)
+    status = Column(String(30), default="active", index=True) # active, completed, cancelled
+    
+    start_odometer_km = Column(Float, default=0.0)
+    end_odometer_km = Column(Float, nullable=True)
+    total_distance_km = Column(Float, default=0.0)
+    
+    start_latitude = Column(Float, nullable=True)
+    start_longitude = Column(Float, nullable=True)
+    end_latitude = Column(Float, nullable=True)
+    end_longitude = Column(Float, nullable=True)
+    
+    started_at = Column(DateTime, default=datetime.datetime.utcnow, index=True)
+    completed_at = Column(DateTime, nullable=True)
+    notes = Column(Text, nullable=True)
+
+    # Relationships
+    vehicle = relationship("Vehicle", back_populates="trips")
+    stops = relationship("TripStop", back_populates="trip", cascade="all, delete-orphan", order_by="TripStop.sequence_number")
+    telemetry = relationship("GPSLocationHistory", back_populates="trip", cascade="all, delete-orphan")
+
+
+class TripStop(Base):
+    __tablename__ = "trip_stops"
+
+    id = Column(Integer, primary_key=True, index=True)
+    trip_id = Column(Integer, ForeignKey("trips.id", ondelete="CASCADE"), nullable=False, index=True)
+    party_id = Column(Integer, ForeignKey("parties.id", ondelete="SET NULL"), nullable=True)
+    party_name = Column(String(200), nullable=False)
+    party_code = Column(String(50), nullable=True)
+    address = Column(Text, nullable=True)
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
+    sequence_number = Column(Integer, default=1)
+    
+    status = Column(String(30), default="pending", index=True) # pending, arrived, delivered, failed, skipped
+    eta = Column(DateTime, nullable=True)
+    arrival_time = Column(DateTime, nullable=True)
+    departure_time = Column(DateTime, nullable=True)
+    cash_collected = Column(Float, default=0.0)
+    pod_signature = Column(Text, nullable=True)
+    pod_photo = Column(Text, nullable=True)
+    failure_reason = Column(Text, nullable=True)
+    notes = Column(Text, nullable=True)
+
+    # Relationship
+    trip = relationship("Trip", back_populates="stops")
+
+
+class GPSLocationHistory(Base):
+    __tablename__ = "gps_location_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+    driver_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    driver_name = Column(String(100), nullable=True)
+    vehicle_id = Column(Integer, ForeignKey("vehicles.id", ondelete="SET NULL"), nullable=True, index=True)
+    trip_id = Column(Integer, ForeignKey("trips.id", ondelete="SET NULL"), nullable=True, index=True)
+    
+    latitude = Column(Float, nullable=False)
+    longitude = Column(Float, nullable=False)
+    accuracy = Column(Float, nullable=True)
+    speed_kmh = Column(Float, default=0.0)
+    speed_type = Column(String(20), default="measured") # measured (GPS hardware) or estimated (distance/time)
+    heading = Column(Float, nullable=True)
+    battery_pct = Column(Float, nullable=True)
+    source = Column(String(50), default="android_gps") # android_gps, web_geolocation, background_service
+    timestamp = Column(DateTime, default=datetime.datetime.utcnow, index=True)
+
+    # Relationship
+    trip = relationship("Trip", back_populates="telemetry")
+
+
+class FleetAlert(Base):
+    __tablename__ = "fleet_alerts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    alert_type = Column(String(50), nullable=False, index=True) # overspeed, idle, route_deviation, low_battery, panic
+    severity = Column(String(20), default="warning") # info, warning, critical
+    vehicle_id = Column(Integer, ForeignKey("vehicles.id", ondelete="SET NULL"), nullable=True)
+    vehicle_number = Column(String(50), nullable=True)
+    driver_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    driver_name = Column(String(100), nullable=True)
+    trip_id = Column(Integer, ForeignKey("trips.id", ondelete="SET NULL"), nullable=True)
+    message = Column(Text, nullable=False)
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
+    speed_kmh = Column(Float, nullable=True)
+    resolved = Column(Boolean, default=False, index=True)
+    resolved_by = Column(String(100), nullable=True)
+    resolved_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow, index=True)
+
+
+class FuelRecord(Base):
+    __tablename__ = "fuel_records"
+
+    id = Column(Integer, primary_key=True, index=True)
+    vehicle_id = Column(Integer, ForeignKey("vehicles.id", ondelete="CASCADE"), nullable=False, index=True)
+    driver_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    driver_name = Column(String(100), nullable=True)
+    fuel_liters = Column(Float, nullable=False)
+    cost_total = Column(Float, nullable=False)
+    odometer_km = Column(Float, nullable=False)
+    fuel_station = Column(String(150), nullable=True)
+    bill_number = Column(String(100), nullable=True)
+    receipt_photo = Column(Text, nullable=True)
+    logged_at = Column(DateTime, default=datetime.datetime.utcnow, index=True)
+
+    vehicle = relationship("Vehicle", back_populates="fuel_records")
+
+
+class VehicleMaintenance(Base):
+    __tablename__ = "vehicle_maintenance"
+
+    id = Column(Integer, primary_key=True, index=True)
+    vehicle_id = Column(Integer, ForeignKey("vehicles.id", ondelete="CASCADE"), nullable=False, index=True)
+    service_type = Column(String(100), nullable=False) # Oil Change, Brake Inspection, Tire Rotation, General Service
+    odometer_km = Column(Float, nullable=False)
+    cost = Column(Float, default=0.0)
+    service_center = Column(String(150), nullable=True)
+    service_date = Column(DateTime, default=datetime.datetime.utcnow)
+    next_due_km = Column(Float, nullable=True)
+    next_due_date = Column(DateTime, nullable=True)
+    notes = Column(Text, nullable=True)
+
+    vehicle = relationship("Vehicle", back_populates="maintenance_records")
+
+

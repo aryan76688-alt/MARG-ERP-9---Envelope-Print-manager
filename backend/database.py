@@ -2,7 +2,11 @@ import os
 import datetime
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import sessionmaker, Session
-from models import Base, Party, SenderSettings, AppSettings, PrintJob, PrintCase, User, Item
+from models import (
+    Base, Party, SenderSettings, AppSettings, PrintJob, PrintCase, User, Item,
+    Vehicle, VehicleAssignment, Trip, TripStop, GPSLocationHistory, FleetAlert,
+    FuelRecord, VehicleMaintenance
+)
 import barcode_generator
 
 RAW_DATABASE_URL = os.environ.get("DATABASE_URL")
@@ -49,6 +53,9 @@ def get_db_system_info():
         parties_count = db.query(Party).count()
         jobs_count = db.query(PrintJob).count()
         users_count = db.query(User).count()
+        vehicles_count = db.query(Vehicle).count()
+        active_trips_count = db.query(Trip).filter(Trip.status == "active").count()
+        alerts_count = db.query(FleetAlert).filter(FleetAlert.resolved == False).count()
         return {
             "type": "PostgreSQL" if not is_sqlite else "SQLite",
             "is_postgres": not is_sqlite,
@@ -56,6 +63,9 @@ def get_db_system_info():
             "parties_count": parties_count,
             "jobs_count": jobs_count,
             "users_count": users_count,
+            "vehicles_count": vehicles_count,
+            "active_trips_count": active_trips_count,
+            "alerts_count": alerts_count,
         }
     except Exception as e:
         return {
@@ -191,6 +201,13 @@ def init_db():
             ("idx_print_jobs_created_at", "print_jobs", ["created_at"]),
             ("idx_print_jobs_status", "print_jobs", ["status"]),
             ("idx_print_jobs_party_snap", "print_jobs", ["party_name_snap"]),
+            ("idx_trips_status", "trips", ["status"]),
+            ("idx_trips_driver", "trips", ["driver_id"]),
+            ("idx_trip_stops_trip", "trip_stops", ["trip_id"]),
+            ("idx_trip_stops_status", "trip_stops", ["status"]),
+            ("idx_gps_history_trip", "gps_location_history", ["trip_id"]),
+            ("idx_gps_history_driver_time", "gps_location_history", ["driver_id", "timestamp"]),
+            ("idx_fleet_alerts_resolved", "fleet_alerts", ["resolved"]),
         ]
         with engine.begin() as conn:
             for idx_name, tbl_name, cols in indexes_to_ensure:
@@ -681,6 +698,44 @@ def init_db():
                     wb.close()
                 except Exception as ex:
                     print(f"[DB] Stock items auto-seed notice: {ex}")
+
+        # Seed initial fleet vehicles if none exist
+        if db.query(Vehicle).count() == 0:
+            default_vehicles = [
+                Vehicle(
+                    vehicle_number="GJ-01-AX-9924",
+                    model="Tata Ace Gold",
+                    vehicle_type="van",
+                    fuel_type="Diesel",
+                    fuel_capacity_liters=30.0,
+                    odometer_km=14250.0,
+                    status="active",
+                    driver_name="Ramesh Patel"
+                ),
+                Vehicle(
+                    vehicle_number="GJ-18-BQ-4512",
+                    model="Mahindra Bolero Maxi Truck",
+                    vehicle_type="truck",
+                    fuel_type="Diesel",
+                    fuel_capacity_liters=45.0,
+                    odometer_km=28400.0,
+                    status="active",
+                    driver_name="Suresh Kumar"
+                ),
+                Vehicle(
+                    vehicle_number="GJ-27-CR-3388",
+                    model="Hero Super Splendor 125",
+                    vehicle_type="bike",
+                    fuel_type="Petrol",
+                    fuel_capacity_liters=12.0,
+                    odometer_km=8900.0,
+                    status="active",
+                    driver_name="Mahesh Varma"
+                )
+            ]
+            db.add_all(default_vehicles)
+            db.commit()
+            print("[DB] Initialized default fleet vehicles successfully!")
 
         db.commit()
     finally:

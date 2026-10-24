@@ -16,10 +16,25 @@ import {
   Navigation,
   ShieldCheck,
   Compass,
-  User
+  User,
+  Gauge,
+  CheckSquare,
+  IndianRupee,
+  Play,
+  Square,
+  Key
 } from 'lucide-react';
-import { DriverStop, PODSubmission } from '../types';
-import { fetchDriverJobs, recordPOD, fetchDriverList, updatePartyGeofence } from '../api/client';
+import { DriverStop, PODSubmission, FleetVehicle, FleetTrip } from '../types';
+import { 
+  fetchDriverJobs, 
+  recordPOD, 
+  fetchDriverList, 
+  updatePartyGeofence,
+  fetchFleetVehicles,
+  fetchActiveFleetTrips,
+  startFleetTrip,
+  endFleetTrip
+} from '../api/client';
 import { queueOfflinePOD } from '../offline/db';
 import { useNetworkSync } from '../offline/syncManager';
 import { generateWhatsAppDispatchUrl } from '../utils/whatsapp';
@@ -65,6 +80,19 @@ export const DriverMode: React.FC = () => {
   const [submittingPOD, setSubmittingPOD] = useState<boolean>(false);
   const [podSuccessMsg, setPodSuccessMsg] = useState<string | null>(null);
 
+  // Fleet & Active Trip State
+  const [vehicles, setVehicles] = useState<FleetVehicle[]>([]);
+  const [selectedVehicleId, setSelectedVehicleId] = useState<number | null>(null);
+  const [activeTrip, setActiveTrip] = useState<FleetTrip | null>(null);
+  const [startTripModalOpen, setStartTripModalOpen] = useState<boolean>(false);
+  const [endTripModalOpen, setEndTripModalOpen] = useState<boolean>(false);
+  const [startOdoInput, setStartOdoInput] = useState<string>('');
+  const [endOdoInput, setEndOdoInput] = useState<string>('');
+  const [tripRouteInput, setTripRouteInput] = useState<string>('Daily Medicine Route');
+  const [cashCollectedInput, setCashCollectedInput] = useState<string>('');
+  const [currentSpeedKmh, setCurrentSpeedKmh] = useState<number>(0);
+  const [tripSubmitting, setTripSubmitting] = useState<boolean>(false);
+
   // Direct Mobile Camera Input Ref
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -82,6 +110,8 @@ export const DriverMode: React.FC = () => {
         lng: pos.coords.longitude,
         accuracy: Math.round(pos.coords.accuracy)
       });
+      const spd = pos.coords.speed && pos.coords.speed > 0 ? Math.round(pos.coords.speed * 3.6) : 0;
+      setCurrentSpeedKmh(spd);
       setGpsLoading(false);
       setGpsError(null);
     };
@@ -169,12 +199,108 @@ export const DriverMode: React.FC = () => {
     }
   };
 
-  // Load available drivers
+  // Load available drivers and fleet vehicles
+  const loadFleetData = async () => {
+    try {
+      const vRes = await fetchFleetVehicles();
+      setVehicles(vRes.vehicles || []);
+      if (vRes.vehicles && vRes.vehicles.length > 0 && !selectedVehicleId) {
+        setSelectedVehicleId(vRes.vehicles[0].id);
+      }
+
+      const tRes = await fetchActiveFleetTrips();
+      const myTrip = (tRes.trips || []).find((t: any) => 
+        t.driver_name === currentUserName || t.driver_id === currentUser?.id
+      );
+      if (myTrip) {
+        setActiveTrip(myTrip);
+        if (myTrip.vehicle_id) setSelectedVehicleId(myTrip.vehicle_id);
+        // Sync with Android Bridge if running in APK
+        if ((window as any).AndroidBridge?.setActiveTrip && myTrip.vehicle_id) {
+          (window as any).AndroidBridge.setActiveTrip(myTrip.id, myTrip.vehicle_id);
+        }
+      } else {
+        setActiveTrip(null);
+      }
+    } catch (err) {
+      console.warn('Failed to load fleet data:', err);
+    }
+  };
+
   useEffect(() => {
     fetchDriverList()
       .then(res => setDriversList(res.drivers || []))
       .catch(() => {});
+    loadFleetData();
   }, []);
+
+  // Start Trip Handler
+  const handleStartTrip = async () => {
+    if (!selectedVehicleId) {
+      alert('Please select a vehicle first.');
+      return;
+    }
+    const veh = vehicles.find(v => v.id === selectedVehicleId);
+    const startOdo = parseFloat(startOdoInput) || (veh?.odometer_km || 0);
+    const partyIds = stops.map(s => s.party_id).filter((id): id is number => typeof id === 'number');
+
+    setTripSubmitting(true);
+    try {
+      const res = await startFleetTrip({
+        vehicle_id: selectedVehicleId,
+        route_name: tripRouteInput.trim() || 'Daily Route',
+        start_odometer_km: startOdo,
+        party_ids: partyIds,
+        start_latitude: driverLocation?.lat,
+        start_longitude: driverLocation?.lng,
+        notes: `Started by ${currentUserName}`
+      });
+
+      if ((window as any).AndroidBridge?.setActiveTrip) {
+        (window as any).AndroidBridge.setActiveTrip(res.trip_id, selectedVehicleId);
+      }
+
+      setStartTripModalOpen(false);
+      await loadFleetData();
+    } catch (err: any) {
+      alert(err.message || 'Failed to start trip');
+    } finally {
+      setTripSubmitting(false);
+    }
+  };
+
+  // End Trip Handler
+  const handleEndTrip = async () => {
+    if (!activeTrip) return;
+    const endOdo = parseFloat(endOdoInput);
+    if (!endOdo || endOdo < activeTrip.start_odometer_km) {
+      alert(`Final odometer must be at least ${activeTrip.start_odometer_km} km.`);
+      return;
+    }
+
+    setTripSubmitting(true);
+    try {
+      await endFleetTrip(activeTrip.id, {
+        end_odometer_km: endOdo,
+        end_latitude: driverLocation?.lat,
+        end_longitude: driverLocation?.lng,
+        notes: `Trip completed by ${currentUserName}`
+      });
+
+      if ((window as any).AndroidBridge?.clearActiveTrip) {
+        (window as any).AndroidBridge.clearActiveTrip();
+      }
+
+      setEndTripModalOpen(false);
+      setActiveTrip(null);
+      setEndOdoInput('');
+      await loadFleetData();
+    } catch (err: any) {
+      alert(err.message || 'Failed to complete trip');
+    } finally {
+      setTripSubmitting(false);
+    }
+  };
 
   // Fetch stops
   const loadStops = async () => {
@@ -399,6 +525,83 @@ export const DriverMode: React.FC = () => {
               <CheckCircle className="w-3.5 h-3.5" /> Delivered
             </div>
             <div className="text-2xl md:text-3xl font-extrabold text-emerald-900 mt-1">{totalDelivered}</div>
+          </div>
+        </div>
+
+        {/* Fleet Vehicle & Active Trip Dispatch Banner */}
+        <div className="mt-5 p-4 rounded-xl border bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white shadow-md">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-600/30 border border-blue-400/30 flex items-center justify-center text-blue-300">
+                <Truck className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-mono font-bold text-blue-400 uppercase tracking-wider">Fleet Vehicle Dispatch</span>
+                  {activeTrip ? (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                      Trip Active
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-slate-700 text-slate-300">
+                      No Active Trip
+                    </span>
+                  )}
+                </div>
+                <div className="text-sm font-extrabold text-white mt-0.5 flex items-center gap-2">
+                  <span>{activeTrip ? `${activeTrip.trip_number} • ${activeTrip.vehicle_number || 'Van'}` : 'Select Vehicle to Begin Dispatch'}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+              {/* Live GPS Speed Badge */}
+              <div className="bg-slate-950/70 border border-slate-700 px-3 py-1.5 rounded-xl flex items-center gap-2 text-xs font-mono">
+                <Gauge className="w-4 h-4 text-emerald-400" />
+                <span className="text-slate-300">Speed:</span>
+                <span className="font-bold text-emerald-400 text-sm">{currentSpeedKmh} km/h</span>
+              </div>
+
+              {activeTrip ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEndOdoInput(String(activeTrip.start_odometer_km || 0));
+                    setEndTripModalOpen(true);
+                  }}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-extrabold flex items-center gap-1.5 shadow-md transition-all active:scale-95"
+                >
+                  <Square className="w-3.5 h-3.5 fill-current" /> End Trip (સમાપ્ત)
+                </button>
+              ) : (
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <select
+                    value={selectedVehicleId || ''}
+                    onChange={e => setSelectedVehicleId(Number(e.target.value))}
+                    className="bg-slate-950 border border-slate-700 text-white text-xs rounded-xl px-3 py-2 font-medium focus:ring-2 focus:ring-blue-500"
+                  >
+                    {vehicles.map(v => (
+                      <option key={v.id} value={v.id}>
+                        {v.vehicle_number} ({v.model})
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const v = vehicles.find(veh => veh.id === selectedVehicleId);
+                      setStartOdoInput(String(v?.odometer_km || 0));
+                      setStartTripModalOpen(true);
+                    }}
+                    disabled={!selectedVehicleId}
+                    className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-extrabold flex items-center gap-1.5 shadow-md transition-all active:scale-95 disabled:opacity-50"
+                  >
+                    <Play className="w-3.5 h-3.5 fill-current" /> Start Trip (શરૂ કરો)
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -993,6 +1196,21 @@ export const DriverMode: React.FC = () => {
                     )}
                   </div>
 
+                  {/* Cash Collected Field */}
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1.5 flex items-center gap-1">
+                      <IndianRupee className="w-3.5 h-3.5 text-emerald-600" />
+                      Cash Collected (₹ / રોકડ રકમ) (Optional)
+                    </label>
+                    <input
+                      type="number"
+                      placeholder="e.g. 2400"
+                      value={cashCollectedInput}
+                      onChange={e => setCashCollectedInput(e.target.value)}
+                      className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-mono font-bold text-slate-900"
+                    />
+                  </div>
+
                   {/* 3. Receiver Name / Notes */}
                   <div>
                     <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1.5">
@@ -1040,6 +1258,155 @@ export const DriverMode: React.FC = () => {
                 )}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Start Trip Modal */}
+      {startTripModalOpen && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-md">
+                <Play className="w-6 h-6 fill-current" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">Start Fleet Trip (નવી ડિલિવરી ટ્રીપ)</h3>
+                <p className="text-xs text-slate-500">Record departure odometer & activate live GPS service</p>
+              </div>
+            </div>
+
+            <div className="space-y-3 pt-2">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Selected Vehicle
+                </label>
+                <div className="p-2.5 bg-slate-100 rounded-xl text-sm font-bold text-slate-900 flex items-center justify-between">
+                  <span>{vehicles.find(v => v.id === selectedVehicleId)?.vehicle_number}</span>
+                  <span className="text-xs text-slate-500 font-normal">{vehicles.find(v => v.id === selectedVehicleId)?.model}</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Starting Odometer (કિલોમીટર રીડિંગ)
+                </label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={startOdoInput}
+                  onChange={e => setStartOdoInput(e.target.value)}
+                  className="w-full px-3.5 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 font-mono font-bold"
+                  placeholder="e.g. 14250.0"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Route Name / Description
+                </label>
+                <input
+                  type="text"
+                  value={tripRouteInput}
+                  onChange={e => setTripRouteInput(e.target.value)}
+                  className="w-full px-3.5 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium"
+                  placeholder="e.g. Dahegam Daily Beat"
+                />
+              </div>
+
+              <div className="bg-blue-50 p-3 rounded-xl text-xs text-blue-900 leading-relaxed border border-blue-200">
+                🚀 Starting the trip activates high-frequency GPS telemetry (5s intervals) and background lock-screen notifications.
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setStartTripModalOpen(false)}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleStartTrip}
+                disabled={tripSubmitting}
+                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md transition-all disabled:opacity-50"
+              >
+                {tripSubmitting ? 'Starting...' : 'Confirm & Start Trip'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* End Trip Modal */}
+      {endTripModalOpen && activeTrip && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-rose-600 text-white flex items-center justify-center shadow-md">
+                <Square className="w-6 h-6 fill-current" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">Complete Fleet Trip (ટ્રીપ પૂર્ણ કરો)</h3>
+                <p className="text-xs text-slate-500">{activeTrip.trip_number} • {activeTrip.vehicle_number}</p>
+              </div>
+            </div>
+
+            <div className="space-y-3 pt-2">
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                  <div className="text-slate-500 font-semibold">Start Odometer:</div>
+                  <div className="font-mono font-bold text-slate-900 text-sm mt-0.5">{activeTrip.start_odometer_km} km</div>
+                </div>
+                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                  <div className="text-slate-500 font-semibold">Stops Remaining:</div>
+                  <div className="font-mono font-bold text-amber-700 text-sm mt-0.5">{totalPending} pending</div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Final Odometer (અંતિમ કિલોમીટર રીડિંગ)
+                </label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={endOdoInput}
+                  onChange={e => setEndOdoInput(e.target.value)}
+                  className="w-full px-3.5 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-rose-500 font-mono font-bold"
+                  placeholder={`Min ${activeTrip.start_odometer_km}`}
+                />
+              </div>
+
+              {parseFloat(endOdoInput) >= activeTrip.start_odometer_km && (
+                <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-200 text-xs text-emerald-900 flex items-center justify-between font-medium">
+                  <span>Total Distance Traveled:</span>
+                  <span className="font-mono font-bold text-sm">
+                    {(parseFloat(endOdoInput) - activeTrip.start_odometer_km).toFixed(1)} km
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setEndTripModalOpen(false)}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleEndTrip}
+                disabled={tripSubmitting}
+                className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-md transition-all disabled:opacity-50"
+              >
+                {tripSubmitting ? 'Ending...' : 'Confirm & End Trip'}
+              </button>
+            </div>
           </div>
         </div>
       )}

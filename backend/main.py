@@ -13,7 +13,10 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, or_, desc, case
 
 from database import engine, get_db, init_db, SessionLocal
-from models import Party, SenderSettings, AppSettings, PrintJob, PrintCase, ImportJob, ImportErrorLog, User, Item
+from models import (
+    Party, SenderSettings, AppSettings, PrintJob, PrintCase, ImportJob, ImportErrorLog, User, Item,
+    Vehicle, VehicleAssignment, Trip, TripStop, GPSLocationHistory, FleetAlert, FuelRecord, VehicleMaintenance
+)
 import barcode_generator
 import excel_service
 import pdf_service
@@ -6982,6 +6985,962 @@ def get_users_live_locations(
             live_user_locations.pop(uname, None)
 
     return active_list
+
+
+# =====================================================================
+# ANTIGRAVITY 2.0 — FLEET MANAGEMENT & LIVE TELEMETRY API ENDPOINTS
+# =====================================================================
+
+class VehicleCreatePayload(BaseModel):
+    vehicle_number: str
+    model: str = "Delivery Van"
+    vehicle_type: str = "truck"
+    fuel_type: str = "Diesel"
+    fuel_capacity_liters: float = 40.0
+    odometer_km: float = 0.0
+    driver_id: Optional[int] = None
+    status: str = "active"
+
+class VehicleUpdatePayload(BaseModel):
+    model: Optional[str] = None
+    vehicle_type: Optional[str] = None
+    fuel_type: Optional[str] = None
+    fuel_capacity_liters: Optional[float] = None
+    odometer_km: Optional[float] = None
+    driver_id: Optional[int] = None
+    status: Optional[str] = None
+
+class VehicleAssignPayload(BaseModel):
+    driver_id: Optional[int] = None
+    notes: Optional[str] = None
+
+class TripStartPayload(BaseModel):
+    vehicle_id: Optional[int] = None
+    route_name: Optional[str] = None
+    start_odometer_km: Optional[float] = None
+    party_ids: List[int] = []
+    start_latitude: Optional[float] = None
+    start_longitude: Optional[float] = None
+    notes: Optional[str] = None
+
+class TripEndPayload(BaseModel):
+    end_odometer_km: Optional[float] = None
+    end_latitude: Optional[float] = None
+    end_longitude: Optional[float] = None
+    notes: Optional[str] = None
+
+class TripStopUpdatePayload(BaseModel):
+    stop_id: int
+    status: str  # pending, arrived, delivered, failed, skipped
+    cash_collected: Optional[float] = 0.0
+    pod_signature: Optional[str] = None
+    pod_photo: Optional[str] = None
+    failure_reason: Optional[str] = None
+    notes: Optional[str] = None
+
+class TelemetryIngestPayload(BaseModel):
+    latitude: float
+    longitude: float
+    accuracy: Optional[float] = None
+    speed: Optional[float] = None  # Speed value
+    speed_unit: Optional[str] = "mps"  # "mps" (m/s) or "kmh"
+    speed_type: Optional[str] = "measured"
+    heading: Optional[float] = None
+    battery: Optional[float] = None
+    trip_id: Optional[int] = None
+    vehicle_id: Optional[int] = None
+    driver_id: Optional[int] = None
+    source: Optional[str] = "android_gps"
+    timestamp: Optional[float] = None
+
+class FleetAlertResolvePayload(BaseModel):
+    notes: Optional[str] = None
+
+class FuelRecordCreatePayload(BaseModel):
+    vehicle_id: int
+    fuel_liters: float
+    cost_total: float
+    odometer_km: float
+    fuel_station: Optional[str] = None
+    bill_number: Optional[str] = None
+    receipt_photo: Optional[str] = None
+
+class MaintenanceCreatePayload(BaseModel):
+    vehicle_id: int
+    service_type: str
+    odometer_km: float
+    cost: float = 0.0
+    service_center: Optional[str] = None
+    service_date: Optional[str] = None
+    next_due_km: Optional[float] = None
+    next_due_date: Optional[str] = None
+    notes: Optional[str] = None
+
+
+@app.get("/api/fleet/vehicles")
+def get_fleet_vehicles(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth_module.get_current_user)
+):
+    """Returns all fleet vehicles with computed live status and latest telemetry."""
+    vehicles = db.query(Vehicle).order_by(Vehicle.id.asc()).all()
+    now_utc = datetime.datetime.now(datetime.timezone.utc)
+    
+    result = []
+    for v in vehicles:
+        # Determine real dynamic status
+        dynamic_status = v.status or "active"
+        if dynamic_status != "maintenance" and dynamic_status != "inactive":
+            if v.last_telemetry_at:
+                telemetry_dt = v.last_telemetry_at
+                if telemetry_dt.tzinfo is None:
+                    telemetry_dt = telemetry_dt.replace(tzinfo=datetime.timezone.utc)
+                diff_sec = (now_utc - telemetry_dt).total_seconds()
+                if diff_sec <= 120:
+                    dynamic_status = "moving" if (v.last_speed_kmh or 0) > 3.0 else "stopped"
+                elif diff_sec <= 600:
+                    dynamic_status = "idle"
+                elif diff_sec <= 3600:
+                    dynamic_status = "stale"
+                else:
+                    dynamic_status = "offline"
+            else:
+                dynamic_status = "offline"
+
+        result.append({
+            "id": v.id,
+            "vehicle_number": v.vehicle_number,
+            "model": v.model,
+            "vehicle_type": v.vehicle_type,
+            "fuel_type": v.fuel_type,
+            "fuel_capacity_liters": v.fuel_capacity_liters,
+            "odometer_km": v.odometer_km,
+            "driver_id": v.driver_id,
+            "driver_name": v.driver_name,
+            "configured_status": v.status,
+            "live_status": dynamic_status,
+            "last_latitude": v.last_latitude,
+            "last_longitude": v.last_longitude,
+            "last_speed_kmh": round(v.last_speed_kmh or 0.0, 1),
+            "last_speed_type": v.last_speed_type or "measured",
+            "last_heading": round(v.last_heading, 1) if v.last_heading is not None else None,
+            "last_battery_pct": round(v.last_battery_pct, 1) if v.last_battery_pct is not None else None,
+            "last_telemetry_at": v.last_telemetry_at.isoformat() if v.last_telemetry_at else None,
+            "created_at": v.created_at.isoformat() if v.created_at else None,
+            "updated_at": v.updated_at.isoformat() if v.updated_at else None,
+        })
+    return {"vehicles": result}
+
+
+@app.post("/api/fleet/vehicles", status_code=status.HTTP_201_CREATED)
+def create_fleet_vehicle(
+    payload: VehicleCreatePayload,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth_module.get_current_user)
+):
+    """Registers a new vehicle in the fleet catalog."""
+    user_role = (current_user.role or "").lower()
+    if user_role not in ["super_admin", "admin", "owner"]:
+        raise HTTPException(status_code=403, detail="Admin permissions required to add fleet vehicles.")
+
+    existing = db.query(Vehicle).filter(Vehicle.vehicle_number == payload.vehicle_number.strip().upper()).first()
+    if existing:
+        raise HTTPException(status_code=400, detail=f"Vehicle '{payload.vehicle_number}' already registered.")
+
+    driver_name = None
+    if payload.driver_id:
+        driver = db.query(User).filter(User.id == payload.driver_id).first()
+        if driver:
+            driver_name = driver.full_name or driver.username
+
+    vehicle = Vehicle(
+        vehicle_number=payload.vehicle_number.strip().upper(),
+        model=payload.model.strip(),
+        vehicle_type=payload.vehicle_type.strip().lower(),
+        fuel_type=payload.fuel_type.strip(),
+        fuel_capacity_liters=payload.fuel_capacity_liters,
+        odometer_km=payload.odometer_km,
+        driver_id=payload.driver_id,
+        driver_name=driver_name,
+        status=payload.status.strip().lower()
+    )
+    db.add(vehicle)
+    db.commit()
+    db.refresh(vehicle)
+    return {"success": True, "vehicle_id": vehicle.id, "vehicle_number": vehicle.vehicle_number}
+
+
+@app.put("/api/fleet/vehicles/{vehicle_id}")
+def update_fleet_vehicle(
+    vehicle_id: int,
+    payload: VehicleUpdatePayload,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth_module.get_current_user)
+):
+    """Updates vehicle metadata, status, or driver assignment."""
+    vehicle = db.query(Vehicle).filter(Vehicle.id == vehicle_id).first()
+    if not vehicle:
+        raise HTTPException(status_code=404, detail="Vehicle not found.")
+
+    if payload.model is not None:
+        vehicle.model = payload.model.strip()
+    if payload.vehicle_type is not None:
+        vehicle.vehicle_type = payload.vehicle_type.strip().lower()
+    if payload.fuel_type is not None:
+        vehicle.fuel_type = payload.fuel_type.strip()
+    if payload.fuel_capacity_liters is not None:
+        vehicle.fuel_capacity_liters = payload.fuel_capacity_liters
+    if payload.odometer_km is not None and payload.odometer_km >= (vehicle.odometer_km or 0.0):
+        vehicle.odometer_km = payload.odometer_km
+    if payload.status is not None:
+        vehicle.status = payload.status.strip().lower()
+    
+    if payload.driver_id is not None:
+        if payload.driver_id == 0:
+            vehicle.driver_id = None
+            vehicle.driver_name = None
+        else:
+            driver = db.query(User).filter(User.id == payload.driver_id).first()
+            if driver:
+                vehicle.driver_id = driver.id
+                vehicle.driver_name = driver.full_name or driver.username
+
+    db.commit()
+    return {"success": True, "vehicle_id": vehicle.id}
+
+
+@app.delete("/api/fleet/vehicles/{vehicle_id}")
+def delete_fleet_vehicle(
+    vehicle_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth_module.get_current_user)
+):
+    """Deletes or deactivates a fleet vehicle."""
+    vehicle = db.query(Vehicle).filter(Vehicle.id == vehicle_id).first()
+    if not vehicle:
+        raise HTTPException(status_code=404, detail="Vehicle not found.")
+
+    db.delete(vehicle)
+    db.commit()
+    return {"success": True, "message": f"Vehicle {vehicle_id} deleted."}
+
+
+@app.post("/api/fleet/vehicles/{vehicle_id}/assign")
+def assign_fleet_vehicle_driver(
+    vehicle_id: int,
+    payload: VehicleAssignPayload,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth_module.get_current_user)
+):
+    """Assigns or reassigns a driver to a vehicle with audit trail."""
+    vehicle = db.query(Vehicle).filter(Vehicle.id == vehicle_id).first()
+    if not vehicle:
+        raise HTTPException(status_code=404, detail="Vehicle not found.")
+
+    # Unassign current active assignment
+    old_assignments = db.query(VehicleAssignment).filter(
+        VehicleAssignment.vehicle_id == vehicle_id,
+        VehicleAssignment.unassigned_at == None
+    ).all()
+    now_utc = datetime.datetime.now(datetime.timezone.utc)
+    for oa in old_assignments:
+        oa.unassigned_at = now_utc
+
+    if payload.driver_id and payload.driver_id > 0:
+        driver = db.query(User).filter(User.id == payload.driver_id).first()
+        if not driver:
+            raise HTTPException(status_code=404, detail="Driver user not found.")
+        
+        vehicle.driver_id = driver.id
+        vehicle.driver_name = driver.full_name or driver.username
+        new_assignment = VehicleAssignment(
+            vehicle_id=vehicle.id,
+            driver_id=driver.id,
+            driver_name=vehicle.driver_name,
+            assigned_by=current_user.full_name or current_user.username,
+            assigned_at=now_utc,
+            notes=payload.notes
+        )
+        db.add(new_assignment)
+    else:
+        vehicle.driver_id = None
+        vehicle.driver_name = None
+
+    db.commit()
+    return {"success": True, "vehicle_id": vehicle.id, "driver_name": vehicle.driver_name}
+
+
+# --- TRIPS & DISPATCH WORKFLOW ---
+
+@app.get("/api/fleet/trips/active")
+def get_active_fleet_trips(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth_module.get_current_user)
+):
+    """Returns active trips, stops breakdown, and current driver/vehicle coordinates."""
+    trips = db.query(Trip).filter(Trip.status == "active").order_by(Trip.started_at.desc()).all()
+    
+    result = []
+    for t in trips:
+        stops_data = []
+        for s in t.stops:
+            stops_data.append({
+                "id": s.id,
+                "party_id": s.party_id,
+                "party_name": s.party_name,
+                "party_code": s.party_code,
+                "address": s.address,
+                "latitude": s.latitude,
+                "longitude": s.longitude,
+                "sequence_number": s.sequence_number,
+                "status": s.status,
+                "arrival_time": s.arrival_time.isoformat() if s.arrival_time else None,
+                "departure_time": s.departure_time.isoformat() if s.departure_time else None,
+                "cash_collected": s.cash_collected or 0.0,
+                "pod_signature": bool(s.pod_signature),
+                "pod_photo": bool(s.pod_photo),
+                "failure_reason": s.failure_reason,
+            })
+
+        vehicle = db.query(Vehicle).filter(Vehicle.id == t.vehicle_id).first() if t.vehicle_id else None
+        result.append({
+            "id": t.id,
+            "trip_number": t.trip_number,
+            "vehicle_id": t.vehicle_id,
+            "vehicle_number": t.vehicle_number or (vehicle.vehicle_number if vehicle else None),
+            "driver_id": t.driver_id,
+            "driver_name": t.driver_name,
+            "route_name": t.route_name,
+            "status": t.status,
+            "start_odometer_km": t.start_odometer_km,
+            "total_distance_km": round(t.total_distance_km or 0.0, 1),
+            "started_at": t.started_at.isoformat() if t.started_at else None,
+            "current_latitude": vehicle.last_latitude if vehicle else None,
+            "current_longitude": vehicle.last_longitude if vehicle else None,
+            "current_speed_kmh": round(vehicle.last_speed_kmh or 0.0, 1) if vehicle else 0.0,
+            "stops": stops_data,
+            "total_stops": len(stops_data),
+            "completed_stops": len([s for s in stops_data if s["status"] == "delivered"])
+        })
+    return {"trips": result}
+
+
+@app.get("/api/fleet/trips")
+def list_fleet_trips(
+    date_filter: Optional[str] = None,
+    driver_id: Optional[int] = None,
+    vehicle_id: Optional[int] = None,
+    status_filter: Optional[str] = None,
+    limit: int = 50,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth_module.get_current_user)
+):
+    """Lists past and active trips with stop statistics."""
+    query = db.query(Trip)
+    if driver_id:
+        query = query.filter(Trip.driver_id == driver_id)
+    if vehicle_id:
+        query = query.filter(Trip.vehicle_id == vehicle_id)
+    if status_filter:
+        query = query.filter(Trip.status == status_filter.lower())
+    if date_filter:
+        try:
+            d = datetime.date.fromisoformat(date_filter)
+            d_start = datetime.datetime.combine(d, datetime.time.min)
+            d_end = datetime.datetime.combine(d, datetime.time.max)
+            query = query.filter(Trip.started_at >= d_start, Trip.started_at <= d_end)
+        except Exception:
+            pass
+
+    trips = query.order_by(Trip.started_at.desc()).limit(limit).all()
+    result = []
+    for t in trips:
+        delivered_count = sum(1 for s in t.stops if s.status == "delivered")
+        failed_count = sum(1 for s in t.stops if s.status == "failed")
+        cash_sum = sum(s.cash_collected or 0.0 for s in t.stops)
+        result.append({
+            "id": t.id,
+            "trip_number": t.trip_number,
+            "vehicle_id": t.vehicle_id,
+            "vehicle_number": t.vehicle_number,
+            "driver_id": t.driver_id,
+            "driver_name": t.driver_name,
+            "route_name": t.route_name,
+            "status": t.status,
+            "start_odometer_km": t.start_odometer_km,
+            "end_odometer_km": t.end_odometer_km,
+            "total_distance_km": round(t.total_distance_km or 0.0, 1),
+            "started_at": t.started_at.isoformat() if t.started_at else None,
+            "completed_at": t.completed_at.isoformat() if t.completed_at else None,
+            "total_stops": len(t.stops),
+            "delivered_stops": delivered_count,
+            "failed_stops": failed_count,
+            "total_cash_collected": round(cash_sum, 2)
+        })
+    return {"trips": result}
+
+
+@app.post("/api/fleet/trips/start", status_code=status.HTTP_201_CREATED)
+def start_fleet_trip(
+    payload: TripStartPayload,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth_module.get_current_user)
+):
+    """Starts a new delivery trip, assigning stops and initial odometer."""
+    # Find vehicle and driver
+    vehicle = None
+    if payload.vehicle_id:
+        vehicle = db.query(Vehicle).filter(Vehicle.id == payload.vehicle_id).first()
+    
+    driver_id = current_user.id
+    driver_name = current_user.full_name or current_user.username
+    if vehicle and vehicle.driver_id:
+        driver_id = vehicle.driver_id
+        driver_name = vehicle.driver_name or driver_name
+
+    # Generate unique trip number: TRIP-YYYY-XXXXXX
+    now_dt = datetime.datetime.now(datetime.timezone.utc)
+    count_today = db.query(Trip).count() + 1
+    trip_num = f"TRIP-{now_dt.strftime('%Y%m%d')}-{count_today:04d}"
+
+    start_odo = payload.start_odometer_km or (vehicle.odometer_km if vehicle else 0.0)
+
+    trip = Trip(
+        trip_number=trip_num,
+        vehicle_id=vehicle.id if vehicle else None,
+        vehicle_number=vehicle.vehicle_number if vehicle else None,
+        driver_id=driver_id,
+        driver_name=driver_name,
+        route_name=payload.route_name or "General Delivery",
+        status="active",
+        start_odometer_km=start_odo,
+        start_latitude=payload.start_latitude,
+        start_longitude=payload.start_longitude,
+        started_at=now_dt,
+        notes=payload.notes
+    )
+    db.add(trip)
+    db.flush()
+
+    # Create stops from party IDs
+    seq = 1
+    for pid in payload.party_ids:
+        party = db.query(Party).filter(Party.id == pid).first()
+        if party:
+            stop = TripStop(
+                trip_id=trip.id,
+                party_id=party.id,
+                party_name=party.party_name,
+                party_code=party.party_code,
+                address=party.address,
+                latitude=party.latitude,
+                longitude=party.longitude,
+                sequence_number=seq,
+                status="pending"
+            )
+            db.add(stop)
+            seq += 1
+
+    if vehicle:
+        vehicle.status = "en_route"
+
+    db.commit()
+    db.refresh(trip)
+    return {"success": True, "trip_id": trip.id, "trip_number": trip.trip_number, "total_stops": seq - 1}
+
+
+@app.post("/api/fleet/trips/{trip_id}/end")
+def end_fleet_trip(
+    trip_id: int,
+    payload: TripEndPayload,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth_module.get_current_user)
+):
+    """Ends a trip, computes final odometer and distance."""
+    trip = db.query(Trip).filter(Trip.id == trip_id).first()
+    if not trip:
+        raise HTTPException(status_code=404, detail="Trip not found.")
+
+    now_dt = datetime.datetime.now(datetime.timezone.utc)
+    trip.completed_at = now_dt
+    trip.status = "completed"
+    if payload.end_latitude is not None:
+        trip.end_latitude = payload.end_latitude
+    if payload.end_longitude is not None:
+        trip.end_longitude = payload.end_longitude
+    if payload.notes:
+        trip.notes = f"{trip.notes or ''}\n{payload.notes}".strip()
+
+    if payload.end_odometer_km is not None and payload.end_odometer_km >= trip.start_odometer_km:
+        trip.end_odometer_km = payload.end_odometer_km
+        trip.total_distance_km = payload.end_odometer_km - trip.start_odometer_km
+        
+        # Update vehicle odometer
+        if trip.vehicle_id:
+            vehicle = db.query(Vehicle).filter(Vehicle.id == trip.vehicle_id).first()
+            if vehicle:
+                vehicle.odometer_km = payload.end_odometer_km
+                vehicle.status = "active"
+
+    db.commit()
+    return {
+        "success": True, 
+        "trip_id": trip.id, 
+        "total_distance_km": round(trip.total_distance_km or 0.0, 1),
+        "status": "completed"
+    }
+
+
+@app.post("/api/fleet/trips/{trip_id}/stop-status")
+def update_fleet_trip_stop_status(
+    trip_id: int,
+    payload: TripStopUpdatePayload,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth_module.get_current_user)
+):
+    """Updates a stop's delivery progress (pending, arrived, delivered, failed)."""
+    stop = db.query(TripStop).filter(TripStop.id == payload.stop_id, TripStop.trip_id == trip_id).first()
+    if not stop:
+        raise HTTPException(status_code=404, detail="Trip stop not found.")
+
+    now_dt = datetime.datetime.now(datetime.timezone.utc)
+    stop.status = payload.status.strip().lower()
+
+    if stop.status == "arrived":
+        stop.arrival_time = now_dt
+    elif stop.status == "delivered":
+        if not stop.arrival_time:
+            stop.arrival_time = now_dt
+        stop.departure_time = now_dt
+        if payload.cash_collected:
+            stop.cash_collected = float(payload.cash_collected)
+        if payload.pod_signature:
+            stop.pod_signature = payload.pod_signature
+        if payload.pod_photo:
+            stop.pod_photo = payload.pod_photo
+    elif stop.status == "failed":
+        stop.failure_reason = payload.failure_reason or "Customer unavailable"
+        stop.departure_time = now_dt
+
+    if payload.notes:
+        stop.notes = payload.notes
+
+    db.commit()
+    return {"success": True, "stop_id": stop.id, "status": stop.status}
+
+
+@app.get("/api/fleet/trips/{trip_id}/replay")
+def get_trip_telemetry_replay(
+    trip_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth_module.get_current_user)
+):
+    """Returns chronological GPS breadcrumb trail for smooth trip replay with speed & alerts."""
+    trip = db.query(Trip).filter(Trip.id == trip_id).first()
+    if not trip:
+        raise HTTPException(status_code=404, detail="Trip not found.")
+
+    breadcrumbs = db.query(GPSLocationHistory).filter(
+        GPSLocationHistory.trip_id == trip_id
+    ).order_by(GPSLocationHistory.timestamp.asc()).all()
+
+    points = []
+    for b in breadcrumbs:
+        points.append({
+            "lat": b.latitude,
+            "lng": b.longitude,
+            "speed_kmh": round(b.speed_kmh or 0.0, 1),
+            "speed_type": b.speed_type,
+            "heading": round(b.heading, 1) if b.heading is not None else 0,
+            "battery": b.battery_pct,
+            "timestamp": b.timestamp.isoformat() if b.timestamp else None,
+            "time_epoch": b.timestamp.timestamp() if b.timestamp else 0
+        })
+
+    stops = []
+    for s in trip.stops:
+        stops.append({
+            "id": s.id,
+            "party_name": s.party_name,
+            "lat": s.latitude,
+            "lng": s.longitude,
+            "status": s.status,
+            "sequence": s.sequence_number
+        })
+
+    return {
+        "trip_id": trip.id,
+        "trip_number": trip.trip_number,
+        "driver_name": trip.driver_name,
+        "vehicle_number": trip.vehicle_number,
+        "points": points,
+        "stops": stops,
+        "total_points": len(points)
+    }
+
+
+# --- REAL-TIME TELEMETRY INGESTION & ALERTS ---
+
+@app.post("/api/fleet/telemetry/ingest")
+def ingest_fleet_telemetry(
+    payload: TelemetryIngestPayload,
+    db: Session = Depends(get_db)
+):
+    """
+    Ingests continuous high-frequency GPS telemetry from Android APK foreground service or Web GPS.
+    Transparently converts m/s to km/h (speed_kmh = speed_mps * 3.6).
+    Emits real-time alerts for overspeeding (>75 km/h) and low battery (<15%).
+    """
+    now_dt = datetime.datetime.now(datetime.timezone.utc)
+    
+    # Transparent conversion: speed_mps * 3.6 = speed_kmh
+    speed_kmh = 0.0
+    if payload.speed is not None and payload.speed >= 0:
+        if (payload.speed_unit or "").lower() == "kmh":
+            speed_kmh = round(payload.speed, 1)
+        else:
+            speed_kmh = round(payload.speed * 3.6, 1)
+
+    # Resolve vehicle or active trip
+    vehicle = None
+    if payload.vehicle_id:
+        vehicle = db.query(Vehicle).filter(Vehicle.id == payload.vehicle_id).first()
+
+    driver_name = None
+    if payload.driver_id:
+        u = db.query(User).filter(User.id == payload.driver_id).first()
+        if u:
+            driver_name = u.full_name or u.username
+
+    # Create telemetry breadcrumb
+    history = GPSLocationHistory(
+        driver_id=payload.driver_id or (vehicle.driver_id if vehicle else None),
+        driver_name=driver_name or (vehicle.driver_name if vehicle else "Driver"),
+        vehicle_id=payload.vehicle_id,
+        trip_id=payload.trip_id,
+        latitude=payload.latitude,
+        longitude=payload.longitude,
+        accuracy=payload.accuracy,
+        speed_kmh=speed_kmh,
+        speed_type=payload.speed_type or "measured",
+        heading=payload.heading,
+        battery_pct=payload.battery,
+        source=payload.source or "android_gps",
+        timestamp=now_dt
+    )
+    db.add(history)
+
+    # Update vehicle snapshot if linked
+    if vehicle:
+        vehicle.last_latitude = payload.latitude
+        vehicle.last_longitude = payload.longitude
+        vehicle.last_speed_kmh = speed_kmh
+        vehicle.last_speed_type = payload.speed_type or "measured"
+        vehicle.last_heading = payload.heading
+        vehicle.last_battery_pct = payload.battery
+        vehicle.last_telemetry_at = now_dt
+
+    # Update live user locations map for legacy & user-tracking compatibility
+    tracker_key = driver_name or (vehicle.vehicle_number if vehicle else "device")
+    live_user_locations[tracker_key] = {
+        "username": tracker_key,
+        "full_name": driver_name or (vehicle.vehicle_number if vehicle else "Device"),
+        "role": "driver",
+        "latitude": payload.latitude,
+        "longitude": payload.longitude,
+        "accuracy": payload.accuracy,
+        "battery": int(payload.battery) if payload.battery is not None else None,
+        "speed": speed_kmh,
+        "updated_at": now_dt.isoformat(),
+        "timestamp": now_dt.timestamp()
+    }
+
+    # Evaluate Safety Alerts
+    # 1. Overspeed Alert (> 75 km/h threshold)
+    if speed_kmh > 75.0:
+        v_label = vehicle.vehicle_number if vehicle else "Driver"
+        alert = FleetAlert(
+            alert_type="overspeed",
+            severity="warning" if speed_kmh <= 90 else "critical",
+            vehicle_id=vehicle.id if vehicle else None,
+            vehicle_number=vehicle.vehicle_number if vehicle else None,
+            driver_id=payload.driver_id or (vehicle.driver_id if vehicle else None),
+            driver_name=driver_name or (vehicle.driver_name if vehicle else None),
+            trip_id=payload.trip_id,
+            message=f"Vehicle {v_label} overspeeding at {speed_kmh} km/h (Limit: 75 km/h)",
+            latitude=payload.latitude,
+            longitude=payload.longitude,
+            speed_kmh=speed_kmh,
+            created_at=now_dt
+        )
+        db.add(alert)
+
+    # 2. Low Battery Alert (< 15%)
+    if payload.battery is not None and payload.battery <= 15:
+        # Check if an unresolved low battery alert was created in the last 30 minutes
+        recent_alert = db.query(FleetAlert).filter(
+            FleetAlert.alert_type == "low_battery",
+            FleetAlert.vehicle_id == (vehicle.id if vehicle else None),
+            FleetAlert.resolved == False
+        ).first()
+        if not recent_alert:
+            alert = FleetAlert(
+                alert_type="low_battery",
+                severity="warning",
+                vehicle_id=vehicle.id if vehicle else None,
+                vehicle_number=vehicle.vehicle_number if vehicle else None,
+                driver_id=payload.driver_id or (vehicle.driver_id if vehicle else None),
+                driver_name=driver_name or (vehicle.driver_name if vehicle else None),
+                message=f"Device battery critical ({int(payload.battery)}%) on vehicle {vehicle.vehicle_number if vehicle else ''}",
+                latitude=payload.latitude,
+                longitude=payload.longitude,
+                created_at=now_dt
+            )
+            db.add(alert)
+
+    db.commit()
+    return {"success": True, "speed_kmh": speed_kmh, "ingested_at": now_dt.isoformat()}
+
+
+@app.get("/api/fleet/alerts")
+def get_fleet_alerts(
+    unresolved_only: bool = True,
+    limit: int = 50,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth_module.get_current_user)
+):
+    """Returns active and past fleet safety alerts."""
+    query = db.query(FleetAlert)
+    if unresolved_only:
+        query = query.filter(FleetAlert.resolved == False)
+    alerts = query.order_by(FleetAlert.created_at.desc()).limit(limit).all()
+
+    result = []
+    for a in alerts:
+        result.append({
+            "id": a.id,
+            "alert_type": a.alert_type,
+            "severity": a.severity,
+            "vehicle_id": a.vehicle_id,
+            "vehicle_number": a.vehicle_number,
+            "driver_name": a.driver_name,
+            "trip_id": a.trip_id,
+            "message": a.message,
+            "latitude": a.latitude,
+            "longitude": a.longitude,
+            "speed_kmh": a.speed_kmh,
+            "resolved": a.resolved,
+            "resolved_by": a.resolved_by,
+            "resolved_at": a.resolved_at.isoformat() if a.resolved_at else None,
+            "created_at": a.created_at.isoformat() if a.created_at else None
+        })
+    return {"alerts": result}
+
+
+@app.post("/api/fleet/alerts/{alert_id}/resolve")
+def resolve_fleet_alert(
+    alert_id: int,
+    payload: FleetAlertResolvePayload,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth_module.get_current_user)
+):
+    """Marks a safety alert as resolved."""
+    alert = db.query(FleetAlert).filter(FleetAlert.id == alert_id).first()
+    if not alert:
+        raise HTTPException(status_code=404, detail="Alert not found.")
+
+    alert.resolved = True
+    alert.resolved_by = current_user.full_name or current_user.username
+    alert.resolved_at = datetime.datetime.now(datetime.timezone.utc)
+    db.commit()
+    return {"success": True, "alert_id": alert.id, "resolved_by": alert.resolved_by}
+
+
+# --- FUEL & VEHICLE MAINTENANCE ---
+
+@app.get("/api/fleet/fuel")
+def get_fuel_records(
+    vehicle_id: Optional[int] = None,
+    limit: int = 50,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth_module.get_current_user)
+):
+    """Returns fuel refueling logs."""
+    query = db.query(FuelRecord)
+    if vehicle_id:
+        query = query.filter(FuelRecord.vehicle_id == vehicle_id)
+    records = query.order_by(FuelRecord.logged_at.desc()).limit(limit).all()
+    
+    result = []
+    for r in records:
+        v = db.query(Vehicle).filter(Vehicle.id == r.vehicle_id).first()
+        result.append({
+            "id": r.id,
+            "vehicle_id": r.vehicle_id,
+            "vehicle_number": v.vehicle_number if v else "Vehicle",
+            "driver_name": r.driver_name,
+            "fuel_liters": r.fuel_liters,
+            "cost_total": r.cost_total,
+            "odometer_km": r.odometer_km,
+            "fuel_station": r.fuel_station,
+            "bill_number": r.bill_number,
+            "receipt_photo": bool(r.receipt_photo),
+            "logged_at": r.logged_at.isoformat() if r.logged_at else None
+        })
+    return {"records": result}
+
+
+@app.post("/api/fleet/fuel", status_code=status.HTTP_201_CREATED)
+def add_fuel_record(
+    payload: FuelRecordCreatePayload,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth_module.get_current_user)
+):
+    """Logs fuel refueling and updates vehicle odometer."""
+    vehicle = db.query(Vehicle).filter(Vehicle.id == payload.vehicle_id).first()
+    if not vehicle:
+        raise HTTPException(status_code=404, detail="Vehicle not found.")
+
+    rec = FuelRecord(
+        vehicle_id=payload.vehicle_id,
+        driver_id=current_user.id,
+        driver_name=current_user.full_name or current_user.username,
+        fuel_liters=payload.fuel_liters,
+        cost_total=payload.cost_total,
+        odometer_km=payload.odometer_km,
+        fuel_station=payload.fuel_station,
+        bill_number=payload.bill_number,
+        receipt_photo=payload.receipt_photo,
+        logged_at=datetime.datetime.now(datetime.timezone.utc)
+    )
+    db.add(rec)
+    if payload.odometer_km > (vehicle.odometer_km or 0.0):
+        vehicle.odometer_km = payload.odometer_km
+
+    db.commit()
+    db.refresh(rec)
+    return {"success": True, "record_id": rec.id}
+
+
+@app.get("/api/fleet/maintenance")
+def get_maintenance_records(
+    vehicle_id: Optional[int] = None,
+    limit: int = 50,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth_module.get_current_user)
+):
+    """Returns maintenance service records."""
+    query = db.query(VehicleMaintenance)
+    if vehicle_id:
+        query = query.filter(VehicleMaintenance.vehicle_id == vehicle_id)
+    records = query.order_by(VehicleMaintenance.service_date.desc()).limit(limit).all()
+
+    result = []
+    for m in records:
+        v = db.query(Vehicle).filter(Vehicle.id == m.vehicle_id).first()
+        result.append({
+            "id": m.id,
+            "vehicle_id": m.vehicle_id,
+            "vehicle_number": v.vehicle_number if v else "Vehicle",
+            "service_type": m.service_type,
+            "odometer_km": m.odometer_km,
+            "cost": m.cost,
+            "service_center": m.service_center,
+            "service_date": m.service_date.isoformat() if m.service_date else None,
+            "next_due_km": m.next_due_km,
+            "next_due_date": m.next_due_date.isoformat() if m.next_due_date else None,
+            "notes": m.notes
+        })
+    return {"records": result}
+
+
+@app.post("/api/fleet/maintenance", status_code=status.HTTP_201_CREATED)
+def add_maintenance_record(
+    payload: MaintenanceCreatePayload,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth_module.get_current_user)
+):
+    """Records vehicle maintenance or periodic servicing."""
+    vehicle = db.query(Vehicle).filter(Vehicle.id == payload.vehicle_id).first()
+    if not vehicle:
+        raise HTTPException(status_code=404, detail="Vehicle not found.")
+
+    s_date = datetime.datetime.now(datetime.timezone.utc)
+    if payload.service_date:
+        try:
+            s_date = datetime.datetime.fromisoformat(payload.service_date)
+        except Exception:
+            pass
+
+    next_date = None
+    if payload.next_due_date:
+        try:
+            next_date = datetime.datetime.fromisoformat(payload.next_due_date)
+        except Exception:
+            pass
+
+    rec = VehicleMaintenance(
+        vehicle_id=payload.vehicle_id,
+        service_type=payload.service_type,
+        odometer_km=payload.odometer_km,
+        cost=payload.cost,
+        service_center=payload.service_center,
+        service_date=s_date,
+        next_due_km=payload.next_due_km,
+        next_due_date=next_date,
+        notes=payload.notes
+    )
+    db.add(rec)
+    if payload.odometer_km > (vehicle.odometer_km or 0.0):
+        vehicle.odometer_km = payload.odometer_km
+
+    db.commit()
+    db.refresh(rec)
+    return {"success": True, "record_id": rec.id}
+
+
+@app.get("/api/fleet/reports/summary")
+def get_fleet_reports_summary(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth_module.get_current_user)
+):
+    """Returns high-level executive fleet KPI metrics."""
+    total_vehicles = db.query(Vehicle).count()
+    active_vehicles = db.query(Vehicle).filter(Vehicle.status == "active").count()
+    active_trips = db.query(Trip).filter(Trip.status == "active").count()
+    
+    # Distance today
+    today = datetime.date.today()
+    d_start = datetime.datetime.combine(today, datetime.time.min)
+    d_end = datetime.datetime.combine(today, datetime.time.max)
+    today_trips = db.query(Trip).filter(Trip.started_at >= d_start, Trip.started_at <= d_end).all()
+    today_km = sum(t.total_distance_km or 0.0 for t in today_trips)
+    
+    # Stops today
+    today_stops = db.query(TripStop).join(Trip).filter(Trip.started_at >= d_start, Trip.started_at <= d_end).all()
+    delivered_stops = sum(1 for s in today_stops if s.status == "delivered")
+    failed_stops = sum(1 for s in today_stops if s.status == "failed")
+    pending_stops = sum(1 for s in today_stops if s.status == "pending")
+    total_cash_today = sum(s.cash_collected or 0.0 for s in today_stops)
+
+    unresolved_alerts = db.query(FleetAlert).filter(FleetAlert.resolved == False).count()
+    total_fuel_liters = sum(f.fuel_liters for f in db.query(FuelRecord).filter(FuelRecord.logged_at >= d_start).all())
+
+    return {
+        "total_vehicles": total_vehicles,
+        "active_vehicles": active_vehicles,
+        "active_trips": active_trips,
+        "today_distance_km": round(today_km, 1),
+        "total_stops_today": len(today_stops),
+        "delivered_stops_today": delivered_stops,
+        "failed_stops_today": failed_stops,
+        "pending_stops_today": pending_stops,
+        "total_cash_today": round(total_cash_today, 2),
+        "unresolved_alerts": unresolved_alerts,
+        "fuel_liters_today": round(total_fuel_liters, 1),
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
+    }
+
 
 
 # Custom static file server with immutable caching for fingerprinted assets

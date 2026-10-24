@@ -500,3 +500,160 @@ export interface LiveUserLocation {
   updated_at: string;
   timestamp: number;
 }
+
+// --- ANTIGRAVITY 2.0 FLEET & TELEMETRY TYPES ---
+
+export interface FleetVehicle {
+  id: number;
+  vehicle_number: string;
+  model: string;
+  vehicle_type: 'bike' | 'van' | 'truck' | 'auto';
+  fuel_type: string;
+  fuel_capacity_liters: number;
+  odometer_km: number;
+  driver_id?: number | null;
+  driver_name?: string | null;
+  configured_status: string;
+  live_status: 'moving' | 'stopped' | 'idle' | 'stale' | 'offline' | 'maintenance' | 'inactive';
+  last_latitude?: number | null;
+  last_longitude?: number | null;
+  last_speed_kmh: number;
+  last_speed_type: 'measured' | 'estimated';
+  last_heading?: number | null;
+  last_battery_pct?: number | null;
+  last_telemetry_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface TripStopItem {
+  id: number;
+  party_id?: number | null;
+  party_name: string;
+  party_code?: string | null;
+  address?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  sequence_number: number;
+  status: 'pending' | 'arrived' | 'delivered' | 'failed' | 'skipped';
+  arrival_time?: string | null;
+  departure_time?: string | null;
+  cash_collected: number;
+  pod_signature?: boolean;
+  pod_photo?: boolean;
+  failure_reason?: string | null;
+}
+
+export interface FleetTrip {
+  id: number;
+  trip_number: string;
+  vehicle_id?: number | null;
+  vehicle_number?: string | null;
+  driver_id?: number | null;
+  driver_name?: string | null;
+  route_name?: string | null;
+  status: 'active' | 'completed' | 'cancelled';
+  start_odometer_km: number;
+  end_odometer_km?: number | null;
+  total_distance_km: number;
+  started_at?: string | null;
+  completed_at?: string | null;
+  total_stops: number;
+  completed_stops?: number;
+  delivered_stops?: number;
+  failed_stops?: number;
+  total_cash_collected?: number;
+  current_latitude?: number | null;
+  current_longitude?: number | null;
+  current_speed_kmh?: number;
+  stops?: TripStopItem[];
+}
+
+export interface FleetAlertItem {
+  id: number;
+  alert_type: 'overspeed' | 'idle' | 'route_deviation' | 'low_battery' | 'panic';
+  severity: 'info' | 'warning' | 'critical';
+  vehicle_id?: number | null;
+  vehicle_number?: string | null;
+  driver_name?: string | null;
+  trip_id?: number | null;
+  message: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  speed_kmh?: number | null;
+  resolved: boolean;
+  resolved_by?: string | null;
+  resolved_at?: string | null;
+  created_at?: string | null;
+}
+
+export interface ReplayPoint {
+  lat: number;
+  lng: number;
+  speed_kmh: number;
+  speed_type: string;
+  heading: number;
+  battery?: number | null;
+  timestamp?: string | null;
+  time_epoch: number;
+}
+
+export interface TripReplayData {
+  trip_id: number;
+  trip_number: string;
+  driver_name?: string | null;
+  vehicle_number?: string | null;
+  points: ReplayPoint[];
+  stops: {
+    id: number;
+    party_name: string;
+    lat?: number | null;
+    lng?: number | null;
+    status: string;
+    sequence: number;
+  }[];
+  total_points: number;
+}
+
+export interface FuelLogRecord {
+  id: number;
+  vehicle_id: number;
+  vehicle_number: string;
+  driver_name?: string | null;
+  fuel_liters: number;
+  cost_total: number;
+  odometer_km: number;
+  fuel_station?: string | null;
+  bill_number?: string | null;
+  receipt_photo: boolean;
+  logged_at?: string | null;
+}
+
+export interface MaintenanceLogRecord {
+  id: number;
+  vehicle_id: number;
+  vehicle_number: string;
+  service_type: string;
+  odometer_km: number;
+  cost: number;
+  service_center?: string | null;
+  service_date?: string | null;
+  next_due_km?: number | null;
+  next_due_date?: string | null;
+  notes?: string | null;
+}
+
+export interface FleetSummaryKPI {
+  total_vehicles: number;
+  active_vehicles: number;
+  active_trips: number;
+  today_distance_km: number;
+  total_stops_today: number;
+  delivered_stops_today: number;
+  failed_stops_today: number;
+  pending_stops_today: number;
+  total_cash_today: number;
+  unresolved_alerts: number;
+  fuel_liters_today: number;
+  timestamp: string;
+}

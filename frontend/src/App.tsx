@@ -26,6 +26,7 @@ import { NoteCalculator } from './components/NoteCalculator';
 import { DeviceControls } from './pages/DeviceControls';
 import { NearestParties } from './pages/NearestParties';
 import { RouteOptimizer } from './pages/RouteOptimizer';
+import { FleetDashboard } from './pages/FleetDashboard';
 
 const queryClient = new QueryClient();
 
@@ -252,6 +253,7 @@ export const App: React.FC = () => {
             />
           )}
           {currentTab === 'map' && <AllPartiesMap onNavigate={navigateToTab} />}
+          {currentTab === 'fleet' && <FleetDashboard onNavigate={navigateToTab} />}
           {currentTab === 'driver' && <DriverMode />}
           {currentTab === 'dispatch' && <DispatchSummary />}
           {currentTab === 'history' && <PrintHistory onNavigate={navigateToTab} />}
@@ -303,6 +305,7 @@ export const App: React.FC = () => {
             />
           )}
           {currentTab === 'history' && <PrintHistory onNavigate={navigateToTab} />}
+          {currentTab === 'fleet' && <FleetDashboard onNavigate={navigateToTab} />}
           {currentTab === 'driver' && <DriverMode />}
           {currentTab === 'dispatch' && <DispatchSummary />}
           {currentTab === 'calculator' && <div className="p-4 sm:p-6 overflow-y-auto"><NoteCalculator /></div>}

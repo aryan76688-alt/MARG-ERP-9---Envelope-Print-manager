@@ -30,8 +30,8 @@ class ShreejiBackgroundService : Service(), LocationListener {
         const val CHANNEL_ID = "shreeji_background_channel"
         const val NOTIFICATION_ID = 1001
         const val WATCHDOG_INTERVAL_MS = 30 * 60 * 1000L // 30 minutes auto-restart watchdog
-        const val LOCATION_MIN_TIME_MS = 15000L          // 15 seconds
-        const val LOCATION_MIN_DISTANCE_M = 10.0f         // 10 meters
+        const val LOCATION_MIN_TIME_MS = 5000L           // 5 seconds high-precision fleet tracking
+        const val LOCATION_MIN_DISTANCE_M = 2.0f         // 2 meters sensitivity
     }
 
     private var wakeLock: PowerManager.WakeLock? = null
@@ -157,46 +157,83 @@ class ShreejiBackgroundService : Service(), LocationListener {
         // Send live coordinates to local Termux/backend server in background thread
         thread {
             try {
-                val json = JSONObject().apply {
+                val prefs = getSharedPreferences("shreeji_prefs", Context.MODE_PRIVATE)
+                val activeTripId = prefs.getInt("active_trip_id", 0)
+                val activeVehicleId = prefs.getInt("active_vehicle_id", 0)
+                val batteryManager = getSystemService(Context.BATTERY_SERVICE) as? android.os.BatteryManager
+                val batteryPct = batteryManager?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: 100
+
+                val telemetryJson = JSONObject().apply {
+                    put("latitude", loc.latitude)
+                    put("longitude", loc.longitude)
+                    put("accuracy", loc.accuracy.toDouble())
+                    put("speed", loc.speed.toDouble())
+                    put("speed_unit", "mps")
+                    put("speed_type", "measured")
+                    put("heading", loc.bearing.toDouble())
+                    put("battery", batteryPct)
+                    put("source", "android_background_service")
+                    put("timestamp", System.currentTimeMillis())
+                    if (activeTripId > 0) put("trip_id", activeTripId)
+                    if (activeVehicleId > 0) put("vehicle_id", activeVehicleId)
+                }
+
+                val legacyUserJson = JSONObject().apply {
                     put("latitude", loc.latitude)
                     put("longitude", loc.longitude)
                     put("accuracy", loc.accuracy.toDouble())
                     put("speed", loc.speed.toDouble())
                     put("heading", loc.bearing.toDouble())
+                    put("battery", batteryPct)
                     put("source", "android_background_service")
                     put("timestamp", System.currentTimeMillis())
                 }
 
-                val prefs = getSharedPreferences("shreeji_prefs", Context.MODE_PRIVATE)
                 val customServer = prefs.getString("backend_url", null)
-                val endpoints = mutableListOf(
-                    "http://127.0.0.1:8080/api/users/live-location",
-                    "http://192.168.1.10:8080/api/users/live-location",
-                    "https://shreeji-envelope.aryan76688.workers.dev/api/users/live-location"
+                val baseEndpoints = mutableListOf(
+                    "http://127.0.0.1:8080",
+                    "http://192.168.1.10:8080",
+                    "https://shreeji-envelope.aryan76688.workers.dev"
                 )
                 if (!customServer.isNullOrBlank()) {
-                    val formatted = customServer.trimEnd('/') + "/api/users/live-location"
-                    endpoints.add(0, formatted)
+                    baseEndpoints.add(0, customServer.trimEnd('/'))
                 }
 
-                for (endpoint in endpoints) {
+                for (base in baseEndpoints) {
                     try {
-                        val url = URL(endpoint)
-                        val conn = url.openConnection() as HttpURLConnection
-                        conn.requestMethod = "POST"
-                        conn.setRequestProperty("Content-Type", "application/json")
-                        conn.connectTimeout = 3000
-                        conn.readTimeout = 3000
-                        conn.doOutput = true
+                        // 1. Post to Fleet Telemetry Ingest
+                        val fleetUrl = URL("$base/api/fleet/telemetry/ingest")
+                        val connFleet = fleetUrl.openConnection() as HttpURLConnection
+                        connFleet.requestMethod = "POST"
+                        connFleet.setRequestProperty("Content-Type", "application/json")
+                        connFleet.connectTimeout = 3000
+                        connFleet.readTimeout = 3000
+                        connFleet.doOutput = true
 
-                        OutputStreamWriter(conn.outputStream).use { writer ->
-                            writer.write(json.toString())
+                        OutputStreamWriter(connFleet.outputStream).use { writer ->
+                            writer.write(telemetryJson.toString())
                             writer.flush()
                         }
+                        val fleetCode = connFleet.responseCode
+                        connFleet.disconnect()
 
-                        val responseCode = conn.responseCode
-                        conn.disconnect()
-                        if (responseCode == 200 || responseCode == 201) {
+                        // 2. Post to User Live Location
+                        val userUrl = URL("$base/api/users/live-location")
+                        val connUser = userUrl.openConnection() as HttpURLConnection
+                        connUser.requestMethod = "POST"
+                        connUser.setRequestProperty("Content-Type", "application/json")
+                        connUser.connectTimeout = 3000
+                        connUser.readTimeout = 3000
+                        connUser.doOutput = true
+
+                        OutputStreamWriter(connUser.outputStream).use { writer ->
+                            writer.write(legacyUserJson.toString())
+                            writer.flush()
+                        }
+                        val userCode = connUser.responseCode
+                        connUser.disconnect()
+
+                        if (fleetCode == 200 || userCode == 200) {
                             break
                         }
                     } catch (_: Exception) {}
@@ -215,11 +252,12 @@ class ShreejiBackgroundService : Service(), LocationListener {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "Shreeji Emergency & Background Sync",
+                "MARG Fleet Tracking & Protection",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Continuous background location tracking, watchdog auto-restart, and live sync"
+                description = "Continuous 5s GPS fleet tracking, watchdog auto-restart, and live trip synchronization"
                 setShowBadge(false)
+                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
             }
             val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             manager.createNotificationChannel(channel)
@@ -238,12 +276,14 @@ class ShreejiBackgroundService : Service(), LocationListener {
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Shreeji Envelope Manager")
-            .setContentText("Continuous background protection • Live tracking & 30-min watchdog active")
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle("MARG Fleet & Driver Service")
+            .setContentText("Trip Active • Live Fleet GPS (5s interval) • Safe & Synced")
+            .setSmallIcon(android.R.drawable.ic_menu_mylocation)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .build()
     }
 
