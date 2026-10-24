@@ -170,25 +170,25 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 flex items-center justify-center p-3 sm:p-6 font-sans">
-      <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-100/20 overflow-hidden flex flex-col">
+    <div className="min-h-screen bg-[#0B0F19] flex items-center justify-center p-3 sm:p-6 font-sans text-slate-100">
+      <div className="w-full max-w-lg bg-[#111827] rounded-3xl shadow-2xl border border-slate-800/90 overflow-hidden flex flex-col">
         {/* Header Banner */}
-        <div className="bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-800 text-white px-6 py-5 sm:px-8 sm:py-6 relative overflow-hidden">
+        <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white px-6 py-5 sm:px-8 sm:py-6 relative overflow-hidden border-b border-slate-800">
           <div className="absolute right-0 top-0 translate-x-4 -translate-y-4 opacity-10 pointer-events-none">
             <Printer className="w-44 h-44 text-white" />
           </div>
 
           <div className="relative z-10 flex items-center justify-between">
             <div className="flex items-center gap-3.5">
-              <div className="w-11 h-11 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white shadow-lg">
+              <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white shadow-lg">
                 <Printer className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white flex items-center gap-2">
+                <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white flex items-center gap-2 font-display">
                   MARG Envelope Manager
                 </h1>
-                <p className="text-blue-100 text-xs sm:text-sm font-medium">
-                  Dispatch & Printing System • ડિસ્પેચ મેનેજર
+                <p className="text-blue-200 text-xs sm:text-sm font-medium">
+                  Executive Dispatch System • ડિસ્પેચ મેનેજર
                 </p>
               </div>
             </div>
@@ -196,15 +196,15 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
         </div>
 
         {/* Server Connection Bar */}
-        <div className="bg-slate-50 border-b border-slate-200 px-5 sm:px-8 py-2.5 flex items-center justify-between text-xs text-slate-600">
+        <div className="bg-[#161C28] border-b border-slate-800 px-5 sm:px-8 py-2.5 flex items-center justify-between text-xs text-slate-400">
           <div className="flex items-center gap-1.5 truncate max-w-[280px]">
-            <Server className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
-            <span className="truncate font-mono text-xs">{getApiBase()}</span>
+            <Server className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
+            <span className="truncate font-mono text-xs text-slate-300">{getApiBase()}</span>
           </div>
           <button
             type="button"
             onClick={() => setShowServerConfig(!showServerConfig)}
-            className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline cursor-pointer py-1 px-2 rounded"
+            className="text-xs font-semibold text-blue-400 hover:text-blue-300 hover:underline cursor-pointer py-1 px-2 rounded"
           >
             {showServerConfig ? 'Close' : 'Change Server'}
           </button>
@@ -212,8 +212,8 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
         {/* Expandable Server Configurator */}
         {showServerConfig && (
-          <div className="bg-slate-100/90 border-b border-slate-200 px-5 sm:px-8 py-3 text-xs space-y-2">
-            <label className="font-semibold text-slate-700 block">
+          <div className="bg-[#0D131F] border-b border-slate-800 px-5 sm:px-8 py-3 text-xs space-y-2">
+            <label className="font-semibold text-slate-300 block">
               Backend Server URL (Cloud or Local IP):
             </label>
             <input
@@ -221,14 +221,14 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
               value={customServerUrl}
               onChange={(e) => setCustomServerUrl(e.target.value)}
               placeholder="http://192.168.1.10:8080 or https://..."
-              className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg font-mono text-xs text-slate-800 focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 bg-[#161C28] border border-slate-700 rounded-xl font-mono text-xs text-white focus:ring-1 focus:ring-blue-500"
             />
 
             <div className="flex items-center gap-2 pt-1">
               <button
                 type="button"
                 onClick={handleSaveServerUrl}
-                className="px-3 py-1.5 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 text-xs cursor-pointer shadow-sm transition-colors"
+                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-semibold text-xs cursor-pointer shadow-sm transition-colors"
               >
                 Save & Reconnect
               </button>
@@ -239,24 +239,24 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
                   setCustomServerUrl(DEFAULT_REMOTE_API);
                   handleSaveServerUrl();
                 }}
-                className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-medium cursor-pointer transition-colors"
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium cursor-pointer transition-colors border border-slate-700"
               >
                 Reset Default
               </button>
             </div>
             {saveServerMsg && (
-              <p className="text-blue-600 font-medium text-xs">{saveServerMsg}</p>
+              <p className="text-blue-400 font-medium text-xs">{saveServerMsg}</p>
             )}
           </div>
         )}
 
         {/* Content Container */}
-        <div className="p-5 sm:p-8 space-y-5 flex-1">
+        <div className="p-5 sm:p-8 space-y-5 flex-1 bg-[#111827]">
 
           {/* Form Error Message */}
           {formError && (
-            <div role="alert" className="bg-red-50 border border-red-200 text-red-700 p-3 rounded-xl text-xs sm:text-sm flex items-start gap-2.5 shadow-sm">
-              <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
+            <div role="alert" className="bg-rose-950/60 border border-rose-800/80 text-rose-300 p-3 rounded-xl text-xs sm:text-sm flex items-start gap-2.5 shadow-sm">
+              <AlertCircle className="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5" />
               <div className="flex-1">
                 <span className="font-semibold">Login Failed: </span>
                 <span>{formError}</span>
@@ -267,11 +267,11 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
           {/* Login Form */}
           <form onSubmit={handleSubmit} className="space-y-3.5">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                 Username / યુઝરનેમ
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
                   <User className="w-4 h-4" />
                 </div>
                 <input
@@ -279,18 +279,18 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="Enter username"
-                  className="w-full pl-10 pr-4 py-2.5 text-xs sm:text-sm bg-slate-50/70 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium text-slate-900 transition-colors"
+                  className="w-full pl-10 pr-4 py-2.5 text-xs sm:text-sm bg-[#0D131F] border border-slate-800 rounded-xl focus:bg-[#161C28] focus:ring-1 focus:ring-blue-500 focus:border-blue-500 font-medium text-white transition-colors"
                   required
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                 Password / પાસવર્ડ
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
                   <Lock className="w-4 h-4" />
                 </div>
                 <input
@@ -298,7 +298,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter password"
-                  className="w-full pl-10 pr-12 py-2.5 text-xs sm:text-sm bg-slate-50/70 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium text-slate-900 transition-colors"
+                  className="w-full pl-10 pr-12 py-2.5 text-xs sm:text-sm bg-[#0D131F] border border-slate-800 rounded-xl focus:bg-[#161C28] focus:ring-1 focus:ring-blue-500 focus:border-blue-500 font-medium text-white transition-colors"
                   required
                 />
                 {/* Show/Hide Password Toggle Button */}
@@ -306,10 +306,10 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 focus:outline-none transition-colors"
+                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-white focus:outline-none transition-colors"
                 >
                   {showPassword ? (
-                    <EyeOff className="w-4 h-4 text-blue-600" />
+                    <EyeOff className="w-4 h-4 text-blue-400" />
                   ) : (
                     <Eye className="w-4 h-4" />
                   )}
@@ -322,7 +322,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-2.5 px-4 rounded-xl font-semibold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 shadow-md shadow-blue-600/20 transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed group cursor-pointer text-xs sm:text-sm"
+                className="w-full py-3 px-4 rounded-xl font-bold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 active:scale-[0.98] shadow-lg shadow-blue-600/30 transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed group cursor-pointer text-xs sm:text-sm"
               >
                 {loading ? (
                   <>
@@ -340,8 +340,8 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
           </form>
         </div>
 
-        {/* Footer Info (Issue 5 fix: bumped 11px to 12px text-xs) */}
-        <div className="bg-slate-50 px-6 py-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+        {/* Footer Info */}
+        <div className="bg-[#0D131F] px-6 py-3 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400 font-mono">
           <span>Zero-Internet Ready • Offline Sync</span>
           <span>v2.4.0 APK</span>
         </div>
