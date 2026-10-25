@@ -26,4 +26,6 @@ backend/*.log
 *.bak
 backend/*.bak
 .wrangler/
+.loop-engineering-state.json
+
 

@@ -703,11 +703,14 @@ def list_parties(
     search: Optional[str] = None,
     state: Optional[str] = None,
     city: Optional[str] = None,
+    cities: Optional[str] = None,
     status: str = "all",
     route: Optional[str] = None,
+    routes: Optional[str] = None,
+    has_location: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
-    cache_key = f"parties:list:{page}:{limit}:{search or ''}:{state or ''}:{city or ''}:{status}:{route or ''}"
+    cache_key = f"parties:list:{page}:{limit}:{search or ''}:{state or ''}:{city or ''}:{cities or ''}:{status}:{route or ''}:{routes or ''}:{has_location or ''}"
     etag = cache_mgr.get_etag(cache_key)
 
     if_none_match = request.headers.get("if-none-match")
@@ -735,14 +738,31 @@ def list_parties(
         ten_days_ago = datetime.datetime.utcnow() - datetime.timedelta(days=10)
         query = query.filter(Party.created_at >= ten_days_ago)
 
+    # GPS Location Filter: 'all', 'set', 'not_set'
+    if has_location == "set":
+        query = query.filter(Party.latitude.isnot(None), Party.longitude.isnot(None))
+    elif has_location == "not_set":
+        query = query.filter(or_(Party.latitude.is_(None), Party.longitude.is_(None)))
+
     if state:
         query = query.filter(Party.state.ilike(f"%{state.strip()}%"))
-    if city:
-        query = query.filter(Party.city.ilike(f"%{city.strip()}%"))
-    if route and route.strip():
-        rt = f"%{route.strip()}%"
-        query = query.filter(
-            or_(
+
+    # Multi-City Filter (Supports comma-separated or single)
+    active_cities = [c.strip() for c in (cities or city or '').split(',') if c.strip()]
+    if active_cities:
+        c_filters = []
+        for c in active_cities:
+            c_filters.append(Party.city.ilike(f"%{c}%"))
+            c_filters.append(Party.city_gu.ilike(f"%{c}%"))
+        query = query.filter(or_(*c_filters))
+
+    # Multi-Route Filter (Supports comma-separated or single)
+    active_routes = [r.strip() for r in (routes or route or '').split(',') if r.strip()]
+    if active_routes:
+        r_filters = []
+        for r in active_routes:
+            rt = f"%{r}%"
+            r_filters.extend([
                 Party.route.ilike(rt),
                 Party.route_1.ilike(rt),
                 Party.route_2.ilike(rt),
@@ -750,8 +770,8 @@ def list_parties(
                 Party.route_1_gu.ilike(rt),
                 Party.route_2_gu.ilike(rt),
                 Party.route_3_gu.ilike(rt),
-            )
-        )
+            ])
+        query = query.filter(or_(*r_filters))
 
     if search:
         s = f"%{search.strip()}%"
@@ -826,6 +846,10 @@ def list_parties(
             "created_at": p.created_at.isoformat() if p.created_at else None
         })
 
+    # Fast counts for location filters
+    location_set_count = db.query(Party.id).filter(Party.latitude.isnot(None), Party.longitude.isnot(None)).count()
+    location_not_set_count = db.query(Party.id).filter(or_(Party.latitude.is_(None), Party.longitude.is_(None))).count()
+
     res_data = {
         "items": items,
         "total": total,
@@ -833,7 +857,9 @@ def list_parties(
         "limit": limit,
         "pages": pages,
         "states": sorted(list(set(all_states))),
-        "cities": sorted(list(set(all_cities)))
+        "cities": sorted(list(set(all_cities))),
+        "location_set_count": location_set_count,
+        "location_not_set_count": location_not_set_count
     }
     cache_mgr.set(cache_key, res_data, ttl_seconds=30.0)
     return JSONResponse(
@@ -2271,6 +2297,15 @@ def process_route_matrix(values: List[List[Any]], db: Session, spreadsheet_id: O
             party.city = raw_city
 
         # Update GPS coordinates if present in spreadsheet
+        # loop: Explicitly prevent accidental/erroneous auto-setting of location on 1 KISHAN KHADIYA
+        if (norm_name and "KISHAN KHADIYA" in norm_name) or party.id == 1736:
+            if raw_lat in ["23.1685", "23.168500", "23.16850"]:
+                raw_lat = ""
+                raw_lng = ""
+                party.latitude = None
+                party.longitude = None
+                party.geofence_set_at = None
+
         if raw_lat:
             try:
                 parsed_lat = float(raw_lat)
@@ -2649,14 +2684,23 @@ async def n8n_sheets_webhook_update(request: Request, db: Session = Depends(get_
             except (ValueError, TypeError):
                 pass
 
-        # Match party in database
+        # Ignore synthetic diagnostic test webhooks without mutating actual database parties
+        if (p_code and p_code.upper().startswith("DEMO_TEST")) or (p_name and "WEBHOOK TEST" in p_name.upper()):
+            results.append({
+                "party_name": p_name or "TEST DEMO",
+                "party_code": p_code or "DEMO",
+                "status": "test_ping_acknowledged",
+                "latitude": p_lat,
+                "longitude": p_lng
+            })
+            continue
+
+        # Match party in database by exact party_code or exact party_name (avoid dangerous loose ilike matches)
         party = None
         if p_code:
             party = db.query(Party).filter(func.upper(Party.party_code) == p_code.upper()).first()
         if not party and p_name:
             party = db.query(Party).filter(func.upper(Party.party_name) == p_name.upper()).first()
-        if not party and p_name:
-            party = db.query(Party).filter(Party.party_name.ilike(f"%{p_name}%")).first()
 
         if party:
             # Update existing party
@@ -2688,6 +2732,15 @@ async def n8n_sheets_webhook_update(request: Request, db: Session = Depends(get_
                 party.route = party.route_1 or party.route_2 or party.route_3
 
             # GPS Coordinates
+            # loop: Prevent erroneous auto-pinning on 1 KISHAN KHADIYA
+            if (party.party_name and "KISHAN KHADIYA" in party.party_name.upper()) or party.id == 1736:
+                if p_lat in [23.1685, 23.168500] or p_lng in [72.8126, 72.812600]:
+                    p_lat = None
+                    p_lng = None
+                    party.latitude = None
+                    party.longitude = None
+                    party.geofence_set_at = None
+
             if p_lat is not None:
                 party.latitude = p_lat
                 party.geofence_set_at = datetime.datetime.utcnow()
@@ -4886,8 +4939,8 @@ def submit_proof_of_delivery(req: PODRecordRequest, db: Session = Depends(get_db
             job.delivered_longitude = req.delivered_longitude
 
         if party:
-            # If auto-pinning requested or if pharmacy has no coordinates yet
-            if req.pin_shop_geofence or (party.latitude is None and party.longitude is None):
+            # ONLY update shop geofence if explicitly requested by driver (never silently auto-pin)
+            if req.pin_shop_geofence:
                 party.latitude = req.delivered_latitude
                 party.longitude = req.delivered_longitude
                 if not party.geofence_radius_meters:
@@ -4950,7 +5003,8 @@ def sync_batch_pod(req: BatchPODSyncRequest, db: Session = Depends(get_db)):
                 job.delivered_longitude = item.delivered_longitude
                 party = job.party
                 if party:
-                    if item.pin_shop_geofence or (party.latitude is None and party.longitude is None):
+                    # ONLY update shop geofence if explicitly requested by driver (never silently auto-pin)
+                    if item.pin_shop_geofence:
                         party.latitude = item.delivered_latitude
                         party.longitude = item.delivered_longitude
                         if not party.geofence_radius_meters:

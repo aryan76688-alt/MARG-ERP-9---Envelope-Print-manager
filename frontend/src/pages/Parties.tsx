@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Users, 
   Search, 
@@ -31,7 +31,10 @@ import {
   Mail,
   Compass,
   MapPinOff,
-  Route
+  Route,
+  Check,
+  ChevronDown,
+  CheckCircle2
 } from 'lucide-react';
 import { VoiceSearchInput } from '../components/VoiceSearchInput';
 import { Party } from '../types';
@@ -81,6 +84,31 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
   const [selectedLetter, setSelectedLetter] = useState<string>('ALL');
   const [availableStates, setAvailableStates] = useState<string[]>([]);
   const [availableCities, setAvailableCities] = useState<string[]>([]);
+
+  // loop: Multi-filter select and GPS location status
+  const [locationFilter, setLocationFilter] = useState<'all' | 'set' | 'not_set'>('all');
+  const [selectedRoutes, setSelectedRoutes] = useState<string[]>([]);
+  const [selectedCities, setSelectedCities] = useState<string[]>([]);
+  const [locationStats, setLocationStats] = useState<{ set: number; notSet: number }>({ set: 0, notSet: 0 });
+  const [routeDropdownOpen, setRouteDropdownOpen] = useState<boolean>(false);
+  const [cityDropdownOpen, setCityDropdownOpen] = useState<boolean>(false);
+  const [routeSearchQ, setRouteSearchQ] = useState<string>('');
+  const [citySearchQ, setCitySearchQ] = useState<string>('');
+  const routeDropdownRef = useRef<HTMLDivElement>(null);
+  const cityDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (routeDropdownRef.current && !routeDropdownRef.current.contains(e.target as Node)) {
+        setRouteDropdownOpen(false);
+      }
+      if (cityDropdownRef.current && !cityDropdownRef.current.contains(e.target as Node)) {
+        setCityDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Selection
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
@@ -203,8 +231,38 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
 
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
 
+  const handleToggleRoute = (rt: string) => {
+    setSelectedRoutes(prev =>
+      prev.includes(rt) ? prev.filter(r => r !== rt) : [...prev, rt]
+    );
+    setPage(1);
+  };
+
+  const handleToggleCity = (ct: string) => {
+    setSelectedCities(prev =>
+      prev.includes(ct) ? prev.filter(c => c !== ct) : [...prev, ct]
+    );
+    setPage(1);
+  };
+
+  const handleClearAllFilters = () => {
+    setSearch('');
+    setSelectedLetter('ALL');
+    setLocationFilter('all');
+    setSelectedRoutes([]);
+    setSelectedCities([]);
+    setRouteFilter('');
+    setCityFilter('');
+    setStateFilter('');
+    setStatusFilter('all');
+    setPage(1);
+  };
+
   const loadParties = async () => {
     try {
+      const routesParam = selectedRoutes.length > 0 ? selectedRoutes.join(',') : (routeFilter || undefined);
+      const citiesParam = selectedCities.length > 0 ? selectedCities.join(',') : (cityFilter || undefined);
+
       // 1. Instant Cache Render (<15ms from IndexedDB)
       try {
         const cached = await getPartiesOffline({
@@ -213,9 +271,12 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
           search,
           state: stateFilter,
           city: cityFilter,
+          cities: citiesParam,
           status: statusFilter,
           route: routeFilter || undefined,
-          letter: selectedLetter !== 'ALL' ? selectedLetter : undefined
+          routes: routesParam,
+          letter: selectedLetter !== 'ALL' ? selectedLetter : undefined,
+          has_location: locationFilter
         });
         if (cached && cached.items && cached.items.length > 0) {
           setParties(cached.items);
@@ -223,6 +284,9 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
           setPages(cached.pages);
           if (cached.states?.length) setAvailableStates(cached.states);
           if (cached.cities?.length) setAvailableCities(cached.cities);
+          if (cached.location_set_count !== undefined && cached.location_not_set_count !== undefined) {
+            setLocationStats({ set: cached.location_set_count, notSet: cached.location_not_set_count });
+          }
           setLoading(false);
         }
       } catch (cacheErr) {
@@ -238,8 +302,11 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
           search,
           state: stateFilter,
           city: cityFilter,
+          cities: citiesParam,
           status: statusFilter,
           route: routeFilter || undefined,
+          routes: routesParam,
+          has_location: locationFilter
         });
       } catch (apiErr) {
         console.warn('Network fetchParties failed, using cached IndexedDB data:', apiErr);
@@ -251,6 +318,9 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
         setPages(res.pages);
         setAvailableStates(res.states || []);
         setAvailableCities(res.cities || []);
+        if (res.location_set_count !== undefined && res.location_not_set_count !== undefined) {
+          setLocationStats({ set: res.location_set_count, notSet: res.location_not_set_count });
+        }
       }
     } catch (err) {
       console.error('Failed to load parties:', err);
@@ -280,7 +350,7 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
       loadParties();
     }, 200);
     return () => clearTimeout(timer);
-  }, [search, stateFilter, cityFilter, statusFilter, routeFilter, page, limit]);
+  }, [search, stateFilter, cityFilter, selectedCities, statusFilter, routeFilter, selectedRoutes, locationFilter, selectedLetter, page, limit]);
 
   const handleBulkAssignRoute = async () => {
     if (selectedIds.length === 0) return;
@@ -593,108 +663,391 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
         </div>
       </div>
 
-      {/* Filter Controls Row (Standardized Grid with 3-Route & Weekdays) */}
-      <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 text-xs">
-        {/* Search with Voice (Spans 2 columns on desktop) */}
-        <div className="sm:col-span-2">
-          <VoiceSearchInput
-            placeholder="Search party name, code, mobile..."
-            value={search}
-            onChange={(val) => {
-              setSearch(val);
-              setPage(1);
-            }}
-          />
+      {/* loop: Stitch Location & Multi-Filter Control Console */}
+      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3.5">
+        {/* Top Sub-Row: Location Filter Segmented Control */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+              <MapPin className="w-4 h-4 text-blue-600" />
+              <span>Location Status:</span>
+            </span>
+          </div>
+
+          <div className="inline-flex p-1 bg-slate-100/90 rounded-xl border border-slate-200/90 shadow-inner flex-wrap gap-1">
+            <button
+              type="button"
+              onClick={() => { setLocationFilter('all'); setPage(1); }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+                locationFilter === 'all'
+                  ? 'bg-white text-slate-900 shadow-sm border border-slate-200/80 ring-1 ring-slate-900/5'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <span>All Parties</span>
+              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                locationFilter === 'all' ? 'bg-slate-900 text-white' : 'bg-slate-200 text-slate-700'
+              }`}>
+                {total.toLocaleString()}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { setLocationFilter('set'); setPage(1); }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+                locationFilter === 'set'
+                  ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-500/25 ring-1 ring-emerald-500'
+                  : 'text-slate-600 hover:text-emerald-700'
+              }`}
+            >
+              <span className={`w-2 h-2 rounded-full ${locationFilter === 'set' ? 'bg-white animate-pulse' : 'bg-emerald-500'}`}></span>
+              <span>📍 Location Set</span>
+              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                locationFilter === 'set' ? 'bg-emerald-800 text-emerald-100' : 'bg-emerald-100 text-emerald-800'
+              }`}>
+                {locationStats.set.toLocaleString()}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { setLocationFilter('not_set'); setPage(1); }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+                locationFilter === 'not_set'
+                  ? 'bg-amber-600 text-white shadow-sm shadow-amber-500/25 ring-1 ring-amber-500'
+                  : 'text-slate-600 hover:text-amber-700'
+              }`}
+            >
+              <span className={`w-2 h-2 rounded-full ${locationFilter === 'not_set' ? 'bg-white' : 'bg-amber-500'}`}></span>
+              <span>⚠️ Not Set</span>
+              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                locationFilter === 'not_set' ? 'bg-amber-800 text-amber-100' : 'bg-amber-100 text-amber-800'
+              }`}>
+                {locationStats.notSet.toLocaleString()}
+              </span>
+            </button>
+          </div>
         </div>
 
-        {/* Route / Weekday Filter */}
-        <div>
-          <select
-            value={routeFilter}
-            onChange={(e) => {
-              setRouteFilter(e.target.value);
-              setPage(1);
-            }}
-            className="w-full px-3 py-2 rounded-lg border border-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-indigo-950 bg-indigo-50/40"
-          >
-            <option value="">All Routes (Weekdays & Custom)</option>
-            <optgroup label="Weekday Delivery Schedules">
-              <option value="Monday">Monday (સોમવાર)</option>
-              <option value="Tuesday">Tuesday (મંગળવાર)</option>
-              <option value="Wednesday">Wednesday (બુધવાર)</option>
-              <option value="Thursday">Thursday (ગુરુવાર)</option>
-              <option value="Friday">Friday (શુક્રવાર)</option>
-              <option value="Saturday">Saturday (શનિવાર)</option>
-              <option value="Sunday">Sunday (રવિવાર)</option>
-            </optgroup>
-            {existingRoutes.filter((r) => !['MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY','SUNDAY'].includes(r.toUpperCase())).length > 0 && (
-              <optgroup label="Other Custom Routes">
-                {existingRoutes
-                  .filter((r) => !['MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY','SUNDAY'].includes(r.toUpperCase()))
-                  .map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
-              </optgroup>
+        {/* Primary Filter Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 text-xs">
+          {/* Search with Voice (Spans 2 columns on desktop) */}
+          <div className="sm:col-span-2">
+            <VoiceSearchInput
+              placeholder="Search party name, code, mobile..."
+              value={search}
+              onChange={(val) => {
+                setSearch(val);
+                setPage(1);
+              }}
+            />
+          </div>
+
+          {/* Multi-Select Routes Dropdown */}
+          <div className="relative" ref={routeDropdownRef}>
+            <button
+              type="button"
+              onClick={() => {
+                setRouteDropdownOpen(prev => !prev);
+                setCityDropdownOpen(false);
+              }}
+              className={`w-full px-3 py-2 rounded-lg border text-left flex items-center justify-between font-bold cursor-pointer transition-colors ${
+                selectedRoutes.length > 0
+                  ? 'bg-indigo-50 border-indigo-300 text-indigo-950 ring-2 ring-indigo-500/20'
+                  : 'bg-white border-slate-300 text-slate-700 hover:border-slate-400'
+              }`}
+            >
+              <div className="flex items-center gap-1.5 truncate">
+                <Route className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                <span className="truncate">
+                  {selectedRoutes.length === 0
+                    ? 'All Routes'
+                    : `${selectedRoutes.length} Route${selectedRoutes.length > 1 ? 's' : ''}`}
+                </span>
+              </div>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            </button>
+
+            {routeDropdownOpen && (
+              <div className="absolute left-0 top-full mt-1.5 w-72 bg-white rounded-xl shadow-xl border border-slate-200 z-50 p-2 space-y-2 animate-in fade-in slide-in-from-top-1">
+                <div className="flex items-center justify-between pb-1 border-b border-slate-100">
+                  <span className="text-xs font-black text-slate-800">Select Routes</span>
+                  {selectedRoutes.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => { setSelectedRoutes([]); setPage(1); }}
+                      className="text-[11px] font-bold text-rose-600 hover:underline cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+
+                <input
+                  type="text"
+                  placeholder="Filter routes..."
+                  value={routeSearchQ}
+                  onChange={(e) => setRouteSearchQ(e.target.value)}
+                  className="w-full px-2 py-1.5 rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+
+                <div className="max-h-52 overflow-y-auto space-y-1">
+                  {/* Standard Weekdays */}
+                  <div className="text-[10px] font-black uppercase text-slate-400 px-1 pt-1">Weekdays</div>
+                  {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+                    .filter(w => w.toLowerCase().includes(routeSearchQ.toLowerCase()))
+                    .map((w) => {
+                      const isSelected = selectedRoutes.includes(w);
+                      return (
+                        <label
+                          key={w}
+                          className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-indigo-50/60 cursor-pointer text-xs font-bold text-slate-700"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => handleToggleRoute(w)}
+                            className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                          />
+                          <span className={isSelected ? 'text-indigo-900 font-extrabold' : ''}>{w}</span>
+                        </label>
+                      );
+                    })}
+
+                  {/* Custom Routes */}
+                  {existingRoutes.filter(r => !['MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY','SUNDAY'].includes(r.toUpperCase())).length > 0 && (
+                    <>
+                      <div className="text-[10px] font-black uppercase text-slate-400 px-1 pt-1.5">Custom Routes</div>
+                      {existingRoutes
+                        .filter(r => !['MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY','SUNDAY'].includes(r.toUpperCase()))
+                        .filter(r => r.toLowerCase().includes(routeSearchQ.toLowerCase()))
+                        .map((r) => {
+                          const isSelected = selectedRoutes.includes(r);
+                          return (
+                            <label
+                              key={r}
+                              className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-indigo-50/60 cursor-pointer text-xs font-bold text-slate-700"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => handleToggleRoute(r)}
+                                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                              />
+                              <span className={isSelected ? 'text-indigo-900 font-extrabold' : ''}>{r}</span>
+                            </label>
+                          );
+                        })}
+                    </>
+                  )}
+                </div>
+              </div>
             )}
-          </select>
+          </div>
+
+          {/* Multi-Select Cities Dropdown */}
+          <div className="relative" ref={cityDropdownRef}>
+            <button
+              type="button"
+              onClick={() => {
+                setCityDropdownOpen(prev => !prev);
+                setRouteDropdownOpen(false);
+              }}
+              className={`w-full px-3 py-2 rounded-lg border text-left flex items-center justify-between font-bold cursor-pointer transition-colors ${
+                selectedCities.length > 0
+                  ? 'bg-blue-50 border-blue-300 text-blue-950 ring-2 ring-blue-500/20'
+                  : 'bg-white border-slate-300 text-slate-700 hover:border-slate-400'
+              }`}
+            >
+              <div className="flex items-center gap-1.5 truncate">
+                <Building2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                <span className="truncate">
+                  {selectedCities.length === 0
+                    ? `All Cities (${availableCities.length})`
+                    : `${selectedCities.length} Cit${selectedCities.length > 1 ? 'ies' : 'y'}`}
+                </span>
+              </div>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            </button>
+
+            {cityDropdownOpen && (
+              <div className="absolute left-0 top-full mt-1.5 w-72 bg-white rounded-xl shadow-xl border border-slate-200 z-50 p-2 space-y-2 animate-in fade-in slide-in-from-top-1">
+                <div className="flex items-center justify-between pb-1 border-b border-slate-100">
+                  <span className="text-xs font-black text-slate-800">Select Cities</span>
+                  {selectedCities.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => { setSelectedCities([]); setPage(1); }}
+                      className="text-[11px] font-bold text-rose-600 hover:underline cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+
+                <input
+                  type="text"
+                  placeholder="Filter cities..."
+                  value={citySearchQ}
+                  onChange={(e) => setCitySearchQ(e.target.value)}
+                  className="w-full px-2 py-1.5 rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+
+                <div className="max-h-52 overflow-y-auto space-y-1">
+                  {availableCities
+                    .filter(c => c.toLowerCase().includes(citySearchQ.toLowerCase()))
+                    .map((ct) => {
+                      const isSelected = selectedCities.includes(ct);
+                      return (
+                        <label
+                          key={ct}
+                          className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-blue-50/60 cursor-pointer text-xs font-bold text-slate-700"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => handleToggleCity(ct)}
+                            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className={isSelected ? 'text-blue-900 font-extrabold' : ''}>{ct}</span>
+                        </label>
+                      );
+                    })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* State Filter */}
+          <div>
+            <select
+              value={stateFilter}
+              onChange={(e) => {
+                setStateFilter(e.target.value);
+                setPage(1);
+              }}
+              className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700 bg-white"
+            >
+              <option value="">All States ({availableStates.length})</option>
+              {availableStates.map((st) => (
+                <option key={st} value={st}>
+                  {st}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Status Filter */}
+          <div>
+            <select
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value);
+                setPage(1);
+              }}
+              className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700 bg-white"
+            >
+              <option value="all">All Status</option>
+              <option value="new_10_days">✨ New Parties (Last 10 Days)</option>
+              <option value="active">Active Only</option>
+              <option value="inactive">Inactive Only</option>
+            </select>
+          </div>
         </div>
 
-        {/* City Filter */}
-        <div>
-          <select
-            value={cityFilter}
-            onChange={(e) => {
-              setCityFilter(e.target.value);
-              setPage(1);
-            }}
-            className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700 bg-white"
-          >
-            <option value="">All Cities ({availableCities.length})</option>
-            {availableCities.map((ct) => (
-              <option key={ct} value={ct}>
-                {ct}
-              </option>
+        {/* Active Filter Chips Console (Visible when any filter is on) */}
+        {(locationFilter !== 'all' || selectedRoutes.length > 0 || selectedCities.length > 0 || statusFilter !== 'all' || stateFilter || search || selectedLetter !== 'ALL') && (
+          <div className="flex items-center gap-1.5 flex-wrap pt-2 border-t border-slate-100 text-xs">
+            <span className="text-[11px] font-bold text-slate-500">Active Filters:</span>
+
+            {locationFilter !== 'all' && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-blue-100 text-blue-800 border border-blue-200">
+                <span>GPS: {locationFilter === 'set' ? 'Location Set' : 'Not Set'}</span>
+                <button
+                  type="button"
+                  onClick={() => setLocationFilter('all')}
+                  className="hover:text-blue-950 cursor-pointer"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+
+            {selectedRoutes.map(r => (
+              <span key={r} className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-indigo-100 text-indigo-800 border border-indigo-200">
+                <span>Route: {r}</span>
+                <button
+                  type="button"
+                  onClick={() => handleToggleRoute(r)}
+                  className="hover:text-indigo-950 cursor-pointer"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
             ))}
-          </select>
-        </div>
 
-        {/* State Filter */}
-        <div>
-          <select
-            value={stateFilter}
-            onChange={(e) => {
-              setStateFilter(e.target.value);
-              setPage(1);
-            }}
-            className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700 bg-white"
-          >
-            <option value="">All States ({availableStates.length})</option>
-            {availableStates.map((st) => (
-              <option key={st} value={st}>
-                {st}
-              </option>
+            {selectedCities.map(c => (
+              <span key={c} className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200">
+                <span>City: {c}</span>
+                <button
+                  type="button"
+                  onClick={() => handleToggleCity(c)}
+                  className="hover:text-emerald-950 cursor-pointer"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
             ))}
-          </select>
-        </div>
 
-        {/* Status Filter */}
-        <div>
-          <select
-            value={statusFilter}
-            onChange={(e) => {
-              setStatusFilter(e.target.value);
-              setPage(1);
-            }}
-            className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700 bg-white"
-          >
-            <option value="all">All Status</option>
-            <option value="new_10_days">✨ New Parties (Last 10 Days)</option>
-            <option value="active">Active Only</option>
-            <option value="inactive">Inactive Only</option>
-          </select>
-        </div>
+            {statusFilter !== 'all' && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-purple-100 text-purple-800 border border-purple-200">
+                <span>Status: {statusFilter}</span>
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter('all')}
+                  className="hover:text-purple-950 cursor-pointer"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+
+            {search && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-slate-200 text-slate-800 border border-slate-300">
+                <span>Search: "{search}"</span>
+                <button
+                  type="button"
+                  onClick={() => setSearch('')}
+                  className="hover:text-slate-950 cursor-pointer"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+
+            {selectedLetter !== 'ALL' && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-slate-200 text-slate-800 border border-slate-300">
+                <span>Letter: {selectedLetter}</span>
+                <button
+                  type="button"
+                  onClick={() => handleLetterClick('ALL')}
+                  className="hover:text-slate-950 cursor-pointer"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+
+            <button
+              type="button"
+              onClick={handleClearAllFilters}
+              className="text-[11px] font-extrabold text-rose-600 hover:text-rose-700 hover:underline cursor-pointer ml-1"
+            >
+              Clear All
+            </button>
+          </div>
+        )}
       </div>
 
       {/* MARG ERP A-Z Quick Jump Alphabet Bar */}

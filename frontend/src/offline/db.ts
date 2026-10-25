@@ -158,9 +158,12 @@ export async function getPartiesOffline(params: {
   search?: string;
   state?: string;
   city?: string;
+  cities?: string;
   status?: string;
   letter?: string;
   route?: string;
+  routes?: string;
+  has_location?: 'all' | 'set' | 'not_set';
 }): Promise<{
   items: Party[];
   total: number;
@@ -169,6 +172,8 @@ export async function getPartiesOffline(params: {
   pages: number;
   states: string[];
   cities: string[];
+  location_set_count?: number;
+  location_not_set_count?: number;
 }> {
   const all = await getAllOfflineParties();
   const searchQ = (params.search || '').trim().toUpperCase();
@@ -177,19 +182,35 @@ export async function getPartiesOffline(params: {
   const statusF = (params.status || 'all').toLowerCase();
   const letterF = (params.letter || 'ALL').toUpperCase();
   const routeF = (params.route || '').trim().toUpperCase();
+  const hasLocF = params.has_location || 'all';
+
+  const multiCities = (params.cities || '').split(',').map(c => c.trim().toUpperCase()).filter(Boolean);
+  const multiRoutes = (params.routes || '').split(',').map(r => r.trim().toUpperCase()).filter(Boolean);
 
   // Extract unique states & cities from full dataset
   const stateSet = new Set<string>();
   const citySet = new Set<string>();
+  let location_set_count = 0;
+  let location_not_set_count = 0;
+
   for (const p of all) {
     if (p.state) stateSet.add(p.state.trim().toUpperCase());
     if (p.city) citySet.add(p.city.trim().toUpperCase());
+    if (p.latitude != null && p.longitude != null) {
+      location_set_count++;
+    } else {
+      location_not_set_count++;
+    }
   }
   const states = Array.from(stateSet).sort();
   const cities = Array.from(citySet).sort();
 
   // Filter
   const filtered = all.filter((p) => {
+    // Location filter
+    if (hasLocF === 'set' && (!p.latitude || !p.longitude)) return false;
+    if (hasLocF === 'not_set' && (p.latitude && p.longitude)) return false;
+
     // Status filter
     if (statusF === 'active' && !p.is_active) return false;
     if (statusF === 'inactive' && p.is_active) return false;
@@ -198,10 +219,24 @@ export async function getPartiesOffline(params: {
     if (stateF && (p.state || '').trim().toUpperCase() !== stateF) return false;
 
     // City filter
-    if (cityF && (p.city || '').trim().toUpperCase() !== cityF) return false;
+    if (multiCities.length > 0) {
+      const c1 = (p.city || '').trim().toUpperCase();
+      const c2 = (p.city_gu || '').trim().toUpperCase();
+      const matchCity = multiCities.some(mc => c1.includes(mc) || c2.includes(mc));
+      if (!matchCity) return false;
+    } else if (cityF && (p.city || '').trim().toUpperCase() !== cityF) {
+      return false;
+    }
 
     // Route filter
-    if (routeF) {
+    if (multiRoutes.length > 0) {
+      const rAll = [
+        p.route, p.route_1, p.route_2, p.route_3,
+        p.route_1_gu, p.route_2_gu, p.route_3_gu
+      ].map((r) => (r || '').trim().toUpperCase());
+      const matchRoute = multiRoutes.some(mr => rAll.some(r => r.includes(mr)));
+      if (!matchRoute) return false;
+    } else if (routeF) {
       const rAll = [
         p.route, p.route_1, p.route_2, p.route_3,
         p.route_1_gu, p.route_2_gu, p.route_3_gu
@@ -272,6 +307,8 @@ export async function getPartiesOffline(params: {
     pages,
     states,
     cities,
+    location_set_count,
+    location_not_set_count,
   };
 }
 

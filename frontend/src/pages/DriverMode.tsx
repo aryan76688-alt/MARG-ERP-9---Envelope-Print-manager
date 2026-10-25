@@ -189,8 +189,8 @@ export const DriverMode: React.FC = () => {
     setPodNotes('');
     setPodPhotoBase64(null);
     setPodSuccessMsg(null);
-    // If party has no GPS coordinates yet, default auto-pin to true
-    setPinShopGeofence(!stop.latitude || !stop.longitude);
+    // loop: Never auto-pin party GPS by default; requires explicit driver toggle
+    setPinShopGeofence(false);
 
     if (autoCamera && stop.delivery_status !== 'Delivered') {
       setTimeout(() => {

@@ -1115,12 +1115,13 @@ export const RouteManagerModal: React.FC<RouteManagerModalProps> = ({
                       setIsTestingWebhook(true);
                       setTestWebhookResult(null);
                       try {
+                        // loop: Use dummy party name to prevent overwriting real database parties like 1 KISHAN KHADIYA
                         const res = await testN8nWebhook({
-                          party_name: internalParties[0]?.party_name || "TEST SAMPLE PARTY",
-                          party_code: internalParties[0]?.party_code || "P0001",
-                          primary_route_1: "MONDAY ROUTE",
-                          latitude: 23.1685,
-                          longitude: 72.8126
+                          party_name: "WEBHOOK TEST CONNECTION (DEMO)",
+                          party_code: "DEMO_TEST_PIN_9999",
+                          primary_route_1: "TEST ROUTE",
+                          latitude: 23.0225,
+                          longitude: 72.5714
                         });
                         setTestWebhookResult({ success: true, data: res });
                         onPartiesUpdated?.();

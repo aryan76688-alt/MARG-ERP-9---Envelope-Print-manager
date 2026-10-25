@@ -177,26 +177,7 @@ export const PartyModal: React.FC<PartyModalProps> = ({
           .catch(console.error)
           .finally(() => setLoadingNextCode(false));
 
-        // Auto-capture GPS location for the new party immediately
-        if (typeof navigator !== 'undefined' && navigator.geolocation) {
-          setCapturingGPS(true);
-          navigator.geolocation.getCurrentPosition(
-            (pos) => {
-              setFormData((prev) => ({
-                ...prev,
-                latitude: pos.coords.latitude,
-                longitude: pos.coords.longitude,
-                geofence_radius_meters: prev.geofence_radius_meters || 75,
-              }));
-              setCapturingGPS(false);
-            },
-            (err) => {
-              console.warn('Auto GPS capture skipped/denied:', err.message);
-              setCapturingGPS(false);
-            },
-            { enableHighAccuracy: true, timeout: 8000 }
-          );
-        }
+        // loop: GPS coordinates must never be auto-captured silently on modal open. GPS is only set on explicit user button click.
       }
     }
     setErrors({});

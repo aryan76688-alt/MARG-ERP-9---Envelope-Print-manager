@@ -103,9 +103,22 @@ export async function fetchParties(params: {
   search?: string;
   state?: string;
   city?: string;
+  cities?: string;
   status?: string;
   route?: string;
-}): Promise<{ items: Party[]; total: number; page: number; limit: number; pages: number; states: string[]; cities: string[] }> {
+  routes?: string;
+  has_location?: 'all' | 'set' | 'not_set';
+}): Promise<{
+  items: Party[];
+  total: number;
+  page: number;
+  limit: number;
+  pages: number;
+  states: string[];
+  cities: string[];
+  location_set_count?: number;
+  location_not_set_count?: number;
+}> {
   try {
     const query = new URLSearchParams();
     if (params.page) query.append('page', params.page.toString());
@@ -113,8 +126,11 @@ export async function fetchParties(params: {
     if (params.search) query.append('search', params.search);
     if (params.state) query.append('state', params.state);
     if (params.city) query.append('city', params.city);
+    if (params.cities) query.append('cities', params.cities);
     if (params.status) query.append('status', params.status);
     if (params.route) query.append('route', params.route);
+    if (params.routes) query.append('routes', params.routes);
+    if (params.has_location) query.append('has_location', params.has_location);
 
     const res = await fetchApi(`${API_BASE}/parties?${query.toString()}`);
     if (res.ok) {
