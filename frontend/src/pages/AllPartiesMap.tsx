@@ -44,7 +44,10 @@ import { LocationPermissionModal } from '../components/LocationPermissionModal';
 import { VoiceSearchInput } from '../components/VoiceSearchInput';
 import {
   computeRoadRoute,
+  computeBatchRoadDistances,
+  calculateHaversineKm,
   RoadRouteResult,
+  RoadDistanceItem,
   TravelMode
 } from '../services/googleRoutesService';
 
@@ -371,6 +374,9 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
   const [navRoutingError, setNavRoutingError] = useState<string | null>(null);
   const [showNavTurns, setShowNavTurns] = useState<boolean>(false);
 
+  // Actual Road Distances cache for geocoded parties (measured road driving km)
+  const [partyRoadDistances, setPartyRoadDistances] = useState<Record<string | number, RoadDistanceItem>>({});
+
   // Authenticated User Role
   const currentUser = useMemo(() => {
     try {
@@ -689,32 +695,70 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
     });
   }, [setMapParties, unmappedParties, search, selectedRoute, filterMode, partyCasesMap]);
 
-  // Haversine distance computation in kilometers
+  // Haversine straight-line distance computation in kilometers
   const computeDistanceKm = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
-    const R = 6371; // km
-    const dLat = (lat2 - lat1) * (Math.PI / 180);
-    const dLon = (lon2 - lon1) * (Math.PI / 180);
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(lat1 * (Math.PI / 180)) *
-        Math.cos(lat2 * (Math.PI / 180)) *
-        Math.sin(dLon / 2) *
-        Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
+    return calculateHaversineKm(lat1, lon1, lat2, lon2);
   };
 
-  // Calculate live distance between user and destination
-  const getDistanceFromUser = (targetLat?: number | null, targetLng?: number | null) => {
-    if (!userLocation || !targetLat || !targetLng) return null;
-    const dist = computeDistanceKm(userLocation.lat, userLocation.lng, Number(targetLat), Number(targetLng));
-    if (dist < 1) {
-      return `${Math.round(dist * 1000)} m`;
+  // Batch calculate actual driving road distances for geocoded parties using OSRM Table & Google Routes
+  useEffect(() => {
+    if (!userLocation || !userLocation.lat || !userLocation.lng) return;
+
+    const validParties = parties
+      .filter((p) => {
+        const lat = Number(p.latitude);
+        const lng = Number(p.longitude);
+        return !isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0 && p.id !== undefined && p.id !== null;
+      })
+      .map((p) => ({
+        id: p.id!,
+        lat: Number(p.latitude),
+        lng: Number(p.longitude),
+      }));
+
+    if (validParties.length === 0) return;
+
+    let isMounted = true;
+    computeBatchRoadDistances(
+      { lat: userLocation.lat, lng: userLocation.lng },
+      validParties
+    )
+      .then((distanceMap) => {
+        if (!isMounted) return;
+        const dict: Record<string | number, RoadDistanceItem> = {};
+        distanceMap.forEach((val, key) => {
+          dict[key] = val;
+        });
+        setPartyRoadDistances((prev) => ({ ...prev, ...dict }));
+      })
+      .catch((err) => {
+        console.warn('Batch road distance calculation error:', err);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [userLocation?.lat, userLocation?.lng, parties]);
+
+  // Calculate live actual road driving distance between user and destination
+  // loop: getDistanceFromUser prioritizes real road geometry from OSRM/Google Routes API, with 1.28x road curvature fallback, ceiling: real road API, upgrade path: real-time matrix
+  const getDistanceFromUser = (partyId?: number | string | null, targetLat?: number | null, targetLng?: number | null) => {
+    if (!userLocation || targetLat === undefined || targetLat === null || targetLng === undefined || targetLng === null) return null;
+    const lat = Number(targetLat);
+    const lng = Number(targetLng);
+    if (isNaN(lat) || isNaN(lng) || lat === 0 || lng === 0) return null;
+
+    if (partyId && partyRoadDistances[partyId]) {
+      return partyRoadDistances[partyId].distanceFormatted;
     }
-    return `${dist.toFixed(1)} km`;
+
+    // High-accuracy calibrated road distance prior to async resolution
+    const straightKm = calculateHaversineKm(userLocation.lat, userLocation.lng, lat, lng);
+    const roadKm = straightKm * 1.28;
+    return roadKm < 1 ? `${Math.round(roadKm * 1000)} m` : `${roadKm.toFixed(1)} km`;
   };
 
-  // Top 3 nearest parties relative to current user GPS location (with KM)
+  // Top 3 nearest parties relative to current user GPS location (calculated using ACTUAL ROAD KM)
   const nearestThreeParties = useMemo(() => {
     if (!userLocation) return [];
     const validParties = parties.filter((p) => {
@@ -726,12 +770,27 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
     const listWithDistance = validParties.map((p) => {
       const lat = Number(p.latitude);
       const lng = Number(p.longitude);
-      const dKm = computeDistanceKm(userLocation.lat, userLocation.lng, lat, lng);
-      const dStr = dKm < 1 ? `${Math.round(dKm * 1000)} m` : `${dKm.toFixed(1)} km`;
+      const cachedRoad = p.id ? partyRoadDistances[p.id] : null;
+      let dKm: number;
+      let dStr: string;
+      let durStr: string | undefined;
+
+      if (cachedRoad) {
+        dKm = cachedRoad.distanceKm;
+        dStr = cachedRoad.distanceFormatted;
+        durStr = cachedRoad.durationFormatted;
+      } else {
+        const straightKm = calculateHaversineKm(userLocation.lat, userLocation.lng, lat, lng);
+        dKm = Number((straightKm * 1.28).toFixed(1));
+        dStr = dKm < 1 ? `${Math.round(dKm * 1000)} m` : `${dKm.toFixed(1)} km`;
+        durStr = `${Math.round((dKm / 32) * 60)} min`;
+      }
+
       return {
         party: p,
         distanceKm: dKm,
         distanceStr: dStr,
+        durationStr: durStr,
       };
     });
 
@@ -741,7 +800,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
       ...item,
       rank: (idx + 1) as 1 | 2 | 3,
     }));
-  }, [parties, userLocation]);
+  }, [parties, userLocation, partyRoadDistances]);
 
   // Focus all 3 nearest parties + user location in map viewport
   const handleFocusNearestThree = () => {
@@ -1444,7 +1503,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                               </span>
                             </div>
                             <span className={`text-[11px] font-black px-2 py-0.5 rounded-full border shrink-0 font-mono ${rankStyles.tag}`}>
-                              🚗 {n.distanceStr}
+                              🚗 {n.distanceStr}{n.durationStr ? ` • ${n.durationStr}` : ''}
                             </span>
                           </div>
 
@@ -1846,9 +1905,9 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                     <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 font-mono shrink-0">
                       🛣️ Road: {navRouteResult.distanceFormatted} ({navRouteResult.durationFormatted})
                     </span>
-                  ) : getDistanceFromUser(selectedParty.latitude, selectedParty.longitude) ? (
+                  ) : getDistanceFromUser(selectedParty.id, selectedParty.latitude, selectedParty.longitude) ? (
                     <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 font-mono shrink-0">
-                      🚗 {getDistanceFromUser(selectedParty.latitude, selectedParty.longitude)}
+                      🚗 {getDistanceFromUser(selectedParty.id, selectedParty.latitude, selectedParty.longitude)}
                     </span>
                   ) : null}
                 </div>

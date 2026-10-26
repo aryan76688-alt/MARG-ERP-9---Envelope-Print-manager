@@ -1876,9 +1876,11 @@ def _decode_google_polyline(encoded: str) -> List[Dict[str, float]]:
     return points
 
 @app.post("/api/routes/compute-route")
+@app.post("/api/routes/directions")
 def compute_road_route(req: ComputeRouteRequest):
     """
     Computes a real road-following route using Google Maps Routes API (Directions v2 computeRoutes).
+    Falls back gracefully to OSRM real road engine.
     Returns real road geometry points, distance in meters & km, duration in seconds & minutes,
     and turn-by-turn navigation instructions. Never returns a straight line.
     """
@@ -1944,78 +1946,129 @@ def compute_road_route(req: ComputeRouteRequest):
 
     try:
         resp = requests.post(routes_url, headers=headers, json=payload, timeout=12)
-        if resp.status_code != 200:
-            err_data = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
-            err_msg = err_data.get("error", {}).get("message") or f"Google Routes API HTTP {resp.status_code}"
-            raise HTTPException(status_code=resp.status_code, detail=f"Routing Error: {err_msg}")
+        if resp.status_code == 200:
+            data = resp.json()
+            routes = data.get("routes", [])
+            if routes:
+                route = routes[0]
+                encoded_poly = route.get("polyline", {}).get("encodedPolyline", "")
+                path_points = _decode_google_polyline(encoded_poly) if encoded_poly else []
 
-        data = resp.json()
-        routes = data.get("routes", [])
-        if not routes:
-            raise HTTPException(status_code=404, detail="No real road route found between the specified locations.")
+                raw_dur = route.get("duration", "0s").rstrip("s")
+                try:
+                    duration_seconds = int(raw_dur)
+                except Exception:
+                    duration_seconds = 0
 
-        route = routes[0]
-        encoded_poly = route.get("polyline", {}).get("encodedPolyline", "")
-        path_points = _decode_google_polyline(encoded_poly) if encoded_poly else []
+                distance_meters = int(route.get("distanceMeters", 0))
 
-        raw_dur = route.get("duration", "0s").rstrip("s")
-        try:
-            duration_seconds = int(raw_dur)
-        except Exception:
-            duration_seconds = 0
+                legs_output = []
+                all_steps = []
+                for leg in route.get("legs", []):
+                    leg_steps = []
+                    for step in leg.get("steps", []):
+                        s_dist = int(step.get("distanceMeters", 0))
+                        s_dur = int(step.get("staticDuration", "0s").rstrip("s") or 0)
+                        instr = step.get("navigationInstruction", {})
+                        instr_text = instr.get("instructions", "")
+                        maneuver = instr.get("maneuver", "STRAIGHT")
+                        step_poly = step.get("polyline", {}).get("encodedPolyline", "")
+                        step_points = _decode_google_polyline(step_poly) if step_poly else []
 
-        distance_meters = int(route.get("distanceMeters", 0))
+                        step_data = {
+                            "distance_meters": s_dist,
+                            "duration_seconds": s_dur,
+                            "instruction": instr_text or f"Continue for {s_dist}m",
+                            "maneuver": maneuver,
+                            "start_location": step.get("startLocation", {}).get("latLng", {}),
+                            "end_location": step.get("endLocation", {}).get("latLng", {}),
+                            "path": step_points
+                        }
+                        leg_steps.append(step_data)
+                        all_steps.append(step_data)
 
-        legs_output = []
-        all_steps = []
-        for leg in route.get("legs", []):
-            leg_steps = []
-            for step in leg.get("steps", []):
-                s_dist = int(step.get("distanceMeters", 0))
-                s_dur = int(step.get("staticDuration", "0s").rstrip("s") or 0)
-                instr = step.get("navigationInstruction", {})
-                instr_text = instr.get("instructions", "")
-                maneuver = instr.get("maneuver", "STRAIGHT")
-                step_poly = step.get("polyline", {}).get("encodedPolyline", "")
-                step_points = _decode_google_polyline(step_poly) if step_poly else []
+                    legs_output.append({
+                        "distance_meters": int(leg.get("distanceMeters", 0)),
+                        "duration_seconds": int(leg.get("duration", "0s").rstrip("s") or 0),
+                        "steps": leg_steps
+                    })
 
-                step_data = {
-                    "distance_meters": s_dist,
-                    "duration_seconds": s_dur,
-                    "instruction": instr_text or f"Continue for {s_dist}m",
-                    "maneuver": maneuver,
-                    "start_location": step.get("startLocation", {}).get("latLng", {}),
-                    "end_location": step.get("endLocation", {}).get("latLng", {}),
-                    "path": step_points
+                return {
+                    "success": True,
+                    "travel_mode": req.travel_mode,
+                    "distance_meters": distance_meters,
+                    "distance_km": round(distance_meters / 1000.0, 2),
+                    "duration_seconds": duration_seconds,
+                    "duration_minutes": round(duration_seconds / 60.0, 1),
+                    "viewport": route.get("viewport"),
+                    "path": path_points,
+                    "path_count": len(path_points),
+                    "legs": legs_output,
+                    "steps": all_steps
                 }
-                leg_steps.append(step_data)
-                all_steps.append(step_data)
+    except Exception as g_err:
+        print(f"Google Routes API call failed ({g_err}), falling back to OSRM real road engine")
 
-            legs_output.append({
-                "distance_meters": int(leg.get("distanceMeters", 0)),
-                "duration_seconds": int(leg.get("duration", "0s").rstrip("s") or 0),
-                "steps": leg_steps
-            })
+    # Fallback to OSRM Driving Engine for 100% road-following reliability
+    try:
+        coords = [f"{req.origin.lng},{req.origin.lat}"]
+        if req.intermediates:
+            for p in req.intermediates:
+                coords.append(f"{p.lng},{p.lat}")
+        coords.append(f"{req.destination.lng},{req.destination.lat}")
 
-        return {
-            "success": True,
-            "travel_mode": req.travel_mode,
-            "distance_meters": distance_meters,
-            "distance_km": round(distance_meters / 1000.0, 2),
-            "duration_seconds": duration_seconds,
-            "duration_minutes": round(duration_seconds / 60.0, 1),
-            "viewport": route.get("viewport"),
-            "path": path_points,
-            "path_count": len(path_points),
-            "legs": legs_output,
-            "steps": all_steps
-        }
-    except HTTPException:
-        raise
-    except requests.exceptions.RequestException as req_err:
-        raise HTTPException(status_code=502, detail=f"Failed to connect to Google Routes API: {str(req_err)}")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error computing road route: {str(e)}")
+        osrm_url = f"https://router.project-osrm.org/route/v1/driving/{';'.join(coords)}?overview=full&geometries=geojson&steps=true"
+        osrm_resp = requests.get(osrm_url, timeout=10)
+        if osrm_resp.status_code == 200:
+            osrm_data = osrm_resp.json()
+            if osrm_data.get("code") == "Ok" and osrm_data.get("routes"):
+                route = osrm_data["routes"][0]
+                path_points = [{"lat": round(pt[1], 6), "lng": round(pt[0], 6)} for pt in route.get("geometry", {}).get("coordinates", [])]
+                dist_m = int(route.get("distance", 0))
+                dur_s = int(route.get("duration", 0))
+                all_steps = []
+                for leg in route.get("legs", []):
+                    for step in leg.get("steps", []):
+                        all_steps.append({
+                            "distance_meters": int(step.get("distance", 0)),
+                            "duration_seconds": int(step.get("duration", 0)),
+                            "instruction": step.get("maneuver", {}).get("type", "Continue"),
+                            "maneuver": step.get("maneuver", {}).get("modifier", "STRAIGHT").upper(),
+                            "path": [{"lat": round(pt[1], 6), "lng": round(pt[0], 6)} for pt in step.get("geometry", {}).get("coordinates", [])]
+                        })
+                return {
+                    "success": True,
+                    "travel_mode": req.travel_mode,
+                    "distance_meters": dist_m,
+                    "distance_km": round(dist_m / 1000.0, 2),
+                    "duration_seconds": dur_s,
+                    "duration_minutes": round(dur_s / 60.0, 1),
+                    "path": path_points,
+                    "path_count": len(path_points),
+                    "legs": [],
+                    "steps": all_steps
+                }
+    except Exception as osrm_err:
+        print(f"OSRM fallback failed ({osrm_err})")
+
+    raise HTTPException(status_code=502, detail="Failed to calculate real road directions from routing services.")
+
+@app.get("/api/routes/compute-route")
+@app.get("/api/routes/directions")
+def compute_road_route_get(
+    origin_lat: float,
+    origin_lng: float,
+    dest_lat: float,
+    dest_lng: float,
+    travel_mode: str = "DRIVING"
+):
+    """GET query-string adapter for road route calculation."""
+    req = ComputeRouteRequest(
+        origin=LocationPoint(lat=origin_lat, lng=origin_lng),
+        destination=LocationPoint(lat=dest_lat, lng=dest_lng),
+        travel_mode=travel_mode
+    )
+    return compute_road_route(req)
 
 @app.post("/api/routes/sync-google-sheet")
 def sync_google_sheet_routes(req: SyncGoogleSheetRequest, db: Session = Depends(get_db)):

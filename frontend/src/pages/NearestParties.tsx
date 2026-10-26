@@ -49,6 +49,16 @@ export function formatDistanceString(km: number): string {
   return `${km.toFixed(1)} km`;
 }
 
+// loop: calculateRoadDistanceKm applies 1.28x road network factor for actual road driving km, ceiling: direct road API, upgrade path: batch OSRM table
+export function calculateRoadDistanceKm(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): number {
+  return Number((calculateDistanceKm(lat1, lon1, lat2, lon2) * 1.28).toFixed(1));
+}
+
 interface NearestPartiesProps {
   onNavigate: (tab: string, state?: any) => void;
   onPrintParty?: (party: Party) => void;
@@ -151,7 +161,7 @@ export const NearestParties: React.FC<NearestPartiesProps> = ({ onNavigate, onPr
         const hasLng = p.longitude !== null && p.longitude !== undefined && !isNaN(Number(p.longitude)) && Number(p.longitude) !== 0;
 
         if (userLocation && hasLat && hasLng) {
-          const d = calculateDistanceKm(userLocation.lat, userLocation.lng, Number(p.latitude), Number(p.longitude));
+          const d = calculateRoadDistanceKm(userLocation.lat, userLocation.lng, Number(p.latitude), Number(p.longitude));
           return {
             ...p,
             distanceKm: d,

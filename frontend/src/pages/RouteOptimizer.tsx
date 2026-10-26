@@ -963,14 +963,72 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
 
           {/* Routing Error Notice */}
           {routingError && (
-            <div className="absolute inset-x-4 top-16 z-[1000] p-3 rounded-xl bg-red-950/95 text-red-200 backdrop-blur-md border border-red-700/80 shadow-xl flex items-center gap-2.5 text-xs font-bold">
-              <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
-              <div className="flex-1">
-                <div>{routingError}</div>
-                <div className="text-[10px] text-red-400 font-normal mt-0.5">
-                  Straight-line substitute blocked. Please check destination coordinates or internet connection.
+            <div className="absolute inset-x-4 top-16 z-[1000] p-3 rounded-xl bg-red-950/95 text-red-200 backdrop-blur-md border border-red-700/80 shadow-xl flex items-center justify-between gap-2.5 text-xs font-bold">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+                <div className="flex-1">
+                  <div>{routingError}</div>
+                  <div className="text-[10px] text-red-400 font-normal mt-0.5">
+                    Straight-line substitute blocked. Please check destination coordinates or internet connection.
+                  </div>
                 </div>
               </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setRoutingError(null);
+                  setIsComputingRoute(true);
+                  if (optimizedStops.length > 0) {
+                    const startLat = currentLocation?.lat || defaultWarehouse.lat;
+                    const startLng = currentLocation?.lng || defaultWarehouse.lng;
+                    const origin = {
+                      lat: startLat,
+                      lng: startLng,
+                      name: currentLocation ? 'Driver Live Location' : defaultWarehouse.label
+                    };
+                    const destStop = optimizedStops[optimizedStops.length - 1];
+                    const destination = {
+                      lat: Number(destStop.party.latitude),
+                      lng: Number(destStop.party.longitude),
+                      name: destStop.party.party_name
+                    };
+                    const intermediateStops = optimizedStops.slice(0, -1).map((s) => ({
+                      lat: Number(s.party.latitude),
+                      lng: Number(s.party.longitude),
+                      name: s.party.party_name
+                    }));
+                    computeRoadRoute({
+                      origin,
+                      destination,
+                      intermediates: intermediateStops,
+                      travelMode
+                    }).then((result) => {
+                      setRoadRouteResult(result);
+                      setIsComputingRoute(false);
+                      if (mapInstanceRef.current) {
+                        if (polylineRef.current) {
+                          mapInstanceRef.current.removeLayer(polylineRef.current);
+                        }
+                        polylineRef.current = L.polyline(result.path, {
+                          color: '#2563eb',
+                          weight: 5,
+                          opacity: 0.9,
+                          lineJoin: 'round',
+                          lineCap: 'round'
+                        }).addTo(mapInstanceRef.current);
+                        mapInstanceRef.current.fitBounds(L.latLngBounds(result.path), { padding: [50, 50] });
+                      }
+                    }).catch((err: any) => {
+                      setIsComputingRoute(false);
+                      setRoutingError(err.message || 'Route calculation failed');
+                    });
+                  }
+                }}
+                className="px-2.5 py-1 rounded-lg bg-red-700 hover:bg-red-600 text-white text-[11px] font-bold shrink-0 shadow active:scale-95 transition-all flex items-center gap-1"
+              >
+                <RefreshCw className="w-3 h-3" />
+                <span>Retry</span>
+              </button>
             </div>
           )}
 
