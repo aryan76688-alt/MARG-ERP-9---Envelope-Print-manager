@@ -19,6 +19,8 @@ android/app/build/
 android/local.properties
 .gradle/
 *.apk
+!backend/downloads/EnvelopeManager.apk
+!backend/static/downloads/EnvelopeManager.apk
 backend/envelope_manager.db
 backend/envelope.db
 *.log

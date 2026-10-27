@@ -164,7 +164,7 @@ fi
 
 echo -e "    [*] Installing Python backend packages..."
 "${BASE_DIR}/venv/bin/pip" install --upgrade pip setuptools wheel --quiet
-"${BASE_DIR}/venv/bin/pip" install -r "${ENVELOPE_DIR}/backend/requirements.txt"
+"${BASE_DIR}/venv/bin/pip" install -r "${ENVELOPE_DIR}/backend/requirements.txt" pypdf
 echo -e "${GREEN}[✓] MARG Envelope Print Manager ready.${NC}"
 
 # 7. Install Service Control Scripts and Bash Aliases

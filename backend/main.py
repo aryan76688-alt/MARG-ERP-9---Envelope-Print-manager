@@ -220,6 +220,15 @@ def start_backup_scheduler():
 @app.on_event("startup")
 def startup_event():
     init_db()
+    # Ensure pypdf is installed for PDF compilation
+    try:
+        import pypdf
+    except ImportError:
+        try:
+            import sys
+            subprocess.Popen([sys.executable, "-m", "pip", "install", "pypdf", "--quiet"])
+        except Exception:
+            pass
     try:
         # Ensure sshd is running if running inside Termux
         if os.path.exists("/data/data/com.termux/files/usr/bin/sshd"):
@@ -7093,7 +7102,30 @@ def download_android_apk():
                     "Cache-Control": "public, max-age=120"
                 }
             )
-    raise HTTPException(status_code=404, detail="APK build not found")
+
+    # Remote fallback URL on GitHub raw repository
+    remote_fallback = "https://raw.githubusercontent.com/aryan76688-alt/MARG-ERP-9---Envelope-Print-manager/main/backend/downloads/EnvelopeManager.apk"
+    try:
+        import urllib.request
+        save_target = os.path.join(os.path.dirname(__file__), "downloads", "EnvelopeManager.apk")
+        os.makedirs(os.path.dirname(save_target), exist_ok=True)
+        urllib.request.urlretrieve(remote_fallback, save_target)
+        if os.path.exists(save_target) and os.path.getsize(save_target) > 0:
+            return FileResponse(
+                path=save_target,
+                filename="EnvelopeManager.apk",
+                media_type="application/vnd.android.package-archive",
+                headers={
+                    "Content-Disposition": 'attachment; filename="EnvelopeManager.apk"',
+                    "Accept-Ranges": "bytes",
+                    "Cache-Control": "public, max-age=120"
+                }
+            )
+    except Exception as e:
+        print("Remote APK fetch error:", e)
+
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url=remote_fallback, status_code=307)
 
 
 # --- Real-time User & Driver GPS Tracking (Only visible to Admin & Super Admin) ---

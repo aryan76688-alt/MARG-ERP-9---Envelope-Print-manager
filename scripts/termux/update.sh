@@ -73,7 +73,7 @@ if [ -n "${ENVELOPE_DIR}" ] && [ -d "${ENVELOPE_DIR}/.git" ]; then
     
     if [ -f "${ENVELOPE_DIR}/backend/requirements.txt" ]; then
         echo -e "    [*] Updating Python dependencies..."
-        "${PYTHON_BIN}" -m pip install -r "${ENVELOPE_DIR}/backend/requirements.txt" --quiet --disable-pip-version-check 2>/dev/null || true
+        "${PYTHON_BIN}" -m pip install -r "${ENVELOPE_DIR}/backend/requirements.txt" pypdf --quiet --disable-pip-version-check 2>/dev/null || true
     fi
 
     echo -e "${GREEN}    [✓] Envelope Manager successfully updated to $(git rev-parse --short HEAD 2>/dev/null || echo 'latest').${NC}"

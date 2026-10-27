@@ -1107,19 +1107,16 @@ def add_autoprint_js_to_pdf(pdf_bytes: bytes) -> bytes:
         return pdf_bytes
 
 
-def _generate_pure_pdf_fallback(html_content: str) -> bytes:
+def _generate_raw_vector_pdf(html_content: str) -> bytes:
     """
-    100% pure Python vector PDF generator fallback using pypdf.
-    Guarantees PDF creation on any system (Termux, Android, Docker, VPS)
-    even when neither Chromium nor WeasyPrint is installed.
+    100% ZERO-DEPENDENCY pure Python vector PDF 1.4 generator.
+    Requires NO pip packages whatsoever (uses only standard library io, zlib, re).
+    Guarantees a clean, valid, professional PDF on any device including Termux.
     """
-    import pypdf
-    from pypdf.generic import DecodedStreamObject, NameObject, DictionaryObject
+    import zlib
 
-    writer = pypdf.PdfWriter()
     is_landscape = 'landscape' in html_content.lower()
     width, height = (842, 595) if is_landscape else (595, 842)
-    page = writer.add_blank_page(width=width, height=height)
 
     # Clean HTML content to structural plain text lines
     clean_text = re.sub(r'<style.*?</style>', '', html_content, flags=re.DOTALL)
@@ -1180,29 +1177,161 @@ def _generate_pure_pdf_fallback(html_content: str) -> bytes:
             ops.append(f'BT /F2 10 Tf 40 {y} Td ({ascii_line[:65]}) Tj ET')
             y -= 15
 
-    stream_data = '\n'.join(ops).encode('latin-1', 'replace')
-    stream = DecodedStreamObject()
-    stream.set_data(stream_data)
-    page[NameObject('/Contents')] = stream
+    stream_content = '\n'.join(ops).encode('latin-1', 'replace')
+    compressed_stream = zlib.compress(stream_content)
 
-    res = DictionaryObject()
-    fonts = DictionaryObject()
-    f1 = DictionaryObject()
-    f1[NameObject('/Type')] = NameObject('/Font')
-    f1[NameObject('/Subtype')] = NameObject('/Type1')
-    f1[NameObject('/BaseFont')] = NameObject('/Helvetica-Bold')
-    fonts[NameObject('/F1')] = f1
-    f2 = DictionaryObject()
-    f2[NameObject('/Type')] = NameObject('/Font')
-    f2[NameObject('/Subtype')] = NameObject('/Type1')
-    f2[NameObject('/BaseFont')] = NameObject('/Helvetica')
-    fonts[NameObject('/F2')] = f2
-    res[NameObject('/Font')] = fonts
-    page[NameObject('/Resources')] = res
+    # Build PDF 1.4 objects
+    objects = []
+    
+    # 1 0 obj: Catalog
+    objects.append(b"1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n")
+    
+    # 2 0 obj: Pages
+    objects.append(b"2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n")
+    
+    # 3 0 obj: Page
+    page_obj = f"3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {width} {height}] /Contents 4 0 R /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> >>\nendobj\n"
+    objects.append(page_obj.encode('latin-1'))
+    
+    # 4 0 obj: Contents stream
+    stream_header = f"4 0 obj\n<< /Length {len(compressed_stream)} /Filter /FlateDecode >>\nstream\n".encode('latin-1')
+    objects.append(stream_header + compressed_stream + b"\nendstream\nendobj\n")
+    
+    # 5 0 obj: Helvetica-Bold
+    objects.append(b"5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>\nendobj\n")
+    
+    # 6 0 obj: Helvetica
+    objects.append(b"6 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n")
 
-    out = io.BytesIO()
-    writer.write(out)
-    return out.getvalue()
+    # Assemble complete PDF with cross-reference table and trailer
+    pdf_out = io.BytesIO()
+    pdf_out.write(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n")
+    
+    xref_offsets = []
+    for obj in objects:
+        xref_offsets.append(pdf_out.tell())
+        pdf_out.write(obj)
+        
+    xref_start = pdf_out.tell()
+    pdf_out.write(f"xref\n0 {len(objects) + 1}\n".encode('latin-1'))
+    pdf_out.write(b"0000000000 65535 f \n")
+    for offset in xref_offsets:
+        pdf_out.write(f"{offset:010d} 00000 n \n".encode('latin-1'))
+        
+    trailer = f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref_start}\n%%EOF\n"
+    pdf_out.write(trailer.encode('latin-1'))
+    
+    return pdf_out.getvalue()
+
+
+def _generate_pure_pdf_fallback(html_content: str) -> bytes:
+    """
+    Robust pure Python vector PDF generator fallback.
+    Tries pypdf first if available; otherwise uses standard-library zero-dependency generator
+    and automatically triggers background installation of pypdf.
+    """
+    try:
+        import pypdf
+        from pypdf.generic import DecodedStreamObject, NameObject, DictionaryObject
+
+        writer = pypdf.PdfWriter()
+        is_landscape = 'landscape' in html_content.lower()
+        width, height = (842, 595) if is_landscape else (595, 842)
+        page = writer.add_blank_page(width=width, height=height)
+
+        # Clean HTML content to structural plain text lines
+        clean_text = re.sub(r'<style.*?</style>', '', html_content, flags=re.DOTALL)
+        clean_text = re.sub(r'<script.*?</script>', '', clean_text, flags=re.DOTALL)
+
+        lines = []
+        for l in clean_text.splitlines():
+            t = re.sub(r'<[^>]+>', ' ', l).strip()
+            t = ' '.join(t.split())
+            if t and len(t) > 1 and not t.startswith('{') and not t.startswith('@') and not t.startswith('/*'):
+                lines.append(t)
+
+        ops = []
+        ops.append('0.75 w')
+        ops.append('0.2 0.2 0.3 RG')
+
+        if is_landscape:
+            # Outer Border
+            ops.append('25 25 792 545 re S')
+            # Header banner (Light Blue)
+            ops.append('0.92 0.96 1.0 rg')
+            ops.append('25 520 792 50 re B')
+            ops.append('0.1 0.2 0.5 RG')
+            ops.append('BT /F1 15 Tf 45 538 Td (MARG ERP 9+ COURIER DELIVERY ENVELOPE) Tj ET')
+
+            # Left Recipient Box
+            ops.append('0.98 0.98 0.99 rg 40 160 440 340 re B')
+            ops.append('0.2 0.3 0.6 RG')
+            ops.append('BT /F1 12 Tf 55 480 Td (TO / RECIPIENT DETAILS:) Tj ET')
+
+            # Right Sender Box
+            ops.append('0.98 0.98 0.99 rg 500 330 300 170 re B')
+            ops.append('BT /F1 11 Tf 515 480 Td (FROM / SENDER:) Tj ET')
+
+            # Right Cases & Breakdown Box
+            ops.append('0.98 0.98 0.99 rg 500 160 300 155 re B')
+            ops.append('BT /F1 11 Tf 515 295 Td (DISPATCH & PACKAGES:) Tj ET')
+
+            # Footer
+            ops.append('0.2 0.2 0.2 rg')
+            ops.append('BT /F2 8.5 Tf 45 35 Td (System Generated Immutable Courier Voucher - SHREEJI HEALTHCARE 24/7) Tj ET')
+
+            # Populate lines
+            y = 455
+            for line in lines[:30]:
+                safe = line.replace('\\', '\\\\').replace('(', '\\(').replace(')', '\\)')
+                ascii_line = safe.encode('ascii', 'replace').decode('ascii')
+                if y > 180:
+                    ops.append(f'BT /F2 10 Tf 55 {y} Td ({ascii_line[:55]}) Tj ET')
+                    y -= 15
+        else:
+            ops.append('20 20 555 802 re S')
+            ops.append('BT /F1 14 Tf 40 780 Td (MARG COURIER ENVELOPE & DISPATCH) Tj ET')
+            y = 745
+            for line in lines[:45]:
+                safe = line.replace('\\', '\\\\').replace('(', '\\(').replace(')', '\\)')
+                ascii_line = safe.encode('ascii', 'replace').decode('ascii')
+                ops.append(f'BT /F2 10 Tf 40 {y} Td ({ascii_line[:65]}) Tj ET')
+                y -= 15
+
+        stream_data = '\n'.join(ops).encode('latin-1', 'replace')
+        stream = DecodedStreamObject()
+        stream.set_data(stream_data)
+        page[NameObject('/Contents')] = stream
+
+        res = DictionaryObject()
+        fonts = DictionaryObject()
+        f1 = DictionaryObject()
+        f1[NameObject('/Type')] = NameObject('/Font')
+        f1[NameObject('/Subtype')] = NameObject('/Type1')
+        f1[NameObject('/BaseFont')] = NameObject('/Helvetica-Bold')
+        fonts[NameObject('/F1')] = f1
+        f2 = DictionaryObject()
+        f2[NameObject('/Type')] = NameObject('/Font')
+        f2[NameObject('/Subtype')] = NameObject('/Type1')
+        f2[NameObject('/BaseFont')] = NameObject('/Helvetica')
+        fonts[NameObject('/F2')] = f2
+        res[NameObject('/Font')] = fonts
+        page[NameObject('/Resources')] = res
+
+        out = io.BytesIO()
+        writer.write(out)
+        return out.getvalue()
+    except (ImportError, ModuleNotFoundError):
+        # Auto-install pypdf in background for future calls
+        try:
+            import sys
+            subprocess.Popen([sys.executable, "-m", "pip", "install", "pypdf", "--quiet"])
+        except Exception:
+            pass
+        return _generate_raw_vector_pdf(html_content)
+    except Exception as e:
+        print("pypdf error, falling back to zero-dependency vector generator:", e)
+        return _generate_raw_vector_pdf(html_content)
 
 
 def compile_html_to_pdf(html_content: str, auto_print: bool = False) -> bytes:

@@ -127,6 +127,12 @@ if [ -d "${ENVELOPE_DIR}" ]; then
             PYTHON_BIN="${ENVELOPE_DIR}/venv/bin/python"
         fi
         
+        # Verify pypdf is installed in Termux for fast vector PDF compilation
+        if ! "${PYTHON_BIN}" -c "import pypdf" 2>/dev/null; then
+            echo -e "    [*] Installing pypdf package for fast pure-python PDF generation..."
+            "${PYTHON_BIN}" -m pip install pypdf --quiet 2>/dev/null || true
+        fi
+        
         export ORDER_BOOK_API_URL="http://127.0.0.1:3000"
         nohup "${PYTHON_BIN}" -m uvicorn main:app --host 0.0.0.0 --port 8080 --app-dir backend > "${BASE_DIR}/logs/envelope.log" 2>&1 &
         echo $! > "${BASE_DIR}/pids/envelope.pid"
