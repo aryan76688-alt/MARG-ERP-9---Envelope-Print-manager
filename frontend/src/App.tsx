@@ -46,6 +46,10 @@ export const App: React.FC = () => {
   });
   const [currentTab, setCurrentTab] = useState<string>(() => {
     try {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('trip_token')) {
+        return 'driver';
+      }
       const stored = localStorage.getItem('user');
       if (stored && JSON.parse(stored).role === 'driver') {
         return 'driver';
@@ -56,6 +60,10 @@ export const App: React.FC = () => {
   });
   const [historyStack, setHistoryStack] = useState<string[]>(() => {
     try {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('trip_token')) {
+        return ['driver'];
+      }
       const stored = localStorage.getItem('user');
       if (stored && JSON.parse(stored).role === 'driver') {
         return ['driver'];
@@ -198,7 +206,11 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [currentTab, handleGoBack]);
 
-  if (!isAuthenticated) {
+  const tripToken = typeof window !== 'undefined'
+    ? new URLSearchParams(window.location.search).get('trip_token')
+    : null;
+
+  if (!isAuthenticated && !tripToken) {
     return <Login onLogin={handleLogin} />;
   }
 

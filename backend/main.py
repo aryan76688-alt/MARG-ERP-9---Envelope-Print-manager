@@ -38,6 +38,7 @@ import math
 import requests
 from cache_manager import cache_mgr
 import gdrive_service
+import secrets
 
 def calculate_haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """Calculates distance in meters between two GPS coordinates using Haversine formula."""
@@ -7021,22 +7022,30 @@ def update_admin_device_controls(
         "device": dc
     }
 
-@app.get("/api/download/apk")
-@app.get("/downloads/EnvelopeManager.apk")
+@app.api_route("/api/download/apk", methods=["GET", "HEAD"])
+@app.api_route("/downloads/EnvelopeManager.apk", methods=["GET", "HEAD"])
+@app.api_route("/EnvelopeManager.apk", methods=["GET", "HEAD"])
+@app.api_route("/downloads/Shreeji_Envelope_Manager.apk", methods=["GET", "HEAD"])
 def download_android_apk():
-    """Serves the standalone Android APK installer."""
+    """Serves the standalone Android APK installer with GET & HEAD support."""
     apk_paths = [
         os.path.join(os.path.dirname(__file__), "static", "downloads", "EnvelopeManager.apk"),
+        os.path.join(os.path.dirname(__file__), "downloads", "EnvelopeManager.apk"),
         os.path.join(os.path.dirname(__file__), "..", "frontend", "public", "downloads", "EnvelopeManager.apk"),
         os.path.join(os.path.dirname(__file__), "..", "frontend", "dist", "downloads", "EnvelopeManager.apk"),
         os.path.join(os.path.dirname(__file__), "..", "android", "app", "build", "outputs", "apk", "debug", "app-debug.apk")
     ]
     for p in apk_paths:
-        if os.path.exists(p):
+        if os.path.exists(p) and os.path.getsize(p) > 0:
             return FileResponse(
                 path=p,
-                filename="Shreeji_Envelope_Manager.apk",
-                media_type="application/vnd.android.package-archive"
+                filename="EnvelopeManager.apk",
+                media_type="application/vnd.android.package-archive",
+                headers={
+                    "Content-Disposition": 'attachment; filename="EnvelopeManager.apk"',
+                    "Accept-Ranges": "bytes",
+                    "Cache-Control": "public, max-age=120"
+                }
             )
     raise HTTPException(status_code=404, detail="APK build not found")
 
@@ -7143,6 +7152,15 @@ class TripStopUpdatePayload(BaseModel):
     pod_signature: Optional[str] = None
     pod_photo: Optional[str] = None
     failure_reason: Optional[str] = None
+    notes: Optional[str] = None
+
+class ShareDailyRoutePayload(BaseModel):
+    party_ids: List[int]
+    route_name: Optional[str] = "Daily Delivery Route"
+    driver_id: Optional[int] = None
+    vehicle_id: Optional[int] = None
+    start_latitude: Optional[float] = None
+    start_longitude: Optional[float] = None
     notes: Optional[str] = None
 
 class TelemetryIngestPayload(BaseModel):
@@ -7512,6 +7530,7 @@ def start_fleet_trip(
 
     start_odo = payload.start_odometer_km or (vehicle.odometer_km if vehicle else 0.0)
 
+    st = secrets.token_urlsafe(16)
     trip = Trip(
         trip_number=trip_num,
         vehicle_id=vehicle.id if vehicle else None,
@@ -7520,6 +7539,7 @@ def start_fleet_trip(
         driver_name=driver_name,
         route_name=payload.route_name or "General Delivery",
         status="active",
+        share_token=st,
         start_odometer_km=start_odo,
         start_latitude=payload.start_latitude,
         start_longitude=payload.start_longitude,
@@ -7553,7 +7573,14 @@ def start_fleet_trip(
 
     db.commit()
     db.refresh(trip)
-    return {"success": True, "trip_id": trip.id, "trip_number": trip.trip_number, "total_stops": seq - 1}
+    return {
+        "success": True,
+        "trip_id": trip.id,
+        "trip_number": trip.trip_number,
+        "share_token": trip.share_token,
+        "share_url": f"/driver?trip_token={trip.share_token}",
+        "total_stops": seq - 1
+    }
 
 
 @app.post("/api/fleet/trips/{trip_id}/end")
@@ -7684,6 +7711,227 @@ def get_trip_telemetry_replay(
         "stops": stops,
         "total_points": len(points)
     }
+
+
+# --- DAILY ROUTE CREATION, SHAREABLE LINK & PUBLIC DRIVER API ---
+
+@app.post("/api/routes/share-daily-route", status_code=status.HTTP_201_CREATED)
+def create_and_share_daily_route(
+    payload: ShareDailyRoutePayload,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth_module.get_current_user)
+):
+    """
+    Creates a new daily delivery route from selected parties and generates a shareable public driver token.
+    Enables any user to send the route via WhatsApp/SMS to drivers for zero-friction 1-tap navigation.
+    """
+    if not payload.party_ids:
+        raise HTTPException(status_code=400, detail="At least 1 party must be selected to create a route.")
+
+    now_dt = datetime.datetime.now(datetime.timezone.utc)
+    count_today = db.query(Trip).count() + 1
+    trip_num = f"TRIP-{now_dt.strftime('%Y%m%d')}-{count_today:04d}"
+    st = secrets.token_urlsafe(16)
+
+    vehicle = None
+    if payload.vehicle_id:
+        vehicle = db.query(Vehicle).filter(Vehicle.id == payload.vehicle_id).first()
+
+    driver_id = payload.driver_id or current_user.id
+    driver_user = db.query(User).filter(User.id == driver_id).first()
+    driver_name = driver_user.full_name or driver_user.username if driver_user else (current_user.full_name or current_user.username)
+    if vehicle and not payload.driver_id and vehicle.driver_name:
+        driver_name = vehicle.driver_name
+        driver_id = vehicle.driver_id
+
+    trip = Trip(
+        trip_number=trip_num,
+        vehicle_id=vehicle.id if vehicle else None,
+        vehicle_number=vehicle.vehicle_number if vehicle else None,
+        driver_id=driver_id,
+        driver_name=driver_name,
+        route_name=payload.route_name or f"Daily Route ({len(payload.party_ids)} Stops)",
+        status="active",
+        share_token=st,
+        start_odometer_km=vehicle.odometer_km if vehicle else 0.0,
+        start_latitude=payload.start_latitude,
+        start_longitude=payload.start_longitude,
+        started_at=now_dt,
+        notes=payload.notes or f"Created by {current_user.full_name or current_user.username}"
+    )
+    db.add(trip)
+    db.flush()
+
+    stops_data = []
+    seq = 1
+    for pid in payload.party_ids:
+        party = db.query(Party).filter(Party.id == pid).first()
+        if party:
+            stop = TripStop(
+                trip_id=trip.id,
+                party_id=party.id,
+                party_name=party.party_name,
+                party_code=party.party_code,
+                address=party.address,
+                latitude=party.latitude,
+                longitude=party.longitude,
+                sequence_number=seq,
+                status="pending"
+            )
+            db.add(stop)
+            db.flush()
+            stops_data.append({
+                "id": stop.id,
+                "party_id": party.id,
+                "party_name": party.party_name,
+                "party_name_gu": party.party_name_gu,
+                "party_code": party.party_code,
+                "address": party.address,
+                "city": party.city,
+                "mobile_no": party.mobile_no,
+                "latitude": party.latitude,
+                "longitude": party.longitude,
+                "sequence_number": seq,
+                "status": "pending"
+            })
+            seq += 1
+
+    if vehicle:
+        vehicle.status = "en_route"
+
+    db.commit()
+    db.refresh(trip)
+
+    return {
+        "success": True,
+        "trip_id": trip.id,
+        "trip_number": trip.trip_number,
+        "share_token": trip.share_token,
+        "share_url": f"/driver?trip_token={trip.share_token}",
+        "total_stops": len(stops_data),
+        "route_name": trip.route_name,
+        "stops": stops_data
+    }
+
+
+@app.get("/api/public/trip/{share_token}")
+def get_public_shared_trip(
+    share_token: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Public zero-login route information endpoint for drivers opening route links from WhatsApp/SMS.
+    """
+    trip = db.query(Trip).filter(Trip.share_token == share_token).first()
+    if not trip:
+        raise HTTPException(status_code=404, detail="Shared route not found or link has expired.")
+
+    stops_list = []
+    for s in trip.stops:
+        party = db.query(Party).filter(Party.id == s.party_id).first() if s.party_id else None
+        stops_list.append({
+            "id": s.id,
+            "party_id": s.party_id,
+            "party_name": s.party_name,
+            "party_name_gu": party.party_name_gu if party else None,
+            "party_code": s.party_code,
+            "address": s.address,
+            "city": party.city if party else None,
+            "mobile_no": party.mobile_no if party else None,
+            "latitude": s.latitude,
+            "longitude": s.longitude,
+            "sequence_number": s.sequence_number,
+            "status": s.status,
+            "cash_collected": s.cash_collected or 0.0,
+            "arrival_time": s.arrival_time.isoformat() if s.arrival_time else None,
+            "departure_time": s.departure_time.isoformat() if s.departure_time else None,
+            "failure_reason": s.failure_reason
+        })
+
+    return {
+        "success": True,
+        "trip": {
+            "id": trip.id,
+            "trip_number": trip.trip_number,
+            "route_name": trip.route_name,
+            "status": trip.status,
+            "share_token": trip.share_token,
+            "driver_name": trip.driver_name,
+            "vehicle_number": trip.vehicle_number,
+            "started_at": trip.started_at.isoformat() if trip.started_at else None,
+            "start_latitude": trip.start_latitude,
+            "start_longitude": trip.start_longitude,
+            "notes": trip.notes
+        },
+        "stops": stops_list,
+        "total_stops": len(stops_list),
+        "completed_stops": len([s for s in stops_list if s["status"] in ("delivered", "arrived")])
+    }
+
+
+@app.post("/api/public/trip/{share_token}/telemetry")
+def ingest_public_trip_telemetry(
+    share_token: str,
+    payload: TelemetryIngestPayload,
+    db: Session = Depends(get_db)
+):
+    """
+    Receives 1-second live GPS telemetry from public driver app session.
+    """
+    trip = db.query(Trip).filter(Trip.share_token == share_token).first()
+    if not trip:
+        raise HTTPException(status_code=404, detail="Trip not found.")
+
+    payload.trip_id = trip.id
+    if trip.vehicle_id:
+        payload.vehicle_id = trip.vehicle_id
+    if trip.driver_id:
+        payload.driver_id = trip.driver_id
+
+    return ingest_fleet_telemetry(payload=payload, db=db)
+
+
+@app.post("/api/public/trip/{share_token}/stop-status")
+def update_public_trip_stop_status(
+    share_token: str,
+    payload: TripStopUpdatePayload,
+    db: Session = Depends(get_db)
+):
+    """
+    Allows driver to update delivery stop status (Delivered, Cash Collected, etc.) without login.
+    """
+    trip = db.query(Trip).filter(Trip.share_token == share_token).first()
+    if not trip:
+        raise HTTPException(status_code=404, detail="Trip not found.")
+
+    stop = db.query(TripStop).filter(
+        TripStop.id == payload.stop_id,
+        TripStop.trip_id == trip.id
+    ).first()
+    if not stop:
+        raise HTTPException(status_code=404, detail="Stop not found for this trip.")
+
+    now_dt = datetime.datetime.now(datetime.timezone.utc)
+    stop.status = payload.status
+    if stop.status == "arrived":
+        stop.arrival_time = now_dt
+    elif stop.status == "delivered":
+        stop.departure_time = now_dt
+        if payload.cash_collected:
+            stop.cash_collected = float(payload.cash_collected)
+        if payload.pod_signature:
+            stop.pod_signature = payload.pod_signature
+        if payload.pod_photo:
+            stop.pod_photo = payload.pod_photo
+    elif stop.status == "failed":
+        stop.failure_reason = payload.failure_reason or "Customer unavailable"
+        stop.departure_time = now_dt
+
+    if payload.notes:
+        stop.notes = payload.notes
+
+    db.commit()
+    return {"success": True, "stop_id": stop.id, "status": stop.status}
 
 
 # --- REAL-TIME TELEMETRY INGESTION & ALERTS ---

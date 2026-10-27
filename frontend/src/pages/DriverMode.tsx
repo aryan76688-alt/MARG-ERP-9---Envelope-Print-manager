@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import L from 'leaflet';
 import { 
   Truck, 
   CheckCircle, 
@@ -22,7 +23,14 @@ import {
   IndianRupee,
   Play,
   Square,
-  Key
+  Key,
+  Layers,
+  Maximize2,
+  Minimize2,
+  Share2,
+  LocateFixed,
+  Sparkles,
+  ArrowRight
 } from 'lucide-react';
 import { DriverStop, PODSubmission, FleetVehicle, FleetTrip } from '../types';
 import { 
@@ -33,8 +41,13 @@ import {
   fetchFleetVehicles,
   fetchActiveFleetTrips,
   startFleetTrip,
-  endFleetTrip
+  endFleetTrip,
+  fetchPublicTrip,
+  ingestPublicTelemetry,
+  updatePublicTripStopStatus,
+  ingestFleetTelemetry
 } from '../api/client';
+import { computeRoadRoute } from '../services/googleRoutesService';
 import { queueOfflinePOD } from '../offline/db';
 import { useNetworkSync } from '../offline/syncManager';
 import { generateWhatsAppDispatchUrl } from '../utils/whatsapp';
@@ -93,10 +106,124 @@ export const DriverMode: React.FC = () => {
   const [currentSpeedKmh, setCurrentSpeedKmh] = useState<number>(0);
   const [tripSubmitting, setTripSubmitting] = useState<boolean>(false);
 
+  // Shared Trip Token & Public Driver Mode
+  const tripToken = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('trip_token') : null;
+  const [isSharedTrip, setIsSharedTrip] = useState<boolean>(Boolean(tripToken));
+  const [wakeLockActive, setWakeLockActive] = useState<boolean>(false);
+  const [mapMode, setMapMode] = useState<'streets' | 'satellite'>('streets');
+  const [isMaximized, setIsMaximized] = useState<boolean>(false);
+  const [roadRouteGeometry, setRoadRouteGeometry] = useState<[number, number][]>([]);
+  const [roadDistanceKm, setRoadDistanceKm] = useState<number | null>(null);
+  const [roadDurationMins, setRoadDurationMins] = useState<number | null>(null);
+
+  // Map & Animation Refs
+  const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const mapInstanceRef = useRef<L.Map | null>(null);
+  const driverMarkerRef = useRef<L.Marker | null>(null);
+  const stopMarkersRef = useRef<L.Marker[]>([]);
+  const routePolylineRef = useRef<L.Polyline | null>(null);
+  const tileLayerRef = useRef<L.TileLayer | null>(null);
+  const lastPositionRef = useRef<{ lat: number; lng: number; time: number } | null>(null);
+  const lastRouteComputePosRef = useRef<{ lat: number; lng: number } | null>(null);
+  const wakeLockRef = useRef<any>(null);
+  const bgAudioRef = useRef<HTMLAudioElement | null>(null);
+
   // Direct Mobile Camera Input Ref
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Watch Driver GPS Location
+  // Next Pending Stop in Sequence
+  const nextStop = useMemo(() => {
+    return stops.find(s => s.delivery_status !== 'Delivered' && s.latitude && s.longitude);
+  }, [stops]);
+
+  // Real-time Distance to Next Stop in Meters
+  const nextStopDistance = useMemo(() => {
+    if (!driverLocation || !nextStop || !nextStop.latitude || !nextStop.longitude) return null;
+    return calculateDistance(driverLocation.lat, driverLocation.lng, nextStop.latitude, nextStop.longitude);
+  }, [driverLocation, nextStop]);
+
+  const isArrivedAtNextStop = Boolean(nextStopDistance !== null && nextStopDistance <= 50);
+
+  // Load Public Shared Trip (when accessed via WhatsApp link with ?trip_token=...)
+  useEffect(() => {
+    if (!tripToken) return;
+    setLoading(true);
+    fetchPublicTrip(tripToken)
+      .then(res => {
+        if (res.trip) {
+          setActiveTrip(res.trip);
+          setIsSharedTrip(true);
+          if ((window as any).AndroidBridge?.setActiveTrip) {
+            (window as any).AndroidBridge.setActiveTrip(res.trip.id, res.trip.vehicle_id || 0);
+            (window as any).AndroidBridge.startBackgroundTracking?.();
+          }
+        }
+        if (res.stops && res.stops.length > 0) {
+          const mapped: DriverStop[] = res.stops.map((s: any) => ({
+            id: s.id,
+            party_id: s.party_id,
+            party_name: s.party_name,
+            party_name_gu: s.party_name_gu,
+            party_code: s.party_code,
+            address: s.address,
+            city: s.city,
+            mobile_no: s.mobile_no,
+            latitude: s.latitude,
+            longitude: s.longitude,
+            delivery_status: s.status === 'delivered' ? 'Delivered' : 'Pending',
+            sequence: s.sequence_number,
+            cash_to_collect: s.cash_collected || 0
+          }));
+          setStops(mapped);
+        }
+      })
+      .catch(err => {
+        console.warn('Failed to load shared trip:', err);
+      })
+      .finally(() => setLoading(false));
+  }, [tripToken]);
+
+  // Screen Wake Lock & Background Audio
+  useEffect(() => {
+    const acquireWakeLock = async () => {
+      try {
+        if ('wakeLock' in navigator && (navigator as any).wakeLock) {
+          wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
+          setWakeLockActive(true);
+        }
+      } catch (err) {
+        console.warn('Screen wake lock not acquired:', err);
+      }
+    };
+
+    acquireWakeLock();
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        acquireWakeLock();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    try {
+      const silentAudio = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==');
+      silentAudio.loop = true;
+      bgAudioRef.current = silentAudio;
+      silentAudio.play().catch(() => {});
+    } catch (_) {}
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (wakeLockRef.current) {
+        wakeLockRef.current.release().catch(() => {});
+      }
+      if (bgAudioRef.current) {
+        bgAudioRef.current.pause();
+      }
+    };
+  }, []);
+
+  // 1-Second Continuous Live GPS Tracking Loop
   useEffect(() => {
     if (typeof window === 'undefined' || !navigator.geolocation) {
       setGpsError('GPS not supported');
@@ -104,16 +231,54 @@ export const DriverMode: React.FC = () => {
       return;
     }
 
+    let lastTelemetryPushTime = 0;
+
     const updatePos = (pos: GeolocationPosition) => {
-      setDriverLocation({
-        lat: pos.coords.latitude,
-        lng: pos.coords.longitude,
-        accuracy: Math.round(pos.coords.accuracy)
-      });
-      const spd = pos.coords.speed && pos.coords.speed > 0 ? Math.round(pos.coords.speed * 3.6) : 0;
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      const acc = Math.round(pos.coords.accuracy);
+      const now = Date.now();
+
+      let spd = 0;
+      if (pos.coords.speed !== null && pos.coords.speed >= 0) {
+        spd = Math.round(pos.coords.speed * 3.6);
+      } else if (lastPositionRef.current) {
+        const dt = (now - lastPositionRef.current.time) / 1000;
+        if (dt >= 0.5 && dt <= 10) {
+          const dist = calculateDistance(lastPositionRef.current.lat, lastPositionRef.current.lng, lat, lng);
+          spd = Math.round((dist / dt) * 3.6);
+          if (spd > 140) spd = 0;
+        }
+      }
+
+      lastPositionRef.current = { lat, lng, time: now };
+      setDriverLocation({ lat, lng, accuracy: acc });
       setCurrentSpeedKmh(spd);
       setGpsLoading(false);
       setGpsError(null);
+
+      // Ingest 1-second telemetry to backend (max once every 900ms)
+      if (now - lastTelemetryPushTime >= 900) {
+        lastTelemetryPushTime = now;
+        const telemetryPayload = {
+          latitude: lat,
+          longitude: lng,
+          accuracy: acc,
+          speed: spd,
+          speed_unit: 'kmh',
+          speed_type: 'measured',
+          heading: pos.coords.heading || 0,
+          source: 'driver_web_live_1s',
+          trip_id: activeTrip?.id,
+          timestamp: now
+        };
+
+        if (tripToken) {
+          ingestPublicTelemetry(tripToken, telemetryPayload).catch(() => {});
+        } else if (activeTrip?.id) {
+          ingestFleetTelemetry(telemetryPayload).catch(() => {});
+        }
+      }
     };
 
     const handleErr = (err: GeolocationPositionError) => {
@@ -124,22 +289,34 @@ export const DriverMode: React.FC = () => {
       }
     };
 
+    // Immediate fix
     navigator.geolocation.getCurrentPosition(updatePos, handleErr, {
       enableHighAccuracy: true,
-      timeout: 10000,
-      maximumAge: 10000
+      timeout: 4000,
+      maximumAge: 0
     });
 
+    // High accuracy continuous watch
     const watchId = navigator.geolocation.watchPosition(updatePos, handleErr, {
       enableHighAccuracy: true,
-      timeout: 15000,
-      maximumAge: 10000
+      timeout: 4000,
+      maximumAge: 0
     });
+
+    // 1-second heartbeat interval for guaranteed per-second updates
+    const heartbeatId = setInterval(() => {
+      navigator.geolocation.getCurrentPosition(updatePos, () => {}, {
+        enableHighAccuracy: true,
+        timeout: 3000,
+        maximumAge: 0
+      });
+    }, 1000);
 
     return () => {
       navigator.geolocation.clearWatch(watchId);
+      clearInterval(heartbeatId);
     };
-  }, []);
+  }, [activeTrip?.id, tripToken]);
 
   // Calculate distance in meters using Haversine formula
   const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
@@ -201,6 +378,7 @@ export const DriverMode: React.FC = () => {
 
   // Load available drivers and fleet vehicles
   const loadFleetData = async () => {
+    if (tripToken) return;
     try {
       const vRes = await fetchFleetVehicles();
       setVehicles(vRes.vehicles || []);
@@ -233,6 +411,208 @@ export const DriverMode: React.FC = () => {
       .catch(() => {});
     loadFleetData();
   }, []);
+
+  // Initialize Leaflet Map
+  useEffect(() => {
+    if (!mapContainerRef.current) return;
+    if (mapInstanceRef.current) return;
+
+    const initialCenter: [number, number] = driverLocation
+      ? [driverLocation.lat, driverLocation.lng]
+      : [22.6916, 72.8634];
+
+    const map = L.map(mapContainerRef.current, {
+      center: initialCenter,
+      zoom: 14,
+      zoomControl: true,
+      attributionControl: false
+    });
+
+    const streets = L.tileLayer('https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+      subdomains: ['0', '1', '2', '3'],
+      maxZoom: 20
+    });
+    streets.addTo(map);
+    tileLayerRef.current = streets;
+
+    const driverIcon = L.divIcon({
+      className: 'driver-live-marker',
+      html: `
+        <div style="position: relative; width: 36px; height: 36px;">
+          <div style="position: absolute; inset: 0; background: #3b82f6; opacity: 0.35; border-radius: 9999px; animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
+          <div style="position: absolute; inset: 6px; background: #2563eb; border: 3px solid #ffffff; border-radius: 9999px; box-shadow: 0 4px 12px rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; color: white;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+          </div>
+        </div>
+      `,
+      iconSize: [36, 36],
+      iconAnchor: [18, 18]
+    });
+
+    if (driverLocation) {
+      driverMarkerRef.current = L.marker([driverLocation.lat, driverLocation.lng], { icon: driverIcon }).addTo(map);
+    }
+
+    mapInstanceRef.current = map;
+
+    return () => {
+      map.remove();
+      mapInstanceRef.current = null;
+    };
+  }, []);
+
+  // Update Driver Marker Position on 1s GPS Fix
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !driverLocation) return;
+
+    if (!driverMarkerRef.current) {
+      const driverIcon = L.divIcon({
+        className: 'driver-live-marker',
+        html: `
+          <div style="position: relative; width: 36px; height: 36px;">
+            <div style="position: absolute; inset: 0; background: #3b82f6; opacity: 0.35; border-radius: 9999px; animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
+            <div style="position: absolute; inset: 6px; background: #2563eb; border: 3px solid #ffffff; border-radius: 9999px; box-shadow: 0 4px 12px rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; color: white;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+            </div>
+          </div>
+        `,
+        iconSize: [36, 36],
+        iconAnchor: [18, 18]
+      });
+      driverMarkerRef.current = L.marker([driverLocation.lat, driverLocation.lng], { icon: driverIcon }).addTo(map);
+    } else {
+      driverMarkerRef.current.setLatLng([driverLocation.lat, driverLocation.lng]);
+    }
+  }, [driverLocation]);
+
+  // Update Stops Markers on Map
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    stopMarkersRef.current.forEach(m => map.removeLayer(m));
+    stopMarkersRef.current = [];
+
+    const bounds = L.latLngBounds([]);
+    if (driverLocation) bounds.extend([driverLocation.lat, driverLocation.lng]);
+
+    stops.forEach((stop, idx) => {
+      if (!stop.latitude || !stop.longitude) return;
+      const isDelivered = stop.delivery_status === 'Delivered';
+      const seq = stop.sequence || idx + 1;
+      const bg = isDelivered ? '#059669' : '#2563eb';
+
+      const stopIcon = L.divIcon({
+        className: 'trip-stop-marker',
+        html: `
+          <div style="background: ${bg}; color: white; font-weight: 900; font-size: 11px; width: 28px; height: 28px; border-radius: 9999px; border: 2px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.35); display: flex; align-items: center; justify-content: center;">
+            ${isDelivered ? '✓' : seq}
+          </div>
+        `,
+        iconSize: [28, 28],
+        iconAnchor: [14, 14]
+      });
+
+      const m = L.marker([stop.latitude, stop.longitude], { icon: stopIcon })
+        .addTo(map)
+        .bindPopup(`<b>${seq}. ${stop.party_name}</b><br>${stop.city || ''}<br>${stop.address || ''}`);
+      stopMarkersRef.current.push(m);
+      bounds.extend([stop.latitude, stop.longitude]);
+    });
+
+    if (bounds.isValid() && stopMarkersRef.current.length > 0) {
+      map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 });
+    }
+  }, [stops]);
+
+  // Dynamic Road-Following Polyline Computation
+  useEffect(() => {
+    if (!driverLocation) return;
+    const pendingStops = stops.filter(s => s.delivery_status !== 'Delivered' && s.latitude && s.longitude);
+    if (pendingStops.length === 0) {
+      if (routePolylineRef.current && mapInstanceRef.current) {
+        mapInstanceRef.current.removeLayer(routePolylineRef.current);
+        routePolylineRef.current = null;
+      }
+      return;
+    }
+
+    if (lastRouteComputePosRef.current) {
+      const d = calculateDistance(
+        driverLocation.lat,
+        driverLocation.lng,
+        lastRouteComputePosRef.current.lat,
+        lastRouteComputePosRef.current.lng
+      );
+      if (d < 20) return;
+    }
+
+    lastRouteComputePosRef.current = { lat: driverLocation.lat, lng: driverLocation.lng };
+
+    const origin = { lat: driverLocation.lat, lng: driverLocation.lng };
+    const destination = {
+      lat: pendingStops[pendingStops.length - 1].latitude!,
+      lng: pendingStops[pendingStops.length - 1].longitude!
+    };
+    const intermediates = pendingStops.slice(0, -1).map(s => ({
+      lat: s.latitude!,
+      lng: s.longitude!
+    }));
+
+    computeRoadRoute({
+      origin,
+      destination,
+      intermediates,
+      travelMode: 'DRIVING'
+    }).then(res => {
+      setRoadDistanceKm(res.distanceKm);
+      setRoadDurationMins(res.durationMinutes);
+      setRoadRouteGeometry(res.path);
+
+      const map = mapInstanceRef.current;
+      if (!map) return;
+
+      if (!routePolylineRef.current) {
+        routePolylineRef.current = L.polyline(res.path, {
+          color: '#2563eb',
+          weight: 5,
+          opacity: 0.9,
+          lineCap: 'round',
+          lineJoin: 'round'
+        }).addTo(map);
+      } else {
+        routePolylineRef.current.setLatLngs(res.path);
+      }
+    }).catch(err => {
+      console.warn('Road route computation fallback:', err);
+    });
+  }, [driverLocation, stops]);
+
+  const switchTileLayer = (mode: 'streets' | 'satellite') => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    if (tileLayerRef.current) map.removeLayer(tileLayerRef.current);
+
+    const layer = mode === 'satellite'
+      ? L.tileLayer('https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+          subdomains: ['0', '1', '2', '3'],
+          maxZoom: 20
+        })
+      : L.tileLayer('https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+          subdomains: ['0', '1', '2', '3'],
+          maxZoom: 20
+        });
+
+    layer.addTo(map);
+    tileLayerRef.current = layer;
+    setMapMode(mode);
+  };
+
+  const handleCenterOnMe = () => {
+    if (!driverLocation || !mapInstanceRef.current) return;
+    mapInstanceRef.current.setView([driverLocation.lat, driverLocation.lng], 16, { animate: true });
+  };
 
   // Start Trip Handler
   const handleStartTrip = async () => {
@@ -304,6 +684,7 @@ export const DriverMode: React.FC = () => {
 
   // Fetch stops
   const loadStops = async () => {
+    if (tripToken) return;
     setLoading(true);
     try {
       const res = await fetchDriverJobs({
@@ -391,7 +772,14 @@ export const DriverMode: React.FC = () => {
     }
 
     try {
-      if (isOnline) {
+      if (tripToken) {
+        await updatePublicTripStopStatus(tripToken, {
+          stop_id: selectedStop.id,
+          status: 'delivered',
+          notes: podNotes.trim() || undefined,
+          pod_photo: podPhotoBase64 || undefined
+        });
+      } else if (isOnline) {
         const res = await recordPOD({
           job_id: selectedStop.id,
           delivered_by: currentUserName,
@@ -605,7 +993,135 @@ export const DriverMode: React.FC = () => {
           </div>
         </div>
 
-        {/* Filter Controls */}
+        {/* Next Stop Guidance Card */}
+        {nextStop && (
+          <div className={`mt-5 p-4 rounded-2xl border transition-all ${
+            isArrivedAtNextStop 
+              ? 'bg-gradient-to-r from-emerald-950 via-slate-900 to-emerald-950 border-emerald-500 shadow-xl shadow-emerald-900/30 ring-2 ring-emerald-500' 
+              : 'bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border-indigo-700/60 shadow-lg text-white'
+          }`}>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className={`w-11 h-11 rounded-2xl flex items-center justify-center font-black text-sm shrink-0 shadow-md ${
+                  isArrivedAtNextStop ? 'bg-emerald-500 text-slate-950 animate-bounce' : 'bg-blue-600 text-white'
+                }`}>
+                  #{nextStop.sequence || 1}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded-full border border-emerald-700/50">
+                      {isArrivedAtNextStop ? '🎯 Arrived at Customer (50m)' : 'Target Next Stop'}
+                    </span>
+                    {nextStop.city && (
+                      <span className="text-xs font-bold text-slate-300">📍 {nextStop.city}</span>
+                    )}
+                  </div>
+                  <h3 className="text-base sm:text-lg font-black text-white mt-0.5 leading-tight">
+                    {nextStop.party_name}
+                  </h3>
+                  {nextStop.party_name_gu && (
+                    <div className="text-xs text-slate-300 font-medium">{nextStop.party_name_gu}</div>
+                  )}
+                  {nextStop.address && (
+                    <p className="text-xs text-slate-400 mt-1 line-clamp-1">{nextStop.address}</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Live Distance, ETA & Speed Badge */}
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="bg-slate-950/80 border border-slate-700 px-3 py-1.5 rounded-xl text-center">
+                  <div className="text-[10px] uppercase font-bold text-slate-400">Road Distance</div>
+                  <div className="text-sm font-black text-white">
+                    {nextStopDistance !== null ? (nextStopDistance < 1000 ? `${nextStopDistance} m` : `${(nextStopDistance / 1000).toFixed(1)} km`) : '--'}
+                  </div>
+                </div>
+
+                <div className="bg-slate-950/80 border border-slate-700 px-3 py-1.5 rounded-xl text-center">
+                  <div className="text-[10px] uppercase font-bold text-slate-400">ETA</div>
+                  <div className="text-sm font-black text-emerald-400">
+                    {roadDurationMins ? `~${roadDurationMins} min` : (nextStopDistance ? `~${Math.max(1, Math.round(nextStopDistance / 450))} min` : '--')}
+                  </div>
+                </div>
+
+                {nextStop.mobile_no && (
+                  <a
+                    href={`tel:${nextStop.mobile_no}`}
+                    className="p-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-1 shadow-md transition-all active:scale-95"
+                    title="Call Customer"
+                  >
+                    <Phone className="w-4 h-4" />
+                  </a>
+                )}
+
+                <a
+                  href={`https://www.google.com/maps/dir/?api=1&destination=${nextStop.latitude},${nextStop.longitude}&travelmode=driving`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-md transition-all active:scale-95"
+                >
+                  <Navigation className="w-4 h-4 text-emerald-200" />
+                  <span>Turn-by-Turn</span>
+                </a>
+
+                <button
+                  type="button"
+                  onClick={() => openPODModal(nextStop, true)}
+                  className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-lg shadow-emerald-500/30 transition-all active:scale-95 cursor-pointer"
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  <span>Mark Delivered</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Interactive Road Navigation Map */}
+        <div className="mt-5 relative rounded-2xl overflow-hidden border border-slate-300 shadow-md">
+          {/* Map Header HUD */}
+          <div className="absolute top-3 left-3 z-[1000] flex flex-wrap items-center gap-2 pointer-events-auto">
+            <div className="bg-slate-950/85 backdrop-blur-md border border-slate-700/80 px-3 py-1.5 rounded-xl flex items-center gap-2 text-xs font-mono shadow-lg text-white">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+              <span className="text-slate-400">Speed:</span>
+              <span className="font-extrabold text-emerald-400 text-sm">{currentSpeedKmh} km/h</span>
+            </div>
+
+            <div className="hidden sm:flex bg-slate-950/85 backdrop-blur-md border border-slate-700/80 px-3 py-1.5 rounded-xl items-center gap-1.5 text-[11px] font-mono text-slate-300 shadow-lg">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+              <span>1s GPS Active</span>
+            </div>
+          </div>
+
+          {/* Map Top Right Actions */}
+          <div className="absolute top-3 right-3 z-[1000] flex items-center gap-1.5 pointer-events-auto">
+            <button
+              type="button"
+              onClick={handleCenterOnMe}
+              className="p-2 rounded-xl bg-white/95 hover:bg-white text-slate-800 shadow-md border border-slate-200 transition-all active:scale-95 cursor-pointer"
+              title="Center on My Location"
+            >
+              <LocateFixed className="w-4 h-4 text-blue-600" />
+            </button>
+            <button
+              type="button"
+              onClick={() => switchTileLayer(mapMode === 'streets' ? 'satellite' : 'streets')}
+              className="px-2.5 py-1.5 rounded-xl bg-white/95 hover:bg-white text-slate-800 shadow-md border border-slate-200 text-xs font-bold transition-all active:scale-95 flex items-center gap-1 cursor-pointer"
+            >
+              <Layers className="w-3.5 h-3.5 text-indigo-600" />
+              <span>{mapMode === 'streets' ? 'Satellite' : 'Roadmap'}</span>
+            </button>
+          </div>
+
+          {/* Leaflet Container */}
+          <div
+            ref={mapContainerRef}
+            className="w-full h-80 sm:h-96 md:h-[400px] z-0 bg-slate-100"
+          />
+        </div>
+
+        {/* Filter Controls (Hidden for shared driver links to avoid confusion) */}
+        {!isSharedTrip && (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 mt-6 pt-4 border-t border-slate-100">
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">Date</label>
@@ -661,6 +1177,7 @@ export const DriverMode: React.FC = () => {
             </div>
           </div>
         </div>
+        )}
       </div>
 
       {/* Stop Cards List */}

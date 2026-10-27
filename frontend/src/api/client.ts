@@ -1932,5 +1932,64 @@ export async function fetchFleetSummaryKPI(): Promise<any> {
   return res.json();
 }
 
+// --- Shared Daily Routes & Public Driver API ---
+
+export async function createAndShareDailyRoute(payload: {
+  party_ids: number[];
+  route_name?: string;
+  driver_id?: number;
+  vehicle_id?: number;
+  start_latitude?: number;
+  start_longitude?: number;
+  notes?: string;
+}): Promise<any> {
+  const res = await fetchApi(`${API_BASE}/routes/share-daily-route`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to create and share daily route' }));
+    throw new Error(err.detail || 'Failed to create and share daily route');
+  }
+  return res.json();
+}
+
+export async function fetchPublicTrip(shareToken: string): Promise<any> {
+  const res = await fetch(`${API_BASE}/public/trip/${encodeURIComponent(shareToken)}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to load shared trip' }));
+    throw new Error(err.detail || 'Failed to load shared trip');
+  }
+  return res.json();
+}
+
+export async function ingestPublicTelemetry(shareToken: string, payload: any): Promise<any> {
+  const res = await fetch(`${API_BASE}/public/trip/${encodeURIComponent(shareToken)}/telemetry`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to ingest telemetry' }));
+    throw new Error(err.detail || 'Failed to ingest telemetry');
+  }
+  return res.json();
+}
+
+export async function updatePublicTripStopStatus(shareToken: string, payload: any): Promise<any> {
+  const res = await fetch(`${API_BASE}/public/trip/${encodeURIComponent(shareToken)}/stop-status`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to update stop status' }));
+    throw new Error(err.detail || 'Failed to update stop status');
+  }
+  return res.json();
+}
+
+
 
 

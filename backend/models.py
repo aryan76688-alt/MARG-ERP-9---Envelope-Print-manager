@@ -334,6 +334,7 @@ class Trip(Base):
     driver_name = Column(String(100), nullable=True)
     route_name = Column(String(100), nullable=True)
     status = Column(String(30), default="active", index=True) # active, completed, cancelled
+    share_token = Column(String(100), unique=True, nullable=True, index=True) # Public guest access token
     
     start_odometer_km = Column(Float, default=0.0)
     end_odometer_km = Column(Float, nullable=True)

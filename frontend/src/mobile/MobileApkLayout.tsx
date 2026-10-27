@@ -27,7 +27,8 @@ import {
   Smartphone,
   Compass,
   Route,
-  Database
+  Database,
+  Download
 } from 'lucide-react';
 import { useNetworkSync } from '../offline/syncManager';
 import { DatabaseBackupModal } from '../components/DatabaseBackupModal';
@@ -402,6 +403,18 @@ export const MobileApkLayout: React.FC<MobileApkLayoutProps> = ({
                   </button>
                 );
               })}
+            </div>
+
+            {/* Direct APK Download Link */}
+            <div className="mb-4">
+              <a
+                href="/downloads/EnvelopeManager.apk"
+                download="EnvelopeManager.apk"
+                className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-black text-xs shadow-lg shadow-emerald-950/40 border border-emerald-500/40 active:scale-95 transition-all text-center"
+              >
+                <Download className="w-4 h-4 text-emerald-200" />
+                <span>Download Android Mobile App (.APK)</span>
+              </a>
             </div>
 
             {/* User Profile & Sign Out Card */}

@@ -23,7 +23,8 @@ import {
   Building2,
   Check,
   CheckSquare,
-  Square
+  Square,
+  Share2
 } from 'lucide-react';
 import { Party } from '../types';
 import { fetchParties, createParty, updateParty, updatePartyGeofence, unsetPartyLocation } from '../api/client';
@@ -31,6 +32,7 @@ import { getPartiesOffline, ensureInitialPartiesLoaded } from '../offline/db';
 import { PartyModal } from '../components/PartyModal';
 import { RouteManagerModal } from '../components/RouteManagerModal';
 import { PartyMapPickerModal } from '../components/PartyMapPickerModal';
+import { ShareDailyRouteModal } from '../components/ShareDailyRouteModal';
 import { VoiceSearchInput } from '../components/VoiceSearchInput';
 
 interface MobilePartiesProps {
@@ -64,6 +66,37 @@ export const MobileParties: React.FC<MobilePartiesProps> = ({
   const [routeModalOpen, setRouteModalOpen] = useState<boolean>(initialRouteModal);
   const [pinningPartyId, setPinningPartyId] = useState<number | null>(null);
   const [mapPickerParty, setMapPickerParty] = useState<Party | null>(null);
+
+  // Multi-Party Selection & Daily Route Share
+  const [selectedPartyIds, setSelectedPartyIds] = useState<Set<number>>(new Set());
+  const [selectMode, setSelectMode] = useState<boolean>(false);
+  const [shareRouteModalOpen, setShareRouteModalOpen] = useState<boolean>(false);
+  const [shareRouteParties, setShareRouteParties] = useState<Party[]>([]);
+
+  const handleToggleSelectParty = (id: number) => {
+    setSelectedPartyIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleSelectAllFiltered = () => {
+    if (selectedPartyIds.size === filteredParties.length) {
+      setSelectedPartyIds(new Set());
+    } else {
+      const allIds = new Set(filteredParties.map(p => p.id!).filter(Boolean));
+      setSelectedPartyIds(allIds);
+    }
+  };
+
+  const handleOpenShareRoute = (partiesToShare?: Party[]) => {
+    const list = partiesToShare || filteredParties.filter(p => selectedPartyIds.has(p.id!));
+    if (list.length === 0) return;
+    setShareRouteParties(list);
+    setShareRouteModalOpen(true);
+  };
 
   // 1-Tap Pin Party GPS from device
   const handlePinPartyGPS = (party: Party) => {
@@ -524,16 +557,58 @@ export const MobileParties: React.FC<MobilePartiesProps> = ({
         </div>
       )}
 
-      {/* 3. METRIC COUNT HEADER */}
-      <div className="flex items-center justify-between text-xs px-1 text-slate-400">
-        <span className="font-semibold">
-          Found <span className="text-white font-black">{filteredParties.length}</span> parties
-        </span>
-        {totalPages > 1 && (
-          <span className="font-semibold text-slate-400 font-mono">
-            Page {page} of {totalPages}
+      {/* 3. METRIC COUNT HEADER & SELECTION TOGGLE */}
+      <div className="flex flex-wrap items-center justify-between text-xs px-1 text-slate-400 gap-2">
+        <div className="flex items-center gap-2">
+          <span className="font-semibold">
+            Found <span className="text-white font-black">{filteredParties.length}</span> parties
           </span>
-        )}
+          {totalPages > 1 && (
+            <span className="font-semibold text-slate-400 font-mono">
+              • Pg {page}/{totalPages}
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setSelectMode(!selectMode);
+              if (selectMode) setSelectedPartyIds(new Set());
+            }}
+            className={`px-2.5 py-1 rounded-lg text-[11px] font-extrabold transition-all border cursor-pointer active:scale-95 flex items-center gap-1 ${
+              selectMode
+                ? 'bg-rose-950/80 text-rose-300 border-rose-800'
+                : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
+            }`}
+          >
+            {selectMode ? <X className="w-3 h-3" /> : <CheckSquare className="w-3 h-3 text-emerald-400" />}
+            <span>{selectMode ? 'Done' : 'Select Mode'}</span>
+          </button>
+
+          {selectMode && (
+            <button
+              type="button"
+              onClick={handleSelectAllFiltered}
+              className="px-2.5 py-1 rounded-lg text-[11px] font-extrabold bg-indigo-950/80 text-indigo-300 border border-indigo-800 transition-all cursor-pointer active:scale-95"
+            >
+              {selectedPartyIds.size === filteredParties.length ? 'Deselect All' : `Select All (${filteredParties.length})`}
+            </button>
+          )}
+
+          {!selectMode && filteredParties.length > 0 && (
+            <button
+              type="button"
+              onClick={() => handleOpenShareRoute(filteredParties.slice(0, 50))}
+              className="px-2.5 py-1 rounded-lg text-[11px] font-extrabold bg-emerald-950/80 text-emerald-300 border border-emerald-800/80 hover:bg-emerald-900 transition-all cursor-pointer active:scale-95 flex items-center gap-1"
+              title="Quickly create route for currently filtered parties"
+            >
+              <Share2 className="w-3 h-3 text-emerald-400" />
+              <span>Share Daily Route</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* 4. PARTY CARDS LIST (STITCH TACTICAL CARDS) */}
@@ -547,16 +622,36 @@ export const MobileParties: React.FC<MobilePartiesProps> = ({
           No parties found matching your search.
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-3 pb-24">
           {paginatedParties.map((party) => {
+            const isSelected = party.id ? selectedPartyIds.has(party.id) : false;
             return (
               <div
                 key={party.id}
-                className="bg-[#111827] border border-slate-800/90 hover:border-slate-700 rounded-2xl p-4 shadow-md space-y-3 transition-all"
+                onClick={() => {
+                  if (selectMode && party.id) handleToggleSelectParty(party.id);
+                }}
+                className={`border rounded-2xl p-4 shadow-md space-y-3 transition-all ${
+                  isSelected
+                    ? 'bg-[#151f33] border-blue-500 shadow-blue-900/30 ring-1 ring-blue-500'
+                    : 'bg-[#111827] border-slate-800/90 hover:border-slate-700'
+                }`}
               >
-                {/* Header row: Code, City, Edit */}
+                {/* Header row: Checkbox, Code, City, Edit */}
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 min-w-0">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    {selectMode && party.id && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggleSelectParty(party.id!);
+                        }}
+                        className="p-1 text-blue-400 hover:text-white"
+                      >
+                        {isSelected ? <CheckSquare className="w-5 h-5 fill-blue-600 text-white" /> : <Square className="w-5 h-5 text-slate-500" />}
+                      </button>
+                    )}
                     <span className="text-[11px] font-mono font-black px-2 py-0.5 rounded-md bg-blue-950/80 text-blue-400 border border-blue-800/60">
                       {party.party_code || 'MARG'}
                     </span>
@@ -1048,6 +1143,56 @@ export const MobileParties: React.FC<MobilePartiesProps> = ({
           </div>
         </div>
       )}
+
+      {/* Floating Bottom Selection Bar (Mobile) */}
+      {selectedPartyIds.size > 0 && (
+        <div className="fixed bottom-16 left-3 right-3 z-40 max-w-lg mx-auto bg-slate-900/95 border border-emerald-500/50 rounded-2xl p-3 shadow-2xl backdrop-blur-md flex items-center justify-between gap-3 animate-slide-up">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <div className="leading-tight">
+              <span className="text-xs font-black text-white">{selectedPartyIds.size} Selected</span>
+              <button
+                type="button"
+                onClick={() => setSelectedPartyIds(new Set())}
+                className="block text-[10px] text-slate-400 hover:text-rose-400 font-bold"
+              >
+                Clear Selection
+              </button>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                const selected = filteredParties.filter(p => selectedPartyIds.has(p.id!));
+                onNavigate('routes', { selectedParties: selected });
+              }}
+              className="px-3 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-extrabold text-xs flex items-center gap-1 shadow-md shadow-teal-600/30 active:scale-95 transition-all cursor-pointer"
+            >
+              <Route className="w-3.5 h-3.5" />
+              <span>Map</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleOpenShareRoute()}
+              className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs flex items-center gap-1.5 shadow-lg shadow-emerald-600/30 active:scale-95 transition-all cursor-pointer"
+            >
+              <Share2 className="w-4 h-4 text-emerald-200" />
+              <span>Create & Share</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Share Daily Route Modal */}
+      <ShareDailyRouteModal
+        isOpen={shareRouteModalOpen}
+        onClose={() => setShareRouteModalOpen(false)}
+        selectedParties={shareRouteParties}
+        onOpenDriverApp={(token) => onNavigate('driver', { trip_token: token })}
+      />
     </div>
   );
 };

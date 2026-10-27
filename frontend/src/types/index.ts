@@ -228,6 +228,8 @@ export interface DriverStop {
   city: string;
   state: string;
   mobile?: string | null;
+  mobile_no?: string | null;
+  sequence?: number;
   total_cases: number;
   case_breakdown?: CaseBreakdownItem[];
   driver_name?: string | null;

@@ -1913,7 +1913,7 @@ export const Settings: React.FC = () => {
                       className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-md shadow-emerald-600/30 transition-all hover:scale-102 shrink-0"
                     >
                       <Download className="w-4 h-4" />
-                      <span>Download APK (75.9 MB)</span>
+                      <span>Download Android APK (185 MB)</span>
                     </a>
                   )}
                 </div>

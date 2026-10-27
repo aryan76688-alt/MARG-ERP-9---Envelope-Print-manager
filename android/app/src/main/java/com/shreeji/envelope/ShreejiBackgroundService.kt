@@ -30,8 +30,8 @@ class ShreejiBackgroundService : Service(), LocationListener {
         const val CHANNEL_ID = "shreeji_background_channel"
         const val NOTIFICATION_ID = 1001
         const val WATCHDOG_INTERVAL_MS = 30 * 60 * 1000L // 30 minutes auto-restart watchdog
-        const val LOCATION_MIN_TIME_MS = 5000L           // 5 seconds high-precision fleet tracking
-        const val LOCATION_MIN_DISTANCE_M = 2.0f         // 2 meters sensitivity
+        const val LOCATION_MIN_TIME_MS = 1000L           // 1 second continuous high-precision tracking
+        const val LOCATION_MIN_DISTANCE_M = 0.0f         // 0 meters sensitivity for continuous stream
     }
 
     private var wakeLock: PowerManager.WakeLock? = null
@@ -154,6 +154,9 @@ class ShreejiBackgroundService : Service(), LocationListener {
     }
 
     override fun onLocationChanged(loc: Location) {
+        val speedKmh = loc.speed * 3.6f
+        updateNotificationSpeed(speedKmh)
+
         // Send live coordinates to local Termux/backend server in background thread
         thread {
             try {
@@ -277,7 +280,7 @@ class ShreejiBackgroundService : Service(), LocationListener {
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("MARG Fleet & Driver Service")
-            .setContentText("Trip Active • Live Fleet GPS (5s interval) • Safe & Synced")
+            .setContentText("Trip Active • 1s High-Precision Fleet GPS • Safe & Synced")
             .setSmallIcon(android.R.drawable.ic_menu_mylocation)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
@@ -285,6 +288,32 @@ class ShreejiBackgroundService : Service(), LocationListener {
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .build()
+    }
+
+    private fun updateNotificationSpeed(speedKmh: Float) {
+        try {
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
+            val launchIntent = Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            val pendingIntent = PendingIntent.getActivity(
+                this,
+                0,
+                launchIntent,
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            )
+            val updated = NotificationCompat.Builder(this, CHANNEL_ID)
+                .setContentTitle("MARG Fleet & Driver Service")
+                .setContentText("Trip Active • Speed: ${"%.1f".format(speedKmh)} km/h • 1s Live GPS Tracking")
+                .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+                .setContentIntent(pendingIntent)
+                .setOngoing(true)
+                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                .setCategory(NotificationCompat.CATEGORY_SERVICE)
+                .build()
+            notificationManager.notify(NOTIFICATION_ID, updated)
+        } catch (_: Exception) {}
     }
 
     private fun acquireWakeLock() {

@@ -10,7 +10,8 @@ import {
   AlertCircle,
   Lock,
   Printer,
-  ArrowRight
+  ArrowRight,
+  Download
 } from 'lucide-react';
 import { API_BASE, DEFAULT_REMOTE_API, getApiBase } from '../api/client';
 
@@ -336,6 +337,17 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
                   </>
                 )}
               </button>
+
+              <div className="pt-2 border-t border-slate-800/80">
+                <a
+                  href="/downloads/EnvelopeManager.apk"
+                  download="EnvelopeManager.apk"
+                  className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600/90 to-teal-600/90 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/30 transition-all active:scale-98 border border-emerald-500/40 text-center"
+                >
+                  <Download className="w-4 h-4 text-emerald-200" />
+                  <span>Download Android Mobile App (.APK)</span>
+                </a>
+              </div>
             </div>
           </form>
         </div>

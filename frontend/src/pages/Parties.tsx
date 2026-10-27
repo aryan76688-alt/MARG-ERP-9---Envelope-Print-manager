@@ -34,9 +34,11 @@ import {
   Route,
   Check,
   ChevronDown,
-  CheckCircle2
+  CheckCircle2,
+  Share2
 } from 'lucide-react';
 import { VoiceSearchInput } from '../components/VoiceSearchInput';
+import { ShareDailyRouteModal } from '../components/ShareDailyRouteModal';
 import { Party } from '../types';
 import { 
   fetchParties, 
@@ -129,6 +131,10 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
   const [bulkRouteName, setBulkRouteName] = useState<string>('');
   const [existingRoutes, setExistingRoutes] = useState<string[]>([]);
   const [isAssigningRoute, setIsAssigningRoute] = useState<boolean>(false);
+
+  // Daily Route Creation & Share Modal
+  const [shareRouteModalOpen, setShareRouteModalOpen] = useState<boolean>(false);
+  const [shareRouteParties, setShareRouteParties] = useState<Party[]>([]);
 
   // Background Google Translation state
   const [translating, setTranslating] = useState<boolean>(false);
@@ -1091,6 +1097,21 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
               onClick={() => {
                 const selected = parties.filter((p) => selectedIds.includes(p.id!));
                 if (selected.length > 0) {
+                  setShareRouteParties(selected);
+                  setShareRouteModalOpen(true);
+                }
+              }}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-md shadow-emerald-600/30 transition-all active:scale-95 cursor-pointer"
+              title="Create daily route and share link via WhatsApp/SMS to driver"
+            >
+              <Share2 className="w-3.5 h-3.5" />
+              <span>Create & Share Route ({selectedIds.length})</span>
+            </button>
+
+            <button
+              onClick={() => {
+                const selected = parties.filter((p) => selectedIds.includes(p.id!));
+                if (selected.length > 0) {
                   onNavigate('routes', { selectedParties: selected });
                 }
               }}
@@ -1990,6 +2011,14 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
           }}
         />
       )}
+
+      {/* Create & Share Daily Route Modal */}
+      <ShareDailyRouteModal
+        isOpen={shareRouteModalOpen}
+        onClose={() => setShareRouteModalOpen(false)}
+        selectedParties={shareRouteParties}
+        onOpenDriverApp={(token) => onNavigate('driver', { trip_token: token })}
+      />
     </div>
   );
 };

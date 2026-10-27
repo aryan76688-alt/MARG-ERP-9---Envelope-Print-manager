@@ -161,6 +161,13 @@ class MainActivity : AppCompatActivity() {
         }
 
         @JavascriptInterface
+        fun startBackgroundTracking() {
+            runOnUiThread {
+                startBackgroundService()
+            }
+        }
+
+        @JavascriptInterface
         fun getBatteryLevel(): Int {
             return try {
                 val bm = getSystemService(Context.BATTERY_SERVICE) as? android.os.BatteryManager
