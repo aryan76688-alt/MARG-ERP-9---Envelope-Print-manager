@@ -1,5 +1,6 @@
 import os
 import re
+import io
 import json
 import shutil
 import tempfile
@@ -1106,6 +1107,104 @@ def add_autoprint_js_to_pdf(pdf_bytes: bytes) -> bytes:
         return pdf_bytes
 
 
+def _generate_pure_pdf_fallback(html_content: str) -> bytes:
+    """
+    100% pure Python vector PDF generator fallback using pypdf.
+    Guarantees PDF creation on any system (Termux, Android, Docker, VPS)
+    even when neither Chromium nor WeasyPrint is installed.
+    """
+    import pypdf
+    from pypdf.generic import DecodedStreamObject, NameObject, DictionaryObject
+
+    writer = pypdf.PdfWriter()
+    is_landscape = 'landscape' in html_content.lower()
+    width, height = (842, 595) if is_landscape else (595, 842)
+    page = writer.add_blank_page(width=width, height=height)
+
+    # Clean HTML content to structural plain text lines
+    clean_text = re.sub(r'<style.*?</style>', '', html_content, flags=re.DOTALL)
+    clean_text = re.sub(r'<script.*?</script>', '', clean_text, flags=re.DOTALL)
+
+    lines = []
+    for l in clean_text.splitlines():
+        t = re.sub(r'<[^>]+>', ' ', l).strip()
+        t = ' '.join(t.split())
+        if t and len(t) > 1 and not t.startswith('{') and not t.startswith('@') and not t.startswith('/*'):
+            lines.append(t)
+
+    ops = []
+    ops.append('0.75 w')
+    ops.append('0.2 0.2 0.3 RG')
+
+    if is_landscape:
+        # Outer Border
+        ops.append('25 25 792 545 re S')
+        # Header banner (Light Blue)
+        ops.append('0.92 0.96 1.0 rg')
+        ops.append('25 520 792 50 re B')
+        ops.append('0.1 0.2 0.5 RG')
+        ops.append('BT /F1 15 Tf 45 538 Td (MARG ERP 9+ COURIER DELIVERY ENVELOPE) Tj ET')
+
+        # Left Recipient Box
+        ops.append('0.98 0.98 0.99 rg 40 160 440 340 re B')
+        ops.append('0.2 0.3 0.6 RG')
+        ops.append('BT /F1 12 Tf 55 480 Td (TO / RECIPIENT DETAILS:) Tj ET')
+
+        # Right Sender Box
+        ops.append('0.98 0.98 0.99 rg 500 330 300 170 re B')
+        ops.append('BT /F1 11 Tf 515 480 Td (FROM / SENDER:) Tj ET')
+
+        # Right Cases & Breakdown Box
+        ops.append('0.98 0.98 0.99 rg 500 160 300 155 re B')
+        ops.append('BT /F1 11 Tf 515 295 Td (DISPATCH & PACKAGES:) Tj ET')
+
+        # Footer
+        ops.append('0.2 0.2 0.2 rg')
+        ops.append('BT /F2 8.5 Tf 45 35 Td (System Generated Immutable Courier Voucher - SHREEJI HEALTHCARE 24/7) Tj ET')
+
+        # Populate lines
+        y = 455
+        for line in lines[:30]:
+            safe = line.replace('\\', '\\\\').replace('(', '\\(').replace(')', '\\)')
+            ascii_line = safe.encode('ascii', 'replace').decode('ascii')
+            if y > 180:
+                ops.append(f'BT /F2 10 Tf 55 {y} Td ({ascii_line[:55]}) Tj ET')
+                y -= 15
+    else:
+        ops.append('20 20 555 802 re S')
+        ops.append('BT /F1 14 Tf 40 780 Td (MARG COURIER ENVELOPE & DISPATCH) Tj ET')
+        y = 745
+        for line in lines[:45]:
+            safe = line.replace('\\', '\\\\').replace('(', '\\(').replace(')', '\\)')
+            ascii_line = safe.encode('ascii', 'replace').decode('ascii')
+            ops.append(f'BT /F2 10 Tf 40 {y} Td ({ascii_line[:65]}) Tj ET')
+            y -= 15
+
+    stream_data = '\n'.join(ops).encode('latin-1', 'replace')
+    stream = DecodedStreamObject()
+    stream.set_data(stream_data)
+    page[NameObject('/Contents')] = stream
+
+    res = DictionaryObject()
+    fonts = DictionaryObject()
+    f1 = DictionaryObject()
+    f1[NameObject('/Type')] = NameObject('/Font')
+    f1[NameObject('/Subtype')] = NameObject('/Type1')
+    f1[NameObject('/BaseFont')] = NameObject('/Helvetica-Bold')
+    fonts[NameObject('/F1')] = f1
+    f2 = DictionaryObject()
+    f2[NameObject('/Type')] = NameObject('/Font')
+    f2[NameObject('/Subtype')] = NameObject('/Type1')
+    f2[NameObject('/BaseFont')] = NameObject('/Helvetica')
+    fonts[NameObject('/F2')] = f2
+    res[NameObject('/Font')] = fonts
+    page[NameObject('/Resources')] = res
+
+    out = io.BytesIO()
+    writer.write(out)
+    return out.getvalue()
+
+
 def compile_html_to_pdf(html_content: str, auto_print: bool = False) -> bytes:
     temp_dir = tempfile.mkdtemp()
     html_path = os.path.join(temp_dir, "document.html")
@@ -1159,7 +1258,17 @@ def compile_html_to_pdf(html_content: str, auto_print: bool = False) -> bytes:
             import weasyprint
             raw_pdf = weasyprint.HTML(string=html_content).write_pdf()
         except Exception as we:
-            raise RuntimeError(f"Could not generate PDF: {we}")
+            print("Notice: WeasyPrint not available or failed, using robust pure Python fallback:", we)
+            try:
+                from xhtml2pdf import pisa
+                out_buf = io.BytesIO()
+                pisa.CreatePDF(html_content, dest=out_buf)
+                raw_pdf = out_buf.getvalue()
+            except Exception:
+                try:
+                    raw_pdf = _generate_pure_pdf_fallback(html_content)
+                except Exception as pe:
+                    raise RuntimeError(f"Could not generate PDF: {pe}")
         finally:
             try:
                 if os.path.exists(html_path): os.remove(html_path)

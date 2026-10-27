@@ -969,81 +969,14 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
 
     const isAddressOnly = totalPackagesCount === 0;
 
-    // Party is only locked for actual dispatch printing (totalPackagesCount > 0)
-    if (!isAddressOnly && hasPrintedToday && !isEditReprintMode) {
-      alert('This party has already been printed today and is locked to prevent duplicate dispatches. Please use Print History to reprint or edit.');
-      return;
-    }
-
     setIsPrinting(true);
     try {
-      // If 0 cases (Address only): Direct print without saving to DB or offline queue, and without locking party!
-      if (isAddressOnly) {
-        if (navigator.onLine) {
-          try {
-            await printEnvelopePDF({
-              party_name: selectedParty.party_name,
-              party_code: selectedParty.party_code || undefined,
-              address: selectedParty.address,
-              address_line_2: selectedParty.address_line_2 || undefined,
-              address_line_3: selectedParty.address_line_3 || undefined,
-              city: selectedParty.city,
-              state: selectedParty.state,
-              mobile_no: selectedParty.mobile_no || undefined,
-              gst_no: selectedParty.gst_no || undefined,
-              parcel_type: 'Address',
-              total_cases: 0,
-              case_weights: [0],
-              sender: sender,
-              case_breakdown: [],
-              envelopes_per_page: envelopesPerPage,
-              envelope_size: envelopeSize,
-              template_format: selectedTemplate,
-              language: selectedLanguage,
-              party_name_gu: selectedParty.party_name_gu || undefined,
-              address_gu: selectedParty.address_gu || undefined,
-              address_line_2_gu: selectedParty.address_line_2_gu || undefined,
-              address_line_3_gu: selectedParty.address_line_3_gu || undefined,
-              city_gu: selectedParty.city_gu || undefined,
-              state_gu: selectedParty.state_gu || undefined,
-              auto_print: true
-            });
-          } catch (pdfErr) {
-            console.warn('Direct PDF print failed, falling back to browser print:', pdfErr);
-            document.body.classList.add('printing-envelope');
-            setTimeout(() => {
-              window.print();
-              setTimeout(() => {
-                document.body.classList.remove('printing-envelope');
-              }, 1500);
-            }, 200);
-          }
-        } else {
-          // Zero-internet direct browser print execution
-          document.body.classList.add('printing-envelope');
-          setTimeout(() => {
-            window.print();
-            setTimeout(() => {
-              document.body.classList.remove('printing-envelope');
-            }, 1500);
-          }, 200);
-        }
-        return;
-      }
-
-      let allowDup = isEditReprintMode;
-      if (hasPrintedToday && !isEditReprintMode) {
-        if (!window.confirm(`Notice: "${selectedParty.party_name}" has already been printed today.\n\nDo you want to update / reprint this envelope? (Existing record will be updated cleanly without duplicate entries)`)) {
-          setIsPrinting(false);
-          return;
-        }
-        allowDup = true;
-      }
+      let allowDup = isEditReprintMode || hasPrintedToday;
 
       const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
       const currentCreator = currentUser.username || currentUser.full_name || 'Admin';
 
-      const weights = casesList.map((c) => c.weight);
+      const weights = isAddressOnly ? [0.0] : casesList.map((c) => c.weight);
       const jobPayload = {
         party_id: selectedParty.id,
         party_name: selectedParty.party_name,
@@ -1055,7 +988,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
         state: selectedParty.state,
         mobile_no: selectedParty.mobile_no,
         gst_no: selectedParty.gst_no,
-        parcel_type: caseMode === 'standard' ? parcelType : 'Medicine',
+        parcel_type: isAddressOnly ? 'Address' : (caseMode === 'standard' ? parcelType : 'Medicine'),
         total_cases: totalPackagesCount,
         case_weights: weights,
         envelope_size: envelopeSize,
@@ -1064,7 +997,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
         envelopes_per_page: envelopesPerPage,
         status: 'Printed',
         sender: sender,
-        case_breakdown: activeCaseBreakdown,
+        case_breakdown: isAddressOnly ? [] : activeCaseBreakdown,
         bill_inside: billInside,
         driver_name: driverName.trim() || undefined,
         delivery_boy_name: driverName.trim() || undefined,
@@ -1077,7 +1010,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
         address_line_3_gu: selectedParty.address_line_3_gu || undefined,
         city_gu: selectedParty.city_gu || undefined,
         state_gu: selectedParty.state_gu || undefined,
-        allow_duplicate: allowDup,
+        allow_duplicate: true,
         is_reprint: isEditReprintMode || hasPrintedToday,
         job_id: editingJobId || undefined,
         created_by: currentCreator,
@@ -1101,6 +1034,8 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
           }
           jobId = res.id;
           jobNumber = res.job_number;
+          setHasPrintedToday(true);
+          setPrintedTodayCount((c) => c + 1);
           if (onJobCreated) onJobCreated(res.id);
         } catch (apiErr) {
           console.warn('Network print job creation failed, falling back to offline queue:', apiErr);
@@ -1189,7 +1124,69 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
 
     setIsDownloading(true);
     try {
+      let savedJobId: number | undefined = editingJobId || undefined;
+      if (navigator.onLine) {
+        try {
+          const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+          const currentCreator = currentUser.username || currentUser.full_name || 'Admin';
+          const weights = totalPackagesCount === 0 ? [0.0] : casesList.map((c) => c.weight);
+          const jobPayload = {
+            party_id: selectedParty.id,
+            party_name: selectedParty.party_name,
+            party_code: selectedParty.party_code,
+            address: selectedParty.address,
+            address_line_2: selectedParty.address_line_2 || undefined,
+            address_line_3: selectedParty.address_line_3 || undefined,
+            city: selectedParty.city,
+            state: selectedParty.state,
+            mobile_no: selectedParty.mobile_no,
+            gst_no: selectedParty.gst_no,
+            parcel_type: totalPackagesCount === 0 ? 'Address' : (caseMode === 'standard' ? parcelType : 'Medicine'),
+            total_cases: totalPackagesCount,
+            case_weights: weights,
+            envelope_size: envelopeSize,
+            orientation: 'Landscape',
+            printer_name: printerName,
+            envelopes_per_page: envelopesPerPage,
+            status: 'Printed',
+            sender: sender,
+            case_breakdown: totalPackagesCount === 0 ? [] : activeCaseBreakdown,
+            bill_inside: billInside,
+            driver_name: driverName.trim() || undefined,
+            delivery_boy_name: driverName.trim() || undefined,
+            delivery_route: deliveryRoute.trim() || undefined,
+            template_format: selectedTemplate,
+            language: selectedLanguage,
+            party_name_gu: selectedParty.party_name_gu || undefined,
+            address_gu: selectedParty.address_gu || undefined,
+            address_line_2_gu: selectedParty.address_line_2_gu || undefined,
+            address_line_3_gu: selectedParty.address_line_3_gu || undefined,
+            city_gu: selectedParty.city_gu || undefined,
+            state_gu: selectedParty.state_gu || undefined,
+            allow_duplicate: true,
+            is_reprint: isEditReprintMode || hasPrintedToday,
+            job_id: editingJobId || undefined,
+            created_by: currentCreator,
+          };
+          let res;
+          if (isEditReprintMode && editingJobId) {
+            res = await updatePrintJob(editingJobId, jobPayload);
+          } else {
+            res = await createPrintJob(jobPayload);
+          }
+          if (res && res.id) {
+            savedJobId = res.id;
+            setHasPrintedToday(true);
+            setPrintedTodayCount((c) => c + 1);
+            if (onJobCreated) onJobCreated(res.id);
+          }
+        } catch (saveErr) {
+          console.warn('Notice: Background save before download:', saveErr);
+        }
+      }
+
       await downloadEnvelopePDF({
+        job_id: savedJobId,
         party_name: selectedParty.party_name,
         party_code: selectedParty.party_code || undefined,
         address: selectedParty.address,

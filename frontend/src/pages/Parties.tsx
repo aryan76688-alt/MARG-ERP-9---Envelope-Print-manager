@@ -54,6 +54,7 @@ import {
   triggerBackgroundTranslation,
   fetchTranslationStatus,
   printEnvelopePDF,
+  createBulkPrintJobs,
   sendGmailPartiesList,
   getApiBase,
   unsetPartyLocation,
@@ -485,8 +486,23 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
     if (selectedIds.length === 0) return;
     setIsBulkPrintingAddresses(true);
     try {
+      let createdJobIds: number[] = [];
+      try {
+        const bulkRes = await createBulkPrintJobs({
+          party_ids: selectedIds,
+          total_cases: 0,
+          parcel_type: 'Address'
+        });
+        if (bulkRes && bulkRes.job_ids) {
+          createdJobIds = bulkRes.job_ids;
+        }
+      } catch (saveErr) {
+        console.warn('Notice: Save bulk address print jobs:', saveErr);
+      }
+
       await printEnvelopePDF({
-        party_ids: selectedIds,
+        job_ids: createdJobIds.length > 0 ? createdJobIds : undefined,
+        party_ids: createdJobIds.length === 0 ? selectedIds : undefined,
         total_cases: 0,
         auto_print: true
       });

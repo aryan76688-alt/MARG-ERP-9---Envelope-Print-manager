@@ -818,6 +818,7 @@ export async function updateDispatchJobs(payload: {
   delivery_boy_name?: string;
   delivery_route?: string;
   status?: string;
+  delivery_status?: string;
 }): Promise<{ success: boolean; updated_count: number }> {
   const res = await fetchApi(`${API_BASE}/dispatch-summary/update-job`, {
     method: 'POST',

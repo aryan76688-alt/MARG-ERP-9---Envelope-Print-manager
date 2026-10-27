@@ -441,6 +441,7 @@ class CreatePrintJobRequest(BaseModel):
     address_line_2_gu: Optional[str] = None
     address_line_3_gu: Optional[str] = None
     city_gu: Optional[str] = None
+    state_gu: Optional[str] = None
     allow_duplicate: bool = False
     is_reprint: bool = False
     job_id: Optional[int] = None
@@ -504,6 +505,7 @@ class UpdateDispatchJobsRequest(BaseModel):
     driver_name: Optional[str] = None
     delivery_route: Optional[str] = None
     status: Optional[str] = None
+    delivery_status: Optional[str] = None
 
 class PODRecordRequest(BaseModel):
     job_id: Optional[int] = None
@@ -3364,15 +3366,12 @@ def create_print_job(req: CreatePrintJobRequest, db: Session = Depends(get_db)):
         ).order_by(PrintJob.created_at.desc(), PrintJob.id.desc()).first()
 
     if target_existing_job:
-        if getattr(req, "allow_duplicate", False) or getattr(req, "is_reprint", False):
-            # In-place update for reprint / edit: ensures it appears strictly ONCE in History and Dispatch Summary
-            return _execute_update_print_job(target_existing_job, req, db)
+        # If user explicitly requested a separate duplicate print job (and not an in-place update)
+        if getattr(req, "allow_duplicate", False) and not getattr(req, "is_reprint", False) and not req.job_id:
+            pass  # proceed to create a new job
         else:
-            action_verb = "printed" if target_existing_job.status == "Printed" else "saved"
-            raise HTTPException(
-                status_code=409,
-                detail=f"Party '{norm_name}' has already been {action_verb} today (#{target_existing_job.job_number}). 1-Time/Day Lock is active to prevent duplicate dispatches. Please use Print History to reprint or update."
-            )
+            # Default: In-place update to ensure every print/re-print is cleanly recorded & updated in History & Dispatch Summary
+            return _execute_update_print_job(target_existing_job, req, db)
 
     # Fetch default sender settings if not provided
     sender_settings = db.query(SenderSettings).first()
@@ -4629,8 +4628,43 @@ def generate_pdf(req: GeneratePDFRequest, db: Session = Depends(get_db)):
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"PDF generation failed: {str(e)}")
     else:
-        # Dynamic preview generation
+        # Dynamic generation
         temp_job_number = f"MRG-{datetime.datetime.now().year}-PREVIEW"
+        if req.auto_print and req.party_name:
+            # Auto-save printing job to database so it is guaranteed to record in Print History & Dispatch Summary
+            try:
+                auto_job_req = CreatePrintJobRequest(
+                    party_name=req.party_name,
+                    party_code=req.party_code,
+                    address=req.address or "DAHEGAM",
+                    address_line_2=req.address_line_2,
+                    address_line_3=req.address_line_3,
+                    city=req.city or "DAHEGAM",
+                    state=req.state or "GUJARAT",
+                    mobile_no=req.mobile_no,
+                    gst_no=req.gst_no,
+                    parcel_type=req.parcel_type or "Medicine",
+                    total_cases=req.total_cases,
+                    case_weights=req.case_weights or [1.0],
+                    envelope_size=req.envelope_size or "A4",
+                    status="Printed",
+                    case_breakdown=req.case_breakdown,
+                    template_format=active_format,
+                    language=active_lang,
+                    party_name_gu=req.party_name_gu,
+                    address_gu=req.address_gu,
+                    address_line_2_gu=req.address_line_2_gu,
+                    address_line_3_gu=req.address_line_3_gu,
+                    city_gu=req.city_gu,
+                    state_gu=req.state_gu,
+                    bill_inside=bool(req.bill_inside)
+                )
+                saved_res = create_print_job(auto_job_req, db)
+                if saved_res and "job_number" in saved_res:
+                    temp_job_number = saved_res["job_number"]
+            except Exception as save_err:
+                print("Notice: Auto-save print job in generate_pdf:", save_err)
+
         job_data = {
             "job_number": temp_job_number,
             "party_name_snap": req.party_name or "JODHPUR MEDICOSE",
@@ -4855,6 +4889,18 @@ def update_dispatch_jobs(req: UpdateDispatchJobsRequest, db: Session = Depends(g
             j.delivery_route = req.delivery_route
         if req.status is not None:
             j.status = req.status
+            if req.status in ["Delivered", "Pending"] and not req.delivery_status:
+                j.delivery_status = req.status
+        if req.delivery_status is not None:
+            j.delivery_status = req.delivery_status
+            if req.delivery_status == "Delivered":
+                if not j.delivered_at:
+                    j.delivered_at = datetime.datetime.now()
+                if not j.delivered_by:
+                    j.delivered_by = j.driver_name or j.delivery_boy_name or "Dispatcher"
+            elif req.delivery_status == "Pending":
+                j.delivered_at = None
+                j.delivered_by = None
 
     db.commit()
     return {"success": True, "updated_count": len(jobs)}

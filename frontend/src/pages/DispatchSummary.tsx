@@ -16,7 +16,11 @@ import {
   Languages,
   Sparkles,
   MessageSquare,
-  Clock
+  Clock,
+  LayoutGrid,
+  List,
+  Phone,
+  Navigation
 } from "lucide-react";
 import { fetchDispatchSummary, updateDispatchJobs, downloadDispatchSummaryPDF, printDispatchSummaryPDF } from "../api/client";
 import { DispatchSummaryData, DispatchSummaryJob } from "../types";
@@ -41,6 +45,60 @@ export const DispatchSummary: React.FC = () => {
   const [selectedJobIds, setSelectedJobIds] = useState<number[]>([]);
   const [assignDriverName, setAssignDriverName] = useState<string>("");
   const [assignRouteName, setAssignRouteName] = useState<string>("");
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>(() => {
+    return (localStorage.getItem('envelope_dispatch_view_mode') as 'cards' | 'table') || 'cards';
+  });
+
+  const handleViewModeChange = (mode: 'cards' | 'table') => {
+    setViewMode(mode);
+    localStorage.setItem('envelope_dispatch_view_mode', mode);
+  };
+
+  const handleToggleDeliveryStatus = async (job: DispatchSummaryJob) => {
+    const nextStatus = job.delivery_status === 'Delivered' ? 'Pending' : 'Delivered';
+    try {
+      // Optimistic state update
+      setData((prev) => {
+        if (!prev) return prev;
+        const updatedDispatches = prev.dispatches.map((d) => {
+          if (d.id === job.id) {
+            return {
+              ...d,
+              delivery_status: nextStatus,
+              delivered_by: nextStatus === 'Delivered' ? (d.delivery_boy_name || 'Dispatcher') : null,
+              delivered_at: nextStatus === 'Delivered' ? new Date().toISOString() : null,
+            };
+          }
+          return d;
+        });
+        const deliveredCases = updatedDispatches
+          .filter((d) => d.delivery_status === 'Delivered')
+          .reduce((acc, curr) => acc + (curr.total_cases || 1), 0);
+        const deliveredParties = updatedDispatches.filter((d) => d.delivery_status === 'Delivered').length;
+        const pendingCases = updatedDispatches
+          .filter((d) => d.delivery_status !== 'Delivered')
+          .reduce((acc, curr) => acc + (curr.total_cases || 1), 0);
+        const pendingParties = updatedDispatches.length - deliveredParties;
+
+        return {
+          ...prev,
+          dispatches: updatedDispatches,
+          delivered_cases: deliveredCases,
+          delivered_parties: deliveredParties,
+          pending_cases: pendingCases,
+          pending_parties: pendingParties,
+        };
+      });
+
+      await updateDispatchJobs({
+        job_ids: [job.id],
+        delivery_status: nextStatus,
+      });
+    } catch (err: any) {
+      alert('Failed to update delivery status: ' + err.message);
+      await loadSummary();
+    }
+  };
 
   const translateCaseToGu = (text: string): string => {
     if (!text) return text;
@@ -507,192 +565,477 @@ export const DispatchSummary: React.FC = () => {
         </div>
       </div>
 
-      {/* 4. Dispatches Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr className="bg-slate-900 text-white font-black text-[11px] uppercase tracking-wider">
-                <th className="p-3 w-10 text-center">
-                  <input
-                    type="checkbox"
-                    checked={selectedJobIds.length === filteredDispatches.length && filteredDispatches.length > 0}
-                    onChange={toggleSelectAll}
-                    className="w-3.5 h-3.5 text-blue-600 rounded"
-                  />
-                </th>
-                <th className="p-3 w-12 text-center">{isGu ? "ક્રમ (Sr.)" : "Sr."}</th>
-                <th className="p-3">{isGu ? "પાર્ટીનું નામ (Party Name)" : "Party Name"}</th>
-                <th className="p-3">{isGu ? "મુકામ / શહેર (City)" : "Destination / City"}</th>
-                <th className="p-3">{isGu ? "મોબાઈલ નં." : "Mobile No."}</th>
-                <th className="p-3">{isGu ? "કેસ વિગત" : "Case Breakdown"}</th>
-                <th className="p-3 text-center">{isGu ? "પાર્સલ" : "Pkgs"}</th>
-                <th className="p-3">{isGu ? "સોંપાયેલ ડ્રાઈવર" : "Assigned Driver"}</th>
-                <th className="p-3">{isGu ? "રૂટ" : "Route"}</th>
-                <th className="p-3 text-center">{isGu ? "ડિલિવરી સ્થિતિ / કરનાર" : "Delivery Status / By"}</th>
-                <th className="p-3 text-center">{isGu ? "વોટ્સએપ" : "WhatsApp"}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200 text-slate-800">
-              {filteredDispatches.length > 0 ? (
-                filteredDispatches.map((job, index) => {
-                  const isSelected = selectedJobIds.includes(job.id);
-                  
-                  // Breakdown string formatting
-                  const breakdownParts: string[] = [];
-                  if (job.case_breakdown && job.case_breakdown.length > 0) {
-                    job.case_breakdown.forEach((b) => {
-                      if (b.qty > 0) {
-                        breakdownParts.push(formatCaseBreakdownItem(b.type, b.volume, b.qty));
-                      }
-                    });
-                  } else {
-                    breakdownParts.push(`CASE: ${job.total_cases}`);
+      {/* View Mode & Selection Stats Bar */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white px-4 py-2.5 rounded-xl border border-slate-200 shadow-xs">
+        <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-slate-700">
+          <span className="text-slate-500">{isGu ? "દર્શાવેલ:" : "Showing:"}</span>
+          <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-800 font-extrabold">
+            {filteredDispatches.length} of {data?.dispatches?.length || 0}
+          </span>
+          <span>{isGu ? "ડિસ્પેચ જોબ્સ" : "Dispatch Jobs"}</span>
+          {selectedJobIds.length > 0 && (
+            <span className="px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 font-black border border-purple-200">
+              {selectedJobIds.length} {isGu ? "પસંદ કરેલ" : "Selected"}
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
+            <button
+              type="button"
+              onClick={() => handleViewModeChange('cards')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                viewMode === 'cards'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+              title="Cards View"
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span>{isGu ? "કાર્ડ વ્યૂ (Cards)" : "Cards View"}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleViewModeChange('table')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                viewMode === 'table'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+              title="Table View"
+            >
+              <List className="w-3.5 h-3.5" />
+              <span>{isGu ? "ટેબલ વ્યૂ (Table)" : "Table View"}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 4. Dispatches Content (Cards or Table) */}
+      {viewMode === 'cards' ? (
+        /* Cards View */
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {filteredDispatches.length > 0 ? (
+            filteredDispatches.map((job, index) => {
+              const isSelected = selectedJobIds.includes(job.id);
+              const isDelivered = job.delivery_status === 'Delivered' || Boolean(job.delivered_by);
+
+              // Breakdown string formatting
+              const breakdownParts: string[] = [];
+              if (job.case_breakdown && job.case_breakdown.length > 0) {
+                job.case_breakdown.forEach((b) => {
+                  if (b.qty > 0) {
+                    breakdownParts.push(formatCaseBreakdownItem(b.type, b.volume, b.qty));
                   }
-                  const rawBreakdown = breakdownParts.join(", ");
-                  const displayBreakdown = rawBreakdown;
+                });
+              } else if (job.total_cases > 0) {
+                breakdownParts.push(`CASE: ${job.total_cases}`);
+              }
 
-                  const displayName = isGu ? (job.party_name_gu || job.party_name) : job.party_name;
-                  const displayCity = isGu ? (job.city_gu || job.city) : job.city;
+              const displayName = isGu ? (job.party_name_gu || job.party_name) : job.party_name;
+              const displayCity = isGu ? (job.city_gu || job.city) : job.city;
 
-                  return (
-                    <tr
-                      key={job.id}
-                      className={`hover:bg-slate-50 transition-colors ${
-                        isSelected ? "bg-blue-50/70" : ""
+              const waUrl = generateWhatsAppDispatchUrl({
+                partyName: job.party_name,
+                partyNameGu: job.party_name_gu || undefined,
+                phone: job.mobile,
+                jobNumber: job.job_number,
+                totalCases: job.total_cases,
+                caseBreakdown: job.case_breakdown,
+                driverName: job.delivery_boy_name,
+                deliveryRoute: job.delivery_route,
+                city: job.city
+              }, isGu ? 'gu' : 'en');
+
+              return (
+                <div
+                  key={job.id}
+                  className={`bg-white rounded-2xl border transition-all duration-200 shadow-sm hover:shadow-md flex flex-col justify-between overflow-hidden ${
+                    isSelected
+                      ? 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-50/20'
+                      : isDelivered
+                      ? 'border-emerald-200 bg-emerald-50/10'
+                      : 'border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  {/* Card Header */}
+                  <div className="p-3.5 border-b border-slate-100 flex items-start justify-between gap-3 bg-gradient-to-b from-slate-50/70 to-transparent">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleJob(job.id)}
+                        className="w-4 h-4 text-blue-600 rounded cursor-pointer mt-0.5"
+                      />
+                      <span className="px-2 py-0.5 rounded-md bg-slate-200/80 text-slate-700 font-black text-[11px] tracking-tight">
+                        #{index + 1}
+                      </span>
+                      <span className="font-mono text-xs font-black text-slate-800 tracking-tight">
+                        {job.job_number}
+                      </span>
+                    </div>
+
+                    {/* Delivery Status Badge with 1-Tap Toggle */}
+                    <button
+                      type="button"
+                      onClick={() => handleToggleDeliveryStatus(job)}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-extrabold border transition-all cursor-pointer ${
+                        isDelivered
+                          ? 'bg-emerald-100 text-emerald-900 border-emerald-300 hover:bg-emerald-200 shadow-2xs'
+                          : 'bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200 shadow-2xs'
                       }`}
+                      title={isGu ? "સ્થિતિ બદલવા ક્લિક કરો" : "Click to toggle delivery status"}
                     >
-                      <td className="p-3 text-center">
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => toggleJob(job.id)}
-                          className="w-3.5 h-3.5 text-blue-600 rounded"
-                        />
-                      </td>
-                      <td className="p-3 text-center font-bold text-slate-500">
-                        {index + 1}
-                      </td>
-                      <td className="p-3 font-extrabold text-slate-900">
-                        <div className={isGu ? "text-slate-950 font-black text-sm" : ""}>{displayName}</div>
-                        {isGu && job.party_name_gu && (
-                          <div className="text-[10px] text-slate-500 font-bold">{job.party_name}</div>
-                        )}
+                      {isDelivered ? (
+                        <>
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
+                          <span>{isGu ? "ડિલિવર થયેલ" : "Delivered"}</span>
+                        </>
+                      ) : (
+                        <>
+                          <Clock className="w-3.5 h-3.5 text-amber-700" />
+                          <span>{isGu ? "ડિલિવરી બાકી" : "Pending"}</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Card Body */}
+                  <div className="p-4 space-y-3 flex-1">
+                    {/* Party Name & Code */}
+                    <div>
+                      <div className="flex items-start justify-between gap-2">
+                        <h3 className="font-black text-slate-900 text-base leading-tight">
+                          {displayName}
+                        </h3>
                         {job.party_code && (
-                          <span className="text-[10px] font-mono text-slate-400 block mt-0.5">
+                          <span className="font-mono text-[11px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 shrink-0">
                             {job.party_code}
                           </span>
                         )}
-                      </td>
-                      <td className="p-3 font-bold text-slate-700">
-                        <div>{displayCity}</div>
-                        {isGu && job.city_gu && job.city_gu !== job.city && (
-                          <div className="text-[10px] text-slate-400 font-semibold">{job.city}</div>
-                        )}
-                      </td>
-                      <td className="p-3 font-mono font-semibold text-slate-600">
-                        {job.mobile || "-"}
-                      </td>
-                      <td className="p-3 font-bold text-blue-900">
-                        <span className="bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-                          {displayBreakdown}
+                      </div>
+                      {isGu && job.party_name_gu && job.party_name !== job.party_name_gu && (
+                        <div className="text-xs text-slate-500 font-semibold mt-0.5">
+                          {job.party_name}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Destination & Route */}
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                      <div className="flex items-center gap-1 font-bold text-slate-700 bg-slate-50 px-2 py-1 rounded-lg border border-slate-200">
+                        <MapPin className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                        <span>{displayCity || '-'}</span>
+                      </div>
+
+                      {job.delivery_route && (
+                        <div className="flex items-center gap-1 font-bold text-purple-700 bg-purple-50 px-2 py-1 rounded-lg border border-purple-200">
+                          <Navigation className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                          <span>{job.delivery_route}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Cases & Breakdown */}
+                    <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 space-y-2">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-slate-500 font-bold uppercase text-[10px]">
+                          {isGu ? "કુલ પાર્સલ / કેસ:" : "Total Packages:"}
                         </span>
-                      </td>
-                      <td className="p-3 text-center font-black text-slate-900 text-sm">
-                        {job.total_cases}
-                      </td>
-                      <td className="p-3 font-bold text-slate-800">
+                        <span className="font-black text-blue-900 bg-blue-100/70 border border-blue-200 px-2 py-0.5 rounded text-xs">
+                          {job.total_cases} {job.total_cases === 1 ? 'Case' : 'Cases'}
+                        </span>
+                      </div>
+
+                      {breakdownParts.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 pt-1 border-t border-slate-200/60">
+                          {breakdownParts.map((part, pIdx) => (
+                            <span
+                              key={pIdx}
+                              className="text-[11px] font-extrabold px-2 py-0.5 rounded bg-white text-blue-900 border border-blue-200 shadow-2xs"
+                            >
+                              {part}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Assigned Driver & Delivered Info */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs pt-1">
+                      <div className="flex items-center gap-1.5">
+                        <Truck className="w-3.5 h-3.5 text-slate-400" />
+                        <span className="text-slate-500 font-bold text-[11px]">
+                          {isGu ? "ડ્રાઈવર:" : "Driver:"}
+                        </span>
                         {job.delivery_boy_name ? (
-                          <span className="bg-slate-100 text-slate-800 px-2 py-0.5 rounded border border-slate-200 font-bold text-xs">
+                          <span className="font-extrabold text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
                             {job.delivery_boy_name}
                           </span>
                         ) : (
-                          <span className="text-slate-400 italic text-xs">
+                          <span className="italic text-amber-700 font-semibold text-[11px]">
                             {isGu ? "બિન-સોંપાયેલ" : "Unassigned"}
                           </span>
                         )}
-                      </td>
-                      <td className="p-3 font-semibold text-slate-600">
-                        {job.delivery_route || "-"}
-                      </td>
-                      <td className="p-3 text-center">
-                        {job.delivery_status === 'Delivered' || job.delivered_by ? (
-                          <div className="flex flex-col items-center gap-1">
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-100 text-emerald-900 border border-emerald-300 shadow-2xs">
-                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                              <span>{isGu ? "ડિલિવર થયેલ" : "Delivered"}</span>
+                      </div>
+
+                      {isDelivered && (job.delivered_by || job.delivered_at) && (
+                        <div className="text-[11px] font-bold text-emerald-800 flex items-center gap-1">
+                          <span>By: {job.delivered_by || job.delivery_boy_name || 'Driver'}</span>
+                          {job.delivered_at && (
+                            <span className="text-slate-400 font-mono text-[10px]">
+                              ({new Date(job.delivered_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})
                             </span>
-                            <div className="text-[11px] font-extrabold text-emerald-950 flex items-center justify-center gap-1">
-                              <span className="text-slate-500 font-semibold">{isGu ? "દ્વારા:" : "By:"}</span>
-                              <span className="bg-emerald-50 text-emerald-900 px-1.5 py-0.5 rounded border border-emerald-200 font-black">
-                                👤 {job.delivered_by || job.delivery_boy_name || "Driver"}
-                              </span>
-                            </div>
-                            {job.delivered_at && (
-                              <div className="text-[10px] text-slate-400 font-mono">
-                                {new Date(job.delivered_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Card Footer Actions */}
+                  <div className="p-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-2">
+                    {/* Call party button */}
+                    {job.mobile ? (
+                      <a
+                        href={`tel:${job.mobile}`}
+                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-800 font-extrabold text-xs border border-slate-200 shadow-2xs transition-colors"
+                        title={job.mobile}
+                      >
+                        <Phone className="w-3.5 h-3.5 text-blue-600" />
+                        <span className="font-mono">{job.mobile}</span>
+                      </a>
+                    ) : (
+                      <span className="flex-1 text-center text-xs text-slate-400 font-semibold italic py-2">
+                        {isGu ? "મોબાઈલ નથી" : "No Phone"}
+                      </span>
+                    )}
+
+                    {/* WhatsApp Alert Button */}
+                    {waUrl && (
+                      <a
+                        href={waUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-sm transition-all"
+                        title="Send WhatsApp Dispatch Notice"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        <span>WA Alert</span>
+                      </a>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <div className="col-span-full bg-white p-12 rounded-2xl border border-slate-200 text-center text-slate-400 font-semibold">
+              {isLoading ? (
+                <div className="flex items-center justify-center gap-2 text-slate-500">
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>Loading dispatch dispatches for {selectedDate}...</span>
+                </div>
+              ) : (
+                <div>No envelopes or print dispatches found for date {selectedDate}.</div>
+              )}
+            </div>
+          )}
+        </div>
+      ) : (
+        /* Table View */
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-slate-900 text-white font-black text-[11px] uppercase tracking-wider">
+                  <th className="p-3 w-10 text-center">
+                    <input
+                      type="checkbox"
+                      checked={selectedJobIds.length === filteredDispatches.length && filteredDispatches.length > 0}
+                      onChange={toggleSelectAll}
+                      className="w-3.5 h-3.5 text-blue-600 rounded"
+                    />
+                  </th>
+                  <th className="p-3 w-12 text-center">{isGu ? "ક્રમ (Sr.)" : "Sr."}</th>
+                  <th className="p-3">{isGu ? "પાર્ટીનું નામ (Party Name)" : "Party Name"}</th>
+                  <th className="p-3">{isGu ? "મુકામ / શહેર (City)" : "Destination / City"}</th>
+                  <th className="p-3">{isGu ? "મોબાઈલ નં." : "Mobile No."}</th>
+                  <th className="p-3">{isGu ? "કેસ વિગત" : "Case Breakdown"}</th>
+                  <th className="p-3 text-center">{isGu ? "પાર્સલ" : "Pkgs"}</th>
+                  <th className="p-3">{isGu ? "સોંપાયેલ ડ્રાઈવર" : "Assigned Driver"}</th>
+                  <th className="p-3">{isGu ? "રૂટ" : "Route"}</th>
+                  <th className="p-3 text-center">{isGu ? "ડિલિવરી સ્થિતિ / કરનાર" : "Delivery Status / By"}</th>
+                  <th className="p-3 text-center">{isGu ? "વોટ્સએપ" : "WhatsApp"}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 text-slate-800">
+                {filteredDispatches.length > 0 ? (
+                  filteredDispatches.map((job, index) => {
+                    const isSelected = selectedJobIds.includes(job.id);
+                    
+                    // Breakdown string formatting
+                    const breakdownParts: string[] = [];
+                    if (job.case_breakdown && job.case_breakdown.length > 0) {
+                      job.case_breakdown.forEach((b) => {
+                        if (b.qty > 0) {
+                          breakdownParts.push(formatCaseBreakdownItem(b.type, b.volume, b.qty));
+                        }
+                      });
+                    } else {
+                      breakdownParts.push(`CASE: ${job.total_cases}`);
+                    }
+                    const rawBreakdown = breakdownParts.join(", ");
+                    const displayBreakdown = rawBreakdown;
+
+                    const displayName = isGu ? (job.party_name_gu || job.party_name) : job.party_name;
+                    const displayCity = isGu ? (job.city_gu || job.city) : job.city;
+
+                    return (
+                      <tr
+                        key={job.id}
+                        className={`hover:bg-slate-50 transition-colors ${
+                          isSelected ? "bg-blue-50/70" : ""
+                        }`}
+                      >
+                        <td className="p-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleJob(job.id)}
+                            className="w-3.5 h-3.5 text-blue-600 rounded"
+                          />
+                        </td>
+                        <td className="p-3 text-center font-bold text-slate-500">
+                          {index + 1}
+                        </td>
+                        <td className="p-3 font-extrabold text-slate-900">
+                          <div className={isGu ? "text-slate-950 font-black text-sm" : ""}>{displayName}</div>
+                          {isGu && job.party_name_gu && (
+                            <div className="text-[10px] text-slate-500 font-bold">{job.party_name}</div>
+                          )}
+                          {job.party_code && (
+                            <span className="text-[10px] font-mono text-slate-400 block mt-0.5">
+                              {job.party_code}
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-3 font-bold text-slate-700">
+                          <div>{displayCity}</div>
+                          {isGu && job.city_gu && job.city_gu !== job.city && (
+                            <div className="text-[10px] text-slate-400 font-semibold">{job.city}</div>
+                          )}
+                        </td>
+                        <td className="p-3 font-mono font-semibold text-slate-600">
+                          {job.mobile || "-"}
+                        </td>
+                        <td className="p-3 font-bold text-blue-900">
+                          <span className="bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                            {displayBreakdown}
+                          </span>
+                        </td>
+                        <td className="p-3 text-center font-black text-slate-900 text-sm">
+                          {job.total_cases}
+                        </td>
+                        <td className="p-3 font-bold text-slate-800">
+                          {job.delivery_boy_name ? (
+                            <span className="bg-slate-100 text-slate-800 px-2 py-0.5 rounded border border-slate-200 font-bold text-xs">
+                              {job.delivery_boy_name}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 italic text-xs">
+                              {isGu ? "બિન-સોંપાયેલ" : "Unassigned"}
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-3 font-semibold text-slate-600">
+                          {job.delivery_route || "-"}
+                        </td>
+                        <td className="p-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleDeliveryStatus(job)}
+                            className="inline-flex cursor-pointer text-left focus:outline-none"
+                            title={isGu ? "સ્થિતિ બદલવા ક્લિક કરો" : "Click to toggle delivery status"}
+                          >
+                            {job.delivery_status === 'Delivered' || job.delivered_by ? (
+                              <div className="flex flex-col items-center gap-1">
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-100 text-emerald-900 border border-emerald-300 shadow-2xs hover:bg-emerald-200 transition-colors">
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                  <span>{isGu ? "ડિલિવર થયેલ" : "Delivered"}</span>
+                                </span>
+                                <div className="text-[11px] font-extrabold text-emerald-950 flex items-center justify-center gap-1">
+                                  <span className="text-slate-500 font-semibold">{isGu ? "દ્વારા:" : "By:"}</span>
+                                  <span className="bg-emerald-50 text-emerald-900 px-1.5 py-0.5 rounded border border-emerald-200 font-black">
+                                    👤 {job.delivered_by || job.delivery_boy_name || "Driver"}
+                                  </span>
+                                </div>
+                                {job.delivered_at && (
+                                  <div className="text-[10px] text-slate-400 font-mono">
+                                    {new Date(job.delivered_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="flex flex-col items-center gap-0.5">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 transition-colors">
+                                  <Clock className="w-3 h-3 text-amber-600 shrink-0" />
+                                  <span>{isGu ? "બાકી (Pending)" : "Pending Delivery"}</span>
+                                </span>
                               </div>
                             )}
-                          </div>
-                        ) : (
-                          <div className="flex flex-col items-center gap-0.5">
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold bg-amber-50 text-amber-800 border border-amber-200">
-                              <Clock className="w-3 h-3 text-amber-600 shrink-0" />
-                              <span>{isGu ? "બાકી (Pending)" : "Pending Delivery"}</span>
-                            </span>
-                          </div>
-                        )}
-                      </td>
-                      <td className="p-3 text-center">
-                        {(() => {
-                          const waUrl = generateWhatsAppDispatchUrl({
-                            partyName: job.party_name,
-                            partyNameGu: job.party_name_gu || undefined,
-                            phone: job.mobile,
-                            jobNumber: job.job_number,
-                            totalCases: job.total_cases,
-                            caseBreakdown: job.case_breakdown,
-                            driverName: job.delivery_boy_name,
-                            deliveryRoute: job.delivery_route,
-                            city: job.city
-                          }, isGu ? 'gu' : 'en');
-                          return waUrl ? (
-                            <a
-                              href={waUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 hover:text-emerald-800 rounded-md text-[11px] font-bold border border-emerald-300 transition-colors shadow-xs"
-                              title="Send WhatsApp Dispatch Notice"
-                            >
-                              <MessageSquare className="w-3 h-3 text-emerald-600" />
-                              <span>WA Alert</span>
-                            </a>
-                          ) : (
-                            <span className="text-slate-300 text-[10px]">-</span>
-                          );
-                        })()}
-                      </td>
-                    </tr>
-                  );
-                })
-              ) : (
-                <tr>
-                  <td colSpan={11} className="p-12 text-center text-slate-400 font-semibold">
-                    {isLoading ? (
-                      <div className="flex items-center justify-center gap-2 text-slate-500">
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                        <span>Loading dispatch dispatches for {selectedDate}...</span>
-                      </div>
-                    ) : (
-                      <div>No envelopes or print dispatches found for date {selectedDate}.</div>
-                    )}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                          </button>
+                        </td>
+                        <td className="p-3 text-center">
+                          {(() => {
+                            const waUrl = generateWhatsAppDispatchUrl({
+                              partyName: job.party_name,
+                              partyNameGu: job.party_name_gu || undefined,
+                              phone: job.mobile,
+                              jobNumber: job.job_number,
+                              totalCases: job.total_cases,
+                              caseBreakdown: job.case_breakdown,
+                              driverName: job.delivery_boy_name,
+                              deliveryRoute: job.delivery_route,
+                              city: job.city
+                            }, isGu ? 'gu' : 'en');
+                            return waUrl ? (
+                              <a
+                                href={waUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 hover:text-emerald-800 rounded-md text-[11px] font-bold border border-emerald-300 transition-colors shadow-xs"
+                                title="Send WhatsApp Dispatch Notice"
+                              >
+                                <MessageSquare className="w-3 h-3 text-emerald-600" />
+                                <span>WA Alert</span>
+                              </a>
+                            ) : (
+                              <span className="text-slate-300 text-[10px]">-</span>
+                            );
+                          })()}
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={11} className="p-12 text-center text-slate-400 font-semibold">
+                      {isLoading ? (
+                        <div className="flex items-center justify-center gap-2 text-slate-500">
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                          <span>Loading dispatch dispatches for {selectedDate}...</span>
+                        </div>
+                      ) : (
+                        <div>No envelopes or print dispatches found for date {selectedDate}.</div>
+                      )}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };
