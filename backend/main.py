@@ -4924,6 +4924,9 @@ def get_driver_jobs(
     driver: Optional[str] = Query(None),
     route: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
+    current_lat: Optional[float] = Query(None),
+    current_lng: Optional[float] = Query(None),
+    auto_sequence: bool = Query(True),
     db: Session = Depends(get_db)
 ):
     if not date:
@@ -4999,6 +5002,59 @@ def get_driver_jobs(
             "distance_from_geofence_meters": j.distance_from_geofence_meters,
             "geofence_verified": j.geofence_verified,
         })
+
+    def _calc_dist(lat1, lon1, lat2, lon2):
+        R = 6371.0
+        dlat = math.radians(lat2 - lat1)
+        dlon = math.radians(lon2 - lon1)
+        a = (math.sin(dlat / 2) ** 2 +
+             math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) *
+             math.sin(dlon / 2) ** 2)
+        return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+    if auto_sequence and len(items) > 1:
+        delivered_items = [x for x in items if x["delivery_status"] == "Delivered"]
+        pending_with_coords = [x for x in items if x["delivery_status"] != "Delivered" and x.get("latitude") and x.get("longitude")]
+        pending_no_coords = [x for x in items if x["delivery_status"] != "Delivered" and not (x.get("latitude") and x.get("longitude"))]
+
+        start_lat = current_lat if current_lat is not None else 23.0760
+        start_lng = current_lng if current_lng is not None else 72.6750
+
+        sequenced_pending = []
+        curr_lat, curr_lng = start_lat, start_lng
+        unvisited = list(pending_with_coords)
+        seq_num = len(delivered_items) + 1
+
+        while unvisited:
+            best_idx = 0
+            min_dist = _calc_dist(curr_lat, curr_lng, float(unvisited[0]["latitude"]), float(unvisited[0]["longitude"]))
+            for i in range(1, len(unvisited)):
+                d = _calc_dist(curr_lat, curr_lng, float(unvisited[i]["latitude"]), float(unvisited[i]["longitude"]))
+                if d < min_dist:
+                    min_dist = d
+                    best_idx = i
+            next_item = unvisited.pop(best_idx)
+            next_item["sequence"] = seq_num
+            next_item["distance_km"] = round(min_dist, 2)
+            next_item["distance_meters"] = int(min_dist * 1000)
+            next_item["estimated_minutes"] = int((min_dist / 25.0) * 60) + 3
+            seq_num += 1
+            curr_lat = float(next_item["latitude"])
+            curr_lng = float(next_item["longitude"])
+            sequenced_pending.append(next_item)
+
+        for idx, item in enumerate(pending_no_coords):
+            item["sequence"] = seq_num + idx
+            item["distance_km"] = None
+            item["distance_meters"] = None
+
+        for idx, item in enumerate(delivered_items):
+            item["sequence"] = idx + 1
+
+        items = delivered_items + sequenced_pending + pending_no_coords
+    else:
+        for idx, item in enumerate(items):
+            item["sequence"] = idx + 1
 
     return {
         "date": date_obj.isoformat(),
@@ -7627,24 +7683,59 @@ def start_fleet_trip(
     db.add(trip)
     db.flush()
 
-    # Create stops from party IDs
-    seq = 1
+    # Auto-sequence stops by shortest km distance from start_latitude/longitude using TSP
+    start_lat = payload.start_latitude if payload.start_latitude is not None else 23.0760
+    start_lng = payload.start_longitude if payload.start_longitude is not None else 72.6750
+
+    party_list = []
     for pid in payload.party_ids:
         party = db.query(Party).filter(Party.id == pid).first()
         if party:
-            stop = TripStop(
-                trip_id=trip.id,
-                party_id=party.id,
-                party_name=party.party_name,
-                party_code=party.party_code,
-                address=party.address,
-                latitude=party.latitude,
-                longitude=party.longitude,
-                sequence_number=seq,
-                status="pending"
-            )
-            db.add(stop)
-            seq += 1
+            party_list.append(party)
+
+    def _dist_km(lat1, lon1, lat2, lon2):
+        R = 6371.0
+        dlat = math.radians(lat2 - lat1)
+        dlon = math.radians(lon2 - lon1)
+        a = (math.sin(dlat / 2) ** 2 +
+             math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) *
+             math.sin(dlon / 2) ** 2)
+        return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+    sequenced_parties = []
+    unvisited = [p for p in party_list if p.latitude and p.longitude]
+    no_coords = [p for p in party_list if not (p.latitude and p.longitude)]
+
+    curr_lat, curr_lng = start_lat, start_lng
+    while unvisited:
+        best_idx = 0
+        min_d = _dist_km(curr_lat, curr_lng, float(unvisited[0].latitude), float(unvisited[0].longitude))
+        for i in range(1, len(unvisited)):
+            d = _dist_km(curr_lat, curr_lng, float(unvisited[i].latitude), float(unvisited[i].longitude))
+            if d < min_d:
+                min_d = d
+                best_idx = i
+        next_party = unvisited.pop(best_idx)
+        sequenced_parties.append(next_party)
+        curr_lat, curr_lng = float(next_party.latitude), float(next_party.longitude)
+
+    sequenced_parties.extend(no_coords)
+
+    seq = 1
+    for party in sequenced_parties:
+        stop = TripStop(
+            trip_id=trip.id,
+            party_id=party.id,
+            party_name=party.party_name,
+            party_code=party.party_code,
+            address=party.address,
+            latitude=party.latitude,
+            longitude=party.longitude,
+            sequence_number=seq,
+            status="pending"
+        )
+        db.add(stop)
+        seq += 1
 
     if vehicle:
         vehicle.status = "en_route"

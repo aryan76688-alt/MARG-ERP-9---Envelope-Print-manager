@@ -248,6 +248,9 @@ export interface DriverStop {
   delivered_longitude?: number | null;
   distance_from_geofence_meters?: number | null;
   geofence_verified?: boolean | null;
+  distance_km?: number | null;
+  distance_meters?: number | null;
+  estimated_minutes?: number | null;
 }
 
 export interface PODSubmission {

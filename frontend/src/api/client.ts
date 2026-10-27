@@ -1360,6 +1360,9 @@ export async function fetchDriverJobs(params: {
   driver?: string;
   route?: string;
   status?: string;
+  current_lat?: number;
+  current_lng?: number;
+  auto_sequence?: boolean;
 }): Promise<{
   date: string;
   total_stops: number;
@@ -1372,6 +1375,9 @@ export async function fetchDriverJobs(params: {
   if (params.driver) q.append('driver', params.driver);
   if (params.route) q.append('route', params.route);
   if (params.status) q.append('status', params.status);
+  if (params.current_lat !== undefined) q.append('current_lat', String(params.current_lat));
+  if (params.current_lng !== undefined) q.append('current_lng', String(params.current_lng));
+  if (params.auto_sequence !== undefined) q.append('auto_sequence', String(params.auto_sequence));
 
   const res = await fetchApi(`${API_BASE}/driver/jobs?${q.toString()}`);
   if (!res.ok) throw new Error('Failed to load driver jobs');

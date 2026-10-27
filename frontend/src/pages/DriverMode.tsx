@@ -30,7 +30,11 @@ import {
   Share2,
   LocateFixed,
   Sparkles,
-  ArrowRight
+  ArrowRight,
+  Volume2,
+  VolumeX,
+  Bell,
+  Zap
 } from 'lucide-react';
 import { DriverStop, PODSubmission, FleetVehicle, FleetTrip } from '../types';
 import { 
@@ -131,10 +135,150 @@ export const DriverMode: React.FC = () => {
   // Direct Mobile Camera Input Ref
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
 
+  // Auto-Sequence by Distance & Loud Arrival Notice States
+  const [autoSequenceByKm, setAutoSequenceByKm] = useState<boolean>(true);
+  const [arrivedShopModal, setArrivedShopModal] = useState<DriverStop | null>(null);
+  const lastAnnouncedStopIdRef = useRef<number | null>(null);
+  const sequencedStopsRef = useRef<DriverStop[]>([]);
+
+  // Loud Arrival Chime using Web Audio API Synthesizer (Zero-dependency & works 100% offline)
+  const playLoudArrivalChime = () => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const now = ctx.currentTime;
+
+      const playTone = (freq: number, start: number, duration: number) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, start);
+        gain.gain.setValueAtTime(0, start);
+        gain.gain.linearRampToValueAtTime(1.0, start + 0.04);
+        gain.gain.exponentialRampToValueAtTime(0.01, start + duration);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(start);
+        osc.stop(start + duration);
+      };
+
+      // Loud 3-tone chime sequence (A5 880Hz, D6 1174Hz, A6 1760Hz)
+      playTone(880, now, 0.22);
+      playTone(1174, now + 0.20, 0.22);
+      playTone(1760, now + 0.40, 0.50);
+    } catch (err) {
+      console.warn('Audio chime notice error:', err);
+    }
+  };
+
+  // Loud Voice Notice using Web Speech Synthesis API (Gujarati + English)
+  const speakLoudArrivalNotice = (stop: DriverStop) => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    try {
+      window.speechSynthesis.cancel();
+
+      const name = stop.party_name_gu || stop.party_name;
+      const cases = stop.total_cases || 1;
+
+      // Gujarati announcement followed by English announcement
+      const textGu = `ધ્યાન આપો! તમે ${name} મેડિકલ સ્ટોર પર પહોંચી ગયા છો. કુલ ${cases} કેસ ડિલિવર કરવાના છે.`;
+      const textEn = `Arrival Alert! You have arrived at ${stop.party_name}. Total ${cases} cases to deliver.`;
+
+      const utter = new SpeechSynthesisUtterance(`${textGu} ... ${textEn}`);
+      utter.volume = 1.0;
+      utter.rate = 0.92;
+      utter.pitch = 1.05;
+
+      const voices = window.speechSynthesis.getVoices();
+      const regionalVoice = voices.find(v => 
+        v.lang.startsWith('gu') || v.lang.startsWith('hi') || v.lang.startsWith('en-IN')
+      );
+      if (regionalVoice) {
+        utter.voice = regionalVoice;
+      }
+
+      window.speechSynthesis.speak(utter);
+    } catch (err) {
+      console.warn('Speech synthesis error:', err);
+    }
+  };
+
+  const triggerLoudMedicalShopArrivalNotice = (stop: DriverStop) => {
+    // 1. Play loud 3-tone arrival chime
+    playLoudArrivalChime();
+
+    // 2. Play voice announcement after chime
+    setTimeout(() => {
+      speakLoudArrivalNotice(stop);
+    }, 450);
+
+    // 3. Strong haptic vibration
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      navigator.vibrate([600, 200, 600, 200, 800, 200, 1000]);
+    }
+
+    // 4. Android native bridge notification if running in APK
+    if ((window as any).AndroidBridge?.showArrivalNotification) {
+      (window as any).AndroidBridge.showArrivalNotification(stop.party_name, stop.total_cases || 1);
+    }
+
+    // 5. Open visual arrival alert modal
+    setArrivedShopModal(stop);
+  };
+
+  // Auto-Sequence Stops by KM Distance from Driver Live GPS
+  const sequencedStops = useMemo(() => {
+    if (!autoSequenceByKm || !driverLocation) {
+      return stops;
+    }
+    const delivered = stops.filter(s => s.delivery_status === 'Delivered');
+    const pendingWithCoords = stops.filter(s => s.delivery_status !== 'Delivered' && s.latitude && s.longitude);
+    const pendingNoCoords = stops.filter(s => s.delivery_status !== 'Delivered' && (!s.latitude || !s.longitude));
+
+    let currLat = driverLocation.lat;
+    let currLng = driverLocation.lng;
+    const unvisited = [...pendingWithCoords];
+    const orderedPending: DriverStop[] = [];
+
+    let seqCounter = delivered.length + 1;
+    while (unvisited.length > 0) {
+      let bestIdx = 0;
+      let minD = calculateDistance(currLat, currLng, unvisited[0].latitude!, unvisited[0].longitude!);
+      for (let i = 1; i < unvisited.length; i++) {
+        const d = calculateDistance(currLat, currLng, unvisited[i].latitude!, unvisited[i].longitude!);
+        if (d < minD) {
+          minD = d;
+          bestIdx = i;
+        }
+      }
+      const next = unvisited.splice(bestIdx, 1)[0];
+      orderedPending.push({
+        ...next,
+        sequence: seqCounter++,
+        distance_meters: minD,
+        distance_km: Number((minD / 1000).toFixed(2)),
+        estimated_minutes: Math.round((minD / 25000) * 60) + 3
+      });
+      currLat = next.latitude!;
+      currLng = next.longitude!;
+    }
+
+    return [
+      ...delivered,
+      ...orderedPending,
+      ...pendingNoCoords.map((s, idx) => ({ ...s, sequence: seqCounter + idx }))
+    ];
+  }, [stops, autoSequenceByKm, driverLocation]);
+
+  useEffect(() => {
+    sequencedStopsRef.current = sequencedStops;
+  }, [sequencedStops]);
+
   // Next Pending Stop in Sequence
   const nextStop = useMemo(() => {
-    return stops.find(s => s.delivery_status !== 'Delivered' && s.latitude && s.longitude);
-  }, [stops]);
+    return sequencedStops.find(s => s.delivery_status !== 'Delivered' && s.latitude && s.longitude);
+  }, [sequencedStops]);
 
   // Real-time Distance to Next Stop in Meters
   const nextStopDistance = useMemo(() => {
@@ -142,7 +286,7 @@ export const DriverMode: React.FC = () => {
     return calculateDistance(driverLocation.lat, driverLocation.lng, nextStop.latitude, nextStop.longitude);
   }, [driverLocation, nextStop]);
 
-  const isArrivedAtNextStop = Boolean(nextStopDistance !== null && nextStopDistance <= 50);
+  const isArrivedAtNextStop = Boolean(nextStopDistance !== null && nextStopDistance <= (nextStop?.geofence_radius_meters || 75));
 
   // Load Public Shared Trip (when accessed via WhatsApp link with ?trip_token=...)
   useEffect(() => {
@@ -256,6 +400,33 @@ export const DriverMode: React.FC = () => {
       setCurrentSpeedKmh(spd);
       setGpsLoading(false);
       setGpsError(null);
+
+      // Automatic arrival detection at any medical shop for loud audio notice
+      if (lat && lng && sequencedStopsRef.current.length > 0) {
+        const pendingStops = sequencedStopsRef.current.filter(s => s.delivery_status !== 'Delivered' && s.latitude && s.longitude);
+        let insideShop = false;
+        for (const stop of pendingStops) {
+          const dist = calculateDistance(lat, lng, stop.latitude!, stop.longitude!);
+          const radius = stop.geofence_radius_meters || 75;
+          if (dist <= radius) {
+            insideShop = true;
+            if (lastAnnouncedStopIdRef.current !== stop.id) {
+              lastAnnouncedStopIdRef.current = stop.id;
+              triggerLoudMedicalShopArrivalNotice(stop);
+            }
+            break;
+          }
+        }
+        if (!insideShop && lastAnnouncedStopIdRef.current) {
+          const prevStop = sequencedStopsRef.current.find(s => s.id === lastAnnouncedStopIdRef.current);
+          if (prevStop && prevStop.latitude && prevStop.longitude) {
+            const d = calculateDistance(lat, lng, prevStop.latitude, prevStop.longitude);
+            if (d > 150) {
+              lastAnnouncedStopIdRef.current = null;
+            }
+          }
+        }
+      }
 
       // Ingest 1-second telemetry to backend (max once every 900ms)
       if (now - lastTelemetryPushTime >= 900) {
@@ -497,7 +668,7 @@ export const DriverMode: React.FC = () => {
     const bounds = L.latLngBounds([]);
     if (driverLocation) bounds.extend([driverLocation.lat, driverLocation.lng]);
 
-    stops.forEach((stop, idx) => {
+    sequencedStops.forEach((stop, idx) => {
       if (!stop.latitude || !stop.longitude) return;
       const isDelivered = stop.delivery_status === 'Delivered';
       const seq = stop.sequence || idx + 1;
@@ -516,7 +687,7 @@ export const DriverMode: React.FC = () => {
 
       const m = L.marker([stop.latitude, stop.longitude], { icon: stopIcon })
         .addTo(map)
-        .bindPopup(`<b>${seq}. ${stop.party_name}</b><br>${stop.city || ''}<br>${stop.address || ''}`);
+        .bindPopup(`<b>#${seq} - ${stop.party_name}</b><br>${stop.city || ''}<br>${stop.address || ''}`);
       stopMarkersRef.current.push(m);
       bounds.extend([stop.latitude, stop.longitude]);
     });
@@ -524,12 +695,12 @@ export const DriverMode: React.FC = () => {
     if (bounds.isValid() && stopMarkersRef.current.length > 0) {
       map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 });
     }
-  }, [stops]);
+  }, [sequencedStops]);
 
   // Dynamic Road-Following Polyline Computation
   useEffect(() => {
     if (!driverLocation) return;
-    const pendingStops = stops.filter(s => s.delivery_status !== 'Delivered' && s.latitude && s.longitude);
+    const pendingStops = sequencedStops.filter(s => s.delivery_status !== 'Delivered' && s.latitude && s.longitude);
     if (pendingStops.length === 0) {
       if (routePolylineRef.current && mapInstanceRef.current) {
         mapInstanceRef.current.removeLayer(routePolylineRef.current);
@@ -587,7 +758,7 @@ export const DriverMode: React.FC = () => {
     }).catch(err => {
       console.warn('Road route computation fallback:', err);
     });
-  }, [driverLocation, stops]);
+  }, [driverLocation, sequencedStops]);
 
   const switchTileLayer = (mode: 'streets' | 'satellite') => {
     const map = mapInstanceRef.current;
@@ -691,7 +862,10 @@ export const DriverMode: React.FC = () => {
         date,
         driver: driver !== 'All' ? driver : undefined,
         route: route !== 'All' ? route : undefined,
-        status: statusFilter !== 'All' ? statusFilter : undefined
+        status: statusFilter !== 'All' ? statusFilter : undefined,
+        current_lat: driverLocation?.lat,
+        current_lng: driverLocation?.lng,
+        auto_sequence: autoSequenceByKm
       });
       setStops(res.stops || []);
     } catch (err) {
@@ -703,7 +877,7 @@ export const DriverMode: React.FC = () => {
 
   useEffect(() => {
     loadStops();
-  }, [date, driver, route, statusFilter]);
+  }, [date, driver, route, statusFilter, autoSequenceByKm]);
 
   // Handle Photo input (Compress to high quality web jpeg)
   const handlePhotoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -847,7 +1021,7 @@ export const DriverMode: React.FC = () => {
   };
 
   // Filter stops by search query
-  const filteredStops = stops.filter(s => {
+  const filteredStops = sequencedStops.filter(s => {
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toUpperCase();
     return (
@@ -859,8 +1033,8 @@ export const DriverMode: React.FC = () => {
     );
   });
 
-  const totalDelivered = stops.filter(s => s.delivery_status === 'Delivered').length;
-  const totalPending = stops.length - totalDelivered;
+  const totalDelivered = sequencedStops.filter(s => s.delivery_status === 'Delivered').length;
+  const totalPending = sequencedStops.length - totalDelivered;
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
@@ -884,10 +1058,45 @@ export const DriverMode: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Auto-Sequence KM Distance Toggle */}
+            <button
+              type="button"
+              onClick={() => setAutoSequenceByKm(!autoSequenceByKm)}
+              className={`px-3.5 py-2 text-xs font-bold rounded-xl border flex items-center gap-1.5 transition-all shadow-xs cursor-pointer ${
+                autoSequenceByKm
+                  ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 border-amber-600 shadow-amber-500/25 ring-2 ring-amber-300'
+                  : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'
+              }`}
+              title="Automatically sort delivery stops by shortest km road distance from current GPS"
+            >
+              <Zap className={`w-4 h-4 ${autoSequenceByKm ? 'fill-current text-slate-950' : 'text-amber-500'}`} />
+              <span>Auto-Sequence (KM): {autoSequenceByKm ? 'ON' : 'OFF'}</span>
+            </button>
+
+            {/* Test Loud Notice Button */}
+            <button
+              type="button"
+              onClick={() => {
+                const sampleStop = nextStop || sequencedStops[0] || {
+                  id: 9999,
+                  party_name: 'શ્રી જી મેડિકલ સ્ટોર (Shreeji Medical)',
+                  party_name_gu: 'શ્રી જી મેડિકલ સ્ટોર',
+                  total_cases: 3,
+                  city: 'Ahmedabad'
+                };
+                triggerLoudMedicalShopArrivalNotice(sampleStop as DriverStop);
+              }}
+              className="px-3.5 py-2 text-xs font-bold rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
+              title="Test loud arrival chime, Gujarati voice notice, and vibration alert"
+            >
+              <Volume2 className="w-4 h-4 text-indigo-600" />
+              <span>Loud Notice Test</span>
+            </button>
+
             <button
               onClick={() => { triggerSync(); loadStops(); }}
-              className="px-3.5 py-2 text-sm font-medium rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 flex items-center gap-1.5 transition-colors shadow-sm"
+              className="px-3.5 py-2 text-xs md:text-sm font-medium rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 flex items-center gap-1.5 transition-colors shadow-xs"
               title="Refresh Stops & Sync"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -1229,7 +1438,7 @@ export const DriverMode: React.FC = () => {
                         ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' 
                         : 'bg-blue-100 text-blue-800 border border-blue-300'
                     }`}>
-                      {isDelivered ? <Check className="w-5 h-5 text-emerald-700" /> : idx + 1}
+                      {isDelivered ? <Check className="w-5 h-5 text-emerald-700" /> : (stop.sequence || idx + 1)}
                     </div>
 
                     <div className="space-y-1">
@@ -1240,6 +1449,17 @@ export const DriverMode: React.FC = () => {
                         {stop.party_name_gu && (
                           <span className="text-sm font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
                             {stop.party_name_gu}
+                          </span>
+                        )}
+                        {stop.sequence && !isDelivered && (
+                          <span className="text-xs font-bold text-blue-700 bg-blue-100/80 px-2 py-0.5 rounded-full border border-blue-200">
+                            Stop #{stop.sequence}
+                          </span>
+                        )}
+                        {stop.distance_km !== undefined && stop.distance_km !== null && !isDelivered && (
+                          <span className="text-xs font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-200 flex items-center gap-1">
+                            <Navigation className="w-3 h-3 text-indigo-500" />
+                            {stop.distance_km < 1 ? `${stop.distance_meters || Math.round(stop.distance_km * 1000)}m` : `${stop.distance_km} km`}
                           </span>
                         )}
                         <span className={`text-xs px-2.5 py-0.5 rounded-full font-semibold ${
@@ -1361,6 +1581,14 @@ export const DriverMode: React.FC = () => {
 
                     {/* Quick Communication Actions */}
                     <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => triggerLoudMedicalShopArrivalNotice(stop)}
+                        className="p-2 rounded-lg border border-indigo-200 text-indigo-700 hover:bg-indigo-50 transition-colors shadow-xs cursor-pointer"
+                        title="Play loud arrival chime & voice announcement for this medical shop"
+                      >
+                        <Volume2 className="w-4 h-4 text-indigo-600" />
+                      </button>
                       {stop.mobile && (
                         <a
                           href={`tel:${stop.mobile}`}
@@ -1923,6 +2151,123 @@ export const DriverMode: React.FC = () => {
               >
                 {tripSubmitting ? 'Ending...' : 'Confirm & End Trip'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Loud Medical Shop Arrival Notice Modal */}
+      {arrivedShopModal && (
+        <div className="fixed inset-0 bg-black/75 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-gradient-to-b from-slate-900 via-slate-900 to-indigo-950 text-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border-2 border-emerald-500 ring-4 ring-emerald-500/30 space-y-5 animate-in fade-in duration-200">
+            {/* Header with animated chime/bell icon */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-14 h-14 rounded-2xl bg-emerald-500 text-slate-950 flex items-center justify-center shadow-lg shadow-emerald-500/40 animate-bounce">
+                  <Bell className="w-8 h-8 fill-current" />
+                </div>
+                <div>
+                  <span className="text-[11px] font-black uppercase tracking-wider text-emerald-400 bg-emerald-950 px-2.5 py-0.5 rounded-full border border-emerald-500/50">
+                    🔔 મેડિકલ સ્ટોર આગમન સૂચના (Arrival Alert)
+                  </span>
+                  <h2 className="text-xl font-black text-white mt-1">
+                    દવાની દુકાન પર પહોંચી ગયા છો!
+                  </h2>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setArrivedShopModal(null)}
+                className="w-9 h-9 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center cursor-pointer transition-colors"
+                title="Dismiss Alert"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Shop Details Card */}
+            <div className="bg-slate-950/80 rounded-2xl p-4 border border-slate-700/80 space-y-3">
+              <div>
+                <div className="text-xl sm:text-2xl font-black text-emerald-300 leading-tight">
+                  {arrivedShopModal.party_name}
+                </div>
+                {arrivedShopModal.party_name_gu && (
+                  <div className="text-sm font-bold text-slate-300 mt-0.5">
+                    {arrivedShopModal.party_name_gu}
+                  </div>
+                )}
+                {arrivedShopModal.address && (
+                  <p className="text-xs text-slate-400 mt-1.5 flex items-start gap-1">
+                    <MapPin className="w-3.5 h-3.5 text-slate-500 shrink-0 mt-0.5" />
+                    <span>{arrivedShopModal.address}{arrivedShopModal.city ? `, ${arrivedShopModal.city}` : ''}</span>
+                  </p>
+                )}
+              </div>
+
+              {/* Delivery Cases Banner */}
+              <div className="flex items-center justify-between bg-emerald-950/60 border border-emerald-500/40 rounded-xl p-3">
+                <div className="text-xs text-emerald-300 font-bold uppercase tracking-wider">
+                  ડિલિવર કરવાના કેસ (Total Cases)
+                </div>
+                <div className="text-2xl font-black text-emerald-400 font-mono">
+                  {arrivedShopModal.total_cases || 1} <span className="text-sm font-semibold">Cases</span>
+                </div>
+              </div>
+
+              {arrivedShopModal.case_breakdown && arrivedShopModal.case_breakdown.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {arrivedShopModal.case_breakdown.map((b, i) => (
+                    <span key={i} className="text-xs bg-slate-800 text-slate-200 px-2 py-0.5 rounded-md font-medium border border-slate-700">
+                      {b.title || b.type}: {b.qty}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="space-y-2 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  const targetStop = arrivedShopModal;
+                  setArrivedShopModal(null);
+                  openPODModal(targetStop, true);
+                }}
+                className="w-full py-3.5 px-4 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-sm rounded-2xl flex items-center justify-center gap-2 shadow-xl shadow-emerald-500/30 active:scale-98 transition-all cursor-pointer"
+              >
+                <Camera className="w-5 h-5" />
+                <span>📸 Confirm Delivery (e-POD ફોટો લો)</span>
+              </button>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => triggerLoudMedicalShopArrivalNotice(arrivedShopModal)}
+                  className="py-2.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 border border-slate-700 active:scale-95 transition-all cursor-pointer"
+                >
+                  <Volume2 className="w-4 h-4 text-emerald-400" />
+                  <span>🔊 Repeat Notice</span>
+                </button>
+
+                {(arrivedShopModal.mobile || arrivedShopModal.mobile_no) ? (
+                  <a
+                    href={`tel:${arrivedShopModal.mobile || arrivedShopModal.mobile_no}`}
+                    className="py-2.5 px-3 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition-all"
+                  >
+                    <Phone className="w-4 h-4" />
+                    <span>📞 Call Chemist</span>
+                  </a>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setArrivedShopModal(null)}
+                    className="py-2.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 border border-slate-700 active:scale-95 transition-all cursor-pointer"
+                  >
+                    <span>Dismiss (બંધ કરો)</span>
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
