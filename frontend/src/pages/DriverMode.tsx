@@ -1063,7 +1063,7 @@ export const DriverMode: React.FC = () => {
             <button
               type="button"
               onClick={() => setAutoSequenceByKm(!autoSequenceByKm)}
-              className={`px-3.5 py-2 text-xs font-bold rounded-xl border flex items-center gap-1.5 transition-all shadow-xs cursor-pointer ${
+              className={`px-3.5 py-2 text-xs font-semibold rounded-xl border flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer ${
                 autoSequenceByKm
                   ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 border-amber-600 shadow-amber-500/25 ring-2 ring-amber-300'
                   : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'
@@ -1087,7 +1087,7 @@ export const DriverMode: React.FC = () => {
                 };
                 triggerLoudMedicalShopArrivalNotice(sampleStop as DriverStop);
               }}
-              className="px-3.5 py-2 text-xs font-bold rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
+              className="px-3.5 py-2 text-xs font-semibold rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer active:scale-95"
               title="Test loud arrival chime, Gujarati voice notice, and vibration alert"
             >
               <Volume2 className="w-4 h-4 text-indigo-600" />
@@ -1108,17 +1108,17 @@ export const DriverMode: React.FC = () => {
         {/* Metrics Row */}
         <div className="grid grid-cols-3 gap-3 md:gap-4 mt-6">
           <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3 md:p-4 text-center">
-            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Stops</div>
+            <div className="text-xs font-medium text-slate-500">Total Stops</div>
             <div className="text-2xl md:text-3xl font-extrabold text-slate-900 mt-1">{stops.length}</div>
           </div>
           <div className="bg-amber-50 border border-amber-200/80 rounded-xl p-3 md:p-4 text-center">
-            <div className="text-xs font-semibold text-amber-700 uppercase tracking-wider flex items-center justify-center gap-1">
+            <div className="text-xs font-medium text-amber-700 flex items-center justify-center gap-1">
               <Clock className="w-3.5 h-3.5" /> Pending
             </div>
             <div className="text-2xl md:text-3xl font-extrabold text-amber-900 mt-1">{totalPending}</div>
           </div>
           <div className="bg-emerald-50 border border-emerald-200/80 rounded-xl p-3 md:p-4 text-center">
-            <div className="text-xs font-semibold text-emerald-700 uppercase tracking-wider flex items-center justify-center gap-1">
+            <div className="text-xs font-medium text-emerald-700 flex items-center justify-center gap-1">
               <CheckCircle className="w-3.5 h-3.5" /> Delivered
             </div>
             <div className="text-2xl md:text-3xl font-extrabold text-emerald-900 mt-1">{totalDelivered}</div>
@@ -1126,7 +1126,7 @@ export const DriverMode: React.FC = () => {
         </div>
 
         {/* Fleet Vehicle & Active Trip Dispatch Banner */}
-        <div className="mt-5 p-4 rounded-xl border bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white shadow-md">
+        <div className="mt-5 p-4 rounded-xl border border-slate-800 bg-slate-900 text-white shadow-sm">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-blue-600/30 border border-blue-400/30 flex items-center justify-center text-blue-300">
@@ -1134,14 +1134,14 @@ export const DriverMode: React.FC = () => {
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-mono font-bold text-blue-400 uppercase tracking-wider">Fleet Vehicle Dispatch</span>
+                  <span className="text-xs font-semibold text-blue-400">Fleet Vehicle Dispatch</span>
                   {activeTrip ? (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                    <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 motion-safe:animate-ping"></span>
                       Trip Active
                     </span>
                   ) : (
-                    <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-slate-700 text-slate-300">
+                    <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-slate-700 text-slate-300">
                       No Active Trip
                     </span>
                   )}
@@ -1154,10 +1154,10 @@ export const DriverMode: React.FC = () => {
 
             <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
               {/* Live GPS Speed Badge */}
-              <div className="bg-slate-950/70 border border-slate-700 px-3 py-1.5 rounded-xl flex items-center gap-2 text-xs font-mono">
+              <div className="bg-slate-950/70 border border-slate-700 px-3 py-1.5 rounded-xl flex items-center gap-2 text-xs">
                 <Gauge className="w-4 h-4 text-emerald-400" />
                 <span className="text-slate-300">Speed:</span>
-                <span className="font-bold text-emerald-400 text-sm">{currentSpeedKmh} km/h</span>
+                <span className="font-semibold text-emerald-400 text-sm">{currentSpeedKmh} km/h</span>
               </div>
 
               {activeTrip ? (
@@ -1167,7 +1167,7 @@ export const DriverMode: React.FC = () => {
                     setEndOdoInput(String(activeTrip.start_odometer_km || 0));
                     setEndTripModalOpen(true);
                   }}
-                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-extrabold flex items-center gap-1.5 shadow-md transition-all active:scale-95"
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-colors active:scale-95"
                 >
                   <Square className="w-3.5 h-3.5 fill-current" /> End Trip (સમાપ્ત)
                 </button>
@@ -1192,7 +1192,7 @@ export const DriverMode: React.FC = () => {
                       setStartTripModalOpen(true);
                     }}
                     disabled={!selectedVehicleId}
-                    className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-extrabold flex items-center gap-1.5 shadow-md transition-all active:scale-95 disabled:opacity-50"
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-colors active:scale-95 disabled:opacity-50"
                   >
                     <Play className="w-3.5 h-3.5 fill-current" /> Start Trip (શરૂ કરો)
                   </button>
@@ -1204,28 +1204,31 @@ export const DriverMode: React.FC = () => {
 
         {/* Next Stop Guidance Card */}
         {nextStop && (
-          <div className={`mt-5 p-4 rounded-2xl border transition-all ${
+          <div className={`mt-5 p-4 rounded-2xl border transition-colors ${
             isArrivedAtNextStop 
-              ? 'bg-gradient-to-r from-emerald-950 via-slate-900 to-emerald-950 border-emerald-500 shadow-xl shadow-emerald-900/30 ring-2 ring-emerald-500' 
-              : 'bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border-indigo-700/60 shadow-lg text-white'
+              ? 'bg-slate-900 border-emerald-500 shadow-md ring-1 ring-emerald-500 text-white' 
+              : 'bg-slate-900 border-slate-700 shadow-sm text-white'
           }`}>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-start gap-3">
-                <div className={`w-11 h-11 rounded-2xl flex items-center justify-center font-black text-sm shrink-0 shadow-md ${
-                  isArrivedAtNextStop ? 'bg-emerald-500 text-slate-950 animate-bounce' : 'bg-blue-600 text-white'
+                <div className={`w-11 h-11 rounded-2xl flex items-center justify-center font-extrabold text-sm shrink-0 shadow-sm ${
+                  isArrivedAtNextStop ? 'bg-emerald-500 text-slate-950' : 'bg-blue-600 text-white'
                 }`}>
                   #{nextStop.sequence || 1}
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded-full border border-emerald-700/50">
-                      {isArrivedAtNextStop ? '🎯 Arrived at Customer (50m)' : 'Target Next Stop'}
+                    <span className="text-xs font-semibold text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded-full border border-emerald-700/50">
+                      {isArrivedAtNextStop ? 'Arrived at Customer (50m)' : 'Target Next Stop'}
                     </span>
                     {nextStop.city && (
-                      <span className="text-xs font-bold text-slate-300">📍 {nextStop.city}</span>
+                      <span className="text-xs font-semibold text-slate-300 flex items-center gap-1">
+                        <MapPin className="w-3 h-3 text-slate-400" />
+                        <span>{nextStop.city}</span>
+                      </span>
                     )}
                   </div>
-                  <h3 className="text-base sm:text-lg font-black text-white mt-0.5 leading-tight">
+                  <h3 className="text-base sm:text-lg font-bold text-white mt-0.5 leading-tight">
                     {nextStop.party_name}
                   </h3>
                   {nextStop.party_name_gu && (
@@ -1240,15 +1243,15 @@ export const DriverMode: React.FC = () => {
               {/* Live Distance, ETA & Speed Badge */}
               <div className="flex flex-wrap items-center gap-2">
                 <div className="bg-slate-950/80 border border-slate-700 px-3 py-1.5 rounded-xl text-center">
-                  <div className="text-[10px] uppercase font-bold text-slate-400">Road Distance</div>
-                  <div className="text-sm font-black text-white">
+                  <div className="text-xs font-medium text-slate-400">Road Distance</div>
+                  <div className="text-sm font-semibold text-white">
                     {nextStopDistance !== null ? (nextStopDistance < 1000 ? `${nextStopDistance} m` : `${(nextStopDistance / 1000).toFixed(1)} km`) : '--'}
                   </div>
                 </div>
 
                 <div className="bg-slate-950/80 border border-slate-700 px-3 py-1.5 rounded-xl text-center">
-                  <div className="text-[10px] uppercase font-bold text-slate-400">ETA</div>
-                  <div className="text-sm font-black text-emerald-400">
+                  <div className="text-xs font-medium text-slate-400">ETA</div>
+                  <div className="text-sm font-semibold text-emerald-400">
                     {roadDurationMins ? `~${roadDurationMins} min` : (nextStopDistance ? `~${Math.max(1, Math.round(nextStopDistance / 450))} min` : '--')}
                   </div>
                 </div>
@@ -1256,7 +1259,7 @@ export const DriverMode: React.FC = () => {
                 {nextStop.mobile_no && (
                   <a
                     href={`tel:${nextStop.mobile_no}`}
-                    className="p-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-1 shadow-md transition-all active:scale-95"
+                    className="p-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs flex items-center gap-1 shadow-sm transition-colors active:scale-95"
                     title="Call Customer"
                   >
                     <Phone className="w-4 h-4" />
@@ -1267,7 +1270,7 @@ export const DriverMode: React.FC = () => {
                   href={`https://www.google.com/maps/dir/?api=1&destination=${nextStop.latitude},${nextStop.longitude}&travelmode=driving`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-md transition-all active:scale-95"
+                  className="px-3.5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs flex items-center gap-1.5 shadow-sm transition-colors active:scale-95"
                 >
                   <Navigation className="w-4 h-4 text-emerald-200" />
                   <span>Turn-by-Turn</span>
@@ -1276,7 +1279,7 @@ export const DriverMode: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => openPODModal(nextStop, true)}
-                  className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-lg shadow-emerald-500/30 transition-all active:scale-95 cursor-pointer"
+                  className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold text-xs flex items-center gap-1.5 shadow-sm transition-colors active:scale-95 cursor-pointer"
                 >
                   <CheckCircle className="w-4 h-4" />
                   <span>Mark Delivered</span>
@@ -1290,13 +1293,13 @@ export const DriverMode: React.FC = () => {
         <div className="mt-5 relative rounded-2xl overflow-hidden border border-slate-300 shadow-md">
           {/* Map Header HUD */}
           <div className="absolute top-3 left-3 z-[1000] flex flex-wrap items-center gap-2 pointer-events-auto">
-            <div className="bg-slate-950/85 backdrop-blur-md border border-slate-700/80 px-3 py-1.5 rounded-xl flex items-center gap-2 text-xs font-mono shadow-lg text-white">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+            <div className="bg-slate-950 border border-slate-700/80 px-3 py-1.5 rounded-xl flex items-center gap-2 text-xs shadow-md text-white">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 motion-safe:animate-ping"></span>
               <span className="text-slate-400">Speed:</span>
-              <span className="font-extrabold text-emerald-400 text-sm">{currentSpeedKmh} km/h</span>
+              <span className="font-semibold text-emerald-400 text-sm">{currentSpeedKmh} km/h</span>
             </div>
 
-            <div className="hidden sm:flex bg-slate-950/85 backdrop-blur-md border border-slate-700/80 px-3 py-1.5 rounded-xl items-center gap-1.5 text-[11px] font-mono text-slate-300 shadow-lg">
+            <div className="hidden sm:flex bg-slate-950 border border-slate-700/80 px-3 py-1.5 rounded-xl items-center gap-1.5 text-xs text-slate-300 shadow-md">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
               <span>1s GPS Active</span>
             </div>
@@ -1307,7 +1310,7 @@ export const DriverMode: React.FC = () => {
             <button
               type="button"
               onClick={handleCenterOnMe}
-              className="p-2 rounded-xl bg-white/95 hover:bg-white text-slate-800 shadow-md border border-slate-200 transition-all active:scale-95 cursor-pointer"
+              className="p-2 rounded-xl bg-white/95 hover:bg-white text-slate-800 shadow-md border border-slate-200 transition-colors active:scale-95 cursor-pointer"
               title="Center on My Location"
             >
               <LocateFixed className="w-4 h-4 text-blue-600" />
@@ -1315,7 +1318,7 @@ export const DriverMode: React.FC = () => {
             <button
               type="button"
               onClick={() => switchTileLayer(mapMode === 'streets' ? 'satellite' : 'streets')}
-              className="px-2.5 py-1.5 rounded-xl bg-white/95 hover:bg-white text-slate-800 shadow-md border border-slate-200 text-xs font-bold transition-all active:scale-95 flex items-center gap-1 cursor-pointer"
+              className="px-2.5 py-1.5 rounded-xl bg-white/95 hover:bg-white text-slate-800 shadow-md border border-slate-200 text-xs font-semibold transition-colors active:scale-95 flex items-center gap-1 cursor-pointer"
             >
               <Layers className="w-3.5 h-3.5 text-indigo-600" />
               <span>{mapMode === 'streets' ? 'Satellite' : 'Roadmap'}</span>
@@ -1425,7 +1428,7 @@ export const DriverMode: React.FC = () => {
             return (
               <div 
                 key={stop.id}
-                className={`bg-white rounded-xl p-5 border transition-all shadow-sm ${
+                className={`bg-white rounded-xl p-5 border transition-colors shadow-sm ${
                   isDelivered 
                     ? 'border-emerald-200 bg-emerald-50/20' 
                     : 'border-slate-200 hover:border-blue-300'
@@ -1452,12 +1455,12 @@ export const DriverMode: React.FC = () => {
                           </span>
                         )}
                         {stop.sequence && !isDelivered && (
-                          <span className="text-xs font-bold text-blue-700 bg-blue-100/80 px-2 py-0.5 rounded-full border border-blue-200">
+                          <span className="text-xs font-semibold text-blue-700 bg-blue-100/80 px-2 py-0.5 rounded-full border border-blue-200">
                             Stop #{stop.sequence}
                           </span>
                         )}
                         {stop.distance_km !== undefined && stop.distance_km !== null && !isDelivered && (
-                          <span className="text-xs font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-200 flex items-center gap-1">
+                          <span className="text-xs font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-200 flex items-center gap-1">
                             <Navigation className="w-3 h-3 text-indigo-500" />
                             {stop.distance_km < 1 ? `${stop.distance_meters || Math.round(stop.distance_km * 1000)}m` : `${stop.distance_km} km`}
                           </span>
@@ -1478,23 +1481,25 @@ export const DriverMode: React.FC = () => {
                           const radius = stop.geofence_radius_meters || 75;
                           if (dist <= 35) {
                             return (
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                                📍 {dist}m • At Store Counter
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500 motion-safe:animate-pulse"></span>
+                                <MapPin className="w-3 h-3 text-emerald-600" />
+                                <span>{dist}m at Counter</span>
                               </span>
                             );
                           } else if (dist <= radius) {
                             return (
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-300">
                                 <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-                                📍 {dist}m • In Safety Zone (≤{radius}m)
+                                <MapPin className="w-3 h-3 text-amber-600" />
+                                <span>{dist}m in Safety Zone</span>
                               </span>
                             );
                           } else {
                             return (
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-300">
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-300">
                                 <Navigation className="w-3 h-3 text-slate-500" />
-                                📍 {dist >= 1000 ? `${(dist / 1000).toFixed(1)} km` : `${dist}m`} away
+                                <span>{dist >= 1000 ? `${(dist / 1000).toFixed(1)} km` : `${dist}m`} away</span>
                               </span>
                             );
                           }
@@ -1510,11 +1515,11 @@ export const DriverMode: React.FC = () => {
                             type="button"
                             onClick={(e) => handleQuickPinLocation(stop, e)}
                             disabled={pinningPartyId === stop.party_id}
-                            className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 active:scale-95 transition-all"
+                            className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 active:scale-95 transition-colors cursor-pointer"
                             title="Tap to pin driver's current GPS to this pharmacy"
                           >
                             <MapPin className="w-3 h-3 text-amber-600" />
-                            <span>{pinningPartyId === stop.party_id ? 'Pinning...' : '📍 GPS Unpinned • 1-Tap Pin'}</span>
+                            <span>{pinningPartyId === stop.party_id ? 'Pinning…' : 'GPS Unpinned (1-Tap Pin)'}</span>
                           </button>
                         )}
 
@@ -1524,7 +1529,7 @@ export const DriverMode: React.FC = () => {
                               ? 'bg-emerald-50 text-emerald-800 border-emerald-300' 
                               : 'bg-rose-50 text-rose-800 border-rose-300'
                           }`}>
-                            {stop.geofence_verified ? '✅ Counter Verified' : '⚠️ Flagged Off-site'}
+                            {stop.geofence_verified ? 'Counter Verified' : 'Flagged Off-site'}
                             {stop.distance_from_geofence_meters !== null ? ` (${Math.round(stop.distance_from_geofence_meters)}m)` : ''}
                           </span>
                         )}
@@ -1543,11 +1548,11 @@ export const DriverMode: React.FC = () => {
                       {/* Driver & Delivery User Attribution Info */}
                       <div className="flex flex-wrap items-center gap-2 pt-1 text-xs text-slate-500">
                         {isDelivered ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-300 font-extrabold shadow-2xs">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-300 font-semibold shadow-2xs">
                             <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                            <span>Delivered by: <strong className="text-emerald-950 font-black">{stop.delivered_by || stop.driver_name || 'Driver'}</strong></span>
+                            <span>Delivered by: <strong className="text-emerald-950 font-bold">{stop.delivered_by || stop.driver_name || 'Driver'}</strong></span>
                             {stop.delivered_at && (
-                              <span className="text-[10px] text-emerald-700 font-mono">
+                              <span className="text-[10px] text-emerald-700">
                                 ({new Date(stop.delivered_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})
                               </span>
                             )}
@@ -1574,7 +1579,7 @@ export const DriverMode: React.FC = () => {
                   <div className="flex flex-col sm:flex-row md:flex-col items-end gap-3 shrink-0">
                     <div className="flex items-center gap-2">
                       <div className="px-3 py-1.5 rounded-lg bg-slate-100 border border-slate-200 text-center">
-                        <div className="text-xs text-slate-500 uppercase font-semibold">Total Cases</div>
+                        <div className="text-xs text-slate-500 font-medium">Total Cases</div>
                         <div className="text-base font-bold text-slate-900">{stop.total_cases}</div>
                       </div>
                     </div>
@@ -1622,7 +1627,7 @@ export const DriverMode: React.FC = () => {
                       {!isDelivered ? (
                         <button
                           onClick={() => openPODModal(stop, true)}
-                          className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer"
+                          className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-sm active:scale-95 transition-colors cursor-pointer"
                         >
                           <Camera className="w-4 h-4" />
                           <span>Take Photo & Deliver</span>
@@ -1630,7 +1635,7 @@ export const DriverMode: React.FC = () => {
                       ) : (
                         <button
                           onClick={() => openPODModal(stop, false)}
-                          className="px-3 py-2 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-xl text-xs font-extrabold flex items-center gap-1 border border-emerald-300 transition-all cursor-pointer"
+                          className="px-3 py-2 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-xl text-xs font-semibold flex items-center gap-1 border border-emerald-300 transition-colors cursor-pointer"
                         >
                           <CheckCircle className="w-4 h-4 text-emerald-700" />
                           View POD
@@ -1659,7 +1664,7 @@ export const DriverMode: React.FC = () => {
 
       {/* Proof of Delivery (POD) Modal */}
       {selectedStop && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
             {/* Modal Header */}
             <div className="bg-slate-900 text-white p-5 flex items-center justify-between">
@@ -1674,7 +1679,7 @@ export const DriverMode: React.FC = () => {
               </div>
               <button
                 onClick={() => setSelectedStop(null)}
-                className="text-slate-400 hover:text-white text-xl font-bold p-1"
+                className="text-slate-400 hover:text-white text-xl font-bold p-1 cursor-pointer transition-colors"
               >
                 ✕
               </button>
@@ -1708,10 +1713,10 @@ export const DriverMode: React.FC = () => {
                     <div>
                       <h4 className="font-bold text-sm">
                         {selectedStop.geofence_verified
-                          ? '📍 Counter Verified Delivery'
+                          ? 'Counter Verified Delivery'
                           : selectedStop.geofence_verified === false
-                          ? '⚠️ Off-site Delivery Logged'
-                          : '📍 Delivery Recorded'}
+                          ? 'Off-site Delivery Logged'
+                          : 'Delivery Recorded'}
                       </h4>
                       <p className="text-xs mt-1">
                         {selectedStop.distance_from_geofence_meters !== null && selectedStop.distance_from_geofence_meters !== undefined
@@ -1723,7 +1728,7 @@ export const DriverMode: React.FC = () => {
                           href={`https://www.google.com/maps/search/?api=1&query=${selectedStop.delivered_latitude},${selectedStop.delivered_longitude}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 mt-2 text-xs font-bold text-blue-700 hover:underline"
+                          className="inline-flex items-center gap-1 mt-2 text-xs font-semibold text-blue-700 hover:underline"
                         >
                           <Navigation className="w-3.5 h-3.5" /> View Recorded GPS Coordinates ({selectedStop.delivered_latitude.toFixed(5)}, {selectedStop.delivered_longitude.toFixed(5)})
                         </a>
@@ -1735,20 +1740,20 @@ export const DriverMode: React.FC = () => {
                   <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs text-slate-700 space-y-2">
                     <div className="flex items-center justify-between pb-2 border-b border-slate-200">
                       <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-black text-sm shadow-2xs">
+                        <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-extrabold text-sm shadow-2xs">
                           {(selectedStop.delivered_by || selectedStop.driver_name || 'D').charAt(0).toUpperCase()}
                         </div>
                         <div>
-                          <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">
+                          <div className="text-xs font-medium text-slate-500">
                             Delivered By (ડિલિવરી કરનાર વપરાશકર્તા)
                           </div>
-                          <div className="font-black text-sm text-emerald-950">
+                          <div className="font-bold text-sm text-emerald-950">
                             {selectedStop.delivered_by || selectedStop.driver_name || 'Driver'}
                           </div>
                         </div>
                       </div>
                       {selectedStop.delivered_at && (
-                        <div className="text-right text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2 py-1 rounded border border-emerald-200">
+                        <div className="text-right text-xs font-semibold text-emerald-800 bg-emerald-50 px-2 py-1 rounded border border-emerald-200">
                           {new Date(selectedStop.delivered_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </div>
                       )}
@@ -1768,7 +1773,7 @@ export const DriverMode: React.FC = () => {
                   {/* Customer Signature Display (Historical Only) */}
                   {selectedStop.pod_signature && (
                     <div>
-                      <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1.5">
+                      <label className="text-xs font-semibold text-slate-700 block mb-1.5">
                         Customer Signature
                       </label>
                       <div className="border border-slate-200 rounded-xl bg-white p-2">
@@ -1784,7 +1789,7 @@ export const DriverMode: React.FC = () => {
                   {/* Delivery Photo Display */}
                   {selectedStop.pod_photo && (
                     <div>
-                      <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1.5">
+                      <label className="text-xs font-semibold text-slate-700 block mb-1.5">
                         Parcel Delivery Photo (કાઉન્ટર ફોટો)
                       </label>
                       <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm">
@@ -1817,7 +1822,7 @@ export const DriverMode: React.FC = () => {
                         )}
                         <div>
                           <div className="font-bold text-sm">
-                            {isInside ? '📍 Verified Counter Location' : '⚠️ Outside Chemist Safety Zone'}
+                            {isInside ? 'Verified Counter Location' : 'Outside Chemist Safety Zone'}
                           </div>
                           <div className="mt-0.5 leading-relaxed">
                             Driver is <span className="font-extrabold">{dist}m</span> away from chemist counter. 
@@ -1830,9 +1835,9 @@ export const DriverMode: React.FC = () => {
                     <div className="p-3.5 rounded-xl border border-blue-200 bg-blue-50/70 text-blue-900 text-xs flex items-start gap-2.5">
                       <Compass className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
                       <div>
-                        <div className="font-bold text-sm">📍 First Delivery Auto-Pinning</div>
+                        <div className="font-bold text-sm">First Delivery Auto-Pinning</div>
                         <div className="mt-0.5 leading-relaxed">
-                          This pharmacy does not have a GPS boundary yet. Submitting delivery will automatically calibrate and pin this chemist's counter location!
+                          This pharmacy does not have a GPS boundary yet. Submitting delivery will automatically calibrate and pin this chemist’s counter location!
                         </div>
                       </div>
                     </div>
@@ -1850,8 +1855,8 @@ export const DriverMode: React.FC = () => {
                       <div className="text-xs">
                         <span className="font-bold text-slate-800 block">
                           {(!selectedStop.latitude || !selectedStop.longitude) 
-                            ? '📍 Auto-Pin Chemist GPS Location' 
-                            : '🔄 Re-calibrate Chemist GPS Pin to Current Location'}
+                            ? 'Auto-Pin Chemist GPS Location' 
+                            : 'Re-calibrate Chemist GPS Pin to Current Location'}
                         </span>
                         <span className="text-slate-500">
                           Save GPS ({driverLocation.lat.toFixed(5)}, {driverLocation.lng.toFixed(5)}) as the official boundary
@@ -1874,7 +1879,7 @@ export const DriverMode: React.FC = () => {
                     <span className="font-semibold text-blue-900 flex items-center gap-1.5">
                       <User className="w-3.5 h-3.5 text-blue-600" /> Delivering as (વપરાશકર્તા):
                     </span>
-                    <span className="font-black text-blue-950 bg-white px-2.5 py-0.5 rounded-lg border border-blue-200 shadow-2xs">
+                    <span className="font-extrabold text-blue-950 bg-white px-2.5 py-0.5 rounded-lg border border-blue-200 shadow-2xs">
                       {currentUserName}
                     </span>
                   </div>
@@ -1882,11 +1887,11 @@ export const DriverMode: React.FC = () => {
                   {/* Direct Camera Proof of Delivery (Replacing signature) */}
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <label className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                      <label className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
                         <Camera className="w-4 h-4 text-blue-600" />
                         Parcel Proof Photo (કાઉન્ટર ફોટો)
                       </label>
-                      <span className="text-[11px] font-extrabold text-blue-600">📸 Direct Camera</span>
+                      <span className="text-xs font-semibold text-blue-600">Direct Camera</span>
                     </div>
 
                     {podPhotoBase64 ? (
@@ -1900,24 +1905,24 @@ export const DriverMode: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => cameraInputRef.current?.click()}
-                            className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-1.5 rounded-lg font-bold shadow-md flex items-center gap-1 cursor-pointer active:scale-95 transition-all"
+                            className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-1.5 rounded-lg font-semibold shadow-sm flex items-center gap-1 cursor-pointer active:scale-95 transition-colors"
                           >
                             <RotateCcw className="w-3.5 h-3.5" /> Retake Photo
                           </button>
                           <button
                             type="button"
                             onClick={() => setPodPhotoBase64(null)}
-                            className="bg-rose-600 hover:bg-rose-700 text-white text-xs px-2.5 py-1.5 rounded-lg font-bold shadow-md cursor-pointer active:scale-95 transition-all"
+                            className="bg-rose-600 hover:bg-rose-700 text-white text-xs px-2.5 py-1.5 rounded-lg font-semibold shadow-sm cursor-pointer active:scale-95 transition-colors"
                           >
                             Remove
                           </button>
                         </div>
                         <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent p-3 text-white flex items-center justify-between">
-                          <span className="text-xs font-bold flex items-center gap-1.5 text-emerald-300">
+                          <span className="text-xs font-semibold flex items-center gap-1.5 text-emerald-300">
                             <Check className="w-4 h-4 text-emerald-400" /> Counter Photo Captured
                           </span>
                           {driverLocation && (
-                            <span className="text-[10px] font-mono text-slate-200 bg-black/50 px-2 py-0.5 rounded">
+                            <span className="text-[10px] text-slate-200 bg-black/50 px-2 py-0.5 rounded">
                               GPS: {driverLocation.lat.toFixed(4)}, {driverLocation.lng.toFixed(4)}
                             </span>
                           )}
@@ -1927,15 +1932,15 @@ export const DriverMode: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => cameraInputRef.current?.click()}
-                        className="w-full py-8 px-4 border-2 border-dashed border-blue-400 hover:border-blue-600 bg-blue-50/60 hover:bg-blue-100/70 rounded-2xl flex flex-col items-center justify-center gap-2.5 cursor-pointer transition-all active:scale-98 shadow-xs"
+                        className="w-full py-8 px-4 border-2 border-dashed border-blue-400 hover:border-blue-600 bg-blue-50/60 hover:bg-blue-100/70 rounded-2xl flex flex-col items-center justify-center gap-2.5 cursor-pointer transition-colors active:scale-98 shadow-xs"
                       >
                         <div className="w-16 h-16 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-lg shadow-blue-500/30">
                           <Camera className="w-8 h-8" />
                         </div>
                         <div className="text-center">
-                          <div className="text-base font-extrabold text-slate-900">📸 Open Camera & Take Photo</div>
-                          <div className="text-xs font-bold text-blue-700 mt-0.5">કેમેરા ખોલો અને પાર્સલનો ફોટો પાડો</div>
-                          <div className="text-[11px] text-slate-500 mt-1">Directly opens camera to photograph parcel at pharmacy counter</div>
+                          <div className="text-base font-bold text-slate-900">Open Camera & Take Photo</div>
+                          <div className="text-xs font-semibold text-blue-700 mt-0.5">કેમેરા ખોલો અને પાર્સલનો ફોટો પાડો</div>
+                          <div className="text-xs text-slate-500 mt-1">Directly opens camera to photograph parcel at pharmacy counter</div>
                         </div>
                       </button>
                     )}
@@ -1943,7 +1948,7 @@ export const DriverMode: React.FC = () => {
 
                   {/* Cash Collected Field */}
                   <div>
-                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1.5 flex items-center gap-1">
+                    <label className="text-xs font-semibold text-slate-700 block mb-1.5 flex items-center gap-1">
                       <IndianRupee className="w-3.5 h-3.5 text-emerald-600" />
                       Cash Collected (₹ / રોકડ રકમ) (Optional)
                     </label>
@@ -1958,7 +1963,7 @@ export const DriverMode: React.FC = () => {
 
                   {/* 3. Receiver Name / Notes */}
                   <div>
-                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1.5">
+                    <label className="text-xs font-semibold text-slate-700 block mb-1.5">
                       Received By / Remarks (Optional)
                     </label>
                     <input
@@ -2009,7 +2014,7 @@ export const DriverMode: React.FC = () => {
 
       {/* Start Trip Modal */}
       {startTripModalOpen && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-md">
@@ -2023,7 +2028,7 @@ export const DriverMode: React.FC = () => {
 
             <div className="space-y-3 pt-2">
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Selected Vehicle
                 </label>
                 <div className="p-2.5 bg-slate-100 rounded-xl text-sm font-bold text-slate-900 flex items-center justify-between">
@@ -2033,7 +2038,7 @@ export const DriverMode: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Starting Odometer (કિલોમીટર રીડિંગ)
                 </label>
                 <input
@@ -2047,7 +2052,7 @@ export const DriverMode: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Route Name / Description
                 </label>
                 <input
@@ -2060,7 +2065,7 @@ export const DriverMode: React.FC = () => {
               </div>
 
               <div className="bg-blue-50 p-3 rounded-xl text-xs text-blue-900 leading-relaxed border border-blue-200">
-                🚀 Starting the trip activates high-frequency GPS telemetry (5s intervals) and background lock-screen notifications.
+                Starting the trip activates high-frequency GPS telemetry (5s intervals) and background lock-screen notifications.
               </div>
             </div>
 
@@ -2068,7 +2073,7 @@ export const DriverMode: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setStartTripModalOpen(false)}
-                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl"
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer transition-colors"
               >
                 Cancel
               </button>
@@ -2076,7 +2081,7 @@ export const DriverMode: React.FC = () => {
                 type="button"
                 onClick={handleStartTrip}
                 disabled={tripSubmitting}
-                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md transition-all disabled:opacity-50"
+                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-colors cursor-pointer disabled:opacity-50"
               >
                 {tripSubmitting ? 'Starting...' : 'Confirm & Start Trip'}
               </button>
@@ -2087,7 +2092,7 @@ export const DriverMode: React.FC = () => {
 
       {/* End Trip Modal */}
       {endTripModalOpen && activeTrip && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-xl bg-rose-600 text-white flex items-center justify-center shadow-md">
@@ -2103,16 +2108,16 @@ export const DriverMode: React.FC = () => {
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
                   <div className="text-slate-500 font-semibold">Start Odometer:</div>
-                  <div className="font-mono font-bold text-slate-900 text-sm mt-0.5">{activeTrip.start_odometer_km} km</div>
+                  <div className="font-bold text-slate-900 text-sm mt-0.5">{activeTrip.start_odometer_km} km</div>
                 </div>
                 <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
                   <div className="text-slate-500 font-semibold">Stops Remaining:</div>
-                  <div className="font-mono font-bold text-amber-700 text-sm mt-0.5">{totalPending} pending</div>
+                  <div className="font-bold text-amber-700 text-sm mt-0.5">{totalPending} pending</div>
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Final Odometer (અંતિમ કિલોમીટર રીડિંગ)
                 </label>
                 <input
@@ -2128,7 +2133,7 @@ export const DriverMode: React.FC = () => {
               {parseFloat(endOdoInput) >= activeTrip.start_odometer_km && (
                 <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-200 text-xs text-emerald-900 flex items-center justify-between font-medium">
                   <span>Total Distance Traveled:</span>
-                  <span className="font-mono font-bold text-sm">
+                  <span className="font-bold text-sm">
                     {(parseFloat(endOdoInput) - activeTrip.start_odometer_km).toFixed(1)} km
                   </span>
                 </div>
@@ -2139,7 +2144,7 @@ export const DriverMode: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setEndTripModalOpen(false)}
-                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl"
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer transition-colors"
               >
                 Cancel
               </button>
@@ -2147,7 +2152,7 @@ export const DriverMode: React.FC = () => {
                 type="button"
                 onClick={handleEndTrip}
                 disabled={tripSubmitting}
-                className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-md transition-all disabled:opacity-50"
+                className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-colors cursor-pointer disabled:opacity-50"
               >
                 {tripSubmitting ? 'Ending...' : 'Confirm & End Trip'}
               </button>
@@ -2158,19 +2163,19 @@ export const DriverMode: React.FC = () => {
 
       {/* Loud Medical Shop Arrival Notice Modal */}
       {arrivedShopModal && (
-        <div className="fixed inset-0 bg-black/75 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-gradient-to-b from-slate-900 via-slate-900 to-indigo-950 text-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border-2 border-emerald-500 ring-4 ring-emerald-500/30 space-y-5 animate-in fade-in duration-200">
+        <div className="fixed inset-0 bg-black/75 z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 text-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border-2 border-emerald-500 ring-2 ring-emerald-500/30 space-y-5 animate-in fade-in duration-200">
             {/* Header with animated chime/bell icon */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-14 h-14 rounded-2xl bg-emerald-500 text-slate-950 flex items-center justify-center shadow-lg shadow-emerald-500/40 animate-bounce">
+                <div className="w-14 h-14 rounded-2xl bg-emerald-500 text-slate-950 flex items-center justify-center shadow-md">
                   <Bell className="w-8 h-8 fill-current" />
                 </div>
                 <div>
-                  <span className="text-[11px] font-black uppercase tracking-wider text-emerald-400 bg-emerald-950 px-2.5 py-0.5 rounded-full border border-emerald-500/50">
-                    🔔 મેડિકલ સ્ટોર આગમન સૂચના (Arrival Alert)
+                  <span className="text-xs font-semibold text-emerald-400 bg-emerald-950 px-2.5 py-0.5 rounded-full border border-emerald-500/50">
+                    મેડિકલ સ્ટોર આગમન સૂચના (Arrival Alert)
                   </span>
-                  <h2 className="text-xl font-black text-white mt-1">
+                  <h2 className="text-xl font-bold text-white mt-1">
                     દવાની દુકાન પર પહોંચી ગયા છો!
                   </h2>
                 </div>
@@ -2188,11 +2193,11 @@ export const DriverMode: React.FC = () => {
             {/* Shop Details Card */}
             <div className="bg-slate-950/80 rounded-2xl p-4 border border-slate-700/80 space-y-3">
               <div>
-                <div className="text-xl sm:text-2xl font-black text-emerald-300 leading-tight">
+                <div className="text-xl sm:text-2xl font-bold text-emerald-300 leading-tight">
                   {arrivedShopModal.party_name}
                 </div>
                 {arrivedShopModal.party_name_gu && (
-                  <div className="text-sm font-bold text-slate-300 mt-0.5">
+                  <div className="text-sm font-semibold text-slate-300 mt-0.5">
                     {arrivedShopModal.party_name_gu}
                   </div>
                 )}
@@ -2206,11 +2211,11 @@ export const DriverMode: React.FC = () => {
 
               {/* Delivery Cases Banner */}
               <div className="flex items-center justify-between bg-emerald-950/60 border border-emerald-500/40 rounded-xl p-3">
-                <div className="text-xs text-emerald-300 font-bold uppercase tracking-wider">
+                <div className="text-xs text-emerald-300 font-semibold">
                   ડિલિવર કરવાના કેસ (Total Cases)
                 </div>
-                <div className="text-2xl font-black text-emerald-400 font-mono">
-                  {arrivedShopModal.total_cases || 1} <span className="text-sm font-semibold">Cases</span>
+                <div className="text-2xl font-bold text-emerald-400">
+                  {arrivedShopModal.total_cases || 1} <span className="text-sm font-medium">Cases</span>
                 </div>
               </div>
 
@@ -2234,35 +2239,35 @@ export const DriverMode: React.FC = () => {
                   setArrivedShopModal(null);
                   openPODModal(targetStop, true);
                 }}
-                className="w-full py-3.5 px-4 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-sm rounded-2xl flex items-center justify-center gap-2 shadow-xl shadow-emerald-500/30 active:scale-98 transition-all cursor-pointer"
+                className="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-2xl flex items-center justify-center gap-2 shadow-md active:scale-98 transition-colors cursor-pointer"
               >
                 <Camera className="w-5 h-5" />
-                <span>📸 Confirm Delivery (e-POD ફોટો લો)</span>
+                <span>Confirm Delivery (e-POD ફોટો લો)</span>
               </button>
 
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => triggerLoudMedicalShopArrivalNotice(arrivedShopModal)}
-                  className="py-2.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 border border-slate-700 active:scale-95 transition-all cursor-pointer"
+                  className="py-2.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs rounded-xl flex items-center justify-center gap-1.5 border border-slate-700 active:scale-95 transition-colors cursor-pointer"
                 >
                   <Volume2 className="w-4 h-4 text-emerald-400" />
-                  <span>🔊 Repeat Notice</span>
+                  <span>Repeat Notice</span>
                 </button>
 
                 {(arrivedShopModal.mobile || arrivedShopModal.mobile_no) ? (
                   <a
                     href={`tel:${arrivedShopModal.mobile || arrivedShopModal.mobile_no}`}
-                    className="py-2.5 px-3 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition-all"
+                    className="py-2.5 px-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-colors"
                   >
                     <Phone className="w-4 h-4" />
-                    <span>📞 Call Chemist</span>
+                    <span>Call Chemist</span>
                   </a>
                 ) : (
                   <button
                     type="button"
                     onClick={() => setArrivedShopModal(null)}
-                    className="py-2.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 border border-slate-700 active:scale-95 transition-all cursor-pointer"
+                    className="py-2.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs rounded-xl flex items-center justify-center gap-1.5 border border-slate-700 active:scale-95 transition-colors cursor-pointer"
                   >
                     <span>Dismiss (બંધ કરો)</span>
                   </button>

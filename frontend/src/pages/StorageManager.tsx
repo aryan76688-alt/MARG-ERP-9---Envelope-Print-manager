@@ -278,13 +278,13 @@ export const StorageManager: React.FC<StorageManagerProps> = ({ onNavigate }) =>
   const getRoleBadge = (role: string) => {
     switch (role) {
       case "super_admin":
-        return <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-purple-500/10 text-purple-600 border border-purple-500/30">Super Admin</span>;
+        return <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-purple-500/10 text-purple-600 border border-purple-500/30">Super Admin</span>;
       case "admin":
-        return <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-blue-500/10 text-blue-600 border border-blue-500/30">Admin</span>;
+        return <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-500/10 text-blue-600 border border-blue-500/30">Admin</span>;
       case "driver":
-        return <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-emerald-500/10 text-emerald-600 border border-emerald-500/30">Driver</span>;
+        return <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/10 text-emerald-600 border border-emerald-500/30">Driver</span>;
       default:
-        return <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-slate-500/10 text-slate-600 border border-slate-500/30">{role}</span>;
+        return <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-500/10 text-slate-600 border border-slate-500/30">{role}</span>;
     }
   };
 
@@ -295,7 +295,7 @@ export const StorageManager: React.FC<StorageManagerProps> = ({ onNavigate }) =>
       {/* 1. TOP HEADER */}
       <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-600 to-blue-600 flex items-center justify-center text-white shadow-md shadow-cyan-500/20">
+          <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-sm">
             <HardDrive className="w-5 h-5" />
           </div>
           <div>
@@ -304,7 +304,7 @@ export const StorageManager: React.FC<StorageManagerProps> = ({ onNavigate }) =>
                 {isSuperAdmin ? "Phone & Mobile Storage (મોબાઇલ સ્ટોરેજ)" : "My Mobile Storage (મારું મોબાઇલ સ્ટોરેજ)"}
               </h1>
               {isSuperAdmin && (
-                <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-purple-100 text-purple-700 border border-purple-300">
+                <span className="text-xs font-semibold px-2 py-0.5 rounded bg-purple-100 text-purple-700 border border-purple-300">
                   User-Wise Mode
                 </span>
               )}
@@ -328,7 +328,7 @@ export const StorageManager: React.FC<StorageManagerProps> = ({ onNavigate }) =>
                   setSelectedUser(null);
                   fetchUsersSummary();
                 }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer ${
                   viewMode === "users"
                     ? "bg-white text-blue-600 shadow-xs"
                     : "text-slate-600 hover:text-slate-900"
@@ -344,7 +344,7 @@ export const StorageManager: React.FC<StorageManagerProps> = ({ onNavigate }) =>
                   setViewMode("files");
                   loadDirectory(currentPath);
                 }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer ${
                   viewMode === "files" && !selectedUser
                     ? "bg-white text-blue-600 shadow-xs"
                     : "text-slate-600 hover:text-slate-900"
@@ -362,24 +362,24 @@ export const StorageManager: React.FC<StorageManagerProps> = ({ onNavigate }) =>
               else loadDirectory(currentPath);
             }}
             disabled={loadingUsers || loadingFiles}
-            className="p-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200 transition-all cursor-pointer shadow-xs"
+            className="p-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200 transition-colors cursor-pointer shadow-xs disabled:opacity-50"
             title="Refresh"
           >
-            <RefreshCw className={`w-4 h-4 ${(loadingUsers || loadingFiles) ? "animate-spin" : ""}`} />
+            <RefreshCw className={`w-4 h-4 ${(loadingUsers || loadingFiles) ? "motion-safe:animate-spin" : ""}`} />
           </button>
         </div>
       </div>
 
       {/* Notifications */}
       {statusMsg && (
-        <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-xl text-xs font-bold text-emerald-800 flex items-center gap-2 animate-in fade-in">
+        <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-xl text-xs font-bold text-emerald-800 flex items-center gap-2 motion-safe:animate-in motion-safe:fade-in">
           <Check className="w-4 h-4 text-emerald-600 shrink-0" />
           <span>{statusMsg}</span>
         </div>
       )}
 
       {error && (
-        <div className="p-3 bg-rose-50 border border-rose-300 rounded-xl text-xs font-bold text-rose-800 flex items-center gap-2 animate-in fade-in">
+        <div className="p-3 bg-rose-50 border border-rose-300 rounded-xl text-xs font-bold text-rose-800 flex items-center gap-2 motion-safe:animate-in motion-safe:fade-in">
           <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
           <span>{error}</span>
         </div>
@@ -387,7 +387,7 @@ export const StorageManager: React.FC<StorageManagerProps> = ({ onNavigate }) =>
 
       {/* 2. OVERALL STORAGE QUOTA STATS CARD */}
       {hostDisk && (
-        <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white rounded-2xl p-4 shadow-md border border-slate-700">
+        <div className="bg-slate-900 text-white rounded-2xl p-4 shadow-sm border border-slate-700">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-2.5">
             <div className="flex items-center gap-2.5">
               <div className="p-2 bg-blue-500/20 rounded-xl text-blue-400">
@@ -411,11 +411,11 @@ export const StorageManager: React.FC<StorageManagerProps> = ({ onNavigate }) =>
 
           <div className="w-full bg-slate-700/80 rounded-full h-2 overflow-hidden">
             <div 
-              className="bg-gradient-to-r from-blue-500 to-cyan-400 h-2 rounded-full transition-all duration-500"
+              className="bg-blue-600 h-2 rounded-full transition-transform duration-500"
               style={{ width: `${Math.min(100, Math.max(2, hostDisk.percent_used))}%` }}
             />
           </div>
-          <div className="flex justify-between items-center text-[10px] text-slate-400 mt-1 font-mono">
+          <div className="flex justify-between items-center text-[10px] text-slate-400 mt-1">
             <span>{hostDisk.percent_used}% Host Disk Occupied</span>
             <span>{usersSummary.length} Active System Users</span>
           </div>
@@ -431,15 +431,15 @@ export const StorageManager: React.FC<StorageManagerProps> = ({ onNavigate }) =>
               type="text"
               value={userSearch}
               onChange={(e) => setUserSearch(e.target.value)}
-              placeholder="Search user by name, username, or role..."
+              placeholder="Search user by name, username, or role…"
               className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-xs"
             />
           </div>
 
           {loadingUsers ? (
             <div className="p-12 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
-              <RefreshCw className="w-4 h-4 animate-spin text-blue-600" />
-              <span>Calculating user storage breakdowns...</span>
+              <RefreshCw className="w-4 h-4 motion-safe:animate-spin text-blue-600" />
+              <span>Calculating user storage breakdowns…</span>
             </div>
           ) : filteredUsers.length === 0 ? (
             <div className="p-10 text-center bg-white border border-slate-200 rounded-2xl text-xs text-slate-500">
@@ -450,7 +450,7 @@ export const StorageManager: React.FC<StorageManagerProps> = ({ onNavigate }) =>
               {filteredUsers.map((u) => (
                 <div
                   key={u.user_id}
-                  className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-blue-300 transition-all flex flex-col justify-between"
+                  className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-blue-300 transition-colors flex flex-col justify-between"
                 >
                   <div>
                     <div className="flex items-start justify-between gap-2">
@@ -495,7 +495,7 @@ export const StorageManager: React.FC<StorageManagerProps> = ({ onNavigate }) =>
 
                   <button
                     onClick={() => handleOpenUserStorage(u)}
-                    className="w-full py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold shadow-sm flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer"
+                    className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-sm flex items-center justify-center gap-1.5 active:scale-95 transition-colors cursor-pointer whitespace-nowrap"
                   >
                     <Folder className="w-3.5 h-3.5" />
                     <span>Open User Storage (સ્ટોરેજ ખોલો)</span>
@@ -579,13 +579,13 @@ export const StorageManager: React.FC<StorageManagerProps> = ({ onNavigate }) =>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setNewFolderOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-xs transition-all cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
               >
                 <FolderPlus className="w-3.5 h-3.5" />
                 <span>New Folder</span>
               </button>
 
-              <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 font-bold text-xs shadow-xs transition-all cursor-pointer">
+              <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 font-bold text-xs shadow-xs transition-colors cursor-pointer">
                 <Upload className="w-3.5 h-3.5 text-blue-600" />
                 <span>Upload File</span>
                 <input type="file" onChange={handleFileUpload} className="hidden" />
@@ -600,7 +600,7 @@ export const StorageManager: React.FC<StorageManagerProps> = ({ onNavigate }) =>
                   type="text"
                   value={newFolderName}
                   onChange={(e) => setNewFolderName(e.target.value)}
-                  placeholder="Enter folder name (e.g. Invoices, Receipts)..."
+                  placeholder="Enter folder name (e.g. Invoices, Receipts)…"
                   className="flex-1 px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
                   autoFocus
                 />
@@ -624,8 +624,8 @@ export const StorageManager: React.FC<StorageManagerProps> = ({ onNavigate }) =>
 
           {loadingFiles ? (
             <div className="p-12 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
-              <RefreshCw className="w-4 h-4 animate-spin text-blue-600" />
-              <span>Loading files and folders...</span>
+              <RefreshCw className="w-4 h-4 motion-safe:animate-spin text-blue-600" />
+              <span>Loading files and folders…</span>
             </div>
           ) : items.length === 0 ? (
             <div className="p-12 text-center space-y-3">
@@ -633,7 +633,7 @@ export const StorageManager: React.FC<StorageManagerProps> = ({ onNavigate }) =>
                 <Folder className="w-6 h-6" />
               </div>
               <p className="text-xs text-slate-500 font-semibold">This folder is currently empty.</p>
-              <p className="text-[11px] text-slate-400">Use "Upload File" or "New Folder" to add documents.</p>
+              <p className="text-[11px] text-slate-400">Use “Upload File” or “New Folder” to add documents.</p>
             </div>
           ) : (
             <div className="divide-y divide-slate-100">

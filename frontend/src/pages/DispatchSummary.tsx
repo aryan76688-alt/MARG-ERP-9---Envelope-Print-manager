@@ -20,7 +20,8 @@ import {
   LayoutGrid,
   List,
   Phone,
-  Navigation
+  Navigation,
+  User
 } from "lucide-react";
 import { fetchDispatchSummary, updateDispatchJobs, downloadDispatchSummaryPDF, printDispatchSummaryPDF } from "../api/client";
 import { DispatchSummaryData, DispatchSummaryJob } from "../types";
@@ -258,9 +259,9 @@ export const DispatchSummary: React.FC = () => {
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
             <button
               onClick={() => setLanguage("en")}
-              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all ${
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-extrabold transition-colors ${
                 language === "en"
-                  ? "bg-purple-600 text-white shadow-sm"
+                  ? "bg-blue-600 text-white shadow-sm"
                   : "text-slate-600 hover:text-slate-900"
               }`}
               title="English Dispatch Summary"
@@ -269,14 +270,14 @@ export const DispatchSummary: React.FC = () => {
             </button>
             <button
               onClick={() => setLanguage("gu")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-extrabold transition-colors ${
                 language === "gu"
-                  ? "bg-purple-600 text-white shadow-sm"
+                  ? "bg-blue-600 text-white shadow-sm"
                   : "text-slate-600 hover:text-slate-900"
               }`}
               title="ગુજરાતી ડિસ્પેચ સમરી"
             >
-              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+              <Sparkles className="w-3.5 h-3.5 text-blue-100" />
               <span>ગુજરાતી</span>
             </button>
           </div>
@@ -298,19 +299,19 @@ export const DispatchSummary: React.FC = () => {
             className="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-colors flex items-center gap-1.5"
             title="Refresh List"
           >
-            <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
+            <RefreshCw className={`w-4 h-4 ${isLoading ? "motion-safe:animate-spin" : ""}`} />
             <span className="hidden sm:inline">Refresh</span>
           </button>
 
           <button
             onClick={() => handleDownloadPDF(false)}
             disabled={isDownloading || !data || data.dispatches.length === 0}
-            className="flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs shadow-md transition-all hover:scale-102 disabled:opacity-50"
+            className="flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs shadow-sm transition-colors disabled:opacity-50"
           >
             <Download className="w-4 h-4" />
             <span>
               {isDownloading
-                ? (isGu ? "જનરેટ થઈ રહ્યું છે..." : "Generating...")
+                ? (isGu ? "જનરેટ થઈ રહ્યું છે…" : "Generating…")
                 : selectedJobIds.length > 0
                 ? (isGu ? `પસંદ કરેલ PDF (${selectedJobIds.length})` : `Download Selected PDF (${selectedJobIds.length})`)
                 : (isGu ? "PDF ડાઉનલોડ (PDF)" : "Download PDF Run-Sheet")}
@@ -320,7 +321,7 @@ export const DispatchSummary: React.FC = () => {
           <button
             onClick={() => handlePrintRunSheet(false)}
             disabled={!data || data.dispatches.length === 0}
-            className="flex-1 md:flex-initial flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-xs shadow-md shadow-blue-600/30 transition-all hover:scale-102 disabled:opacity-50"
+            className="flex-1 md:flex-initial flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs shadow-sm transition-colors disabled:opacity-50"
           >
             <Printer className="w-4 h-4" />
             <span>
@@ -352,7 +353,7 @@ export const DispatchSummary: React.FC = () => {
                   {data?.total_parties || 0}
                 </div>
                 <div>
-                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                  <div className="text-[10px] font-bold text-slate-500">
                     {isGu ? "કુલ સ્ટોપ (પાર્ટી)" : "Total Stops (Parties)"}
                   </div>
                   <div className="text-sm font-black text-slate-900">
@@ -367,7 +368,7 @@ export const DispatchSummary: React.FC = () => {
                   {deliveredCases}
                 </div>
                 <div>
-                  <div className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider flex items-center gap-1">
+                  <div className="text-[10px] font-bold text-emerald-700 flex items-center gap-1">
                     <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                     <span>{isGu ? "ડિલિવર થયેલ કેસ" : "Delivered Cases"}</span>
                   </div>
@@ -383,7 +384,7 @@ export const DispatchSummary: React.FC = () => {
                   {pendingCases}
                 </div>
                 <div>
-                  <div className="text-[10px] font-bold text-amber-700 uppercase tracking-wider flex items-center gap-1">
+                  <div className="text-[10px] font-bold text-amber-700 flex items-center gap-1">
                     <Clock className="w-3 h-3 text-amber-600" />
                     <span>{isGu ? "ડિલિવરી બાકી કેસ" : "Pending Cases"}</span>
                   </div>
@@ -399,7 +400,7 @@ export const DispatchSummary: React.FC = () => {
                   {data?.total_packages ? Math.round((deliveredCases / data.total_packages) * 100) : 0}%
                 </div>
                 <div>
-                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                  <div className="text-[10px] font-bold text-slate-500">
                     {isGu ? "પૂર્ણતા દર" : "Delivery Completion"}
                   </div>
                   <div className="text-sm font-black text-slate-900">
@@ -413,7 +414,7 @@ export const DispatchSummary: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {/* Filter: Date Selector */}
               <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs space-y-1">
-                <span className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
+                <span className="text-[10px] font-bold text-slate-500 flex items-center gap-1">
                   <Calendar className="w-3 h-3 text-blue-600" />
                   <span>{isGu ? "તારીખ (Date)" : "Dispatch Date"}</span>
                 </span>
@@ -427,7 +428,7 @@ export const DispatchSummary: React.FC = () => {
 
               {/* Filter: Driver Name */}
               <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs space-y-1">
-                <span className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
+                <span className="text-[10px] font-bold text-slate-500 flex items-center gap-1">
                   <UserCheck className="w-3 h-3 text-emerald-600" />
                   <span>{isGu ? "ડ્રાઈવર ફિલ્ટર (Driver)" : "Filter Driver"}</span>
                 </span>
@@ -445,7 +446,7 @@ export const DispatchSummary: React.FC = () => {
 
               {/* Filter: Route Wise */}
               <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs space-y-1">
-                <span className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
+                <span className="text-[10px] font-bold text-slate-500 flex items-center gap-1">
                   <MapPin className="w-3 h-3 text-purple-600" />
                   <span>{isGu ? "રૂટ ફિલ્ટર (Route)" : "Filter Route"}</span>
                 </span>
@@ -467,8 +468,8 @@ export const DispatchSummary: React.FC = () => {
 
       {/* Case Types Breakdown Banner */}
       {data && data.breakdown_totals && Object.keys(data.breakdown_totals).length > 0 && (
-        <div className="bg-gradient-to-r from-blue-900 to-slate-900 text-white p-4 rounded-xl shadow-sm flex flex-wrap items-center gap-4">
-          <div className="text-xs font-bold uppercase tracking-wider text-blue-200 flex items-center gap-1.5 border-r border-slate-700 pr-4">
+        <div className="bg-slate-900 text-white p-4 rounded-xl shadow-sm flex flex-wrap items-center gap-4">
+          <div className="text-xs font-bold text-slate-300 flex items-center gap-1.5 border-r border-slate-700 pr-4">
             <ClipboardList className="w-4 h-4 text-blue-400" />
             <span>{isGu ? "ડિસ્પેચ કેસ વિગત ગણતરી:" : "Dispatched Items Breakdown:"}</span>
           </div>
@@ -523,7 +524,7 @@ export const DispatchSummary: React.FC = () => {
                 type="button"
                 onClick={() => handlePrintRunSheet(true)}
                 disabled={isDownloading}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-black text-xs shadow-sm transition-all"
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-black text-xs shadow-sm transition-colors"
                 title="Print Selected Run-Sheet"
               >
                 <Printer className="w-3.5 h-3.5" />
@@ -533,7 +534,7 @@ export const DispatchSummary: React.FC = () => {
                 type="button"
                 onClick={() => handleDownloadPDF(true)}
                 disabled={isDownloading}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-sm transition-all"
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-sm transition-colors"
                 title="Download Selected Run-Sheet PDF"
               >
                 <Download className="w-3.5 h-3.5" />
@@ -545,22 +546,22 @@ export const DispatchSummary: React.FC = () => {
             type="text"
             value={assignDriverName}
             onChange={(e) => setAssignDriverName(e.target.value)}
-            placeholder={isGu ? "ડ્રાઈવરનું નામ..." : "Driver Name..."}
+            placeholder={isGu ? "ડ્રાઈવરનું નામ…" : "Driver Name…"}
             className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white font-bold text-xs w-36"
           />
           <input
             type="text"
             value={assignRouteName}
             onChange={(e) => setAssignRouteName(e.target.value)}
-            placeholder={isGu ? "રૂટ / વિસ્તાર..." : "Route / Area..."}
+            placeholder={isGu ? "રૂટ / વિસ્તાર…" : "Route / Area…"}
             className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white font-bold text-xs w-28"
           />
           <button
             onClick={handleAssignDriver}
             disabled={isUpdating || selectedJobIds.length === 0}
-            className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow disabled:opacity-50"
+            className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow disabled:opacity-50 transition-colors"
           >
-            {isUpdating ? "Assigning..." : (isGu ? "સોંપો (Assign)" : "Assign Driver")}
+            {isUpdating ? "Assigning…" : (isGu ? "સોંપો (Assign)" : "Assign Driver")}
           </button>
         </div>
       </div>
@@ -585,7 +586,7 @@ export const DispatchSummary: React.FC = () => {
             <button
               type="button"
               onClick={() => handleViewModeChange('cards')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-colors cursor-pointer ${
                 viewMode === 'cards'
                   ? 'bg-blue-600 text-white shadow-sm'
                   : 'text-slate-600 hover:text-slate-900'
@@ -598,7 +599,7 @@ export const DispatchSummary: React.FC = () => {
             <button
               type="button"
               onClick={() => handleViewModeChange('table')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-colors cursor-pointer ${
                 viewMode === 'table'
                   ? 'bg-blue-600 text-white shadow-sm'
                   : 'text-slate-600 hover:text-slate-900'
@@ -651,7 +652,7 @@ export const DispatchSummary: React.FC = () => {
               return (
                 <div
                   key={job.id}
-                  className={`bg-white rounded-2xl border transition-all duration-200 shadow-sm hover:shadow-md flex flex-col justify-between overflow-hidden ${
+                  className={`bg-white rounded-2xl border transition-colors shadow-sm hover:shadow-md flex flex-col justify-between overflow-hidden ${
                     isSelected
                       ? 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-50/20'
                       : isDelivered
@@ -660,7 +661,7 @@ export const DispatchSummary: React.FC = () => {
                   }`}
                 >
                   {/* Card Header */}
-                  <div className="p-3.5 border-b border-slate-100 flex items-start justify-between gap-3 bg-gradient-to-b from-slate-50/70 to-transparent">
+                  <div className="p-3.5 border-b border-slate-100 flex items-start justify-between gap-3 bg-slate-50/70">
                     <div className="flex items-center gap-2">
                       <input
                         type="checkbox"
@@ -680,7 +681,7 @@ export const DispatchSummary: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => handleToggleDeliveryStatus(job)}
-                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-extrabold border transition-all cursor-pointer ${
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-extrabold border transition-colors cursor-pointer ${
                         isDelivered
                           ? 'bg-emerald-100 text-emerald-900 border-emerald-300 hover:bg-emerald-200 shadow-2xs'
                           : 'bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200 shadow-2xs'
@@ -740,7 +741,7 @@ export const DispatchSummary: React.FC = () => {
                     {/* Cases & Breakdown */}
                     <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 space-y-2">
                       <div className="flex items-center justify-between text-xs">
-                        <span className="text-slate-500 font-bold uppercase text-[10px]">
+                        <span className="text-slate-500 font-bold text-[10px]">
                           {isGu ? "કુલ પાર્સલ / કેસ:" : "Total Packages:"}
                         </span>
                         <span className="font-black text-blue-900 bg-blue-100/70 border border-blue-200 px-2 py-0.5 rounded text-xs">
@@ -817,7 +818,7 @@ export const DispatchSummary: React.FC = () => {
                         href={waUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-sm transition-all"
+                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-sm transition-colors"
                         title="Send WhatsApp Dispatch Notice"
                       >
                         <MessageSquare className="w-3.5 h-3.5" />
@@ -832,8 +833,8 @@ export const DispatchSummary: React.FC = () => {
             <div className="col-span-full bg-white p-12 rounded-2xl border border-slate-200 text-center text-slate-400 font-semibold">
               {isLoading ? (
                 <div className="flex items-center justify-center gap-2 text-slate-500">
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>Loading dispatch dispatches for {selectedDate}...</span>
+                  <RefreshCw className="w-4 h-4 motion-safe:animate-spin" />
+                  <span>Loading dispatch dispatches for {selectedDate}…</span>
                 </div>
               ) : (
                 <div>No envelopes or print dispatches found for date {selectedDate}.</div>
@@ -847,7 +848,7 @@ export const DispatchSummary: React.FC = () => {
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-slate-900 text-white font-black text-[11px] uppercase tracking-wider">
+                <tr className="bg-slate-900 text-white font-semibold text-xs">
                   <th className="p-3 w-10 text-center">
                     <input
                       type="checkbox"
@@ -965,8 +966,9 @@ export const DispatchSummary: React.FC = () => {
                                 </span>
                                 <div className="text-[11px] font-extrabold text-emerald-950 flex items-center justify-center gap-1">
                                   <span className="text-slate-500 font-semibold">{isGu ? "દ્વારા:" : "By:"}</span>
-                                  <span className="bg-emerald-50 text-emerald-900 px-1.5 py-0.5 rounded border border-emerald-200 font-black">
-                                    👤 {job.delivered_by || job.delivery_boy_name || "Driver"}
+                                  <span className="bg-emerald-50 text-emerald-900 px-1.5 py-0.5 rounded border border-emerald-200 font-bold flex items-center gap-1">
+                                    <User className="w-3 h-3 text-emerald-700 shrink-0" />
+                                    <span>{job.delivered_by || job.delivery_boy_name || "Driver"}</span>
                                   </span>
                                 </div>
                                 {job.delivered_at && (
@@ -1022,8 +1024,8 @@ export const DispatchSummary: React.FC = () => {
                     <td colSpan={11} className="p-12 text-center text-slate-400 font-semibold">
                       {isLoading ? (
                         <div className="flex items-center justify-center gap-2 text-slate-500">
-                          <RefreshCw className="w-4 h-4 animate-spin" />
-                          <span>Loading dispatch dispatches for {selectedDate}...</span>
+                          <RefreshCw className="w-4 h-4 motion-safe:animate-spin" />
+                          <span>Loading dispatch dispatches for {selectedDate}…</span>
                         </div>
                       ) : (
                         <div>No envelopes or print dispatches found for date {selectedDate}.</div>

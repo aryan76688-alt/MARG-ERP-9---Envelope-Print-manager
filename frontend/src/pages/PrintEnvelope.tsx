@@ -1279,13 +1279,13 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
         <div className="flex flex-wrap items-center gap-3">
           {/* Mode Selector */}
           <div className="flex items-center gap-1.5">
-            <span className="text-[11px] font-black text-slate-700 uppercase tracking-wider">
+            <span className="text-xs font-semibold text-slate-700">
               Mode:
             </span>
             <div className="bg-slate-100 p-1 rounded-xl flex items-center gap-1">
               <button
                 onClick={() => setPrintMode('single')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                   printMode === 'single'
                     ? 'bg-blue-600 text-white shadow-sm'
                     : 'text-slate-600 hover:text-slate-900'
@@ -1295,7 +1295,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
               </button>
               <button
                 onClick={() => setPrintMode('bulk')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                   printMode === 'bulk'
                     ? 'bg-blue-600 text-white shadow-sm'
                     : 'text-slate-600 hover:text-slate-900'
@@ -1303,7 +1303,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
               >
                 <Users className="w-3.5 h-3.5" />
                 <span>Bulk Daily (Select All)</span>
-                <span className="bg-amber-400 text-slate-900 text-[10px] px-1 py-0.2 rounded font-black">
+                <span className="bg-amber-400 text-slate-900 text-[10px] px-1 py-0.2 rounded font-semibold">
                   1-Time/Day
                 </span>
               </button>
@@ -1314,16 +1314,16 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
 
           {/* Language Selector (English vs Gujarati with Gemini AI) */}
           <div className="flex items-center gap-1.5">
-            <span className="text-[11px] font-black text-slate-700 uppercase tracking-wider flex items-center gap-1">
-              <Languages className="w-3.5 h-3.5 text-purple-600" />
+            <span className="text-xs font-semibold text-slate-700 flex items-center gap-1">
+              <Languages className="w-3.5 h-3.5 text-blue-600" />
               <span>Language:</span>
             </span>
             <div className="bg-slate-100 p-1 rounded-xl flex items-center gap-1">
               <button
                 onClick={() => setSelectedLanguage('en')}
-                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all ${
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                   selectedLanguage === 'en'
-                    ? 'bg-purple-600 text-white shadow-sm'
+                    ? 'bg-blue-600 text-white shadow-sm'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
@@ -1336,9 +1336,9 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                     handleTranslateParty();
                   }
                 }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                   selectedLanguage === 'gu'
-                    ? 'bg-purple-600 text-white shadow-sm'
+                    ? 'bg-blue-600 text-white shadow-sm'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
@@ -1352,14 +1352,14 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
 
           {/* Template Format Selector */}
           <div className="flex items-center gap-1.5">
-            <span className="text-[11px] font-black text-slate-700 uppercase tracking-wider flex items-center gap-1">
+            <span className="text-xs font-semibold text-slate-700 flex items-center gap-1">
               <Layers className="w-3.5 h-3.5 text-blue-600" />
               <span>Format:</span>
             </span>
             <div className="bg-slate-100 p-1 rounded-xl flex items-center gap-1">
               <button
                 onClick={() => setSelectedTemplate('attachment_pdf')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                   selectedTemplate === 'attachment_pdf'
                     ? 'bg-blue-600 text-white shadow-sm'
                     : 'text-slate-600 hover:text-slate-900'
@@ -1370,7 +1370,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
               </button>
               <button
                 onClick={() => setSelectedTemplate('marg_grid_22')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                   selectedTemplate === 'marg_grid_22'
                     ? 'bg-blue-600 text-white shadow-sm'
                     : 'text-slate-600 hover:text-slate-900'
@@ -1386,21 +1386,21 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
 
           {/* Bill Inside Envelope Toggle */}
           <div className="flex items-center gap-1.5">
-            <span className="text-[11px] font-black text-slate-700 uppercase tracking-wider flex items-center gap-1">
+            <span className="text-xs font-semibold text-slate-700 flex items-center gap-1">
               <FileText className="w-3.5 h-3.5 text-emerald-600" />
               <span>Bill Inside:</span>
             </span>
             <button
               type="button"
               onClick={() => setBillInside(!billInside)}
-              className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-black border transition-all ${
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-colors ${
                 billInside
                   ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm'
                   : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
               }`}
               title="Print [BILL INSIDE / બિલ અંદર છે] stamp on Case 1 only (1 page only, not all pages)"
             >
-              <span>{billInside ? '📄 ON (1 Page / Case 1 Only)' : 'OFF'}</span>
+              <span>{billInside ? 'ON (1 Page / Case 1 Only)' : 'OFF'}</span>
             </button>
           </div>
         </div>
@@ -1454,7 +1454,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
               <button
                 onClick={handleBulkPrint}
                 disabled={isBulkPrinting || bulkSelectedIds.length === 0}
-                className="flex-1 md:flex-initial flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-sm shadow-lg shadow-blue-600/30 transition-all hover:scale-102 disabled:opacity-50"
+                className="flex-1 md:flex-initial flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-sm shadow-sm transition-colors disabled:opacity-50"
               >
                 <Printer className="w-5 h-5" />
                 <span>
@@ -1526,7 +1526,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
           {/* Table of Parties for Bulk Printing */}
           <div className="border border-slate-200 rounded-xl overflow-hidden max-h-96 overflow-y-auto">
             <table className="w-full text-left text-xs border-collapse">
-              <thead className="sticky top-0 bg-slate-900 text-white font-black uppercase text-[10px] tracking-wider z-10">
+              <thead className="sticky top-0 bg-slate-900 text-white font-semibold text-xs z-10">
                 <tr>
                   <th className="p-3 w-10 text-center">
                     <input
@@ -1539,7 +1539,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                   <th className="p-3">Party Name</th>
                   <th className="p-3">Station / City</th>
                   <th className="p-3">Mobile No.</th>
-                  <th className="p-3 text-center">Today's Status</th>
+                  <th className="p-3 text-center">Today’s Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-800">
@@ -1616,7 +1616,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                 onChange={(e) => setPartySearch(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Type or speak party name..."
-                className="w-full pl-9 pr-16 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-900 uppercase focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                className="w-full pl-9 pr-16 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
               />
               <div className="absolute right-1.5 top-1.5 flex items-center gap-1">
                 <button
@@ -1630,9 +1630,9 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                 <button
                   type="button"
                   onClick={isListening ? stopListening : startListening}
-                  className={`p-1 rounded-md transition-all ${
+                  className={`p-1 rounded-md transition-colors ${
                     isListening
-                      ? 'bg-rose-600 text-white animate-pulse ring-2 ring-rose-400'
+                      ? 'bg-rose-600 text-white motion-safe:animate-pulse ring-2 ring-rose-400'
                       : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
                   }`}
                   title={isListening ? 'Listening... click to stop' : 'Click to Speak Party Name / Cases'}
@@ -1644,9 +1644,9 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
 
             {/* Live Voice Transcript feedback */}
             {isListening && (
-              <div className="p-1.5 bg-rose-50 border border-rose-200 rounded-lg text-[11px] text-rose-800 font-bold flex items-center gap-1.5 animate-pulse">
-                <span className="w-2 h-2 rounded-full bg-rose-600 animate-ping"></span>
-                <span>Listening in {voiceLang === 'gu-IN' ? 'ગુજરાતી' : voiceLang === 'hi-IN' ? 'हिंदी' : 'English'}... Speak now!</span>
+              <div className="p-1.5 bg-rose-50 border border-rose-200 rounded-lg text-[11px] text-rose-800 font-bold flex items-center gap-1.5 motion-safe:animate-pulse">
+                <span className="w-2 h-2 rounded-full bg-rose-600 motion-safe:animate-ping"></span>
+                <span>Listening in {voiceLang === 'gu-IN' ? 'ગુજરાતી' : voiceLang === 'hi-IN' ? 'हिंदी' : 'English'}… Speak now!</span>
               </div>
             )}
             {!isListening && voiceTranscript && (
@@ -1660,10 +1660,10 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
             <button
               type="button"
               onClick={() => setIsAiModalOpen(true)}
-              className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-extrabold text-xs shadow-md shadow-purple-600/20 transition-all hover:scale-101"
+              className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm transition-colors whitespace-nowrap"
             >
-              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-              <span>✨ AI Smart Paste / Parse MARG Text</span>
+              <Sparkles className="w-3.5 h-3.5 text-blue-100" />
+              <span>AI Smart Paste / Parse MARG Text</span>
             </button>
           </div>
 
@@ -1681,7 +1681,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                     : 'hover:bg-slate-50 text-slate-800'
                 }`}
               >
-                <div className="font-extrabold uppercase">{p.party_name}</div>
+                <div className="font-extrabold">{p.party_name}</div>
                 <div className="text-[10px] opacity-80 flex items-center justify-between">
                   <span>{p.city}</span>
                   {p.mobile_no && <span>{p.mobile_no}</span>}
@@ -1694,7 +1694,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
           {selectedParty && (
             <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2.5 text-xs">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">
+                <span className="text-[10px] font-bold text-slate-500">
                   Active Party
                 </span>
                 <button
@@ -1705,19 +1705,19 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                   title="Translate party details to Gujarati with Gemini AI"
                 >
                   <Sparkles className="w-3 h-3 text-purple-600" />
-                  <span>{isTranslating ? 'Translating...' : '✨ Translate (GU)'}</span>
+                  <span>{isTranslating ? 'Translating...' : 'Translate (GU)'}</span>
                 </button>
               </div>
 
               {/* English Details */}
               <div className="space-y-1">
-                <div className="font-black text-slate-900 text-sm uppercase">
+                <div className="font-black text-slate-900 text-sm">
                   {selectedParty.party_name}
                 </div>
-                <div className="text-slate-600 font-semibold uppercase leading-snug">
+                <div className="text-slate-600 font-semibold leading-snug">
                   {selectedParty.address}
                 </div>
-                <div className="text-slate-700 font-bold uppercase">
+                <div className="text-slate-700 font-bold">
                   {selectedParty.city}, {selectedParty.state}
                 </div>
                 {selectedParty.mobile_no && (
@@ -1828,7 +1828,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                           type="button"
                           onClick={handleSaveGujaratiDetails}
                           disabled={isSavingGujarati}
-                          className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-black shadow-sm flex items-center gap-1.5 transition-all"
+                          className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-black shadow-sm flex items-center gap-1.5 transition-colors"
                         >
                           <Save className="w-3 h-3" />
                           <span>{isSavingGujarati ? 'Saving...' : 'Save Changes (સાચવો)'}</span>
@@ -1871,7 +1871,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                 <div className="p-3 bg-amber-50 border-2 border-amber-300 rounded-xl text-amber-950 font-bold space-y-1.5">
                   <div className="flex items-center gap-1.5 text-xs font-black text-amber-800">
                     <Lock className="w-4 h-4 text-amber-600" />
-                    <span>PARTY LOCKED — PRINTED TODAY</span>
+                    <span>Party Locked: Printed Today</span>
                   </div>
                   <p className="text-[11px] text-amber-800 leading-tight">
                     This party was printed {printedTodayCount} time(s) today. Further direct printing is locked to avoid duplicate courier dispatches.
@@ -1880,7 +1880,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                     <button
                       type="button"
                       onClick={() => onNavigate && onNavigate('history', { search: selectedParty.party_name })}
-                      className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-black shadow-sm flex items-center gap-1.5 transition-all"
+                      className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-black shadow-sm flex items-center gap-1.5 transition-colors"
                     >
                       <History className="w-3.5 h-3.5" />
                       <span>Open in History</span>
@@ -1891,10 +1891,10 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                         setIsEditReprintMode(true);
                         setHasPrintedToday(false);
                       }}
-                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-black shadow-sm flex items-center gap-1.5 transition-all"
+                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-black shadow-sm flex items-center gap-1.5 transition-colors"
                     >
                       <Unlock className="w-3.5 h-3.5" />
-                      <span>Unlock & Print Another Dispatch</span>
+                      <span>Print Another Dispatch</span>
                     </button>
                   </div>
                 </div>
@@ -1932,7 +1932,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
               <button
                 type="button"
                 onClick={() => setCaseMode('fluid')}
-                className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1.5 ${
+                className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-black transition-colors flex items-center justify-center gap-1.5 ${
                   caseMode === 'fluid'
                     ? 'bg-blue-600 text-white shadow-sm'
                     : 'text-slate-600 hover:text-slate-900'
@@ -1944,7 +1944,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
               <button
                 type="button"
                 onClick={() => setCaseMode('standard')}
-                className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1.5 ${
+                className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-black transition-colors flex items-center justify-center gap-1.5 ${
                   caseMode === 'standard'
                     ? 'bg-blue-600 text-white shadow-sm'
                     : 'text-slate-600 hover:text-slate-900'
@@ -1983,7 +1983,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                 <div className="grid grid-cols-2 gap-3 text-xs">
                   {/* CASE (Standard) */}
                   <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1.5">
-                    <div className="font-extrabold text-slate-800 text-[11px] uppercase">
+                    <div className="font-extrabold text-slate-800 text-[11px]">
                       Standard Case
                     </div>
                     <div className="flex items-center justify-between gap-1">
@@ -2016,7 +2016,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
 
                   {/* PARCEL BAG */}
                   <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1.5">
-                    <div className="font-extrabold text-slate-800 text-[11px] uppercase">
+                    <div className="font-extrabold text-slate-800 text-[11px]">
                       Parcel Bag
                     </div>
                     <div className="flex items-center justify-between gap-1">
@@ -2051,7 +2051,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                 {/* Section B: Dynamic IV Fluid Case Types (Configured from Settings) */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-black text-slate-900 uppercase tracking-tight">
+                    <span className="text-xs font-black text-slate-900">
                       IV Fluids ({fluidTypes.join(', ')})
                     </span>
                     <span className="text-[10px] font-extrabold text-blue-700">
@@ -2069,7 +2069,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                           key={tab}
                           type="button"
                           onClick={() => setActiveFluidTab(tab)}
-                          className={`py-1.5 px-3 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1 ${
+                          className={`py-1.5 px-3 rounded-lg text-xs font-black transition-colors flex items-center justify-center gap-1 ${
                             activeFluidTab === tab
                               ? 'bg-blue-600 text-white shadow'
                               : 'text-slate-700 hover:bg-slate-200'
@@ -2104,7 +2104,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                         return (
                           <div
                             key={vol}
-                            className={`p-1.5 rounded-lg border transition-all ${
+                            className={`p-1.5 rounded-lg border transition-colors ${
                               val > 0
                                 ? 'bg-white border-blue-500 shadow-sm'
                                 : 'bg-white/80 border-slate-200'
@@ -2152,7 +2152,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1.5">
                       <Box className="w-4 h-4 text-indigo-600" />
-                      <span className="text-xs font-black text-slate-900 uppercase tracking-tight">
+                      <span className="text-xs font-black text-slate-900">
                         Item Full Cases (આઇટમ ફૂલ કેસ)
                       </span>
                     </div>
@@ -2177,7 +2177,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                             handleSearchItems(e.target.value);
                           }}
                           placeholder={isItemVoiceListening ? 'Listening... પ્રોડક્ટનું નામ બોલો...' : 'Search product by name or code (e.g. SYRINGE, ATPL, 03130)...'}
-                          className={`w-full pl-8 pr-7 py-1.5 text-xs font-bold rounded-lg border bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all ${
+                          className={`w-full pl-8 pr-7 py-1.5 text-xs font-bold rounded-lg border bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors ${
                             isItemVoiceListening ? 'border-red-400 ring-2 ring-red-300 bg-red-50/40' : 'border-slate-300'
                           }`}
                         />
@@ -2207,9 +2207,9 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                               startItemVoiceListening();
                             }
                           }}
-                          className={`px-2 py-1.5 rounded-lg border text-xs font-bold flex items-center gap-1 transition-all ${
+                          className={`px-2 py-1.5 rounded-lg border text-xs font-bold flex items-center gap-1 transition-colors ${
                             isItemVoiceListening
-                              ? 'bg-red-500 text-white border-red-600 animate-pulse'
+                              ? 'bg-red-500 text-white border-red-600 motion-safe:animate-pulse'
                               : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
                           }`}
                           title="Search Item by Voice (ગુજરાતી / Hindi / English)"
@@ -2222,7 +2222,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
 
                     {/* Autocomplete Dropdown */}
                     {showItemDropdown && itemSearchResults.length > 0 && (
-                      <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-300 rounded-xl shadow-xl z-50 max-h-56 overflow-y-auto divide-y divide-slate-100">
+                      <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-300 rounded-xl shadow-md z-50 max-h-56 overflow-y-auto divide-y divide-slate-100">
                         {itemSearchResults.map((it) => (
                           <div
                             key={it.id || it.item_code}
@@ -2267,7 +2267,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
 
                     {showItemDropdown && isSearchingItems && (
                       <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg p-2 text-center text-xs text-slate-500 z-50 shadow">
-                        Searching 4,343 items...
+                        Searching 4,343 items…
                       </div>
                     )}
                   </div>
@@ -2315,7 +2315,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                                 key={v}
                                 type="button"
                                 onClick={() => setItemCaseVolume(v)}
-                                className={`px-2 py-0.5 rounded text-[10px] font-black transition-all ${
+                                className={`px-2 py-0.5 rounded text-[10px] font-black transition-colors ${
                                   isSelected
                                     ? 'bg-indigo-600 text-white shadow-sm'
                                     : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
@@ -2461,7 +2461,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
 
                 {/* Parcel Type Dropdown */}
                 <div>
-                  <label className="block text-[11px] font-black text-slate-700 uppercase tracking-tight mb-1">
+                  <label className="block text-[11px] font-black text-slate-700 mb-1">
                     Parcel / Goods Type
                   </label>
                   <select
@@ -2482,7 +2482,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
 
                 {/* Total Cases Counter */}
                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1.5">
-                  <div className="font-extrabold text-slate-800 text-[11px] uppercase flex items-center justify-between">
+                  <div className="font-extrabold text-slate-800 text-[11px] flex items-center justify-between">
                     <span>Total Cases to Print</span>
                     <span className="text-blue-600 font-black">
                       {standardCasesCount === 0 ? 'Address Only (0 Cases)' : `CASE: 1 to ${standardCasesCount}`}
@@ -2517,7 +2517,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                 {/* Weight Options */}
                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-black text-slate-800 uppercase">
+                    <span className="text-[11px] font-black text-slate-800">
                       Package Weight (KG)
                     </span>
                     <label className="flex items-center gap-1.5 text-[11px] font-bold text-slate-700 cursor-pointer">
@@ -2608,7 +2608,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <span className="text-[10px] font-bold text-slate-500 uppercase">Driver Name</span>
+                <span className="text-[10px] font-bold text-slate-500">Driver Name</span>
                 <input
                   type="text"
                   value={driverName}
@@ -2619,7 +2619,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
               </div>
               <div>
                 <div className="flex items-center justify-between mb-0.5">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase">Route / Area</span>
+                  <span className="text-[10px] font-bold text-slate-500">Route / Area</span>
                   {selectedParty && (selectedParty.route_1 || selectedParty.route_2 || selectedParty.route_3) && (
                     <span className="text-[9px] text-indigo-600 font-bold">Party Routes</span>
                   )}
@@ -2650,14 +2650,14 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                             key={r.key}
                             type="button"
                             onClick={() => setDeliveryRoute(r.val || '')}
-                            className={`px-1.5 py-0.5 rounded text-[10px] font-black transition-all flex items-center gap-1 cursor-pointer ${
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-black transition-colors flex items-center gap-1 cursor-pointer ${
                               isSelected
                                 ? 'bg-blue-600 text-white shadow-sm ring-1 ring-blue-500'
                                 : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
                             }`}
                             title={`Select ${r.key}: ${r.val}`}
                           >
-                            <span className="text-[8px] uppercase px-1 rounded bg-black/10 font-black">{r.key}</span>
+                            <span className="text-[8px] px-1 rounded bg-black/10 font-black">{r.key}</span>
                             <span>{r.val}</span>
                             {r.valGu && <span className="font-normal opacity-75">({r.valGu})</span>}
                             {isToday && (
@@ -2723,41 +2723,41 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
           </div>
 
           {/* Big Brain UI Layout Control Advisor */}
-          <div className="bg-gradient-to-r from-purple-50 via-indigo-50 to-blue-50 border border-purple-200/90 rounded-xl p-3 space-y-2 shadow-sm">
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2 shadow-sm">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-purple-700 to-indigo-600 text-white flex items-center justify-center shadow-sm">
+                <div className="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center shadow-sm">
                   <Brain className="w-4 h-4" />
                 </div>
                 <div>
                   <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-bold text-purple-950">Big Brain Layout Control</span>
-                    <span className="text-[10px] font-semibold px-1.5 py-0.2 bg-purple-200/80 text-purple-800 rounded">
+                    <span className="text-xs font-bold text-slate-900">Big Brain Layout Control</span>
+                    <span className="text-[10px] font-semibold px-1.5 py-0.2 bg-slate-200 text-slate-800 rounded">
                       ChatGPT
                     </span>
                   </div>
-                  <p className="text-[10px] text-purple-700">Intelligent density verification & UI scaling advisor</p>
+                  <p className="text-[10px] text-slate-600">Intelligent density verification & UI scaling advisor</p>
                 </div>
               </div>
 
               <button
                 onClick={handleBigBrainLayoutCheck}
                 disabled={!selectedParty || isBigBrainAnalyzing}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white shadow-sm transition-all active:scale-95"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white shadow-sm transition-colors"
               >
-                <Sparkles className="w-3.5 h-3.5 text-yellow-300" />
+                <Sparkles className="w-3.5 h-3.5 text-blue-100" />
                 <span>{isBigBrainAnalyzing ? 'Analyzing...' : 'Advisor Check'}</span>
               </button>
             </div>
 
             {bigBrainAdvice && (
-              <div className="bg-white/95 rounded-lg p-2.5 border border-purple-200 space-y-2 text-xs text-slate-800">
+              <div className="bg-white rounded-lg p-2.5 border border-slate-200 space-y-2 text-xs text-slate-800">
                 <div className="flex items-center justify-between">
-                  <span className="font-bold text-purple-900 flex items-center gap-1.5">
+                  <span className="font-bold text-slate-900 flex items-center gap-1.5">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                     {bigBrainAdvice.headline || 'Layout Recommendation'}
                   </span>
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                     bigBrainAdvice.status === 'optimal'
                       ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
                       : bigBrainAdvice.status === 'dense'
@@ -2811,7 +2811,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                   templateFormat={selectedTemplate}
                   language={selectedLanguage}
                   billInside={billInside}
-                  className="shadow-xl border border-slate-300"
+                  className="shadow-md border border-slate-300"
                 />
               </div>
             ) : (
@@ -2882,7 +2882,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
               <div className="p-3.5 bg-amber-50 border-2 border-amber-300 rounded-xl text-center space-y-2">
                 <div className="flex items-center justify-center gap-1.5 text-xs font-black text-amber-900">
                   <Lock className="w-4 h-4 text-amber-600" />
-                  <span>PRINT LOCKED — ALREADY PRINTED TODAY</span>
+                  <span>Print Locked: Already Printed Today</span>
                 </div>
                 <p className="text-[11px] text-amber-800 font-semibold leading-tight">
                   This party was already printed today. To prevent accidental duplicates, printing from here is locked.
@@ -2891,7 +2891,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                   <button
                     type="button"
                     onClick={() => onNavigate && onNavigate('history', { search: selectedParty?.party_name })}
-                    className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-extrabold text-xs rounded-lg shadow-sm inline-flex items-center gap-1.5 transition-all"
+                    className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs rounded-lg shadow-sm inline-flex items-center gap-1.5 transition-colors"
                   >
                     <History className="w-3.5 h-3.5" />
                     <span>Go to History to Reprint</span>
@@ -2902,10 +2902,10 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                       setIsEditReprintMode(true);
                       setHasPrintedToday(false);
                     }}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-xs rounded-lg shadow-sm inline-flex items-center gap-1.5 transition-all"
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-lg shadow-sm inline-flex items-center gap-1.5 transition-colors"
                   >
                     <Unlock className="w-3.5 h-3.5" />
-                    <span>Unlock & Print Another Dispatch</span>
+                    <span>Print Another Dispatch</span>
                   </button>
                 </div>
               </div>
@@ -2930,11 +2930,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                         <button
                           onClick={handlePrintEnvelope}
                           disabled={!isValidToPrint || isPrinting}
-                          className={`flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-extrabold text-sm shadow-lg transition-all hover:scale-102 disabled:opacity-50 disabled:cursor-not-allowed ${
-                            totalPackagesCount === 0
-                              ? 'bg-gradient-to-r from-blue-700 to-indigo-700 hover:from-blue-600 hover:to-indigo-600 text-white shadow-blue-700/30 ring-1 ring-blue-400/40'
-                              : 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/30'
-                          }`}
+                          className="flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-extrabold text-sm shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-blue-600 hover:bg-blue-700 text-white"
                         >
                           <Printer className="w-5 h-5" />
                           <span>
@@ -2951,7 +2947,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                         <button
                           onClick={handleDownloadPDF}
                           disabled={!isValidToPrint || isDownloading}
-                          className="flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-sm shadow-lg shadow-emerald-600/30 transition-all hover:scale-102 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <Download className="w-5 h-5" />
                           <span>{isDownloading ? 'Generating PDF...' : 'DOWNLOAD PDF'}</span>
@@ -3016,7 +3012,7 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
                           }
                         }}
                         disabled={!isValidToPrint}
-                        className="flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-sm shadow-lg shadow-indigo-600/30 transition-all hover:scale-102 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-sm shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <Save className="w-5 h-5" />
                         <span>SAVE JOB ONLY</span>
@@ -3067,16 +3063,16 @@ export const PrintEnvelope: React.FC<PrintEnvelopeProps> = ({ initialParty, repr
       {/* AI SMART PASTE / PARSE MARG TEXT MODAL                    */}
       {/* ========================================================== */}
       {isAiModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-xl w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-xl w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
-                <div className="p-2 rounded-xl bg-purple-100 text-purple-700">
+                <div className="p-2 rounded-xl bg-blue-50 text-blue-700">
                   <Sparkles className="w-5 h-5" />
                 </div>
                 <div>
                   <h3 className="font-black text-slate-900 text-base">
-                    ✨ AI Smart Paste / Parse MARG Text
+                    AI Smart Paste / Parse MARG Text
                   </h3>
                   <p className="text-xs text-slate-500 font-semibold">
                     Powered by Google Gemini AI with Automatic Fallbacks
@@ -3110,7 +3106,7 @@ ADDRESS: NEAR OLD BUS STAND, MODASA
 CITY: MODASA, GUJARAT
 MOB: 9876543210
 CASE: 3 NS: 2 (500ML)"
-                className="w-full p-3 rounded-xl border border-slate-200 font-mono text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none bg-slate-50"
+                className="w-full p-3 rounded-xl border border-slate-200 font-mono text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none bg-slate-50"
               />
               <p className="text-[11px] text-slate-500">
                 Gemini AI will intelligently extract party name, address, city, state, mobile number, and case breakdowns.
@@ -3140,10 +3136,10 @@ CASE: 3 NS: 2 (500ML)"
                 type="button"
                 onClick={handleParseMargText}
                 disabled={isAiParsing || !aiInputText.trim()}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-xs shadow-lg shadow-purple-600/30 transition-all hover:scale-102 disabled:opacity-50"
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs shadow-sm transition-colors disabled:opacity-50"
               >
                 <Sparkles className="w-4 h-4" />
-                <span>{isAiParsing ? 'Analyzing with Gemini AI...' : '🤖 Extract & Fill Envelope'}</span>
+                <span>{isAiParsing ? 'Analyzing with Gemini AI...' : 'Extract & Fill Envelope'}</span>
               </button>
             </div>
           </div>

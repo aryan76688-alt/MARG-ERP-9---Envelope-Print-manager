@@ -444,8 +444,8 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
     const startIcon = L.divIcon({
       className: 'driver-origin-marker',
       html: `
-        <div style="background: #2563eb; color: white; width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 14px; border: 3px solid white; box-shadow: 0 4px 10px rgba(0,0,0,0.35);">
-          🚚
+        <div style="background: #2563eb; color: white; width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 3px solid white; box-shadow: 0 4px 10px rgba(0,0,0,0.35);">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/></svg>
         </div>
       `,
       iconSize: [34, 34],
@@ -714,10 +714,10 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
   return (
     <div className="space-y-4 max-w-7xl mx-auto pb-28 font-sans">
       {/* 1. TOP HEADER & METRICS BAR */}
-      <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 rounded-2xl p-4 sm:p-5 text-white shadow-lg">
+      <div className="bg-slate-900 rounded-2xl p-4 sm:p-5 text-white shadow-sm border border-slate-800">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center shrink-0 shadow-inner">
+            <div className="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0">
               <Route className="w-6 h-6 text-emerald-400" />
             </div>
             <div>
@@ -735,18 +735,18 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
 
           {/* Quick Metrics */}
           <div className="flex items-center gap-3 flex-wrap">
-            <div className="bg-white/10 backdrop-blur-md px-3.5 py-2 rounded-xl border border-white/10 text-center">
-              <p className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">Total Stops</p>
+            <div className="bg-slate-800/80 px-3.5 py-2 rounded-xl border border-slate-700 text-center">
+              <p className="text-xs font-semibold text-slate-400">Total Stops</p>
               <p className="text-lg font-black text-white">{optimizedStops.length}</p>
             </div>
-            <div className="bg-white/10 backdrop-blur-md px-3.5 py-2 rounded-xl border border-white/10 text-center">
-              <p className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">Road Distance</p>
+            <div className="bg-slate-800/80 px-3.5 py-2 rounded-xl border border-slate-700 text-center">
+              <p className="text-xs font-semibold text-slate-400">Road Distance</p>
               <p className="text-lg font-black text-emerald-400">
                 {roadRouteResult ? roadRouteResult.distanceFormatted : formatDistanceString(totalTripKm)}
               </p>
             </div>
-            <div className="bg-white/10 backdrop-blur-md px-3.5 py-2 rounded-xl border border-white/10 text-center">
-              <p className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">Road Time</p>
+            <div className="bg-slate-800/80 px-3.5 py-2 rounded-xl border border-slate-700 text-center">
+              <p className="text-xs font-semibold text-slate-400">Road Time</p>
               <p className="text-lg font-black text-amber-300">
                 {roadRouteResult ? roadRouteResult.durationFormatted : `~${Math.round(totalEstimatedMins)} m`}
               </p>
@@ -755,7 +755,7 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
         </div>
 
         {/* Action Controls Bar */}
-        <div className="mt-4 pt-3 border-t border-white/10 flex flex-wrap items-center justify-between gap-3">
+        <div className="mt-4 pt-3 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2 flex-wrap">
             {/* Route Selector */}
             <select
@@ -764,7 +764,7 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
                 customSelectionAppliedRef.current = false;
                 setSelectedRoute(e.target.value);
               }}
-              className="px-3 py-1.5 rounded-xl bg-white/10 border border-white/20 text-white font-bold text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 cursor-pointer"
+              className="px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-white font-bold text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 cursor-pointer"
             >
               <option value="ALL" className="text-slate-900">All Delivery Routes (બધા રૂટ)</option>
               {availableRoutes.map((r) => (
@@ -778,11 +778,11 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
             <button
               onClick={() => requestLocation(true)}
               disabled={gpsLoading}
-              className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-xs font-bold text-white flex items-center gap-1.5 transition-all cursor-pointer"
+              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-white flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               title="Refresh live GPS location"
             >
-              <Compass className={`w-3.5 h-3.5 text-emerald-400 ${gpsLoading ? 'animate-spin' : ''}`} />
-              <span>{gpsLoading ? 'Locating...' : currentLocation ? 'GPS Locked' : 'Detect GPS'}</span>
+              <Compass className={`w-3.5 h-3.5 text-emerald-400 ${gpsLoading ? 'motion-safe:animate-spin' : ''}`} />
+              <span>{gpsLoading ? 'Locating…' : currentLocation ? 'GPS Locked' : 'Detect GPS'}</span>
             </button>
           </div>
 
@@ -792,7 +792,7 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
               href={googleMapsUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-md transition-all active:scale-95"
+              className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-sm transition-colors motion-safe:active:scale-95"
             >
               <Navigation className="w-4 h-4" />
               <span>ગૂગલ મેપ્સમાં આખો રૂટ જુઓ (Google Maps)</span>
@@ -823,7 +823,7 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
           <button
             onClick={runRouteOptimization}
             disabled={isOptimizing}
-            className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+            className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Sparkles className="w-3.5 h-3.5" />
             <span>Re-Optimize (ફરી ગણો)</span>
@@ -835,22 +835,22 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         {/* MAP COLUMN */}
         <div
-          className={`transition-all duration-300 ${
+          className={`transition-colors duration-300 ${
             isMaximized
               ? 'lg:col-span-12 h-[calc(100vh-140px)] min-h-[520px]'
               : 'lg:col-span-7 h-[420px] sm:h-[560px]'
-          } bg-slate-900 rounded-2xl border border-slate-700/80 shadow-xl overflow-hidden relative`}
+          } bg-slate-900 rounded-2xl border border-slate-700/80 shadow-md overflow-hidden relative`}
         >
           <div ref={mapContainerRef} className="w-full h-full" />
 
           {/* Floating Navigation & Travel Mode Controls */}
           <div className="absolute top-3 left-3 right-3 z-[1000] flex flex-wrap items-center justify-between gap-2 pointer-events-none">
             {/* Travel Mode Selector */}
-            <div className="flex items-center bg-slate-900/90 backdrop-blur-md rounded-xl p-1 border border-slate-700 shadow-lg pointer-events-auto">
+            <div className="flex items-center bg-slate-900 rounded-xl p-1 border border-slate-700 shadow-md pointer-events-auto">
               <button
                 type="button"
                 onClick={() => setTravelMode('DRIVING')}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1.5 transition-all ${
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1.5 transition-colors ${
                   travelMode === 'DRIVING'
                     ? 'bg-blue-600 text-white shadow-sm'
                     : 'text-slate-400 hover:text-white'
@@ -863,7 +863,7 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
               <button
                 type="button"
                 onClick={() => setTravelMode('WALKING')}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1.5 transition-all ${
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1.5 transition-colors ${
                   travelMode === 'WALKING'
                     ? 'bg-emerald-600 text-white shadow-sm'
                     : 'text-slate-400 hover:text-white'
@@ -876,7 +876,7 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
               <button
                 type="button"
                 onClick={() => setTravelMode('BICYCLING')}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1.5 transition-all ${
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1.5 transition-colors ${
                   travelMode === 'BICYCLING'
                     ? 'bg-amber-600 text-white shadow-sm'
                     : 'text-slate-400 hover:text-white'
@@ -889,12 +889,12 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
             </div>
 
             {/* Right Tools Group: Layer Switcher, Locate Me, Fit Bounds, Maximize, Turns */}
-            <div className="flex items-center gap-1.5 bg-slate-900/90 backdrop-blur-md rounded-xl p-1 border border-slate-700 shadow-lg pointer-events-auto">
+            <div className="flex items-center gap-1.5 bg-slate-900 rounded-xl p-1 border border-slate-700 shadow-md pointer-events-auto">
               {/* Tile Mode Switcher */}
               <button
                 type="button"
                 onClick={() => switchTileLayer(mapMode === 'streets' ? 'satellite' : 'streets')}
-                className="px-2.5 py-1 rounded-lg text-[11px] font-black flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 transition-all cursor-pointer"
+                className="px-2.5 py-1 rounded-lg text-[11px] font-black flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors cursor-pointer"
                 title={mapMode === 'streets' ? 'Switch to Google Satellite Hybrid' : 'Switch to Google Roadmap'}
               >
                 <Layers className="w-3.5 h-3.5 text-blue-400" />
@@ -906,17 +906,17 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
                 type="button"
                 onClick={() => requestLocation(true)}
                 disabled={gpsLoading}
-                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-blue-400 hover:text-blue-300 transition-all cursor-pointer"
+                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-blue-400 hover:text-blue-300 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 title="મારું GPS લોકેશન (Locate Me)"
               >
-                <Compass className={`w-3.5 h-3.5 ${gpsLoading ? 'animate-spin' : ''}`} />
+                <Compass className={`w-3.5 h-3.5 ${gpsLoading ? 'motion-safe:animate-spin' : ''}`} />
               </button>
 
               {/* Fit Route */}
               <button
                 type="button"
                 onClick={handleFitRoute}
-                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-400 hover:text-emerald-300 transition-all cursor-pointer"
+                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-400 hover:text-emerald-300 transition-colors cursor-pointer"
                 title="આખો રૂટ ફિટ કરો (Fit Route)"
               >
                 <Navigation className="w-3.5 h-3.5" />
@@ -926,7 +926,7 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
               <button
                 type="button"
                 onClick={handleToggleMaximize}
-                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-400 hover:text-amber-300 transition-all cursor-pointer"
+                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-400 hover:text-amber-300 transition-colors cursor-pointer"
                 title={isMaximized ? 'સામાન્ય કદ' : 'મોટો નકશો'}
               >
                 {isMaximized ? <Minimize className="w-3.5 h-3.5" /> : <Maximize className="w-3.5 h-3.5" />}
@@ -937,7 +937,7 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowTurnByTurn(!showTurnByTurn)}
-                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all ${
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors ${
                     showTurnByTurn
                       ? 'bg-blue-600 text-white border-blue-500 shadow-blue-600/30'
                       : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
@@ -952,18 +952,18 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
 
           {/* Calculating Loading Overlay */}
           {isComputingRoute && (
-            <div className="absolute inset-x-4 top-16 z-[1000] p-3 rounded-xl bg-slate-900/90 text-white backdrop-blur-md border border-slate-700 shadow-xl flex items-center justify-between text-xs font-bold animate-pulse">
+            <div className="absolute inset-x-4 top-16 z-[1000] p-3 rounded-xl bg-slate-900 text-white border border-slate-700 shadow-md flex items-center justify-between text-xs font-bold motion-safe:animate-pulse">
               <div className="flex items-center gap-2">
-                <RefreshCw className="w-4 h-4 text-blue-400 animate-spin" />
-                <span>Calculating real road route with Google Routes API...</span>
+                <RefreshCw className="w-4 h-4 text-blue-400 motion-safe:animate-spin" />
+                <span>Calculating real road route with Google Routes API…</span>
               </div>
-              <span className="text-[10px] text-emerald-400 font-mono">Real-Road Geometry</span>
+              <span className="text-[10px] text-emerald-400 font-semibold">Real-Road Geometry</span>
             </div>
           )}
 
           {/* Routing Error Notice */}
           {routingError && (
-            <div className="absolute inset-x-4 top-16 z-[1000] p-3 rounded-xl bg-red-950/95 text-red-200 backdrop-blur-md border border-red-700/80 shadow-xl flex items-center justify-between gap-2.5 text-xs font-bold">
+            <div className="absolute inset-x-4 top-16 z-[1000] p-3 rounded-xl bg-red-950 text-red-200 border border-red-700/80 shadow-md flex items-center justify-between gap-2.5 text-xs font-bold">
               <div className="flex items-center gap-2.5 min-w-0">
                 <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
                 <div className="flex-1">
@@ -1024,7 +1024,7 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
                     });
                   }
                 }}
-                className="px-2.5 py-1 rounded-lg bg-red-700 hover:bg-red-600 text-white text-[11px] font-bold shrink-0 shadow active:scale-95 transition-all flex items-center gap-1"
+                className="px-2.5 py-1 rounded-lg bg-red-700 hover:bg-red-600 text-white text-[11px] font-bold shrink-0 shadow-sm active:scale-95 transition-colors flex items-center gap-1"
               >
                 <RefreshCw className="w-3 h-3" />
                 <span>Retry</span>
@@ -1034,7 +1034,7 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
 
           {/* Turn-by-Turn Navigation Overlay Panel */}
           {showTurnByTurn && roadRouteResult && (
-            <div className="absolute top-16 right-3 bottom-14 w-80 max-w-[85%] z-[1000] bg-slate-900/95 backdrop-blur-md text-white rounded-2xl border border-slate-700 shadow-2xl flex flex-col overflow-hidden animate-in fade-in slide-in-from-right-4 duration-200">
+            <div className="absolute top-16 right-3 bottom-14 w-80 max-w-[85%] z-[1000] bg-slate-900 text-white rounded-2xl border border-slate-700 shadow-md flex flex-col overflow-hidden animate-in fade-in slide-in-from-right-4 duration-200">
               <div className="p-3 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
                 <div className="flex items-center gap-2">
                   <Compass className="w-4 h-4 text-blue-400" />
@@ -1050,8 +1050,8 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
               </div>
 
               <div className="p-2.5 bg-slate-800/60 border-b border-slate-800 flex items-center justify-between text-[11px] font-bold">
-                <span className="text-emerald-400">🛣️ {roadRouteResult.distanceFormatted}</span>
-                <span className="text-amber-300">⏱️ {roadRouteResult.durationFormatted}</span>
+                <span className="text-emerald-400">Road: {roadRouteResult.distanceFormatted}</span>
+                <span className="text-amber-300">Time: {roadRouteResult.durationFormatted}</span>
                 <span className="text-slate-400 capitalize">{roadRouteResult.travelMode.toLowerCase()}</span>
               </div>
 
@@ -1081,7 +1081,7 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
           )}
 
           {/* Map Marker Legend */}
-          <div className="absolute bottom-3 left-3 z-[1000] bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-200 shadow-md text-[11px] font-bold text-slate-700 flex items-center gap-2">
+          <div className="absolute bottom-3 left-3 z-[1000] bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-md text-[11px] font-bold text-slate-700 flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-blue-600"></span> Start
             <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Pending Stop
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Delivered
@@ -1109,7 +1109,7 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
               return (
                 <div
                   key={p.id}
-                  className={`p-3.5 rounded-2xl border transition-all ${
+                  className={`p-3.5 rounded-2xl border transition-colors ${
                     isDelivered
                       ? 'bg-emerald-50/60 border-emerald-200'
                       : 'bg-white border-slate-200 hover:border-blue-300 shadow-xs'
@@ -1183,9 +1183,9 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
                           <span className="text-emerald-700 font-bold">
                             +{formatDistanceString(stop.distanceFromPreviousKm)}
                           </span>
-                          <span>•</span>
+                          <span className="text-slate-300">/</span>
                           <span>Cumul: {formatDistanceString(stop.cumulativeDistanceKm)}</span>
-                          <span>•</span>
+                          <span className="text-slate-300">/</span>
                           <span>~{stop.estimatedMinutes} mins</span>
                         </div>
                       </div>
@@ -1236,7 +1236,7 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
                         setPodPhotoBase64(null);
                         setPodNotes('');
                       }}
-                      className={`px-3 py-1 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer ${
+                      className={`px-3 py-1 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer ${
                         isDelivered
                           ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
                           : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs'
@@ -1255,8 +1255,8 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
 
       {/* 4. e-POD MODAL (OPTION B: WITHOUT SIGNATURE) */}
       {activePodStop && (
-        <div className="fixed inset-0 z-[9999] bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-5 space-y-4 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-[9999] bg-slate-900/70 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-5 space-y-4 shadow-lg border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
@@ -1264,7 +1264,7 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
                 </div>
                 <div>
                   <h3 className="font-extrabold text-slate-900 text-sm">Digital Proof of Delivery (e-POD)</h3>
-                  <p className="text-[10px] text-slate-400 font-mono">No customer signature required</p>
+                  <p className="text-[10px] text-slate-500">No customer signature required</p>
                 </div>
               </div>
               <button
@@ -1295,7 +1295,7 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
                     key={st.id}
                     type="button"
                     onClick={() => setPodStatus(st.id)}
-                    className={`py-2 px-1 rounded-xl text-xs font-bold transition-all text-center cursor-pointer ${
+                    className={`py-2 px-1 rounded-xl text-xs font-bold transition-colors text-center cursor-pointer ${
                       podStatus === st.id
                         ? `${st.color} shadow-xs scale-102`
                         : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -1337,10 +1337,11 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
                 <button
                   type="button"
                   onClick={() => cameraInputRef.current?.click()}
-                  className="w-full py-6 rounded-2xl border-2 border-dashed border-slate-300 hover:border-emerald-500 bg-slate-50 hover:bg-emerald-50/40 text-slate-600 hover:text-emerald-700 flex flex-col items-center justify-center gap-2 transition-all cursor-pointer"
+                  className="w-full py-6 rounded-2xl border-2 border-dashed border-slate-300 hover:border-emerald-500 bg-slate-50 hover:bg-emerald-50/40 text-slate-600 hover:text-emerald-700 flex flex-col items-center justify-center gap-2 transition-colors cursor-pointer whitespace-nowrap"
+                  aria-label="Take delivery photo"
                 >
                   <Camera className="w-7 h-7 text-emerald-600" />
-                  <span className="text-xs font-bold">Tap to Take Delivery Photo</span>
+                  <span className="text-xs font-bold whitespace-nowrap">Tap to Take Delivery Photo</span>
                   <span className="text-[10px] text-slate-400">Opens phone camera directly</span>
                 </button>
               )}
@@ -1353,7 +1354,7 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
                 type="text"
                 value={podNotes}
                 onChange={(e) => setPodNotes(e.target.value)}
-                placeholder="e.g. Handed to assistant, Cash received ₹500..."
+                placeholder="e.g. Handed to assistant, Cash received ₹500…"
                 className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500"
               />
             </div>
@@ -1384,9 +1385,9 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
                 type="button"
                 onClick={handleSubmitPOD}
                 disabled={isSubmittingPod}
-                className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs shadow-md transition-all flex items-center justify-center gap-1.5"
+                className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs shadow-sm transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isSubmittingPod ? 'Saving...' : 'Save e-POD Proof'}
+                {isSubmittingPod ? 'Saving…' : 'Save e-POD Proof'}
               </button>
             </div>
 

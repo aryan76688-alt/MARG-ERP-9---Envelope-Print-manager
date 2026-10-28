@@ -230,7 +230,7 @@ export const ImportExcel: React.FC<ImportExcelProps> = ({ onNavigate }) => {
       </div>
 
       {/* Full Database Export & Import Banner */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-4 rounded-2xl shadow-sm border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="bg-slate-900 text-white p-4 rounded-2xl shadow-sm border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-indigo-300 shrink-0 shadow-inner">
             <Database className="w-5 h-5 text-indigo-400" />
@@ -238,7 +238,7 @@ export const ImportExcel: React.FC<ImportExcelProps> = ({ onNavigate }) => {
           <div>
             <h3 className="font-extrabold text-sm text-white flex items-center gap-2 font-display">
               <span>Full Database Backup & Restore (ડેટાબેઝ બેકઅપ / રિસ્ટોર)</span>
-              <span className="text-[10px] font-mono font-black uppercase px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
                 .db / .json
               </span>
             </h3>
@@ -250,10 +250,10 @@ export const ImportExcel: React.FC<ImportExcelProps> = ({ onNavigate }) => {
         <button
           type="button"
           onClick={() => setDbModalOpen(true)}
-          className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white font-extrabold text-xs shadow-md shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0"
+          className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-extrabold text-xs shadow-sm transition-colors flex items-center justify-center gap-2 cursor-pointer shrink-0 whitespace-nowrap"
         >
           <Database className="w-4 h-4" />
-          <span>Export / Import Database (ડેટાબેઝ) →</span>
+          <span>Export / Import Database (ડેટાબેઝ)</span>
         </button>
       </div>
 
@@ -265,7 +265,7 @@ export const ImportExcel: React.FC<ImportExcelProps> = ({ onNavigate }) => {
               onDragOver={(e) => e.preventDefault()}
               onDrop={handleDrop}
               onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-blue-300 hover:border-blue-600 bg-blue-50/40 hover:bg-blue-50/80 rounded-2xl p-12 text-center cursor-pointer transition-all duration-200 flex flex-col items-center justify-center space-y-3 group shadow-sm"
+              className="border-2 border-dashed border-blue-300 hover:border-blue-600 bg-blue-50/40 hover:bg-blue-50/80 rounded-2xl p-12 text-center cursor-pointer transition-colors duration-200 flex flex-col items-center justify-center space-y-3 group shadow-sm"
             >
               <input
                 ref={fileInputRef}
@@ -274,18 +274,18 @@ export const ImportExcel: React.FC<ImportExcelProps> = ({ onNavigate }) => {
                 onChange={(e) => e.target.files && e.target.files[0] && handleFileChange(e.target.files[0])}
                 className="hidden"
               />
-              <div className="w-16 h-16 rounded-2xl bg-white border border-blue-200 text-blue-600 flex items-center justify-center shadow-md group-hover:scale-110 transition-transform">
+              <div className="w-16 h-16 rounded-2xl bg-white border border-blue-200 text-blue-600 flex items-center justify-center shadow-md group-hover:scale-105 motion-safe:transition-transform">
                 <UploadCloud className="w-8 h-8" />
               </div>
               <h3 className="text-base font-extrabold text-slate-900">
-                DRAG & DROP EXCEL FILE HERE
+                Drag and drop Excel file here
               </h3>
               <p className="text-xs text-slate-500 font-medium max-w-sm">
                 Supports Microsoft Excel (.xlsx, .xls) party lists exported directly from MARG ERP 9+. Formula-safe.
               </p>
               <button
                 type="button"
-                className="mt-2 px-5 py-2 rounded-lg bg-blue-600 text-white font-bold text-xs shadow-md shadow-blue-600/30 hover:bg-blue-500 transition-colors"
+                className="mt-2 px-5 py-2 rounded-lg bg-blue-600 text-white font-bold text-xs shadow-sm hover:bg-blue-500 transition-colors whitespace-nowrap"
               >
                 Choose File from Computer
               </button>
@@ -295,8 +295,8 @@ export const ImportExcel: React.FC<ImportExcelProps> = ({ onNavigate }) => {
           {/* Loading Indicator */}
           {analyzing && (
             <div className="p-8 bg-white rounded-xl border border-slate-200 text-center text-xs text-slate-600">
-              <RefreshCw className="w-6 h-6 text-blue-600 animate-spin mx-auto mb-2" />
-              <p className="font-bold">Analyzing Excel file & detecting columns...</p>
+              <RefreshCw className="w-6 h-6 text-blue-600 motion-safe:animate-spin mx-auto mb-2" />
+              <p className="font-bold">Analyzing Excel file & detecting columns…</p>
             </div>
           )}
 
@@ -320,7 +320,7 @@ export const ImportExcel: React.FC<ImportExcelProps> = ({ onNavigate }) => {
 
                 <div className="flex items-center gap-4">
                   <div className="text-right">
-                    <span className="text-[10px] font-extrabold text-slate-400 uppercase">Rows Found</span>
+                    <span className="text-xs font-semibold text-slate-500">Rows Found</span>
                     <p className="text-base font-black text-slate-900">{fileInfo.total_rows} Rows</p>
                   </div>
                   <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 font-extrabold text-xs">
@@ -381,7 +381,7 @@ export const ImportExcel: React.FC<ImportExcelProps> = ({ onNavigate }) => {
                           onChange={(e) => handleMappingChange(f.key, e.target.value)}
                           className="w-full px-2 py-1.5 bg-white border border-slate-300 rounded font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         >
-                          <option value="__none__">— Skip Field —</option>
+                          <option value="__none__">- Skip Field -</option>
                           {fileInfo.headers.map((h: string) => (
                             <option key={h} value={h}>
                               {h}
@@ -412,7 +412,7 @@ export const ImportExcel: React.FC<ImportExcelProps> = ({ onNavigate }) => {
                     {/* New Parties */}
                     <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200">
                       <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-extrabold text-emerald-800 uppercase tracking-wider">NEW PARTIES</span>
+                        <span className="text-xs font-bold text-emerald-800">New Parties</span>
                         <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                       </div>
                       <p className="text-2xl font-black text-emerald-950 mt-1">
@@ -428,7 +428,7 @@ export const ImportExcel: React.FC<ImportExcelProps> = ({ onNavigate }) => {
                         : 'bg-slate-50 border-slate-200'
                     }`}>
                       <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-extrabold text-amber-900 uppercase tracking-wider">ALREADY EXISTS</span>
+                        <span className="text-xs font-bold text-amber-900">Already Exists</span>
                         <AlertTriangle className="w-4 h-4 text-amber-600" />
                       </div>
                       <p className="text-2xl font-black text-amber-950 mt-1">
@@ -440,7 +440,7 @@ export const ImportExcel: React.FC<ImportExcelProps> = ({ onNavigate }) => {
                     {/* Warnings */}
                     <div className="p-3.5 rounded-xl bg-yellow-50 border border-yellow-200">
                       <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-extrabold text-yellow-800 uppercase tracking-wider">WARNINGS</span>
+                        <span className="text-xs font-bold text-yellow-800">Warnings</span>
                         <AlertTriangle className="w-4 h-4 text-yellow-600" />
                       </div>
                       <p className="text-2xl font-black text-yellow-950 mt-1">
@@ -452,7 +452,7 @@ export const ImportExcel: React.FC<ImportExcelProps> = ({ onNavigate }) => {
                     {/* Errors */}
                     <div className="p-3.5 rounded-xl bg-red-50 border border-red-200">
                       <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-extrabold text-red-800 uppercase tracking-wider">ERRORS</span>
+                        <span className="text-xs font-bold text-red-800">Errors</span>
                         <XCircle className="w-4 h-4 text-red-600" />
                       </div>
                       <p className="text-2xl font-black text-red-950 mt-1">
@@ -466,7 +466,7 @@ export const ImportExcel: React.FC<ImportExcelProps> = ({ onNavigate }) => {
                   {(validation.already_exists_count || 0) > 0 && (
                     <div className="bg-amber-50 border-2 border-amber-400 rounded-xl p-4 shadow-sm space-y-3">
                       <div className="flex items-center gap-2 text-amber-950 font-black text-sm">
-                        <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 animate-bounce" />
+                        <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 motion-safe:animate-pulse" />
                         <span>Notice: {validation.already_exists_count} parties already exist in your database!</span>
                       </div>
                       <p className="text-xs text-amber-900 leading-relaxed font-medium">
@@ -474,13 +474,13 @@ export const ImportExcel: React.FC<ImportExcelProps> = ({ onNavigate }) => {
                       </p>
 
                       <div className="pt-1">
-                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-2 block">
+                        <span className="text-xs font-bold text-slate-600 mb-2 block">
                           Duplicate Handling Action:
                         </span>
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                           <label
                             onClick={() => setDuplicateAction('skip')}
-                            className={`p-3 rounded-lg border-2 cursor-pointer flex flex-col justify-between transition-all ${
+                            className={`p-3 rounded-lg border-2 cursor-pointer flex flex-col justify-between transition-colors ${
                               duplicateAction === 'skip'
                                 ? 'bg-amber-100/80 border-amber-600 shadow-sm ring-1 ring-amber-600'
                                 : 'bg-white border-slate-200 hover:border-amber-300'
@@ -503,7 +503,7 @@ export const ImportExcel: React.FC<ImportExcelProps> = ({ onNavigate }) => {
 
                           <label
                             onClick={() => setDuplicateAction('update')}
-                            className={`p-3 rounded-lg border-2 cursor-pointer flex flex-col justify-between transition-all ${
+                            className={`p-3 rounded-lg border-2 cursor-pointer flex flex-col justify-between transition-colors ${
                               duplicateAction === 'update'
                                 ? 'bg-blue-50 border-blue-600 shadow-sm ring-1 ring-blue-600'
                                 : 'bg-white border-slate-200 hover:border-blue-300'
@@ -526,7 +526,7 @@ export const ImportExcel: React.FC<ImportExcelProps> = ({ onNavigate }) => {
 
                           <label
                             onClick={() => setDuplicateAction('allow')}
-                            className={`p-3 rounded-lg border-2 cursor-pointer flex flex-col justify-between transition-all ${
+                            className={`p-3 rounded-lg border-2 cursor-pointer flex flex-col justify-between transition-colors ${
                               duplicateAction === 'allow'
                                 ? 'bg-slate-100 border-slate-700 shadow-sm ring-1 ring-slate-700'
                                 : 'bg-white border-slate-200 hover:border-slate-400'
@@ -570,7 +570,7 @@ export const ImportExcel: React.FC<ImportExcelProps> = ({ onNavigate }) => {
                     {showPreviewRows && (
                       <div className="max-h-64 overflow-y-auto">
                         <table className="w-full text-left">
-                          <thead className="bg-slate-100 text-slate-600 font-extrabold text-[10px] uppercase sticky top-0 border-b border-slate-200">
+                          <thead className="bg-slate-100 text-slate-700 font-bold text-xs sticky top-0 border-b border-slate-200">
                             <tr>
                               <th className="px-3 py-2 w-10">#</th>
                               <th className="px-4 py-2">Party Name</th>
@@ -587,14 +587,14 @@ export const ImportExcel: React.FC<ImportExcelProps> = ({ onNavigate }) => {
                               validation.all_preview_rows.slice(0, 50).map((r, idx) => (
                                 <tr key={idx} className="hover:bg-slate-50">
                                   <td className="px-3 py-2 text-slate-400 font-bold">{r.row_index != null ? r.row_index + 1 : idx + 1}</td>
-                                  <td className="px-4 py-2 font-bold text-slate-900">{r.party_name || '—'}</td>
-                                  <td className="px-3 py-2 font-semibold text-blue-700">{r.route || '—'}</td>
+                                  <td className="px-4 py-2 font-bold text-slate-900">{r.party_name || '-'}</td>
+                                  <td className="px-3 py-2 font-semibold text-blue-700">{r.route || '-'}</td>
                                   <td className="px-3 py-2 text-slate-600 max-w-[240px] truncate" title={[r.address, r.address_line_2, r.address_line_3].filter(Boolean).join(', ')}>
-                                    {[r.address, r.address_line_2, r.address_line_3].filter(Boolean).join(', ') || '—'}
+                                    {[r.address, r.address_line_2, r.address_line_3].filter(Boolean).join(', ') || '-'}
                                   </td>
-                                  <td className="px-3 py-2 text-slate-700">{r.city || '—'}</td>
-                                  <td className="px-3 py-2 text-slate-600">{r.state || '—'}</td>
-                                  <td className="px-3 py-2 font-mono text-slate-600">{r.mobile_no || '—'}</td>
+                                  <td className="px-3 py-2 text-slate-700">{r.city || '-'}</td>
+                                  <td className="px-3 py-2 text-slate-600">{r.state || '-'}</td>
+                                  <td className="px-3 py-2 font-mono text-slate-600">{r.mobile_no || '-'}</td>
                                   <td className="px-4 py-2">
                                     {r.is_already_exists ? (
                                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-300">
@@ -673,19 +673,19 @@ export const ImportExcel: React.FC<ImportExcelProps> = ({ onNavigate }) => {
                       </div>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 font-semibold text-slate-800">
                         <div className="p-2.5 bg-white rounded-lg border border-emerald-200 shadow-sm">
-                          <span className="text-[10px] text-slate-500 block uppercase">Imported Parties</span>
+                          <span className="text-[11px] text-slate-500 block font-bold">Imported Parties</span>
                           <strong className="text-emerald-700 text-base">{importSummary.imported}</strong>
                         </div>
                         <div className="p-2.5 bg-white rounded-lg border border-amber-200 shadow-sm">
-                          <span className="text-[10px] text-amber-700 block uppercase">Skipped (Already Exists)</span>
+                          <span className="text-[11px] text-amber-700 block font-bold">Skipped (Already Exists)</span>
                           <strong className="text-amber-800 text-base">{importSummary.skipped}</strong>
                         </div>
                         <div className="p-2.5 bg-white rounded-lg border border-slate-200 shadow-sm">
-                          <span className="text-[10px] text-slate-500 block uppercase">Duplicates Allowed</span>
+                          <span className="text-[11px] text-slate-500 block font-bold">Duplicates Allowed</span>
                           <strong className="text-slate-700 text-base">{importSummary.duplicates}</strong>
                         </div>
                         <div className="p-2.5 bg-white rounded-lg border border-red-200 shadow-sm">
-                          <span className="text-[10px] text-red-500 block uppercase">Errors</span>
+                          <span className="text-[11px] text-red-500 block font-bold">Errors</span>
                           <strong className="text-red-600 text-base">{importSummary.errors}</strong>
                         </div>
                       </div>
@@ -697,7 +697,7 @@ export const ImportExcel: React.FC<ImportExcelProps> = ({ onNavigate }) => {
                             onClick={() => setShowSkippedDetails(!showSkippedDetails)}
                             className="flex items-center justify-between cursor-pointer text-amber-900 font-bold"
                           >
-                            <span>ℹ️ Notice: {importSummary.skipped} already existing parties were skipped (Vyapar protection)</span>
+                            <span>Notice: {importSummary.skipped} already existing parties were skipped (Vyapar protection)</span>
                             <span className="text-blue-600 text-[11px] underline">
                               {showSkippedDetails ? 'Hide List' : 'View Skipped Parties'}
                             </span>
@@ -709,7 +709,7 @@ export const ImportExcel: React.FC<ImportExcelProps> = ({ onNavigate }) => {
                                   <strong className="text-slate-800">
                                     {typeof pName === 'object' ? pName.party_name : pName}
                                   </strong>
-                                  {typeof pName === 'object' && pName.reason ? ` — ${pName.reason}` : ''}
+                                  {typeof pName === 'object' && pName.reason ? ` - ${pName.reason}` : ''}
                                 </li>
                               ))}
                             </ul>
@@ -720,7 +720,7 @@ export const ImportExcel: React.FC<ImportExcelProps> = ({ onNavigate }) => {
                       {/* Google Gujarati Translation Status Banner */}
                       <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between text-xs">
                         <div className="flex items-center gap-2 text-blue-900 font-bold">
-                          <Languages className="w-4 h-4 text-blue-600 animate-spin" />
+                          <Languages className="w-4 h-4 text-blue-600 motion-safe:animate-spin" />
                           <span>Google Gujarati Translation: Automatically running in the background for all imported parties.</span>
                         </div>
                         <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded font-black text-[10px]">
@@ -731,15 +731,15 @@ export const ImportExcel: React.FC<ImportExcelProps> = ({ onNavigate }) => {
                       <div className="pt-2 flex items-center gap-3">
                         <button
                           onClick={() => onNavigate('parties')}
-                          className="px-5 py-2 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-500 shadow-md"
+                          className="px-5 py-2 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-500 shadow-sm whitespace-nowrap"
                         >
-                          View Parties List &rarr;
+                          View Parties List
                         </button>
                         <button
                           onClick={() => onNavigate('print')}
-                          className="px-5 py-2 rounded-lg bg-emerald-600 text-white font-bold hover:bg-emerald-500 shadow-md"
+                          className="px-5 py-2 rounded-lg bg-emerald-600 text-white font-bold hover:bg-emerald-500 shadow-sm whitespace-nowrap"
                         >
-                          Go to Print Envelope &rarr;
+                          Go to Print Envelope
                         </button>
                       </div>
                     </div>
@@ -764,7 +764,7 @@ export const ImportExcel: React.FC<ImportExcelProps> = ({ onNavigate }) => {
 
           <div className="overflow-x-auto">
             <table className="w-full text-left">
-              <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200 uppercase tracking-wider text-[10px]">
+              <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200 text-xs">
                 <tr>
                   <th className="px-5 py-3">Date & Time</th>
                   <th className="px-5 py-3">Filename</th>
@@ -778,7 +778,7 @@ export const ImportExcel: React.FC<ImportExcelProps> = ({ onNavigate }) => {
                 {loadingHistory ? (
                   <tr>
                     <td colSpan={6} className="px-5 py-8 text-center text-slate-400">
-                      Loading history...
+                      Loading history…
                     </td>
                   </tr>
                 ) : historyList.length > 0 ? (

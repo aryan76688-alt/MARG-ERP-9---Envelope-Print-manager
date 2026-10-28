@@ -89,7 +89,7 @@ export const Users: React.FC = () => {
           <p className="text-sm text-slate-500">Manage access, roles, and permissions.</p>
         </div>
         {!showForm && (
-          <button onClick={() => { setEditingUser(null); setShowForm(true); }} className="btn-primary">
+          <button onClick={() => { setEditingUser(null); setShowForm(true); }} className="btn-primary focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none active:scale-95">
             <Plus className="w-4 h-4" />
             <span>Add User</span>
           </button>
@@ -144,10 +144,10 @@ export const Users: React.FC = () => {
             </div>
 
             <div className="md:col-span-2 flex justify-end gap-2.5 mt-4 pt-4 border-t border-slate-100">
-              <button type="button" onClick={() => setShowForm(false)} className="btn-secondary">Cancel</button>
-              <button type="submit" disabled={saveUserMutation.isPending} className="btn-primary">
+              <button type="button" onClick={() => setShowForm(false)} className="btn-secondary focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none active:scale-95">Cancel</button>
+              <button type="submit" disabled={saveUserMutation.isPending} className="btn-primary focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none active:scale-95 disabled:opacity-50">
                 <Check className="w-4 h-4" />
-                <span>{saveUserMutation.isPending ? 'Saving...' : 'Save User'}</span>
+                <span>{saveUserMutation.isPending ? 'Saving…' : 'Save User'}</span>
               </button>
             </div>
             
@@ -197,7 +197,7 @@ export const Users: React.FC = () => {
                           <span>{u.full_name}</span>
                           {u.google_id && (
                             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200" title="Google OAuth Linked">
-                              <svg className="w-2.5 h-2.5" viewBox="0 0 24 24">
+                              <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" aria-hidden="true">
                                 <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"/>
                                 <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
                                 <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.98 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/>
@@ -229,7 +229,7 @@ export const Users: React.FC = () => {
                     <div className="flex items-center justify-end gap-1.5">
                       <button 
                         onClick={() => { setEditingUser(u); setShowForm(true); }} 
-                        className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-slate-100 transition-colors" 
+                        className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-slate-100 transition-colors focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none active:scale-95" 
                         title="Edit User"
                         aria-label={`Edit user ${u.username}`}
                       >
@@ -237,7 +237,7 @@ export const Users: React.FC = () => {
                       </button>
                       <button 
                         onClick={() => deleteUserMutation.mutate(u.id)} 
-                        className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors" 
+                        className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none active:scale-95 disabled:opacity-50" 
                         title="Delete User" 
                         disabled={deleteUserMutation.isPending}
                         aria-label={`Delete user ${u.username}`}

@@ -35,7 +35,9 @@ import {
   Check,
   ChevronDown,
   CheckCircle2,
-  Share2
+  Share2,
+  Sparkles,
+  Lightbulb
 } from 'lucide-react';
 import { VoiceSearchInput } from '../components/VoiceSearchInput';
 import { ShareDailyRouteModal } from '../components/ShareDailyRouteModal';
@@ -546,9 +548,9 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
             <button
               type="button"
               onClick={() => setViewMode('cards')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-colors cursor-pointer ${
                 viewMode === 'cards'
-                  ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/25'
+                  ? 'bg-blue-600 text-white shadow-sm'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
               title="Pop Button Cards View (Quick Tap & Mobile Friendly)"
@@ -559,9 +561,9 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
             <button
               type="button"
               onClick={() => setViewMode('table')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-colors cursor-pointer ${
                 viewMode === 'table'
-                  ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/25'
+                  ? 'bg-blue-600 text-white shadow-sm'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
               title="Classic Spreadsheet Table View"
@@ -574,7 +576,7 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
           <button
             type="button"
             onClick={() => onNavigate('nearby')}
-            className="btn-secondary text-blue-700 bg-blue-50/80 border-blue-200 hover:bg-blue-100 hover:border-blue-300 transition-all font-bold"
+            className="btn-secondary text-blue-700 bg-blue-50/80 border-blue-200 hover:bg-blue-100 hover:border-blue-300 transition-colors font-bold"
             title="View Nearest Parties by GPS Proximity"
           >
             <Compass className="w-4 h-4 text-blue-600" />
@@ -584,7 +586,7 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
           <button
             type="button"
             onClick={() => onNavigate('map')}
-            className="btn-secondary text-emerald-700 bg-emerald-50/80 border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300 transition-all font-bold"
+            className="btn-secondary text-emerald-700 bg-emerald-50/80 border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300 transition-colors font-bold"
             title="Open Interactive Map with All Pinned Parties"
           >
             <MapPin className="w-4 h-4 text-emerald-600" />
@@ -594,7 +596,7 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
           <button
             type="button"
             onClick={() => setRouteManagerOpen(true)}
-            className="btn-secondary text-indigo-700 bg-indigo-50/80 border-indigo-200 hover:bg-indigo-100 hover:border-indigo-300 transition-all font-bold"
+            className="btn-secondary text-indigo-700 bg-indigo-50/80 border-indigo-200 hover:bg-indigo-100 hover:border-indigo-300 transition-colors font-bold"
             title="3-Route System (Max 3 routes/party), Weekdays & Direct Google Sheets Sync"
           >
             <MapPin className="w-4 h-4 text-indigo-600" />
@@ -617,8 +619,8 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
             className="btn-secondary text-blue-700 bg-blue-50/80 border-blue-200 hover:bg-blue-100 font-bold"
             title="1-Click Email Master Parties Directory to Management via Gmail"
           >
-            <Mail className={`w-4 h-4 ${emailSending ? 'animate-bounce text-blue-600' : 'text-blue-600'}`} />
-            <span>{emailSending ? 'Emailing...' : 'Email to Gmail'}</span>
+            <Mail className={`w-4 h-4 ${emailSending ? 'motion-safe:animate-pulse text-blue-600' : 'text-blue-600'}`} />
+            <span>{emailSending ? 'Emailing…' : 'Email to Gmail'}</span>
           </button>
 
           <button
@@ -627,8 +629,8 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
             className="btn-secondary text-emerald-800 bg-emerald-50 border-emerald-300 hover:bg-emerald-100 font-bold"
             title="1-Click Synchronize all parties into Shreeji Healthcare Order Book"
           >
-            <RefreshCw className={`w-4 h-4 text-emerald-600 ${syncingOrderBook ? 'animate-spin' : ''}`} />
-            <span>{syncingOrderBook ? 'Syncing to Order Book...' : 'Sync to Order Book'}</span>
+            <RefreshCw className={`w-4 h-4 text-emerald-600 ${syncingOrderBook ? 'motion-safe:animate-spin' : ''}`} />
+            <span>{syncingOrderBook ? 'Syncing to Order Book…' : 'Sync to Order Book'}</span>
           </button>
 
           <button
@@ -690,7 +692,7 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
         {/* Top Sub-Row: Location Filter Segmented Control */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-slate-100">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+            <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
               <MapPin className="w-4 h-4 text-blue-600" />
               <span>Location Status:</span>
             </span>
@@ -700,7 +702,7 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
             <button
               type="button"
               onClick={() => { setLocationFilter('all'); setPage(1); }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-black transition-colors flex items-center gap-2 cursor-pointer ${
                 locationFilter === 'all'
                   ? 'bg-white text-slate-900 shadow-sm border border-slate-200/80 ring-1 ring-slate-900/5'
                   : 'text-slate-600 hover:text-slate-900'
@@ -717,14 +719,15 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
             <button
               type="button"
               onClick={() => { setLocationFilter('set'); setPage(1); }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-black transition-colors flex items-center gap-2 cursor-pointer ${
                 locationFilter === 'set'
-                  ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-500/25 ring-1 ring-emerald-500'
+                  ? 'bg-emerald-600 text-white shadow-sm ring-1 ring-emerald-500'
                   : 'text-slate-600 hover:text-emerald-700'
               }`}
             >
-              <span className={`w-2 h-2 rounded-full ${locationFilter === 'set' ? 'bg-white animate-pulse' : 'bg-emerald-500'}`}></span>
-              <span>📍 Location Set</span>
+              <span className={`w-2 h-2 rounded-full ${locationFilter === 'set' ? 'bg-white motion-safe:animate-pulse' : 'bg-emerald-500'}`}></span>
+              <MapPin className="w-3.5 h-3.5" />
+              <span>Location Set</span>
               <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
                 locationFilter === 'set' ? 'bg-emerald-800 text-emerald-100' : 'bg-emerald-100 text-emerald-800'
               }`}>
@@ -735,14 +738,15 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
             <button
               type="button"
               onClick={() => { setLocationFilter('not_set'); setPage(1); }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-black transition-colors flex items-center gap-2 cursor-pointer ${
                 locationFilter === 'not_set'
-                  ? 'bg-amber-600 text-white shadow-sm shadow-amber-500/25 ring-1 ring-amber-500'
+                  ? 'bg-amber-600 text-white shadow-sm ring-1 ring-amber-500'
                   : 'text-slate-600 hover:text-amber-700'
               }`}
             >
               <span className={`w-2 h-2 rounded-full ${locationFilter === 'not_set' ? 'bg-white' : 'bg-amber-500'}`}></span>
-              <span>⚠️ Not Set</span>
+              <AlertTriangle className="w-3.5 h-3.5" />
+              <span>Not Set</span>
               <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
                 locationFilter === 'not_set' ? 'bg-amber-800 text-amber-100' : 'bg-amber-100 text-amber-800'
               }`}>
@@ -792,7 +796,7 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
             </button>
 
             {routeDropdownOpen && (
-              <div className="absolute left-0 top-full mt-1.5 w-72 bg-white rounded-xl shadow-xl border border-slate-200 z-50 p-2 space-y-2 animate-in fade-in slide-in-from-top-1">
+              <div className="absolute left-0 top-full mt-1.5 w-72 bg-white rounded-xl shadow-md border border-slate-200 z-50 p-2 space-y-2 animate-in fade-in slide-in-from-top-1">
                 <div className="flex items-center justify-between pb-1 border-b border-slate-100">
                   <span className="text-xs font-black text-slate-800">Select Routes</span>
                   {selectedRoutes.length > 0 && (
@@ -816,7 +820,7 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
 
                 <div className="max-h-52 overflow-y-auto space-y-1">
                   {/* Standard Weekdays */}
-                  <div className="text-[10px] font-black uppercase text-slate-400 px-1 pt-1">Weekdays</div>
+                  <div className="text-[11px] font-semibold text-slate-500 px-1 pt-1">Weekdays</div>
                   {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
                     .filter(w => w.toLowerCase().includes(routeSearchQ.toLowerCase()))
                     .map((w) => {
@@ -840,7 +844,7 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
                   {/* Custom Routes */}
                   {existingRoutes.filter(r => !['MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY','SUNDAY'].includes(r.toUpperCase())).length > 0 && (
                     <>
-                      <div className="text-[10px] font-black uppercase text-slate-400 px-1 pt-1.5">Custom Routes</div>
+                      <div className="text-[11px] font-semibold text-slate-500 px-1 pt-1.5">Custom Routes</div>
                       {existingRoutes
                         .filter(r => !['MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY','SUNDAY'].includes(r.toUpperCase()))
                         .filter(r => r.toLowerCase().includes(routeSearchQ.toLowerCase()))
@@ -894,7 +898,7 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
             </button>
 
             {cityDropdownOpen && (
-              <div className="absolute left-0 top-full mt-1.5 w-72 bg-white rounded-xl shadow-xl border border-slate-200 z-50 p-2 space-y-2 animate-in fade-in slide-in-from-top-1">
+              <div className="absolute left-0 top-full mt-1.5 w-72 bg-white rounded-xl shadow-md border border-slate-200 z-50 p-2 space-y-2 animate-in fade-in slide-in-from-top-1">
                 <div className="flex items-center justify-between pb-1 border-b border-slate-100">
                   <span className="text-xs font-black text-slate-800">Select Cities</span>
                   {selectedCities.length > 0 && (
@@ -971,7 +975,7 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
               className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700 bg-white"
             >
               <option value="all">All Status</option>
-              <option value="new_10_days">✨ New Parties (Last 10 Days)</option>
+              <option value="new_10_days">New Parties (Last 10 Days)</option>
               <option value="active">Active Only</option>
               <option value="inactive">Inactive Only</option>
             </select>
@@ -1074,7 +1078,7 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
 
       {/* MARG ERP A-Z Quick Jump Alphabet Bar */}
       <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between gap-1.5 overflow-x-auto text-xs font-bold">
-        <span className="text-xs text-slate-500 font-bold uppercase tracking-wider px-2 shrink-0">
+        <span className="text-xs text-slate-500 font-bold px-2 shrink-0">
           A-Z Jump:
         </span>
         <div className="flex items-center gap-1.5 flex-1 overflow-x-auto py-0.5">
@@ -1084,9 +1088,9 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
               <button
                 key={letter}
                 onClick={() => handleLetterClick(letter)}
-                className={`min-w-[32px] h-8 px-2 flex items-center justify-center rounded-lg text-xs font-bold transition-all shrink-0 ${
+                className={`min-w-[32px] h-8 px-2 flex items-center justify-center rounded-lg text-xs font-bold transition-colors shrink-0 ${
                   isActive
-                    ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/30'
+                    ? 'bg-blue-600 text-white shadow-sm'
                     : 'text-slate-600 hover:bg-slate-100 hover:text-blue-600'
                 }`}
                 aria-label={`Filter by letter ${letter}`}
@@ -1117,7 +1121,7 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
                   setShareRouteModalOpen(true);
                 }
               }}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-md shadow-emerald-600/30 transition-all active:scale-95 cursor-pointer"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-sm transition-colors active:scale-95 cursor-pointer whitespace-nowrap"
               title="Create daily route and share link via WhatsApp/SMS to driver"
             >
               <Share2 className="w-3.5 h-3.5" />
@@ -1214,7 +1218,7 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
           <div className="flex items-center justify-between px-2 text-xs text-slate-500 font-semibold">
             <button
               onClick={handleSelectAll}
-              className="inline-flex items-center gap-1.5 hover:text-blue-600 transition-colors"
+              className="inline-flex items-center gap-1.5 whitespace-nowrap hover:text-blue-600 transition-colors"
             >
               {selectedIds.length > 0 && selectedIds.length === parties.length ? (
                 <CheckSquare className="w-4 h-4 text-blue-600" />
@@ -1229,8 +1233,8 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
           {loading ? (
             <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-500 shadow-sm">
               <div className="inline-flex items-center gap-2">
-                <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                <span className="font-bold text-sm">Loading parties from database...</span>
+                <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full motion-safe:animate-spin"></div>
+                <span className="font-bold text-sm">Loading parties from database…</span>
               </div>
             </div>
           ) : parties.length > 0 ? (
@@ -1240,11 +1244,11 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
                 return (
                   <div
                     key={p.id}
-                    className={`group bg-white rounded-2xl border transition-all duration-200 shadow-sm hover:shadow-md hover:border-blue-400 flex flex-col justify-between overflow-hidden relative ${
+                    className={`group bg-white rounded-2xl border transition-colors duration-200 shadow-sm hover:shadow-md hover:border-blue-400 flex flex-col justify-between overflow-hidden relative ${
                       isSelected
                         ? 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-50/20'
                         : isNewParty(p)
-                        ? 'border-emerald-400 ring-2 ring-emerald-400/25 bg-gradient-to-br from-emerald-50/40 via-white to-white'
+                        ? 'border-emerald-400 ring-2 ring-emerald-400/25 bg-emerald-50/30'
                         : 'border-slate-200'
                     }`}
                   >
@@ -1265,8 +1269,9 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
                                 {p.party_name.toLowerCase()}
                               </h3>
                               {isNewParty(p) && (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded-full shadow-xs">
-                                  ✨ NEW • નવી પાર્ટી
+                                <span className="inline-flex items-center gap-1 text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded-full">
+                                  <Sparkles className="w-2.5 h-2.5 text-emerald-600" />
+                                  <span>New Party • નવી પાર્ટી</span>
                                 </span>
                               )}
                               {!p.is_active && (
@@ -1367,14 +1372,14 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
                         {p.latitude && p.longitude ? (
                           <>
                             <div className="flex items-center gap-1 min-w-0">
-                              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+                              <span className="w-2 h-2 rounded-full bg-emerald-500 motion-safe:animate-pulse shrink-0"></span>
                               <span className="font-bold text-emerald-700 truncate">Pinned ({p.geofence_radius_meters || 75}m)</span>
                             </div>
                             <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end">
                               <button
                                 type="button"
                                 onClick={() => onNavigate('routes', { selectedParty: p })}
-                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-teal-600 hover:bg-teal-700 text-white font-extrabold text-[10px] shadow-sm transition-all"
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-teal-600 hover:bg-teal-700 text-white font-extrabold text-[10px] shadow-sm transition-colors"
                                 title="View Real Road Route in Route Optimizer"
                               >
                                 <Route className="w-2.5 h-2.5" />
@@ -1384,7 +1389,7 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
                                 href={`https://www.google.com/maps/dir/?api=1&destination=${p.latitude},${p.longitude}`}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[10px] shadow-sm transition-all"
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[10px] shadow-sm transition-colors"
                                 title="Go Directly in Google Maps"
                               >
                                 <ExternalLink className="w-2.5 h-2.5" />
@@ -1393,7 +1398,7 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
                               <button
                                 type="button"
                                 onClick={() => setMapPickerParty(p)}
-                                className="px-1.5 py-0.5 rounded bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-bold text-[10px] transition-all"
+                                className="px-1.5 py-0.5 rounded bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-bold text-[10px] transition-colors"
                                 title="Adjust Pin on Map"
                               >
                                 Pin
@@ -1401,7 +1406,7 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
                               <button
                                 type="button"
                                 onClick={() => handleUnsetSinglePartyLocation(p)}
-                                className="px-1.5 py-0.5 rounded bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-bold text-[10px] transition-all"
+                                className="px-1.5 py-0.5 rounded bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-bold text-[10px] transition-colors"
                                 title="Unset / Clear GPS Location"
                               >
                                 <MapPinOff className="w-2.5 h-2.5" />
@@ -1417,7 +1422,7 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
                             <button
                               type="button"
                               onClick={() => setMapPickerParty(p)}
-                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] shadow-sm transition-all"
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] shadow-sm transition-colors"
                               title="Set Exact Party Location on Map"
                             >
                               <MapPin className="w-2.5 h-2.5" />
@@ -1436,7 +1441,7 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
                           <>
                             <a
                               href={`tel:${p.mobile_no}`}
-                              className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-white hover:bg-emerald-50 text-emerald-600 border border-slate-200 hover:border-emerald-300 shadow-sm active:scale-95 transition-all"
+                              className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-white hover:bg-emerald-50 text-emerald-600 border border-slate-200 hover:border-emerald-300 shadow-sm active:scale-95 transition-colors"
                               title={`Call ${p.mobile_no}`}
                               aria-label={`Call ${p.mobile_no}`}
                             >
@@ -1448,7 +1453,7 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
                               )}`}
                               target="_blank"
                               rel="noreferrer"
-                              className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-white hover:bg-green-50 text-green-600 border border-slate-200 hover:border-green-300 shadow-sm active:scale-95 transition-all"
+                              className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-white hover:bg-green-50 text-green-600 border border-slate-200 hover:border-green-300 shadow-sm active:scale-95 transition-colors"
                               title={`WhatsApp ${p.mobile_no}`}
                               aria-label={`WhatsApp ${p.mobile_no}`}
                             >
@@ -1463,7 +1468,7 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
                       {/* Big Pop Print Envelope Button */}
                       <button
                         onClick={() => onNavigate('print', { selectedParty: p, deliveryRoute: p.route_1 || p.route })}
-                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 active:scale-95 text-white font-extrabold text-xs shadow-sm hover:shadow transition-all"
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-extrabold text-xs shadow-sm transition-colors"
                         title="Print envelope for this party"
                         aria-label={`Print envelope for ${p.party_name}`}
                       >
@@ -1486,7 +1491,7 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
           <div className="overflow-x-auto flex-1">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 text-slate-600 font-extrabold border-b border-slate-200 uppercase tracking-wider text-[10px]">
+              <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200 text-xs">
                 <tr>
                   <th className="px-4 py-3 w-10 text-center">
                     <button onClick={handleSelectAll} className="p-1">
@@ -1512,8 +1517,8 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
                   <tr>
                     <td colSpan={9} className="px-4 py-12 text-center text-slate-500">
                       <div className="inline-flex items-center gap-2">
-                        <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                        <span>Loading parties from database...</span>
+                        <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full motion-safe:animate-spin"></div>
+                        <span>Loading parties from database…</span>
                       </div>
                     </td>
                   </tr>
@@ -1542,8 +1547,9 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
                           <div className="flex items-center gap-2">
                             <span className="capitalize">{p.party_name.toLowerCase()}</span>
                             {isNewParty(p) && (
-                              <span className="text-[10px] bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded-full font-black shadow-xs">
-                                ✨ NEW
+                              <span className="inline-flex items-center gap-1 text-[11px] bg-emerald-50 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded-full font-semibold">
+                                <Sparkles className="w-2.5 h-2.5 text-emerald-600" />
+                                <span>New Party</span>
                               </span>
                             )}
                             {!p.is_active && (
@@ -1562,7 +1568,7 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
                               #{p.party_code}
                             </span>
                           ) : (
-                            <span className="text-slate-400">—</span>
+                            <span className="text-slate-400">-</span>
                           )}
                         </td>
                         <td className="px-4 py-3">
@@ -1594,19 +1600,19 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
                                   {p.route}
                                 </span>
                               ) : (
-                                <span className="text-slate-400 font-mono text-[11px] italic">—</span>
+                                <span className="text-slate-400 font-mono text-[11px] italic">-</span>
                               )
                             )}
                           </div>
                         </td>
                         <td className="px-4 py-3 font-medium text-slate-800 capitalize">
-                          {p.city ? p.city.toLowerCase() : '—'}
+                          {p.city ? p.city.toLowerCase() : '-'}
                         </td>
                         <td className="px-4 py-3 font-medium text-slate-600 capitalize">
-                          {p.state ? p.state.toLowerCase() : '—'}
+                          {p.state ? p.state.toLowerCase() : '-'}
                         </td>
                         <td className="px-4 py-3 font-mono text-slate-700">
-                          {p.mobile_no || '—'}
+                          {p.mobile_no || '-'}
                         </td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex items-center justify-end gap-1.5">
@@ -1786,8 +1792,8 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
 
       {/* Delete Confirmation Modal */}
       {deleteConfirmParty && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-xl shadow-xl border border-slate-200 max-w-md w-full p-6 text-xs">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-xl shadow-lg border border-slate-200 max-w-md w-full p-6 text-xs">
             <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto mb-4">
               <AlertTriangle className="w-6 h-6" />
             </div>
@@ -1806,7 +1812,7 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
               </button>
               <button
                 onClick={handleDelete}
-                className="px-5 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold shadow-md shadow-red-600/30"
+                className="px-5 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold shadow-sm"
               >
                 Delete Party
               </button>
@@ -1817,8 +1823,8 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
 
       {/* Bulk Delete Confirmation Modal */}
       {bulkDeleteModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-xl shadow-xl border border-slate-200 max-w-md w-full p-6 text-xs">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-xl shadow-lg border border-slate-200 max-w-md w-full p-6 text-xs">
             <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto mb-4">
               <AlertTriangle className="w-6 h-6" />
             </div>
@@ -1839,12 +1845,12 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
               <button
                 onClick={handleBulkDelete}
                 disabled={isDeleting}
-                className="flex items-center gap-1.5 px-5 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold shadow-md shadow-red-600/30 disabled:opacity-50"
+                className="flex items-center gap-1.5 px-5 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold shadow-sm disabled:opacity-50 whitespace-nowrap"
               >
                 {isDeleting ? (
                   <>
-                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    <span>Deleting...</span>
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full motion-safe:animate-spin"></div>
+                    <span>Deleting…</span>
                   </>
                 ) : (
                   <span>Yes, Delete Selected</span>
@@ -1857,8 +1863,8 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
 
       {/* Delete ALL Parties Confirmation Modal */}
       {deleteAllModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-xl shadow-2xl border border-rose-200 max-w-md w-full p-6 text-xs">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="bg-white rounded-xl shadow-lg border border-rose-200 max-w-md w-full p-6 text-xs">
             <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-3">
               <AlertOctagon className="w-6 h-6" />
             </div>
@@ -1871,7 +1877,7 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
 
             <div className="mb-4">
               <label className="block text-slate-700 font-semibold mb-1 text-xs">
-                To confirm, type <span className="font-mono font-bold text-rose-600">DELETE</span> below:
+                To confirm, type <span className="font-bold text-rose-600">DELETE</span> below:
               </label>
               <input
                 type="text"
@@ -1898,12 +1904,12 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
                 type="button"
                 onClick={handleDeleteAll}
                 disabled={isDeleting || deleteAllConfirmText.trim() !== 'DELETE'}
-                className="btn-danger"
+                className="btn-danger whitespace-nowrap"
               >
                 {isDeleting ? (
                   <>
-                    <div className="w-3.5 h-3.5 border-2 border-rose-700 border-t-transparent rounded-full animate-spin"></div>
-                    <span>Deleting...</span>
+                    <div className="w-3.5 h-3.5 border-2 border-rose-700 border-t-transparent rounded-full motion-safe:animate-spin"></div>
+                    <span>Deleting…</span>
                   </>
                 ) : (
                   <span>Delete All Parties</span>
@@ -1916,8 +1922,8 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
 
       {/* Bulk Route Assignment Modal */}
       {bulkRouteModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 max-w-md w-full p-6 text-xs">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-xl shadow-lg border border-slate-200 max-w-md w-full p-6 text-xs">
             <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center">
@@ -1950,15 +1956,15 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
                   value={bulkRouteName}
                   onChange={(e) => setBulkRouteName(e.target.value)}
                   placeholder="e.g. ROUTE 1, RING ROAD, MARKET, MODASA HWY"
-                  className="w-full px-3 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-xs uppercase"
+                  className="w-full px-3 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-xs"
                   autoFocus
                 />
               </div>
 
               {existingRoutes.length > 0 && (
                 <div>
-                  <span className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase tracking-wide">
-                    Existing Routes in System:
+                  <span className="block text-[11px] font-bold text-slate-600 mb-1.5">
+                    Existing routes in system:
                   </span>
                   <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto p-1.5 bg-slate-50 rounded-lg border border-slate-200">
                     {existingRoutes.map((r) => (
@@ -1966,7 +1972,7 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
                         key={r}
                         type="button"
                         onClick={() => setBulkRouteName(r)}
-                        className={`px-2.5 py-1 rounded text-[11px] font-bold transition-all ${
+                        className={`px-2.5 py-1 rounded text-[11px] font-bold transition-colors ${
                           bulkRouteName.toUpperCase() === r.toUpperCase()
                             ? 'bg-indigo-600 text-white shadow-sm'
                             : 'bg-white border border-slate-200 text-slate-700 hover:bg-indigo-50 hover:text-indigo-700'
@@ -1979,9 +1985,10 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
                 </div>
               )}
 
-              <p className="text-[11px] text-slate-500 bg-amber-50 border border-amber-200 p-2.5 rounded-lg">
-                💡 All <strong>{selectedIds.length}</strong> selected parties will have their delivery route updated immediately and pre-filled whenever printing envelopes.
-              </p>
+              <div className="flex items-start gap-1.5 text-[11px] text-slate-600 bg-amber-50 border border-amber-200 p-2.5 rounded-lg">
+                <Lightbulb className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                <span>All <strong>{selectedIds.length}</strong> selected parties will have their delivery route updated immediately and pre-filled whenever printing envelopes.</span>
+              </div>
             </div>
 
             <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
@@ -1997,12 +2004,12 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
                 type="button"
                 onClick={handleBulkAssignRoute}
                 disabled={isAssigningRoute || !bulkRouteName.trim()}
-                className="flex items-center gap-1.5 px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-black shadow-md shadow-indigo-600/30 disabled:opacity-50 transition-all"
+                className="flex items-center gap-1.5 px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-black shadow-sm disabled:opacity-50 transition-colors whitespace-nowrap"
               >
                 {isAssigningRoute ? (
                   <>
-                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    <span>Saving Route...</span>
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full motion-safe:animate-spin"></div>
+                    <span>Saving Route…</span>
                   </>
                 ) : (
                   <span>Assign Route to {selectedIds.length} Parties</span>

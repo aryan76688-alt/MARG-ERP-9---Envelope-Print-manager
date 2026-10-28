@@ -746,7 +746,7 @@ export const Settings: React.FC = () => {
             <button
               key={t.id}
               onClick={() => setActiveTab(t.id)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg whitespace-nowrap transition-all ${
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg whitespace-nowrap transition-colors ${
                 isActive
                   ? 'bg-blue-600 text-white shadow-sm'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
@@ -780,7 +780,7 @@ export const Settings: React.FC = () => {
                   value={sender.business_name}
                   onChange={(e) => setSender({ ...sender, business_name: e.target.value })}
                   placeholder="e.g. SHREEJI 7"
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 font-extrabold uppercase focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 font-extrabold focus:ring-2 focus:ring-blue-500"
                   required
                 />
               </div>
@@ -804,7 +804,7 @@ export const Settings: React.FC = () => {
                   value={sender.address}
                   onChange={(e) => setSender({ ...sender, address: e.target.value })}
                   placeholder="e.g. DAHEGAM"
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 font-semibold uppercase focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 font-semibold focus:ring-2 focus:ring-blue-500"
                   required
                 />
               </div>
@@ -816,7 +816,7 @@ export const Settings: React.FC = () => {
                   value={sender.city}
                   onChange={(e) => setSender({ ...sender, city: e.target.value })}
                   placeholder="e.g. DAHEGAM"
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 font-bold uppercase focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 font-bold focus:ring-2 focus:ring-blue-500"
                   required
                 />
               </div>
@@ -828,7 +828,7 @@ export const Settings: React.FC = () => {
                   value={sender.state}
                   onChange={(e) => setSender({ ...sender, state: e.target.value })}
                   placeholder="e.g. GUJARAT"
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 font-bold uppercase focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 font-bold focus:ring-2 focus:ring-blue-500"
                   required
                 />
               </div>
@@ -851,7 +851,7 @@ export const Settings: React.FC = () => {
                   value={sender.gst_no || ''}
                   onChange={(e) => setSender({ ...sender, gst_no: e.target.value })}
                   placeholder="e.g. 24AAACS1234F1Z5"
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono uppercase focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono focus:ring-2 focus:ring-blue-500"
                 />
               </div>
             </div>
@@ -940,13 +940,13 @@ export const Settings: React.FC = () => {
             </div>
 
             {/* Dual Brain Architecture Status Card */}
-            <div className="p-4 rounded-xl bg-gradient-to-r from-purple-950 via-slate-900 to-indigo-950 text-white border border-purple-500/30 space-y-3">
-              <div className="flex items-center justify-between border-b border-purple-500/30 pb-2.5">
+            <div className="p-4 rounded-xl bg-slate-900 text-white border border-slate-800 space-y-3 shadow-xs">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
                 <div className="flex items-center gap-2">
-                  <Brain className="w-5 h-5 text-purple-300" />
+                  <Brain className="w-5 h-5 text-indigo-400" />
                   <span className="font-extrabold text-sm tracking-wide">Dual-Brain AI Architecture</span>
                 </div>
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-emerald-950 text-emerald-300 border border-emerald-800">
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-800">
                   Fully Operational
                 </span>
               </div>
@@ -1117,7 +1117,7 @@ export const Settings: React.FC = () => {
                   <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
                   <span className="font-extrabold text-slate-900 text-sm">Google Sheets & 3-Route System Integration</span>
                 </div>
-                <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-300">
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
                   Google Sheets API v4
                 </span>
               </div>
@@ -1177,7 +1177,7 @@ export const Settings: React.FC = () => {
             {/* 1. IV Fluids List */}
             <div className="bg-slate-50/70 p-4 rounded-xl border border-slate-200 space-y-3">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                   <span>Available IV Fluids ({ivFluids.length})</span>
                 </label>
                 <span className="text-[11px] text-blue-700 bg-blue-100 px-2 py-0.5 rounded font-bold">
@@ -1218,12 +1218,12 @@ export const Settings: React.FC = () => {
                     }
                   }}
                   placeholder="Enter IV Fluid (e.g. D5, ISOLYTE, CIPRO)"
-                  className="flex-1 px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs font-bold uppercase bg-white"
+                  className="flex-1 px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs font-bold bg-white"
                 />
                 <button
                   type="button"
                   onClick={handleAddFluid}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-extrabold shadow-sm transition-all flex items-center gap-1.5"
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-sm transition-colors flex items-center gap-1.5"
                 >
                   <Plus className="w-4 h-4" />
                   <span>Add IV Fluid</span>
@@ -1234,7 +1234,7 @@ export const Settings: React.FC = () => {
             {/* 2. Fluid Volumes List (200ML permanently removed) */}
             <div className="bg-slate-50/70 p-4 rounded-xl border border-slate-200 space-y-3">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                   <span>Bottle / Packaging Volumes ({ivVolumes.length})</span>
                 </label>
                 <span className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded font-bold">
@@ -1275,12 +1275,12 @@ export const Settings: React.FC = () => {
                     }
                   }}
                   placeholder="Enter Volume (e.g. 50ML, 2LTR)"
-                  className="flex-1 px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs font-bold uppercase bg-white"
+                  className="flex-1 px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs font-bold bg-white"
                 />
                 <button
                   type="button"
                   onClick={handleAddVolume}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-extrabold shadow-sm transition-all flex items-center gap-1.5"
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold shadow-sm transition-colors flex items-center gap-1.5"
                 >
                   <Plus className="w-4 h-4" />
                   <span>Add Volume</span>
@@ -1449,10 +1449,10 @@ export const Settings: React.FC = () => {
             </div>
 
             {/* Rclone Auto Cloud Backup Card */}
-            <div className="p-5 rounded-2xl border-2 border-indigo-200 bg-gradient-to-br from-indigo-50/70 via-white to-purple-50/50 shadow-sm space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-indigo-100 pb-3">
+            <div className="p-5 rounded-2xl border border-slate-200 bg-white shadow-xs space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2.5">
-                  <div className="p-2 rounded-xl bg-indigo-600 text-white shadow-md shadow-indigo-600/30">
+                  <div className="p-2 rounded-xl bg-indigo-600 text-white shadow-sm">
                     <Cloud className="w-5 h-5" />
                   </div>
                   <div>
@@ -1460,7 +1460,7 @@ export const Settings: React.FC = () => {
                       <h4 className="font-black text-slate-900 text-sm">
                         Auto Cloud Backup (Rclone Google Drive Sync)
                       </h4>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-indigo-100 text-indigo-700 uppercase tracking-wide">
+                      <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-700">
                         Daily at 8:00 PM
                       </span>
                     </div>
@@ -1493,7 +1493,7 @@ export const Settings: React.FC = () => {
               )}
 
               {backupMessage && (
-                <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2 font-bold animate-in fade-in">
+                <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2 font-bold motion-safe:animate-in motion-safe:fade-in">
                   <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
                   <span>{backupMessage}</span>
                 </div>
@@ -1612,9 +1612,9 @@ export const Settings: React.FC = () => {
                       type="button"
                       disabled={backupRunning}
                       onClick={handleTriggerManualBackup}
-                      className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs shadow-md shadow-indigo-600/30 transition-all hover:scale-102 disabled:opacity-50"
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs shadow-sm transition-colors disabled:opacity-50"
                     >
-                      <RefreshCw className={`w-3.5 h-3.5 ${backupRunning ? 'animate-spin' : ''}`} />
+                      <RefreshCw className={`w-3.5 h-3.5 ${backupRunning ? 'motion-safe:animate-spin' : ''}`} />
                       <span>{backupRunning ? 'Syncing to Cloud...' : 'Backup Now'}</span>
                     </button>
                   </div>
@@ -1623,10 +1623,10 @@ export const Settings: React.FC = () => {
             </div>
 
             {/* GOOGLE DRIVE & GMAIL WEBHOOK CARD (OPTION 1) */}
-            <div className="p-5 rounded-2xl border-2 border-blue-300 bg-gradient-to-br from-blue-50/70 via-white to-sky-50/60 shadow-sm space-y-4">
+            <div className="p-5 rounded-2xl border border-blue-200 bg-white shadow-xs space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-blue-100 pb-3">
                 <div className="flex items-center gap-2.5">
-                  <div className="p-2 rounded-xl bg-blue-600 text-white shadow-md shadow-blue-600/30">
+                  <div className="p-2 rounded-xl bg-blue-600 text-white shadow-sm">
                     <Cloud className="w-5 h-5" />
                   </div>
                   <div>
@@ -1634,8 +1634,8 @@ export const Settings: React.FC = () => {
                       <h4 className="font-black text-slate-900 text-sm">
                         Google Drive Auto-Sync & 1-Click Gmail Webhook
                       </h4>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-700 uppercase tracking-wide">
-                        100% Free • Zero OAuth2
+                      <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
+                        100% Free / Zero OAuth2
                       </span>
                     </div>
                     <p className="text-[11px] text-slate-500 font-medium">
@@ -1658,21 +1658,21 @@ export const Settings: React.FC = () => {
               </div>
 
               {gdriveStatusMessage && (
-                <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2 font-bold animate-in fade-in">
+                <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2 font-bold motion-safe:animate-in motion-safe:fade-in">
                   <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
                   <span>{gdriveStatusMessage}</span>
                 </div>
               )}
 
               {gmailStatusMessage && (
-                <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-xs flex items-center gap-2 font-bold animate-in fade-in">
+                <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-xs flex items-center gap-2 font-bold motion-safe:animate-in motion-safe:fade-in">
                   <Mail className="w-4 h-4 shrink-0 text-blue-600" />
                   <span>{gmailStatusMessage}</span>
                 </div>
               )}
 
               {gdriveTestResult && (
-                <div className={`p-3 rounded-xl border text-xs flex items-center gap-2 font-bold animate-in fade-in ${
+                <div className={`p-3 rounded-xl border text-xs flex items-center gap-2 font-bold motion-safe:animate-in motion-safe:fade-in ${
                   gdriveTestResult.success 
                     ? 'bg-emerald-50 border-emerald-200 text-emerald-800' 
                     : 'bg-rose-50 border-rose-200 text-rose-800'
@@ -1696,7 +1696,7 @@ export const Settings: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setWebhookHelpOpen(true)}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-100 hover:bg-blue-200 text-blue-800 text-[11px] font-extrabold transition-all border border-blue-200 shadow-2xs hover:scale-102"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-100 hover:bg-blue-200 text-blue-800 text-[11px] font-extrabold transition-colors border border-blue-200 shadow-2xs"
                     >
                       <HelpCircle className="w-3.5 h-3.5 text-blue-600" />
                       <span>How to get Webhook URL? (વેબહુક URL કેવી રીતે મેળવવું?)</span>
@@ -1770,7 +1770,7 @@ export const Settings: React.FC = () => {
                     onClick={handleTestGDriveConnection}
                     className="px-4 py-2 rounded-xl bg-blue-50 border border-blue-300 hover:bg-blue-100 text-blue-800 font-bold text-xs transition-colors shadow-xs disabled:opacity-50 flex items-center gap-1.5"
                   >
-                    <RefreshCw className={`w-3.5 h-3.5 ${gdriveTesting ? 'animate-spin' : ''}`} />
+                    <RefreshCw className={`w-3.5 h-3.5 ${gdriveTesting ? 'motion-safe:animate-spin' : ''}`} />
                     <span>{gdriveTesting ? 'Testing...' : 'Test Connection'}</span>
                   </button>
 
@@ -1778,9 +1778,9 @@ export const Settings: React.FC = () => {
                     type="button"
                     disabled={gdriveBackupRunning || !gdriveWebhookUrl}
                     onClick={handleTriggerGDriveBackup}
-                    className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-xs shadow-md shadow-blue-600/30 transition-all hover:scale-102 disabled:opacity-50 flex items-center gap-1.5"
+                    className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-xs shadow-sm transition-colors disabled:opacity-50 flex items-center gap-1.5"
                   >
-                    <Cloud className={`w-3.5 h-3.5 ${gdriveBackupRunning ? 'animate-spin' : ''}`} />
+                    <Cloud className={`w-3.5 h-3.5 ${gdriveBackupRunning ? 'motion-safe:animate-spin' : ''}`} />
                     <span>{gdriveBackupRunning ? 'Uploading Backup...' : 'Backup to Google Drive Now'}</span>
                   </button>
 
@@ -1874,7 +1874,7 @@ export const Settings: React.FC = () => {
                       <h4 className="font-black text-slate-900 text-sm">
                         {isApk ? 'Shreeji Envelope Manager Android APK' : 'Standalone Android Mobile App (.APK)'}
                       </h4>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 uppercase tracking-wide">
+                      <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
                         v2.4.0 (Latest Release)
                       </span>
                     </div>
@@ -1892,7 +1892,7 @@ export const Settings: React.FC = () => {
                       <button
                         type="button"
                         onClick={handleCheckUpdate}
-                        className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs border border-slate-300 transition-all shadow-xs"
+                        className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs border border-slate-300 transition-colors shadow-xs"
                       >
                         <RefreshCw className="w-3.5 h-3.5 text-slate-600" />
                         <span>Check for Updates (અપડેટ તપાસો)</span>
@@ -1900,7 +1900,7 @@ export const Settings: React.FC = () => {
                       <button
                         type="button"
                         onClick={handleManualUpdateApk}
-                        className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-md shadow-emerald-600/30 transition-all active:scale-95"
+                        className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-sm transition-colors active:scale-95"
                       >
                         <Download className="w-4 h-4" />
                         <span>Update APK Now (મેન્યુઅલ અપડેટ કરો)</span>
@@ -1910,7 +1910,7 @@ export const Settings: React.FC = () => {
                     <a
                       href="/downloads/EnvelopeManager.apk"
                       download="EnvelopeManager.apk"
-                      className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-md shadow-emerald-600/30 transition-all hover:scale-102 shrink-0"
+                      className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-sm transition-colors shrink-0"
                     >
                       <Download className="w-4 h-4" />
                       <span>Download Android APK (185 MB)</span>
@@ -1922,7 +1922,7 @@ export const Settings: React.FC = () => {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Native SQLite Raw Database Storage (.db file) */}
-              <div className="sm:col-span-2 p-5 rounded-xl border-2 border-indigo-200 bg-gradient-to-br from-indigo-50/70 to-blue-50/50 shadow-sm space-y-4">
+              <div className="sm:col-span-2 p-5 rounded-xl border border-indigo-200 bg-white shadow-xs space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="font-black text-indigo-950 text-sm flex items-center gap-2">
                     <Database className="w-5 h-5 text-indigo-600" />
@@ -2074,9 +2074,9 @@ export const Settings: React.FC = () => {
           <div className="space-y-6">
             {/* Reconnection Countdown Banner */}
             {reconnectCountdown !== null && (
-              <div className="p-4 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 flex items-center justify-between animate-pulse">
+              <div className="p-4 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 flex items-center justify-between motion-safe:animate-pulse">
                 <div className="flex items-center gap-3">
-                  <RefreshCw className="w-5 h-5 text-blue-600 animate-spin" />
+                  <RefreshCw className="w-5 h-5 text-blue-600 motion-safe:animate-spin" />
                   <div>
                     <div className="font-black text-sm">Server is updating and restarting in background...</div>
                     <div className="text-xs text-blue-700">Reconnecting automatically in {reconnectCountdown} seconds...</div>
@@ -2103,8 +2103,8 @@ export const Settings: React.FC = () => {
               {/* Current Version */}
               <div className="p-4 rounded-xl bg-slate-900 text-white shadow-sm space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-black tracking-wider text-slate-400 uppercase">Current Commit</span>
-                  <span className="px-2 py-0.5 rounded text-[10px] font-black bg-blue-500/20 text-blue-400 border border-blue-500/30 font-mono">
+                  <span className="text-[11px] font-bold text-slate-400">Current Commit</span>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30 font-mono">
                     {serverStatus?.current_commit || '...'}
                   </span>
                 </div>
@@ -2123,12 +2123,12 @@ export const Settings: React.FC = () => {
                   : 'bg-emerald-50/70 border-emerald-200 text-emerald-950'
               }`}>
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-black tracking-wider uppercase flex items-center gap-1.5">
+                  <span className="text-[11px] font-bold flex items-center gap-1.5">
                     <GitBranch className="w-3.5 h-3.5" />
                     GitHub Remote
                   </span>
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
-                    serverStatus?.update_available ? 'bg-amber-500 text-white animate-pulse' : 'bg-emerald-600 text-white'
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                    serverStatus?.update_available ? 'bg-amber-500 text-white motion-safe:animate-pulse' : 'bg-emerald-600 text-white'
                   }`}>
                     {serverStatus?.update_available ? 'Update Waiting' : 'Up to Date'}
                   </span>
@@ -2140,7 +2140,7 @@ export const Settings: React.FC = () => {
                     <span className="text-emerald-800">Server matches origin/main</span>
                   )}
                 </div>
-                <div className="text-[10px] opacity-75 font-mono">
+                <div className="text-[10px] opacity-75">
                   Remote: {serverStatus?.remote_commit || '...'}
                 </div>
               </div>
@@ -2148,11 +2148,11 @@ export const Settings: React.FC = () => {
               {/* Watchdog Auto-Healer */}
               <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-sm space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-black tracking-wider text-slate-500 uppercase flex items-center gap-1.5">
+                  <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1.5">
                     <Activity className="w-3.5 h-3.5 text-blue-600" />
                     Watchdog 24/7
                   </span>
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-black ${
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                     serverStatus?.watchdog_running ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
                   }`}>
                     {serverStatus?.watchdog_running ? 'ACTIVE' : 'STANDBY'}
@@ -2197,7 +2197,7 @@ export const Settings: React.FC = () => {
               </div>
 
               <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
-                <span className={`w-2.5 h-2.5 rounded-full ${serverStatus?.auto_update_enabled ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
+                <span className={`w-2.5 h-2.5 rounded-full ${serverStatus?.auto_update_enabled ? 'bg-emerald-500 motion-safe:animate-pulse' : 'bg-slate-400'}`} />
                 <span className="text-xs font-bold text-slate-700">
                   {serverStatus?.auto_update_enabled 
                     ? 'Auto-Update is ENABLED: Any new feature pushed to GitHub will auto-deploy within 2 minutes.' 
@@ -2214,9 +2214,9 @@ export const Settings: React.FC = () => {
                   type="button"
                   onClick={loadServerStatus}
                   disabled={loadingServerStatus}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold text-xs transition-all disabled:opacity-50"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold text-xs transition-colors disabled:opacity-50"
                 >
-                  <RefreshCw className={`w-4 h-4 ${loadingServerStatus ? 'animate-spin' : ''}`} />
+                  <RefreshCw className={`w-4 h-4 ${loadingServerStatus ? 'motion-safe:animate-spin' : ''}`} />
                   <span>{loadingServerStatus ? 'Checking GitHub...' : 'Check for Updates'}</span>
                 </button>
 
@@ -2224,20 +2224,20 @@ export const Settings: React.FC = () => {
                   type="button"
                   onClick={handleTriggerServerUpdate}
                   disabled={updatingServer}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-xs shadow-md shadow-blue-600/20 transition-all disabled:opacity-50"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-xs shadow-sm transition-colors disabled:opacity-50"
                 >
                   <Sparkles className="w-4 h-4" />
-                  <span>{updatingServer ? 'Updating Server...' : '🚀 Update Server Now'}</span>
+                  <span>{updatingServer ? 'Updating Server...' : 'Update Server Now'}</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={handleTriggerServerRestart}
                   disabled={restartingServer}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-extrabold text-xs shadow-md shadow-amber-600/20 transition-all disabled:opacity-50"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-extrabold text-xs shadow-sm transition-colors disabled:opacity-50"
                 >
-                  <RefreshCw className={`w-4 h-4 ${restartingServer ? 'animate-spin' : ''}`} />
-                  <span>{restartingServer ? 'Restarting...' : '🔄 Restart All Services'}</span>
+                  <RefreshCw className={`w-4 h-4 ${restartingServer ? 'motion-safe:animate-spin' : ''}`} />
+                  <span>{restartingServer ? 'Restarting...' : 'Restart All Services'}</span>
                 </button>
               </div>
             </div>
@@ -2311,7 +2311,7 @@ export const Settings: React.FC = () => {
             <button
               type="submit"
               disabled={saving}
-              className="flex items-center gap-2 px-6 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-xs shadow-md shadow-blue-600/30 transition-all disabled:opacity-50"
+              className="flex items-center gap-2 px-6 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-xs shadow-sm transition-colors disabled:opacity-50"
             >
               <Save className="w-4 h-4" />
               <span>{saving ? 'Saving Settings...' : 'Save Configuration'}</span>

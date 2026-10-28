@@ -190,7 +190,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
               <button
                 key={p.id}
                 onClick={() => setFilterPeriod(p.id)}
-                className={`h-7 px-3 flex items-center justify-center rounded-md transition-all ${
+                className={`h-7 px-3 flex items-center justify-center rounded-md transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500 active:scale-95 ${
                   filterPeriod === p.id
                     ? 'bg-white text-slate-900 shadow-sm font-bold'
                     : 'text-slate-600 hover:text-slate-900'
@@ -204,11 +204,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           <button
             onClick={() => loadData(filterPeriod)}
             disabled={refreshing}
-            className="h-8 w-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors"
+            className="h-8 w-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500 active:scale-95"
             title="Refresh Data"
             aria-label="Refresh Data"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-blue-600' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'motion-safe:animate-spin text-blue-600' : ''}`} />
           </button>
         </div>
       </div>
@@ -221,29 +221,29 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             <div
               key={idx}
               onClick={card.action}
-              className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-sm hover:shadow-lg hover:border-blue-500/40 transition-all duration-200 cursor-pointer group flex flex-col justify-between relative overflow-hidden"
+              className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-sm hover:shadow-md hover:border-blue-500/40 transition-colors cursor-pointer group flex flex-col justify-between relative overflow-hidden"
             >
               <div className="flex items-center justify-between mb-3">
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider font-mono">
+                <span className="text-[11px] font-bold text-slate-500">
                   {card.title}
                 </span>
-                <div className={`p-2 rounded-xl ${card.bg} ${card.text} group-hover:scale-110 transition-transform shadow-sm`}>
+                <div className={`p-2 rounded-xl ${card.bg} ${card.text} shadow-sm`}>
                   <Icon className="w-4 h-4" />
                 </div>
               </div>
               <div>
                 <span className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight font-display">
-                  {loading ? '...' : card.value.toLocaleString()}
+                  {loading ? '…' : card.value.toLocaleString()}
                 </span>
                 <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden mt-2.5">
                   <div 
-                    className="h-full bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full"
+                    className="h-full bg-blue-600 rounded-full"
                     style={{ width: `${Math.min(100, Math.max(25, (idx + 1) * 20))}%` }}
                   />
                 </div>
                 <div className="flex items-center justify-between mt-2 text-xs font-semibold text-blue-600 group-hover:text-blue-700">
                   <span>View Details</span>
-                  <ArrowUpRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                  <ArrowUpRight className="w-3.5 h-3.5" />
                 </div>
               </div>
             </div>
@@ -252,7 +252,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       </div>
 
       {/* Google Stitch Feature: Live Bilingual Envelope Simulator & Quick Print Preview */}
-      <div className="bg-slate-900 rounded-2xl p-5 text-white border border-slate-800 shadow-xl relative overflow-hidden">
+      <div className="bg-slate-900 rounded-2xl p-5 text-white border border-slate-800 shadow-md relative overflow-hidden">
         <div className="relative z-10 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-6">
           {/* Left Info & Quick Triggers */}
           <div className="flex-1 space-y-3">
@@ -295,12 +295,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           </div>
 
           {/* Right: High-Contrast Envelope Preview Stage (Physical Metaphor) */}
-          <div className="w-full lg:w-[420px] bg-slate-50 text-slate-900 rounded-xl p-4 shadow-2xl border border-slate-300 relative select-none">
+          <div className="w-full lg:w-[420px] bg-slate-50 text-slate-900 rounded-xl p-4 shadow-md border border-slate-300 relative select-none">
             {/* Top Stamp & Sender Header */}
             <div className="flex items-start justify-between border-b border-dashed border-slate-300 pb-2 mb-2.5">
               <div>
-                <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 block font-mono">
-                  DISPATCH SENDER / મોકલનાર
+                <span className="text-[9px] font-bold text-slate-500 block">
+                  Dispatch Sender / મોકલનાર
                 </span>
                 <span className="text-xs font-black text-slate-900 block font-display">
                   SHREEJI ENTERPRISE
@@ -310,15 +310,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                 </span>
               </div>
               <div className="border border-slate-400 rounded px-1.5 py-0.5 text-center bg-white shadow-xs">
-                <span className="text-[8px] font-bold text-slate-700 block font-mono">BOOK-POST</span>
-                <span className="text-[9px] font-black text-blue-700 block font-mono">SPEED POST</span>
+                <span className="text-[8px] font-bold text-slate-700 block">BOOK-POST</span>
+                <span className="text-[9px] font-black text-blue-700 block">SPEED POST</span>
               </div>
             </div>
 
             {/* Recipient Block (Bilingual Gujarati & English) */}
             <div className="space-y-1 my-2">
-              <span className="text-[9px] font-black uppercase tracking-wider text-blue-700 block font-mono">
-                TO / પ્રતિ
+              <span className="text-[9px] font-bold text-blue-700 block">
+                To / પ્રતિ
               </span>
               <div className="text-sm font-black text-slate-950 leading-tight">
                 શ્રી અંબિકા મેડિકલ સ્ટોર્સ
@@ -330,7 +330,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                 સ્ટેશન રોડ, મેઇન બજાર, નવરંગપુરા
               </div>
               <div className="text-[11px] text-slate-600">
-                AHMEDABAD - <span className="font-mono font-bold text-slate-950">380009</span> (GUJARAT)
+                Ahmedabad, Gujarat <span className="font-mono font-bold text-slate-950">380009</span>
               </div>
             </div>
 
@@ -380,10 +380,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             <button
               onClick={() => loadBigBrainInsights()}
               disabled={loadingInsights}
-              className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs transition-colors shadow-sm disabled:opacity-50"
+              className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition-colors shadow-sm disabled:opacity-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-400 active:scale-95"
             >
-              <Sparkles className="w-3.5 h-3.5 text-yellow-300" />
-              <span>{loadingInsights ? 'Analyzing...' : 'Refresh Insights'}</span>
+              <Sparkles className="w-3.5 h-3.5 text-blue-100" />
+              <span>{loadingInsights ? 'Analyzing…' : 'Refresh Insights'}</span>
             </button>
           </div>
         </div>
@@ -424,8 +424,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           </div>
         ) : (
           <div className="text-xs text-slate-400 py-2 flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-purple-400 animate-spin" />
-            <span>Synthesizing courier operations...</span>
+            <Sparkles className="w-4 h-4 text-purple-400 motion-safe:animate-spin" />
+            <span>Synthesizing courier operations…</span>
           </div>
         )}
       </div>
@@ -456,7 +456,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                 </div>
                 <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
                   <div 
-                    className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                    className="h-full bg-emerald-500 rounded-full transition-colors"
                     style={{ 
                       width: `${data?.print_summary.printed ? Math.min(100, Math.max(10, (data.print_summary.printed / (data.metrics.print_jobs || 1)) * 100)) : 0}%` 
                     }}
@@ -475,7 +475,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                 </div>
                 <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
                   <div 
-                    className="h-full bg-amber-500 rounded-full transition-all duration-500"
+                    className="h-full bg-amber-500 rounded-full transition-colors"
                     style={{ 
                       width: `${data?.print_summary.pending ? Math.min(100, Math.max(10, (data.print_summary.pending / (data.metrics.print_jobs || 1)) * 100)) : 0}%` 
                     }}
@@ -494,7 +494,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                 </div>
                 <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
                   <div 
-                    className="h-full bg-red-500 rounded-full transition-all duration-500"
+                    className="h-full bg-red-500 rounded-full transition-colors"
                     style={{ 
                       width: `${data?.print_summary.failed ? Math.min(100, Math.max(10, (data.print_summary.failed / (data.metrics.print_jobs || 1)) * 100)) : 0}%` 
                     }}
@@ -540,7 +540,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                   </span>
                   <div className="w-full max-w-[48px] bg-slate-100 rounded-t-md relative flex items-end h-32 overflow-hidden">
                     <div
-                      className="w-full bg-blue-600 group-hover:bg-blue-500 rounded-t-md transition-all duration-300 shadow-sm"
+                      className="w-full bg-blue-600 group-hover:bg-blue-500 rounded-t-md transition-colors shadow-sm"
                       style={{ height: `${heightPercent}%` }}
                     />
                   </div>
@@ -555,7 +555,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           <div className="pt-3 border-t border-slate-100 mt-2 flex items-center justify-between text-xs text-slate-500">
             <span>Peak Day Output: High volume courier dispatches</span>
             <button onClick={() => onNavigate('print')} className="font-bold text-blue-600 hover:underline">
-              Create New Job &rarr;
+              Create New Job
             </button>
           </div>
         </div>
@@ -572,13 +572,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             onClick={() => onNavigate('history')}
             className="text-xs font-bold text-blue-600 hover:text-blue-800 hover:underline"
           >
-            View Complete History &rarr;
+            View Complete History
           </button>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200 tracking-wider">
+            <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
               <tr>
                 <th className="px-5 py-3">Time & Date</th>
                 <th className="px-5 py-3">Job ID</th>
