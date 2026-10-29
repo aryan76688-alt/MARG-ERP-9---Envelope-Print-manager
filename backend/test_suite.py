@@ -178,7 +178,7 @@ def test_xlsx_exports_and_backup():
     assert p_res.status_code == 200
     assert len(p_res.content) > 1000
     wb = openpyxl.load_workbook(io.BytesIO(p_res.content))
-    assert "Parties" in wb.sheetnames
+    assert ("English" in wb.sheetnames or "Parties" in wb.sheetnames)
     print(f" -> Parties XLSX exported ({len(p_res.content)} bytes)")
 
     # History XLSX

@@ -581,6 +581,12 @@ class BigBrainInsightsRequest(BaseModel):
     stats_data: Optional[Dict[str, Any]] = None
     api_key: Optional[str] = None
 
+class BigBrainChatRequest(BaseModel):
+    message: str
+    history: Optional[List[Dict[str, str]]] = None
+    context_data: Optional[Dict[str, Any]] = None
+    api_key: Optional[str] = None
+
 class UserResponse(BaseModel):
     id: int
     username: str
@@ -4626,8 +4632,8 @@ def generate_pdf(req: GeneratePDFRequest, db: Session = Depends(get_db)):
             for c in job.cases
         ]
         job_number = job.job_number
-        j_format = getattr(job, "template_format", None) or active_format
-        j_lang = getattr(job, "language", None) or active_lang
+        j_format = req.template_format or getattr(job, "template_format", None) or active_format
+        j_lang = req.language or getattr(job, "language", None) or active_lang
         try:
             pdf_bytes = pdf_service.generate_envelopes_pdf(
                 job_data, cases_data, sender_dict, settings_dict,
@@ -6256,6 +6262,18 @@ def big_brain_dashboard_insights(req: BigBrainInsightsRequest, db: Session = Dep
         api_key=key
     )
     return {"success": True, "insights": res}
+
+@app.post("/api/ai/big-brain/chat")
+def big_brain_chat(req: BigBrainChatRequest, db: Session = Depends(get_db)):
+    """OpenAI Big Brain assistant handles interactive chat questions."""
+    app_set = db.query(AppSettings).first()
+    key = req.api_key or (getattr(app_set, "openai_api_key", None) if app_set else None)
+    return openai_service.chat_with_big_brain(
+        message=req.message,
+        history=req.history,
+        context_data=req.context_data,
+        api_key=key
+    )
 
 from fastapi.security import OAuth2PasswordRequestForm
 
