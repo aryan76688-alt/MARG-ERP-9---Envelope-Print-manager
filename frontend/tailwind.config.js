@@ -11,12 +11,6 @@ export default {
         display: ['"Plus Jakarta Sans"', 'Noto Sans Gujarati', 'sans-serif'],
         mono: ['"JetBrains Mono"', 'monospace'],
       },
-      boxShadow: {
-        xs: '0 1px 2px 0 rgb(0 0 0 / 0.05)',
-      },
-      scale: {
-        98: '0.98',
-      },
       colors: {
         marg: {
           navy: '#0f172a',

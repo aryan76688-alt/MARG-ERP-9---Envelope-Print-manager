@@ -535,7 +535,7 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({ onNavigate }) =>
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 md:p-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-sm">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center shadow-lg shadow-blue-500/25">
               <Truck className="w-6 h-6" />
             </div>
             <div>
@@ -554,7 +554,7 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({ onNavigate }) =>
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => setAddVehicleModalOpen(true)}
-              className="px-3.5 py-2 text-xs font-bold rounded-xl bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+              className="px-3.5 py-2 text-xs font-bold rounded-xl bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1.5 shadow-sm transition-all active:scale-95 cursor-pointer"
             >
               <Plus className="w-4 h-4" /> Add Vehicle
             </button>
@@ -587,7 +587,7 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({ onNavigate }) =>
               className="px-3 py-2 text-xs font-semibold rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 flex items-center gap-1.5 shadow-2xs cursor-pointer"
               title="Refresh Data"
             >
-              <RotateCcw className={`w-3.5 h-3.5 ${loading ? 'motion-safe:animate-spin' : ''}`} /> Refresh
+              <RotateCcw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
             </button>
           </div>
         </div>
@@ -595,7 +595,7 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({ onNavigate }) =>
         {/* Executive KPI Row */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mt-6">
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-center">
-            <div className="text-xs font-bold text-slate-500">Fleet Vehicles</div>
+            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Fleet Vehicles</div>
             <div className="text-2xl font-black text-slate-900 mt-1 flex items-center justify-center gap-1.5">
               <span>{summary?.total_vehicles || vehicles.length}</span>
               <span className="text-xs font-bold text-emerald-600 bg-emerald-100 px-1.5 py-0.2 rounded">
@@ -604,7 +604,7 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({ onNavigate }) =>
             </div>
           </div>
           <div className="bg-blue-50/70 border border-blue-200 rounded-xl p-3.5 text-center">
-            <div className="text-xs font-bold text-blue-700 flex items-center justify-center gap-1">
+            <div className="text-[11px] font-bold text-blue-700 uppercase tracking-wider flex items-center justify-center gap-1">
               <Activity className="w-3.5 h-3.5" /> Active Trips
             </div>
             <div className="text-2xl font-black text-blue-950 mt-1">
@@ -612,7 +612,7 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({ onNavigate }) =>
             </div>
           </div>
           <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-3.5 text-center">
-            <div className="text-xs font-bold text-emerald-700 flex items-center justify-center gap-1">
+            <div className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider flex items-center justify-center gap-1">
               <CheckCircle2 className="w-3.5 h-3.5" /> Today's Distance
             </div>
             <div className="text-2xl font-black text-emerald-950 mt-1">
@@ -620,14 +620,14 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({ onNavigate }) =>
             </div>
           </div>
           <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-3.5 text-center">
-            <div className="text-xs font-bold text-amber-700 flex items-center justify-center gap-1">
+            <div className="text-[11px] font-bold text-amber-700 uppercase tracking-wider flex items-center justify-center gap-1">
               <AlertTriangle className="w-3.5 h-3.5" /> Safety Alerts
             </div>
             <div className="text-2xl font-black text-amber-950 mt-1 flex items-center justify-center gap-1.5">
               <span>{summary?.unresolved_alerts ?? alerts.filter(a => !a.resolved).length}</span>
               {alerts.some(a => !a.resolved && a.alert_type === 'overspeed') && (
-                <span className="text-[10px] font-black px-1.5 py-0.2 rounded bg-rose-500 text-white motion-safe:animate-pulse">
-                  Overspeed
+                <span className="text-[10px] font-black uppercase px-1.5 py-0.2 rounded bg-rose-500 text-white animate-pulse">
+                  OVERSPEED
                 </span>
               )}
             </div>
@@ -638,9 +638,9 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({ onNavigate }) =>
         <div className="flex items-center gap-2 mt-6 pt-4 border-t border-slate-100 overflow-x-auto">
           <button
             onClick={() => setActiveTab('map')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors flex items-center gap-2 cursor-pointer ${
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
               activeTab === 'map'
-                ? 'bg-blue-600 text-white shadow-sm'
+                ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25'
                 : 'text-slate-600 hover:bg-slate-100'
             }`}
           >
@@ -648,9 +648,9 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({ onNavigate }) =>
           </button>
           <button
             onClick={() => setActiveTab('trips')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors flex items-center gap-2 cursor-pointer ${
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
               activeTab === 'trips'
-                ? 'bg-blue-600 text-white shadow-sm'
+                ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25'
                 : 'text-slate-600 hover:bg-slate-100'
             }`}
           >
@@ -658,9 +658,9 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({ onNavigate }) =>
           </button>
           <button
             onClick={() => setActiveTab('vehicles')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors flex items-center gap-2 cursor-pointer ${
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
               activeTab === 'vehicles'
-                ? 'bg-blue-600 text-white shadow-sm'
+                ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25'
                 : 'text-slate-600 hover:bg-slate-100'
             }`}
           >
@@ -668,9 +668,9 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({ onNavigate }) =>
           </button>
           <button
             onClick={() => setActiveTab('alerts')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors flex items-center gap-2 cursor-pointer ${
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
               activeTab === 'alerts'
-                ? 'bg-blue-600 text-white shadow-sm'
+                ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25'
                 : 'text-slate-600 hover:bg-slate-100'
             }`}
           >
@@ -678,9 +678,9 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({ onNavigate }) =>
           </button>
           <button
             onClick={() => setActiveTab('fuel_maintenance')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors flex items-center gap-2 cursor-pointer ${
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
               activeTab === 'fuel_maintenance'
-                ? 'bg-blue-600 text-white shadow-sm'
+                ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25'
                 : 'text-slate-600 hover:bg-slate-100'
             }`}
           >
@@ -699,7 +699,7 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({ onNavigate }) =>
               <button
                 type="button"
                 onClick={() => setMapMode(m => m === 'streets' ? 'satellite' : 'streets')}
-                className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold flex items-center gap-1.5 transition-colors"
+                className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold flex items-center gap-1.5 transition-all"
               >
                 <Layers className="w-3.5 h-3.5 text-blue-400" />
                 {mapMode === 'streets' ? 'Satellite View' : 'Google Streets'}
@@ -727,7 +727,7 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({ onNavigate }) =>
                       <div className="text-xs text-slate-400">{selectedVehicle.model}</div>
                     </div>
                   </div>
-                  <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                  <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase ${
                     selectedVehicle.live_status === 'moving'
                       ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                       : 'bg-slate-800 text-slate-300'
@@ -738,15 +738,15 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({ onNavigate }) =>
 
                 <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-slate-800 text-center">
                   <div className="bg-slate-900/80 p-2 rounded-xl">
-                    <div className="text-[10px] text-slate-400">Speed</div>
+                    <div className="text-[10px] text-slate-400 uppercase font-mono">Speed</div>
                     <div className="text-base font-extrabold text-emerald-400 mt-0.5">{selectedVehicle.last_speed_kmh} km/h</div>
                   </div>
                   <div className="bg-slate-900/80 p-2 rounded-xl">
-                    <div className="text-[10px] text-slate-400">Battery</div>
+                    <div className="text-[10px] text-slate-400 uppercase font-mono">Battery</div>
                     <div className="text-base font-extrabold text-blue-400 mt-0.5">{selectedVehicle.last_battery_pct ?? '--'}%</div>
                   </div>
                   <div className="bg-slate-900/80 p-2 rounded-xl">
-                    <div className="text-[10px] text-slate-400">Odometer</div>
+                    <div className="text-[10px] text-slate-400 uppercase font-mono">Odometer</div>
                     <div className="text-base font-extrabold text-white mt-0.5">{selectedVehicle.odometer_km} km</div>
                   </div>
                 </div>
@@ -775,9 +775,9 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({ onNavigate }) =>
           {/* Vehicle Sidebar List */}
           <div className="flex flex-col h-[650px] bg-slate-950/60 rounded-xl border border-slate-800 p-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <span className="text-xs font-bold text-slate-400">Vehicles List ({vehicles.length})</span>
+              <span className="text-xs font-mono font-bold uppercase tracking-wider text-slate-400">Vehicles List ({vehicles.length})</span>
               <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 motion-safe:animate-pulse"></span>
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                 5s Live
               </span>
             </div>
@@ -800,7 +800,7 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({ onNavigate }) =>
                   <button
                     key={st}
                     onClick={() => setStatusFilter(st)}
-                    className={`px-2 py-1 rounded-md font-bold transition-colors cursor-pointer ${
+                    className={`px-2 py-1 rounded-md uppercase font-bold transition-colors cursor-pointer ${
                       statusFilter === st
                         ? 'bg-blue-600 text-white'
                         : 'bg-slate-900 text-slate-400 hover:bg-slate-800'
@@ -828,7 +828,7 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({ onNavigate }) =>
                           mapInstanceRef.current?.setView([v.last_latitude, v.last_longitude], 15, { animate: true });
                         }
                       }}
-                      className={`p-3 rounded-xl border transition-colors cursor-pointer ${
+                      className={`p-3 rounded-xl border transition-all cursor-pointer ${
                         isSelected
                           ? 'bg-blue-950/60 border-blue-500 shadow-md ring-1 ring-blue-400/50'
                           : 'bg-slate-900/80 border-slate-800 hover:border-slate-700 text-slate-300'
@@ -836,7 +836,7 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({ onNavigate }) =>
                     >
                       <div className="flex items-center justify-between">
                         <span className="font-extrabold text-sm text-white">{v.vehicle_number}</span>
-                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
+                        <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
                           v.live_status === 'moving'
                             ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/30'
                             : v.live_status === 'idle'
@@ -902,7 +902,7 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({ onNavigate }) =>
                         <button
                           type="button"
                           onClick={() => handleOpenReplay(tr.id)}
-                          className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1 shadow-sm transition-colors"
+                          className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1 shadow-sm transition-all"
                         >
                           <Eye className="w-3.5 h-3.5" /> Replay Telemetry
                         </button>
@@ -910,15 +910,15 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({ onNavigate }) =>
 
                       <div className="grid grid-cols-3 gap-2 text-center text-xs">
                         <div className="bg-white p-2.5 rounded-xl border border-slate-200">
-                          <div className="text-slate-500 font-semibold text-[10px]">Vehicle</div>
+                          <div className="text-slate-500 font-semibold text-[10px] uppercase">Vehicle</div>
                           <div className="font-bold text-slate-900 mt-0.5">{tr.vehicle_number || 'Van'}</div>
                         </div>
                         <div className="bg-white p-2.5 rounded-xl border border-slate-200">
-                          <div className="text-slate-500 font-semibold text-[10px]">Driver</div>
+                          <div className="text-slate-500 font-semibold text-[10px] uppercase">Driver</div>
                           <div className="font-bold text-slate-900 mt-0.5">{tr.driver_name || 'Driver'}</div>
                         </div>
                         <div className="bg-white p-2.5 rounded-xl border border-slate-200">
-                          <div className="text-slate-500 font-semibold text-[10px]">Traveled</div>
+                          <div className="text-slate-500 font-semibold text-[10px] uppercase">Traveled</div>
                           <div className="font-bold text-emerald-700 mt-0.5">{tr.total_distance_km} km</div>
                         </div>
                       </div>
@@ -930,7 +930,7 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({ onNavigate }) =>
                           <span className="font-mono font-bold text-blue-700">{tr.completed_stops} / {tr.total_stops} Completed ({pct}%)</span>
                         </div>
                         <div className="w-full h-2.5 bg-slate-200 rounded-full overflow-hidden">
-                          <div className="h-full bg-emerald-500 rounded-full transition-transform duration-300" style={{ width: `${pct}%` }} />
+                          <div className="h-full bg-emerald-500 rounded-full transition-all duration-300" style={{ width: `${pct}%` }} />
                         </div>
                       </div>
                     </div>
@@ -948,7 +948,7 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({ onNavigate }) =>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
-                  <tr className="border-b border-slate-200 text-slate-500 text-xs font-semibold">
+                  <tr className="border-b border-slate-200 text-slate-500 uppercase tracking-wider font-mono">
                     <th className="py-3 px-3">Trip #</th>
                     <th className="py-3 px-3">Vehicle</th>
                     <th className="py-3 px-3">Driver</th>
@@ -1000,7 +1000,7 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({ onNavigate }) =>
             </div>
             <button
               onClick={() => setAddVehicleModalOpen(true)}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-sm transition-colors"
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-sm transition-all"
             >
               <Plus className="w-4 h-4" /> Add Vehicle
             </button>
@@ -1008,7 +1008,7 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({ onNavigate }) =>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mt-6">
             {vehicles.map(v => (
-              <div key={v.id} className="border border-slate-200 rounded-2xl p-5 bg-slate-50/60 hover:bg-white hover:shadow-md transition-shadow space-y-4">
+              <div key={v.id} className="border border-slate-200 rounded-2xl p-5 bg-slate-50/60 hover:bg-white hover:shadow-md transition-all space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
                     <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold">
@@ -1019,7 +1019,7 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({ onNavigate }) =>
                       <p className="text-xs text-slate-500">{v.model}</p>
                     </div>
                   </div>
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
                     v.live_status === 'moving'
                       ? 'bg-emerald-100 text-emerald-800'
                       : 'bg-slate-200 text-slate-700'
@@ -1030,18 +1030,18 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({ onNavigate }) =>
 
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div className="bg-white p-2.5 rounded-xl border border-slate-200">
-                    <span className="text-slate-500 block text-[10px] font-semibold">Fuel / Tank</span>
+                    <span className="text-slate-500 block text-[10px] uppercase font-semibold">Fuel / Tank</span>
                     <strong className="text-slate-900">{v.fuel_type} • {v.fuel_capacity_liters}L</strong>
                   </div>
                   <div className="bg-white p-2.5 rounded-xl border border-slate-200">
-                    <span className="text-slate-500 block text-[10px] font-semibold">Odometer</span>
+                    <span className="text-slate-500 block text-[10px] uppercase font-semibold">Odometer</span>
                     <strong className="text-slate-900">{v.odometer_km} km</strong>
                   </div>
                 </div>
 
                 {/* Driver Assignment Dropdown */}
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                  <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
                     Assigned Driver
                   </label>
                   <select
@@ -1109,7 +1109,7 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({ onNavigate }) =>
                       <div className="flex items-center gap-2">
                         <span className="font-extrabold text-sm text-slate-900">{al.message}</span>
                         {al.resolved && (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-200 text-slate-700">
+                          <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-slate-200 text-slate-700">
                             Resolved
                           </span>
                         )}
@@ -1130,7 +1130,7 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({ onNavigate }) =>
                         await resolveFleetAlert(al.id);
                         await loadAllData();
                       }}
-                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-sm transition-colors self-end sm:self-center cursor-pointer"
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all self-end sm:self-center cursor-pointer"
                     >
                       Mark Resolved
                     </button>
@@ -1252,7 +1252,7 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({ onNavigate }) =>
               {currentReplayPoint && (
                 <div className="absolute top-4 right-4 z-[400] bg-slate-950/90 backdrop-blur-md p-3 rounded-2xl border border-slate-700 shadow-2xl flex items-center gap-4">
                   <div className="text-center">
-                    <div className="text-[10px] font-semibold text-slate-400">Telemetry Speed</div>
+                    <div className="text-[9px] uppercase font-mono text-slate-400">Telemetry Speed</div>
                     <div className="text-2xl font-black text-emerald-400 mt-0.5">{currentReplayPoint.speed_kmh} <span className="text-xs font-normal">km/h</span></div>
                   </div>
                   <div className="h-8 w-px bg-slate-800" />
@@ -1344,19 +1344,19 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({ onNavigate }) =>
             </div>
             <form onSubmit={handleCreateVehicle} className="space-y-3">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Vehicle License Number</label>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Vehicle License Number</label>
                 <input
                   type="text"
                   placeholder="e.g. GJ-01-AB-1234"
                   value={newVehicleNum}
                   onChange={e => setNewVehicleNum(e.target.value)}
-                  className="w-full px-3.5 py-2 text-sm border border-slate-300 rounded-xl font-mono font-bold"
+                  className="w-full px-3.5 py-2 text-sm border border-slate-300 rounded-xl uppercase font-mono font-bold"
                   required
                 />
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Model Name</label>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Model Name</label>
                   <input
                     type="text"
                     value={newVehicleModel}
@@ -1365,7 +1365,7 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({ onNavigate }) =>
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Vehicle Type</label>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Vehicle Type</label>
                   <select
                     value={newVehicleType}
                     onChange={e => setNewVehicleType(e.target.value)}
@@ -1380,7 +1380,7 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({ onNavigate }) =>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Fuel Type</label>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Fuel Type</label>
                   <select
                     value={newVehicleFuel}
                     onChange={e => setNewVehicleFuel(e.target.value)}
@@ -1393,7 +1393,7 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({ onNavigate }) =>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Starting Odometer (km)</label>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Starting Odometer (km)</label>
                   <input
                     type="number"
                     value={newVehicleOdo}
@@ -1434,7 +1434,7 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({ onNavigate }) =>
             </div>
             <form onSubmit={handleAddFuel} className="space-y-3">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Vehicle</label>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Vehicle</label>
                 <select
                   value={fuelVehId}
                   onChange={e => setFuelVehId(Number(e.target.value))}
@@ -1447,7 +1447,7 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({ onNavigate }) =>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Fuel Liters</label>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Fuel Liters</label>
                   <input
                     type="number"
                     step="0.1"
@@ -1459,7 +1459,7 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({ onNavigate }) =>
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Total Cost (₹)</label>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Total Cost (₹)</label>
                   <input
                     type="number"
                     placeholder="e.g. 2400"
@@ -1471,7 +1471,7 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({ onNavigate }) =>
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Current Odometer (km)</label>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Current Odometer (km)</label>
                 <input
                   type="number"
                   step="0.1"
@@ -1483,7 +1483,7 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({ onNavigate }) =>
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Fuel Station</label>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Fuel Station</label>
                 <input
                   type="text"
                   value={fuelStation}
@@ -1523,7 +1523,7 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({ onNavigate }) =>
             </div>
             <form onSubmit={handleAddMaintenance} className="space-y-3">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Vehicle</label>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Vehicle</label>
                 <select
                   value={maintVehId}
                   onChange={e => setMaintVehId(Number(e.target.value))}
@@ -1535,7 +1535,7 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({ onNavigate }) =>
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Service Type</label>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Service Type</label>
                 <input
                   type="text"
                   placeholder="e.g. Periodic 10,000km Engine Oil & Filter Change"
@@ -1547,7 +1547,7 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({ onNavigate }) =>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Cost (₹)</label>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Cost (₹)</label>
                   <input
                     type="number"
                     value={maintCost}
@@ -1556,7 +1556,7 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({ onNavigate }) =>
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Odometer (km)</label>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Odometer (km)</label>
                   <input
                     type="number"
                     value={maintOdo}

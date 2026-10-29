@@ -272,10 +272,10 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
 
   return (
     <div className="p-4 space-y-4 max-w-lg mx-auto pb-36 font-sans text-slate-100">
-      {/* 1. PARTY SEARCH & AUTOCOMPLETE */}
+      {/* 1. PARTY SEARCH & AUTOCOMPLETE (STITCH TACTICAL) */}
       <div className="relative">
-        <label className="block text-xs font-medium text-slate-400 mb-1.5 px-1">
-          Select recipient party
+        <label className="block text-xs font-black uppercase tracking-wider text-slate-400 mb-1.5 px-1 font-mono">
+          Select Recipient Party
         </label>
         <div className="relative flex items-center">
           <input
@@ -283,7 +283,7 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search name, code (e.g. MARG001837), city..."
-            className="w-full bg-slate-800 border border-slate-700 rounded-xl py-3 pl-11 pr-10 text-white placeholder-slate-400 text-sm font-medium focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 shadow-xs"
+            className="w-full bg-[#111827] border border-slate-800 rounded-2xl py-3.5 pl-11 pr-10 text-white placeholder-slate-500 text-sm font-semibold focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50 shadow-md"
           />
           <Search className="w-5 h-5 text-slate-400 absolute left-3.5 pointer-events-none" />
           {searchQuery && (
@@ -298,20 +298,20 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
 
         {/* Autocomplete Dropdown */}
         {suggestions.length > 0 && (
-          <div className="absolute left-0 right-0 top-full mt-2 bg-slate-800 border border-slate-700 rounded-xl shadow-lg z-40 max-h-72 overflow-y-auto divide-y divide-slate-800 apk-scroll-container">
+          <div className="absolute left-0 right-0 top-full mt-2 bg-[#111827] border border-slate-700/90 rounded-2xl shadow-2xl z-40 max-h-72 overflow-y-auto divide-y divide-slate-800 apk-scroll-container">
             {suggestions.map((party) => (
               <div
                 key={party.id}
                 onClick={() => handleSelectParty(party)}
-                className="p-3.5 hover:bg-slate-700 active:bg-blue-950 transition-colors cursor-pointer"
+                className="p-3.5 hover:bg-[#1A202C] active:bg-blue-950 transition-colors cursor-pointer"
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-800">
+                  <span className="text-xs font-mono font-black px-1.5 py-0.5 rounded bg-blue-950/80 text-blue-400 border border-blue-800/60">
                     {party.party_code || 'MARG'}
                   </span>
-                  <span className="text-xs text-slate-400 font-medium">{party.city}</span>
+                  <span className="text-xs text-slate-400 font-bold">{party.city}</span>
                 </div>
-                <div className="font-semibold text-white text-sm mt-1">
+                <div className="font-extrabold text-white text-sm mt-1">
                   {party.party_name}
                 </div>
                 {party.party_name_gu && (
@@ -320,7 +320,7 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
                   </div>
                 )}
                 {party.route_1 && (
-                  <div className="text-xs text-amber-300 font-medium mt-0.5">
+                  <div className="text-[10px] text-amber-400 font-bold mt-0.5">
                     Route: {party.route_1}
                   </div>
                 )}
@@ -330,20 +330,20 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
         )}
       </div>
 
-      {/* 2. SELECTED PARTY CARD */}
+      {/* 2. SELECTED PARTY CARD (STITCH DARK TACTICAL) */}
       {selectedParty ? (
-        <div className="bg-slate-800 border border-blue-600/70 rounded-xl p-4 shadow-xs relative space-y-3">
+        <div className="bg-[#111827] border border-blue-600/60 rounded-2xl p-4 shadow-lg relative space-y-3">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-medium px-2 py-0.5 rounded-md bg-blue-600 text-white shadow-xs">
+                <span className="text-xs font-mono font-black px-2 py-0.5 rounded-md bg-blue-600 text-white shadow-sm">
                   {selectedParty.party_code || 'MARG'}
                 </span>
-                <span className="text-xs text-emerald-300 font-medium bg-emerald-950 border border-emerald-700 px-2 py-0.5 rounded-md">
-                  Active selection
+                <span className="text-xs text-emerald-400 font-bold bg-emerald-950/80 border border-emerald-700/60 px-2 py-0.5 rounded-md">
+                  Active Selection
                 </span>
               </div>
-              <h3 className="text-base font-bold text-white mt-1.5 leading-snug">
+              <h3 className="text-base font-black text-white mt-1.5 leading-snug">
                 {selectedParty.party_name}
               </h3>
               {selectedParty.party_name_gu && (
@@ -356,7 +356,7 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
             {/* Clear Selection Button */}
             <button
               onClick={() => setSelectedParty(null)}
-              className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 transition-colors cursor-pointer border border-slate-700"
+              className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 transition-all cursor-pointer border border-slate-700"
               title="Clear Selected Party"
             >
               <X className="w-4 h-4" />
@@ -383,12 +383,12 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
           {/* Route Tags */}
           <div className="flex flex-wrap gap-1.5 pt-1">
             {selectedParty.route_1 && (
-              <span className="text-xs font-medium px-2 py-0.5 rounded-md bg-amber-950/80 text-amber-300 border border-amber-800">
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-950/60 text-amber-300 border border-amber-800/60">
                 R1: {selectedParty.route_1}
               </span>
             )}
             {selectedParty.route_2 && (
-              <span className="text-xs font-medium px-2 py-0.5 rounded-md bg-blue-950/80 text-blue-300 border border-blue-800">
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-950/60 text-indigo-300 border border-indigo-800/60">
                 R2: {selectedParty.route_2}
               </span>
             )}
@@ -396,20 +396,20 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
 
           {/* Envelope Print Language Toggle */}
           <div className="flex items-center justify-between pt-2 border-t border-slate-800">
-            <span className="text-xs font-medium text-slate-400">Envelope language:</span>
-            <div className="flex items-center bg-slate-800 p-0.5 rounded-lg border border-slate-700">
+            <span className="text-xs font-bold text-slate-400">Envelope Language:</span>
+            <div className="flex items-center bg-slate-800/80 p-0.5 rounded-xl border border-slate-700">
               <button
                 onClick={() => setLanguage('gu')}
-                className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors cursor-pointer ${
-                  language === 'gu' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'
+                className={`px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                  language === 'gu' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
                 }`}
               >
                 Gujarati
               </button>
               <button
                 onClick={() => setLanguage('en')}
-                className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors cursor-pointer ${
-                  language === 'en' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'
+                className={`px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                  language === 'en' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
                 }`}
               >
                 English
@@ -418,43 +418,43 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
           </div>
         </div>
       ) : (
-        <div className="p-8 rounded-xl bg-slate-800 border border-dashed border-slate-700 text-center text-slate-400 text-xs shadow-xs">
+        <div className="p-8 rounded-2xl bg-[#111827] border border-dashed border-slate-800 text-center text-slate-400 text-xs shadow-md">
           Search or select a chemist party above to configure your envelope print.
         </div>
       )}
 
-      {/* 3. TACTILE CASE STEPPER */}
-      <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 shadow-xs space-y-3">
+      {/* 3. TACTILE CASE STEPPER (STITCH TACTICAL) */}
+      <div className="bg-[#111827] border border-slate-800 rounded-2xl p-4 shadow-md space-y-3">
         <div className="flex items-center justify-between">
-          <label className="text-xs font-medium text-slate-400">
-            Total dispatch cases
+          <label className="text-xs font-black uppercase tracking-wider text-slate-400 font-mono">
+            Total Dispatch Cases
           </label>
-          <span className="text-xs font-medium text-blue-400">
+          <span className="text-[11px] font-bold text-blue-400">
             {totalCases === 0 ? 'Address-Only Envelope' : `${totalCases} Parcel Case(s)`}
           </span>
         </div>
 
         {/* Stepper Controls */}
-        <div className="flex items-center justify-between gap-3 bg-slate-900 p-2 rounded-xl border border-slate-700">
+        <div className="flex items-center justify-between gap-3 bg-[#161C28] p-2 rounded-2xl border border-slate-800">
           <button
             onClick={() => setTotalCases(prev => Math.max(0, prev - 1))}
-            className="w-13 h-13 rounded-lg bg-slate-800 hover:bg-slate-700 text-rose-400 transition-colors flex items-center justify-center font-bold text-2xl border border-slate-700 shadow-xs cursor-pointer"
+            className="w-14 h-14 rounded-xl bg-slate-800 hover:bg-slate-700 text-rose-400 active:scale-90 transition-all flex items-center justify-center font-black text-2xl border border-slate-700 shadow-md cursor-pointer"
           >
-            <Minus className="w-5 h-5 text-rose-400" />
+            <Minus className="w-6 h-6 text-rose-400" />
           </button>
 
           <div className="text-center min-w-[80px]">
-            <div className="text-3xl font-bold text-white font-mono">{totalCases}</div>
-            <div className="text-xs text-slate-400">
-              {totalCases === 0 ? 'Address only' : 'Cases'}
+            <div className="text-3xl font-black text-white font-mono">{totalCases}</div>
+            <div className="text-[10px] font-bold text-slate-400">
+              {totalCases === 0 ? 'Address Only' : 'Cases'}
             </div>
           </div>
 
           <button
             onClick={() => setTotalCases(prev => prev + 1)}
-            className="w-13 h-13 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors flex items-center justify-center font-bold text-2xl shadow-xs cursor-pointer"
+            className="w-14 h-14 rounded-xl bg-blue-600 hover:bg-blue-500 text-white active:scale-90 transition-all flex items-center justify-center font-black text-2xl shadow-md shadow-blue-600/30 cursor-pointer"
           >
-            <Plus className="w-5 h-5 text-white" />
+            <Plus className="w-6 h-6 text-white" />
           </button>
         </div>
 
@@ -462,22 +462,22 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
           <button
             onClick={() => setTotalCases(0)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors border cursor-pointer ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all border cursor-pointer ${
               totalCases === 0 
-                ? 'bg-amber-950 text-amber-300 border-amber-700 shadow-xs' 
-                : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
+                ? 'bg-amber-950/80 text-amber-300 border-amber-700/70 shadow-sm' 
+                : 'bg-[#161C28] text-slate-400 border-slate-800 hover:text-white'
             }`}
           >
-            0 (Address only)
+            0 (Address Only)
           </button>
           {[1, 2, 3, 5, 10].map(c => (
             <button
               key={c}
               onClick={() => setTotalCases(c)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors border cursor-pointer ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all border cursor-pointer ${
                 totalCases === c 
-                  ? 'bg-blue-600 text-white border-blue-500 shadow-xs' 
-                  : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
+                  ? 'bg-blue-600 text-white border-blue-500 shadow-md shadow-blue-600/30' 
+                  : 'bg-[#161C28] text-slate-400 border-slate-800 hover:text-white'
               }`}
             >
               {c} {c === 1 ? 'Case' : 'Cases'}
@@ -486,15 +486,15 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
         </div>
       </div>
 
-      {/* 4. IV FLUIDS BREAKDOWN */}
+      {/* 4. IV FLUIDS BREAKDOWN (STITCH TACTICAL) */}
       {totalCases > 0 && (
-        <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 shadow-xs space-y-3">
+        <div className="bg-[#111827] border border-slate-800 rounded-2xl p-4 shadow-md space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-400">
-              IV fluids & bottle breakdown
+            <span className="text-xs font-black uppercase tracking-wider text-slate-400 font-mono">
+              IV Fluids & Bottle Breakdown
             </span>
-            <span className="text-xs text-amber-400 font-medium bg-amber-950 border border-amber-800 px-2 py-0.5 rounded-md">
-              200ML excluded
+            <span className="text-[10px] text-amber-400 font-bold bg-amber-950/80 border border-amber-800/60 px-2 py-0.5 rounded-md">
+              200ML Excluded
             </span>
           </div>
 
@@ -502,12 +502,12 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
           <div className="grid grid-cols-4 gap-1.5">
             {fluidTypes.map(f => (
               <div key={f} className="space-y-1">
-                <div className="text-xs font-semibold text-center text-slate-300">{f}</div>
+                <div className="text-[10px] font-black text-center text-slate-300">{f}</div>
                 {fluidVolumes.map(v => (
                   <button
                     key={`${f}_${v}`}
                     onClick={() => handleAddFluidItem(f, v)}
-                    className="w-full py-1.5 rounded-md bg-slate-900 hover:bg-blue-950 hover:text-blue-300 active:scale-98 text-xs font-medium text-slate-300 border border-slate-700 transition-colors text-center block cursor-pointer"
+                    className="w-full py-1.5 rounded-lg bg-[#161C28] hover:bg-blue-950 hover:text-blue-300 active:scale-95 text-[10px] font-bold text-slate-300 border border-slate-800 transition-all text-center block cursor-pointer"
                   >
                     +{v === 'PCS' ? 'PSC' : v}
                   </button>
@@ -517,12 +517,12 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
           </div>
 
           {/* Item Full Cases Search on Mobile */}
-          <div className="pt-2 border-t border-slate-700 space-y-2">
+          <div className="pt-2 border-t border-slate-800 space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-blue-400 flex items-center gap-1">
+              <span className="text-[11px] font-black uppercase text-indigo-400 flex items-center gap-1">
                 <Box className="w-3.5 h-3.5" /> Item Full Case (આઇટમ કેસ)
               </span>
-              <span className="text-xs text-slate-400 font-medium">4,343 items</span>
+              <span className="text-[9px] text-slate-400 font-bold">4,343 items</span>
             </div>
 
             <div className="relative">
@@ -534,7 +534,7 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
                   handleSearchMobileItems(e.target.value);
                 }}
                 placeholder="Search catalog item (e.g. SYRINGE, ATPL)..."
-                className="w-full px-2.5 py-1.5 text-xs font-medium rounded-lg border border-slate-700 bg-slate-900 text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full px-2.5 py-1.5 text-xs font-bold rounded-lg border border-slate-800 bg-[#0D131F] text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
               />
               {mobileItemQuery && (
                 <button
@@ -551,22 +551,22 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
               )}
 
               {showMobileItemDropdown && mobileItemResults.length > 0 && (
-                <div className="absolute left-0 right-0 top-full mt-1 bg-slate-800 border border-slate-700 rounded-xl shadow-lg z-50 max-h-48 overflow-y-auto divide-y divide-slate-700 apk-scroll-container">
+                <div className="absolute left-0 right-0 top-full mt-1 bg-[#111827] border border-slate-700 rounded-xl shadow-2xl z-50 max-h-48 overflow-y-auto divide-y divide-slate-800 apk-scroll-container">
                   {mobileItemResults.map((it) => (
                     <div
                       key={it.id || it.item_code}
                       onClick={() => handleAddItemCaseMobile(it, 'PSC (PIECES)')}
-                      className="p-2 hover:bg-slate-700 active:bg-blue-950 cursor-pointer flex items-center justify-between"
+                      className="p-2 hover:bg-[#1A202C] active:bg-indigo-950 cursor-pointer flex items-center justify-between"
                     >
                       <div className="flex-1 min-w-0 pr-2">
-                        <div className="font-semibold text-xs text-white truncate">{it.item_name}</div>
-                        <div className="text-xs text-slate-400">
+                        <div className="font-black text-xs text-white truncate">{it.item_name}</div>
+                        <div className="text-[10px] text-slate-400 font-bold">
                           {it.company} • Stock: {it.stock_qty ?? 0} {it.unit || 'PCS'}
                         </div>
                       </div>
                       <button
                         type="button"
-                        className="px-2 py-1 bg-blue-600 text-white rounded text-xs font-medium"
+                        className="px-2 py-1 bg-indigo-600 text-white rounded text-[10px] font-black"
                       >
                         + Case
                       </button>
@@ -579,16 +579,16 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
 
           {/* Added items tags */}
           {caseItems.length > 0 && (
-            <div className="pt-2 border-t border-slate-700 flex flex-wrap gap-1.5">
+            <div className="pt-2 border-t border-slate-800 flex flex-wrap gap-1.5">
               {caseItems.map((item, idx) => (
                 <span
                   key={idx}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-blue-950 text-blue-300 border border-blue-800 text-xs font-medium"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-950/80 text-blue-300 border border-blue-800/70 text-xs font-bold"
                 >
                   <span>{item.type} {item.volume} ({item.qty})</span>
                   <button
                     onClick={() => handleRemoveFluidItem(idx)}
-                    className="text-slate-400 hover:text-rose-400 ml-1 font-bold cursor-pointer"
+                    className="text-slate-400 hover:text-rose-400 ml-1 font-black cursor-pointer"
                   >
                     ×
                   </button>
@@ -599,21 +599,21 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
         </div>
       )}
 
-      {/* 5. SUCCESS CARD AFTER PRINT */}
+      {/* 5. SUCCESS CARD AFTER PRINT (STITCH TACTICAL) */}
       {successJob && (
-        <div className="bg-emerald-950/50 border border-emerald-700 rounded-xl p-4 shadow-sm space-y-3">
+        <div className="bg-emerald-950/40 border border-emerald-700/60 rounded-2xl p-4 shadow-xl space-y-3">
           <div className="flex items-center gap-2.5 text-emerald-400">
             <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-            <span className="text-sm font-bold">Envelope Generated Successfully!</span>
+            <span className="text-sm font-black">Envelope Generated Successfully!</span>
           </div>
           <div className="text-xs text-slate-300">
-            Job ID: <span className="font-mono font-medium text-white">{successJob.job_number}</span>
+            Job ID: <span className="font-mono font-bold text-white">{successJob.job_number}</span>
           </div>
 
           <div className="flex items-center gap-2 pt-1">
             <button
               onClick={() => downloadEnvelopePDF({ job_id: successJob.id, language: language })}
-              className="flex-1 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs flex items-center justify-center gap-1.5 shadow-xs active:scale-98 transition-colors cursor-pointer"
+              className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-blue-600/30 active:scale-95 transition-all cursor-pointer"
             >
               <Printer className="w-4 h-4" />
               <span>Download PDF</span>
@@ -631,7 +631,7 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
                 }, language) || '#'}
                 target="_blank"
                 rel="noreferrer"
-                className="py-2.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs flex items-center justify-center gap-1.5 shadow-xs active:scale-98 transition-colors cursor-pointer"
+                className="py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-emerald-600/30 active:scale-95 transition-all cursor-pointer"
               >
                 <Share2 className="w-4 h-4" />
                 <span>WhatsApp</span>
@@ -640,7 +640,7 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
 
             <button
               onClick={resetForm}
-              className="py-2.5 px-3 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 font-medium text-xs hover:bg-slate-700 active:scale-98 transition-colors cursor-pointer"
+              className="py-2.5 px-3 rounded-xl bg-slate-800 border border-slate-700 text-slate-200 font-bold text-xs hover:bg-slate-700 active:scale-95 transition-all cursor-pointer"
             >
               New
             </button>
@@ -648,19 +648,19 @@ export const MobilePrint: React.FC<MobilePrintProps> = ({
         </div>
       )}
 
-      {/* 6. STICKY BOTTOM PRINT BUTTON BAR */}
-      <div className="fixed bottom-[max(env(safe-area-inset-bottom),64px)] left-0 right-0 p-3 bg-slate-900 border-t border-slate-800 z-20">
+      {/* 6. STICKY BOTTOM PRINT BUTTON BAR (STITCH TACTICAL) */}
+      <div className="fixed bottom-[max(env(safe-area-inset-bottom),64px)] left-0 right-0 p-3 bg-gradient-to-t from-[#0B0F19] via-[#0B0F19]/95 to-transparent z-20">
         <div className="max-w-lg mx-auto">
           <button
             onClick={handleExecutePrint}
             disabled={!selectedParty || printing}
-            className={`w-full py-3.5 rounded-xl font-bold text-sm shadow-md flex items-center justify-center gap-2.5 transition-colors active:scale-[0.98] cursor-pointer ${
+            className={`w-full py-4 rounded-2xl font-black text-base shadow-2xl flex items-center justify-center gap-2.5 transition-all active:scale-[0.98] cursor-pointer ${
               !selectedParty
-                ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
-                : 'bg-blue-600 hover:bg-blue-700 text-white border border-blue-500 shadow-blue-600/30'
+                ? 'bg-slate-800 text-slate-500 cursor-not-allowed shadow-none border border-slate-700'
+                : 'bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 hover:from-blue-500 hover:to-indigo-500 text-white shadow-blue-600/40 ring-2 ring-blue-400/40'
             }`}
           >
-            <Printer className="w-5 h-5 text-amber-300" />
+            <Printer className="w-6 h-6 text-amber-300" />
             <span>
               {printing 
                 ? 'Generating Envelope...' 

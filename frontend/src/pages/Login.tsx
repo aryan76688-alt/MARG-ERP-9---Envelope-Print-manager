@@ -171,17 +171,17 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-3 sm:p-6 font-sans text-slate-100">
-      <div className="w-full max-w-lg bg-slate-900 rounded-3xl shadow-lg border border-slate-800 overflow-hidden flex flex-col">
+    <div className="min-h-screen bg-[#0B0F19] flex items-center justify-center p-3 sm:p-6 font-sans text-slate-100">
+      <div className="w-full max-w-lg bg-[#111827] rounded-3xl shadow-2xl border border-slate-800/90 overflow-hidden flex flex-col">
         {/* Header Banner */}
-        <div className="bg-slate-900 text-white px-6 py-5 sm:px-8 sm:py-6 relative overflow-hidden border-b border-slate-800">
+        <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white px-6 py-5 sm:px-8 sm:py-6 relative overflow-hidden border-b border-slate-800">
           <div className="absolute right-0 top-0 translate-x-4 -translate-y-4 opacity-10 pointer-events-none">
             <Printer className="w-44 h-44 text-white" />
           </div>
 
           <div className="relative z-10 flex items-center justify-between">
             <div className="flex items-center gap-3.5">
-              <div className="w-12 h-12 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center text-white shadow-sm">
+              <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white shadow-lg">
                 <Printer className="w-6 h-6 text-white" />
               </div>
               <div>
@@ -197,7 +197,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
         </div>
 
         {/* Server Connection Bar */}
-        <div className="bg-slate-800 border-b border-slate-800 px-5 sm:px-8 py-2.5 flex items-center justify-between text-xs text-slate-400">
+        <div className="bg-[#161C28] border-b border-slate-800 px-5 sm:px-8 py-2.5 flex items-center justify-between text-xs text-slate-400">
           <div className="flex items-center gap-1.5 truncate max-w-[280px]">
             <Server className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
             <span className="truncate font-mono text-xs text-slate-300">{getApiBase()}</span>
@@ -213,7 +213,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
         {/* Expandable Server Configurator */}
         {showServerConfig && (
-          <div className="bg-slate-950 border-b border-slate-800 px-5 sm:px-8 py-3 text-xs space-y-2">
+          <div className="bg-[#0D131F] border-b border-slate-800 px-5 sm:px-8 py-3 text-xs space-y-2">
             <label className="font-semibold text-slate-300 block">
               Backend Server URL (Cloud or Local IP):
             </label>
@@ -222,7 +222,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
               value={customServerUrl}
               onChange={(e) => setCustomServerUrl(e.target.value)}
               placeholder="http://192.168.1.10:8080 or https://..."
-              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl font-mono text-xs text-white focus:ring-1 focus:ring-blue-500"
+              className="w-full px-3 py-2 bg-[#161C28] border border-slate-700 rounded-xl font-mono text-xs text-white focus:ring-1 focus:ring-blue-500"
             />
 
             <div className="flex items-center gap-2 pt-1">
@@ -252,7 +252,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
         )}
 
         {/* Content Container */}
-        <div className="p-5 sm:p-8 space-y-5 flex-1 bg-slate-900">
+        <div className="p-5 sm:p-8 space-y-5 flex-1 bg-[#111827]">
 
           {/* Form Error Message */}
           {formError && (
@@ -280,7 +280,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="Enter username"
-                  className="w-full pl-10 pr-4 py-2.5 text-xs sm:text-sm bg-slate-950 border border-slate-800 rounded-xl focus:bg-slate-800 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 font-medium text-white transition-colors"
+                  className="w-full pl-10 pr-4 py-2.5 text-xs sm:text-sm bg-[#0D131F] border border-slate-800 rounded-xl focus:bg-[#161C28] focus:ring-1 focus:ring-blue-500 focus:border-blue-500 font-medium text-white transition-colors"
                   required
                 />
               </div>
@@ -299,7 +299,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter password"
-                  className="w-full pl-10 pr-12 py-2.5 text-xs sm:text-sm bg-slate-950 border border-slate-800 rounded-xl focus:bg-slate-800 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 font-medium text-white transition-colors"
+                  className="w-full pl-10 pr-12 py-2.5 text-xs sm:text-sm bg-[#0D131F] border border-slate-800 rounded-xl focus:bg-[#161C28] focus:ring-1 focus:ring-blue-500 focus:border-blue-500 font-medium text-white transition-colors"
                   required
                 />
                 {/* Show/Hide Password Toggle Button */}
@@ -323,12 +323,12 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 px-4 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 active:scale-[0.98] shadow-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed group cursor-pointer text-xs sm:text-sm whitespace-nowrap"
+                className="w-full py-3 px-4 rounded-xl font-bold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 active:scale-[0.98] shadow-lg shadow-blue-600/30 transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed group cursor-pointer text-xs sm:text-sm"
               >
                 {loading ? (
                   <>
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full motion-safe:animate-spin" />
-                    <span>Signing In…</span>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Signing In...</span>
                   </>
                 ) : (
                   <>
@@ -342,7 +342,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 <a
                   href="/downloads/EnvelopeManager.apk"
                   download="EnvelopeManager.apk"
-                  className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs flex items-center justify-center gap-2 shadow-sm transition-colors active:scale-98 border border-emerald-500/40 text-center whitespace-nowrap"
+                  className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600/90 to-teal-600/90 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/30 transition-all active:scale-98 border border-emerald-500/40 text-center"
                 >
                   <Download className="w-4 h-4 text-emerald-200" />
                   <span>Download Android Mobile App (.APK)</span>
@@ -353,7 +353,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
         </div>
 
         {/* Footer Info */}
-        <div className="bg-slate-950 px-6 py-3 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
+        <div className="bg-[#0D131F] px-6 py-3 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400 font-mono">
           <span>Zero-Internet Ready • Offline Sync</span>
           <span>v2.4.0 APK</span>
         </div>

@@ -246,7 +246,7 @@ export const PrintHistory: React.FC<PrintHistoryProps> = ({ onNavigate }) => {
         <div className="flex items-center gap-3">
           <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold shadow-xs">
             <span className="relative flex h-2 w-2">
-              <span className="motion-safe:animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
             </span>
             <span>Auto-Sync: Live</span>
@@ -266,8 +266,8 @@ export const PrintHistory: React.FC<PrintHistoryProps> = ({ onNavigate }) => {
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-indigo-200 bg-indigo-50/80 text-indigo-800 hover:bg-indigo-100 font-bold text-xs transition-colors disabled:opacity-50 cursor-pointer shadow-xs"
             title="Import print jobs from Excel (.xlsx/.xls), CSV, or JSON"
           >
-            <Upload className={`w-4 h-4 ${importing ? 'motion-safe:animate-spin text-indigo-600' : 'text-indigo-600'}`} />
-            <span>{importing ? 'Importing…' : 'Import History'}</span>
+            <Upload className={`w-4 h-4 ${importing ? 'animate-bounce text-indigo-600' : 'text-indigo-600'}`} />
+            <span>{importing ? 'Importing...' : 'Import History'}</span>
           </button>
 
           <a
@@ -286,13 +286,13 @@ export const PrintHistory: React.FC<PrintHistoryProps> = ({ onNavigate }) => {
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-blue-200 bg-blue-50/80 text-blue-800 hover:bg-blue-100 font-bold text-xs transition-colors disabled:opacity-50"
             title="Email last 50 dispatch jobs report to Gmail"
           >
-            <Mail className={`w-4 h-4 ${emailingSummary ? 'motion-safe:animate-pulse text-blue-600' : 'text-blue-600'}`} />
-            <span>{emailingSummary ? 'Emailing…' : 'Email Dispatch Report'}</span>
+            <Mail className={`w-4 h-4 ${emailingSummary ? 'animate-bounce text-blue-600' : 'text-blue-600'}`} />
+            <span>{emailingSummary ? 'Emailing...' : 'Email Dispatch Report'}</span>
           </button>
 
           <button
             onClick={() => onNavigate('print')}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm transition-colors"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md shadow-blue-600/30 transition-all"
           >
             <Printer className="w-4 h-4" />
             <span>New Envelope</span>
@@ -387,7 +387,7 @@ export const PrintHistory: React.FC<PrintHistoryProps> = ({ onNavigate }) => {
               setUniquePerDay(!uniquePerDay);
               setPage(1);
             }}
-            className={`w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg font-bold text-xs transition-colors border ${
+            className={`w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg font-bold text-xs transition-all border ${
               uniquePerDay
                 ? 'bg-blue-600 text-white border-blue-700 shadow-sm'
                 : 'bg-slate-50 text-slate-700 border-slate-300 hover:bg-slate-100'
@@ -413,7 +413,7 @@ export const PrintHistory: React.FC<PrintHistoryProps> = ({ onNavigate }) => {
             <button
               type="button"
               onClick={() => handleViewModeChange('cards')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-colors cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
                 viewMode === 'cards'
                   ? 'bg-blue-600 text-white shadow-sm'
                   : 'text-slate-600 hover:text-slate-900'
@@ -426,7 +426,7 @@ export const PrintHistory: React.FC<PrintHistoryProps> = ({ onNavigate }) => {
             <button
               type="button"
               onClick={() => handleViewModeChange('table')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-colors cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
                 viewMode === 'table'
                   ? 'bg-blue-600 text-white shadow-sm'
                   : 'text-slate-600 hover:text-slate-900'
@@ -443,7 +443,7 @@ export const PrintHistory: React.FC<PrintHistoryProps> = ({ onNavigate }) => {
             className="p-2 text-slate-600 hover:text-blue-600 hover:bg-slate-100 rounded-lg transition-colors border border-slate-200"
             title="Refresh History"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'motion-safe:animate-spin text-blue-600' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-blue-600' : ''}`} />
           </button>
         </div>
       </div>
@@ -455,8 +455,8 @@ export const PrintHistory: React.FC<PrintHistoryProps> = ({ onNavigate }) => {
             {loading ? (
               <div className="py-16 text-center text-slate-500 bg-white rounded-2xl border border-slate-200">
                 <div className="inline-flex items-center gap-2">
-                  <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full motion-safe:animate-spin"></div>
-                  <span className="font-bold text-sm">Loading print history cards…</span>
+                  <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                  <span className="font-bold text-sm">Loading print history cards...</span>
                 </div>
               </div>
             ) : jobs.length === 0 ? (
@@ -488,7 +488,7 @@ export const PrintHistory: React.FC<PrintHistoryProps> = ({ onNavigate }) => {
                   return (
                     <div
                       key={j.id}
-                      className="bg-white rounded-2xl border border-slate-200 hover:border-blue-400 hover:shadow-md transition-colors p-4.5 flex flex-col justify-between group space-y-3.5 relative overflow-hidden"
+                      className="bg-white rounded-2xl border border-slate-200 hover:border-blue-400 hover:shadow-lg transition-all p-4.5 flex flex-col justify-between group space-y-3.5 relative overflow-hidden"
                     >
                       {/* Top Bar: Sequence, Job Number, Status Badge */}
                       <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
@@ -501,7 +501,7 @@ export const PrintHistory: React.FC<PrintHistoryProps> = ({ onNavigate }) => {
                           </span>
                         </div>
                         <div className="flex items-center gap-1.5">
-                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black tracking-wide uppercase ${
                             isPrinted ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-amber-100 text-amber-800 border border-amber-200'
                           }`}>
                             {j.status}
@@ -565,10 +565,7 @@ export const PrintHistory: React.FC<PrintHistoryProps> = ({ onNavigate }) => {
 
                         <div className="flex items-center justify-between text-[11px] text-slate-500 font-medium pt-1">
                           <span>Format: <strong className="text-slate-700">{j.envelope_size}</strong></span>
-                          <span className="truncate max-w-[130px] flex items-center gap-1" title={j.printer_name}>
-                            <Printer className="w-3 h-3 text-slate-400 shrink-0" />
-                            <span>{j.printer_name}</span>
-                          </span>
+                          <span className="truncate max-w-[130px]" title={j.printer_name}>🖨️ {j.printer_name}</span>
                         </div>
                       </div>
 
@@ -587,7 +584,7 @@ export const PrintHistory: React.FC<PrintHistoryProps> = ({ onNavigate }) => {
                       <div className="pt-2 border-t border-slate-100 flex items-center gap-1.5">
                         <button
                           onClick={() => handleReprint(j)}
-                          className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs shadow-sm transition-colors"
+                          className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 active:scale-98 text-white font-black text-xs shadow-sm hover:shadow transition-all"
                           title="Edit Envelope & Reprint"
                         >
                           <Edit3 className="w-3.5 h-3.5" />
@@ -632,7 +629,7 @@ export const PrintHistory: React.FC<PrintHistoryProps> = ({ onNavigate }) => {
                           title="Email Invoice to Party"
                           aria-label="Email Invoice"
                         >
-                          <Mail className={`w-4 h-4 ${emailingJobId === j.id ? 'motion-safe:animate-pulse text-blue-600' : 'text-blue-600'}`} />
+                          <Mail className={`w-4 h-4 ${emailingJobId === j.id ? 'animate-bounce text-blue-600' : 'text-blue-600'}`} />
                         </button>
 
                         <button
@@ -653,7 +650,7 @@ export const PrintHistory: React.FC<PrintHistoryProps> = ({ onNavigate }) => {
         ) : (
           <div className="overflow-x-auto flex-1">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200 text-xs">
+              <thead className="bg-slate-50 text-slate-600 font-extrabold border-b border-slate-200 uppercase tracking-wider text-[10px]">
                 <tr>
                   <th className="px-4 py-3 w-12">#</th>
                   <th className="px-4 py-3">Job ID</th>
@@ -674,8 +671,8 @@ export const PrintHistory: React.FC<PrintHistoryProps> = ({ onNavigate }) => {
                   <tr>
                     <td colSpan={12} className="px-4 py-12 text-center text-slate-500">
                       <div className="inline-flex items-center gap-2">
-                        <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full motion-safe:animate-spin"></div>
-                        <span>Loading print logs…</span>
+                        <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                        <span>Loading print logs...</span>
                       </div>
                     </td>
                   </tr>
@@ -776,7 +773,7 @@ export const PrintHistory: React.FC<PrintHistoryProps> = ({ onNavigate }) => {
                             className="p-1.5 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50"
                             title="1-Click Email Invoice / Dispatch Details to Party via Gmail"
                           >
-                            <Mail className={`w-4 h-4 ${emailingJobId === j.id ? 'motion-safe:animate-pulse text-blue-600' : 'text-blue-600'}`} />
+                            <Mail className={`w-4 h-4 ${emailingJobId === j.id ? 'animate-bounce text-blue-600' : 'text-blue-600'}`} />
                           </button>
 
                           {/* Edit & Reprint */}
@@ -872,8 +869,8 @@ export const PrintHistory: React.FC<PrintHistoryProps> = ({ onNavigate }) => {
 
       {/* Delete Confirmation Modal */}
       {deleteConfirmJob && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="bg-white rounded-xl shadow-md border border-slate-200 max-w-md w-full p-6 text-xs">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-xl shadow-xl border border-slate-200 max-w-md w-full p-6 text-xs">
             <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto mb-4">
               <AlertTriangle className="w-6 h-6" />
             </div>

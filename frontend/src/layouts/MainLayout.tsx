@@ -168,25 +168,25 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
       {/* 1. Left Sidebar: Dark Navy Executive Dock */}
       <aside className="hidden md:flex md:w-64 flex-col bg-slate-900 border-r border-slate-800 text-slate-200 select-none z-20 flex-shrink-0 shadow-xl">
         {/* Brand Logo Header */}
-        <div className="h-16 flex items-center px-5 gap-3 border-b border-slate-800 bg-slate-950/80">
-          <div className="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center font-bold text-white text-lg shadow-sm border border-blue-500">
+        <div className="h-16 flex items-center px-5 gap-3 border-b border-slate-800/80 bg-slate-950/60">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center font-black text-white text-lg shadow-lg shadow-blue-500/25 border border-blue-400/30">
             <Printer className="w-5 h-5 text-white" />
           </div>
           <div className="flex flex-col">
-            <span className="font-bold text-base text-white font-display flex items-center gap-1.5">
+            <span className="font-extrabold text-base tracking-wider text-white font-display flex items-center gap-1.5">
               <span>MARG ERP 9</span>
-              <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-800">
-                Pro
+              <span className="text-[10px] font-black uppercase px-1.5 py-0.2 rounded bg-blue-500/20 text-blue-400 border border-blue-400/30">
+                PRO
               </span>
             </span>
-            <span className="text-xs text-slate-400 font-medium">Envelope Manager</span>
+            <span className="text-xs text-slate-400 font-medium tracking-wide">Envelope Manager</span>
           </div>
         </div>
 
         {/* Navigation Menu */}
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          <div className="px-3 pb-2 text-xs font-medium text-slate-400">
-            Operational modules
+          <div className="px-3 pb-2 text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">
+            Executive Modules
           </div>
           {navItems.map((item) => {
             const Icon = item.icon;
@@ -196,12 +196,14 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
               <button
                 key={item.id}
                 onClick={() => setCurrentTab(item.id)}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-xs font-medium transition-colors ${
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all duration-150 ${
                   isActive
-                    ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                    ? isPrint
+                      ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 text-white shadow-lg shadow-blue-500/40 ring-1 ring-blue-400/80 font-black'
+                      : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/30 font-bold'
                     : isPrint
-                    ? 'bg-slate-800 text-white border border-blue-500/40 hover:bg-slate-700'
-                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                    ? 'bg-gradient-to-r from-blue-950/70 via-indigo-950/60 to-blue-900/70 text-slate-100 border border-blue-500/50 shadow-sm hover:border-blue-400 hover:from-blue-900 font-bold'
+                    : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
                 }`}
               >
                 <div className="flex items-center gap-3">
@@ -209,8 +211,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
                   <span>{item.label}</span>
                 </div>
                 {isPrint && (
-                  <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-amber-400 text-slate-950">
-                    Fast
+                  <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-400 text-slate-950 shadow-sm animate-pulse">
+                    FAST
                   </span>
                 )}
               </button>
@@ -219,18 +221,18 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
         </nav>
 
         {/* Sidebar Footer System Info & Telemetry */}
-        <div className="p-4 border-t border-slate-800 bg-slate-950/80 text-xs text-slate-400 space-y-2.5">
+        <div className="p-4 border-t border-slate-800 bg-slate-950/60 text-xs text-slate-400 space-y-2.5">
           <div className="flex items-center justify-between font-medium">
-            <span className="text-xs text-slate-400">ERP sync telemetry</span>
-            <span className="inline-flex items-center gap-1.5 text-emerald-400 text-xs font-semibold">
-              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-              Port 8089 Live
+            <span className="font-mono text-[11px] text-slate-400">ERP Sync Telemetry</span>
+            <span className="inline-flex items-center gap-1.5 text-emerald-400 text-[11px] font-bold">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              Port 8089 LIVE
             </span>
           </div>
           <div className="flex items-center justify-between text-xs text-slate-400 font-medium">
-            <span className="text-xs">Active engine</span>
-            <span className="text-blue-300 bg-blue-950 px-2 py-0.5 rounded text-xs font-medium border border-blue-800">
-              Wayfind Logistics
+            <span className="text-[11px]">Active Engine</span>
+            <span className="text-blue-400 bg-blue-950/60 px-2 py-0.5 rounded text-[10px] font-mono font-bold border border-blue-800/60">
+              Stitch Executive
             </span>
           </div>
         </div>
@@ -264,11 +266,13 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
                       setCurrentTab(item.id);
                       setMobileMenuOpen(false);
                     }}
-                    className={`w-full flex items-center justify-between px-3.5 py-3 rounded-lg text-sm font-medium transition-colors ${
+                    className={`w-full flex items-center justify-between px-3.5 py-3 rounded-lg text-sm font-semibold transition-all ${
                       isActive
-                        ? 'bg-blue-600 text-white font-semibold'
+                        ? isPrint
+                          ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 text-white shadow-lg ring-2 ring-blue-400 font-black'
+                          : 'bg-blue-600 text-white shadow-md'
                         : isPrint
-                        ? 'bg-slate-800 text-white border border-blue-500/40'
+                        ? 'bg-gradient-to-r from-blue-950/90 to-indigo-950/90 text-white border border-blue-500/60 shadow-md font-extrabold ring-1 ring-blue-500/30'
                         : 'text-slate-300 hover:bg-slate-800'
                     }`}
                   >
@@ -277,8 +281,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
                       <span>{item.label}</span>
                     </div>
                     {isPrint && (
-                      <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-amber-400 text-slate-950">
-                        Fast
+                      <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-400 text-slate-950">
+                        FAST
                       </span>
                     )}
                   </button>
@@ -292,13 +296,13 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
       {/* 2. Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         {/* Top Header */}
-        <header className="h-14 sm:h-16 bg-white border-b border-slate-200 flex items-center justify-between px-3 sm:px-6 z-10 flex-shrink-0 shadow-xs no-print">
+        <header className="h-14 sm:h-16 bg-white border-b border-slate-200 flex items-center justify-between px-3 sm:px-6 z-10 flex-shrink-0 shadow-sm no-print">
           {/* Left Title & Mobile Hamburger & Back Button */}
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             {(canGoBack || currentTab !== 'dashboard') && (
               <button
                 onClick={handleMobileBack}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 font-medium text-xs transition-colors border border-slate-300 shrink-0"
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs transition-colors border border-slate-300 shrink-0"
                 title="Go back"
               >
                 <ArrowLeft className="w-4 h-4 text-blue-600" />
@@ -316,12 +320,12 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
 
             <div className="min-w-0">
               <div className="flex items-center gap-2.5 truncate">
-                <h1 className="text-sm sm:text-lg font-bold text-slate-900 tracking-tight truncate font-display">
+                <h1 className="text-sm sm:text-lg font-black text-slate-900 tracking-tight truncate font-display">
                   {activeTitle}
                 </h1>
-                <span className="hidden sm:inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-800 border border-emerald-300">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                  ERP: Live 8089
+                <span className="hidden sm:inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold font-mono bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  ERP: LIVE 8089
                 </span>
               </div>
               <p className="text-xs text-slate-500 font-medium hidden sm:block truncate">
@@ -335,21 +339,21 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
             {/* Full Database Export & Import Modal Trigger */}
             <button
               onClick={() => setDatabaseModalOpen(true)}
-              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 font-medium text-xs transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold text-xs transition-colors cursor-pointer"
               title="Full Database Backup, Download & Import (.db / .json)"
             >
-              <Database className="w-3.5 h-3.5 text-blue-600" />
-              <span className="hidden sm:inline">Database</span>
+              <Database className="w-3.5 h-3.5 text-indigo-600" />
+              <span className="hidden sm:inline">Database (DB)</span>
             </button>
 
             {/* Emergency SOS Call (Admin & Super Admin only) */}
             {['super_admin', 'admin'].includes(userRole) && onOpenEmergencyCall && (
               <button
                 onClick={onOpenEmergencyCall}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs shadow-xs transition-colors active:scale-98 cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-black text-xs shadow-md transition-all active:scale-95 cursor-pointer"
                 title="Emergency Direct Voice/Video Call"
               >
-                <PhoneCall className="w-3.5 h-3.5" />
+                <PhoneCall className="w-3.5 h-3.5 animate-pulse" />
                 <span>Emergency Call</span>
               </button>
             )}
@@ -358,7 +362,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
             <button
               onClick={() => triggerSync()}
               title={isOnline ? (pendingCount > 0 ? `${pendingCount} offline actions pending sync` : 'All changes synced') : 'Offline mode active'}
-              className={`flex items-center gap-1.5 text-xs font-medium px-2 sm:px-2.5 py-1.5 rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+              className={`flex items-center gap-1.5 text-xs font-semibold px-2 sm:px-2.5 py-1.5 rounded-lg border transition-all ${
                 isSyncing
                   ? 'bg-blue-50 text-blue-700 border-blue-200'
                   : !isOnline
@@ -370,8 +374,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
             >
               {isSyncing ? (
                 <>
-                  <RefreshCw className="w-3.5 h-3.5 motion-safe:animate-spin text-blue-600" />
-                  <span className="hidden sm:inline">Syncing</span>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-blue-600" />
+                  <span className="hidden sm:inline">Syncing...</span>
                 </>
               ) : !isOnline ? (
                 <>
@@ -392,13 +396,13 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
             </button>
 
             {/* Live Date */}
-            <div className="hidden lg:flex items-center gap-1.5 text-xs text-slate-600 font-medium bg-slate-50 px-2.5 py-1.5 rounded-md border border-slate-200">
+            <div className="hidden lg:flex items-center gap-1.5 text-xs text-slate-600 font-semibold bg-slate-50 px-2.5 py-1.5 rounded-md border border-slate-200">
               <Calendar className="w-3.5 h-3.5 text-blue-600" />
               <span>{currentDate}</span>
             </div>
 
             {/* Live Digital Clock */}
-            <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-800 font-mono font-medium bg-blue-50/80 px-2.5 py-1.5 rounded-md border border-blue-200 text-blue-900">
+            <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-800 font-mono font-bold bg-blue-50/80 px-2.5 py-1.5 rounded-md border border-blue-100 text-blue-900">
               <Clock className="w-3.5 h-3.5 text-blue-600" />
               <span>{currentTime}</span>
             </div>
@@ -407,24 +411,24 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
             <div className="relative">
               <button
                 onClick={() => setNotificationsOpen(!notificationsOpen)}
-                className="p-1.5 sm:p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                className="p-1.5 sm:p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 relative"
               >
                 <Bell className="w-4 h-4" />
                 <span className="absolute top-1 right-1 w-2 h-2 bg-blue-600 rounded-full"></span>
               </button>
 
               {notificationsOpen && (
-                <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-md border border-slate-200 p-3 z-30 text-xs">
+                <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-xl border border-slate-200 p-3 z-30 text-xs">
                   <div className="font-bold text-slate-900 border-b border-slate-100 pb-2 mb-2 flex items-center justify-between">
                     <span>Notifications</span>
-                    <span className="text-xs text-blue-600 cursor-pointer">Mark read</span>
+                    <span className="text-[10px] text-blue-600 cursor-pointer">Mark read</span>
                   </div>
                   <div className="space-y-2">
                     <div className="p-2 rounded bg-blue-50 text-blue-900 font-medium">
-                      MARG ERP envelope manager online and ready.
+                      🚀 System Ready: MARG ERP Envelope Manager online.
                     </div>
                     <div className="p-2 rounded bg-slate-50 text-slate-600">
-                      All parties cached for offline and instant printing.
+                      ℹ️ All parties cached for offline and instant printing.
                     </div>
                   </div>
                 </div>
@@ -488,20 +492,20 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
               <button
                 key={item.id}
                 onClick={() => handleTabChange(item.id)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full font-bold whitespace-nowrap transition-colors ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full font-bold whitespace-nowrap transition-all ${
                   isActive
                     ? isPrint
-                      ? 'bg-blue-600 text-white shadow-md shadow-blue-600/40 ring-2 ring-amber-400 font-black'
+                      ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 text-white shadow-md shadow-blue-600/40 ring-2 ring-amber-400 font-black'
                       : 'bg-blue-600 text-white shadow-md shadow-blue-600/30 ring-1 ring-white/20'
                     : isPrint
-                    ? 'bg-blue-950 text-white border border-blue-400/80 shadow-sm font-black ring-1 ring-blue-500/30'
+                    ? 'bg-gradient-to-r from-blue-950 via-indigo-950 to-blue-900 text-white border border-blue-400/80 shadow-sm font-black ring-1 ring-blue-500/30'
                     : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white'
                 }`}
               >
                 <Icon className={`w-3.5 h-3.5 ${isPrint ? 'text-blue-400' : ''}`} />
                 <span>{item.label}</span>
                 {isPrint && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 motion-safe:animate-pulse ml-0.5" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse ml-0.5" />
                 )}
               </button>
             );

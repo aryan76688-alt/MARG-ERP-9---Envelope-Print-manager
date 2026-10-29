@@ -108,7 +108,7 @@ const createPartyMarkerIcon = (
             white-space: nowrap;
             letter-spacing: -0.2px;
           ">
-            Cases: ${casesCount}
+            📦 ${casesCount}
           </div>
         ` : ''}
         <div style="
@@ -162,10 +162,10 @@ const createNearestPartyMarkerIcon = (
   casesCount: number = 0
 ) => {
   const rankMeta = {
-    1: { bg: '#eab308', ring: '#fef08a', text: '#713f12', medal: '1', label: '#1' },
-    2: { bg: '#9333ea', ring: '#e9d5ff', text: '#3b0764', medal: '2', label: '#2' },
-    3: { bg: '#059669', ring: '#a7f3d0', text: '#064e3b', medal: '3', label: '#3' },
-  }[rank] || { bg: '#2563eb', ring: '#bfdbfe', text: '#1e3a8a', medal: '', label: `#${rank}` };
+    1: { bg: '#eab308', ring: '#fef08a', text: '#713f12', medal: '🥇', label: '#1' },
+    2: { bg: '#9333ea', ring: '#e9d5ff', text: '#3b0764', medal: '🥈', label: '#2' },
+    3: { bg: '#059669', ring: '#a7f3d0', text: '#064e3b', medal: '🥉', label: '#3' },
+  }[rank] || { bg: '#2563eb', ring: '#bfdbfe', text: '#1e3a8a', medal: '📍', label: `#${rank}` };
 
   const pinColor = isSelected ? '#2563eb' : rankMeta.bg;
   const hasCases = casesCount > 0;
@@ -226,7 +226,7 @@ const createNearestPartyMarkerIcon = (
             z-index: 25;
             white-space: nowrap;
           ">
-            Cases: ${casesCount}
+            📦 ${casesCount}
           </div>
         ` : ''}
 
@@ -337,6 +337,7 @@ const createStaffLocationIcon = (fullName: string = '', role: string = 'Driver')
           align-items: center;
           gap: 3px;
         ">
+          <span>🛵</span>
           <span>${fullName || role}</span>
         </div>
         <div style="
@@ -937,7 +938,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
       });
 
       marker.bindTooltip(
-        `<strong>${staff.full_name} (${staff.role.toUpperCase()})</strong><br/>Live Update: ${new Date(staff.updated_at).toLocaleTimeString()}`,
+        `<strong>🛵 ${staff.full_name} (${staff.role.toUpperCase()})</strong><br/>Live Update: ${new Date(staff.updated_at).toLocaleTimeString()}`,
         { direction: 'top', offset: [0, -32] }
       );
 
@@ -1098,16 +1099,16 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
       // Tooltip on hover
       if (nearestInfo) {
         marker.bindTooltip(
-          `<strong>#${nearestInfo.rank} Nearest Party (${nearestInfo.distanceStr})</strong><br/><strong>${p.party_code || ''}</strong>: ${p.party_name}${
-            casesCount > 0 ? ` <span style="color:#f59e0b;font-weight:bold;">(${casesCount} cases)</span>` : ''
-          }${primaryRoute ? ` <br/><small style="color:#94a3b8;">${primaryRoute}</small>` : ''}`,
+          `<strong>${nearestInfo.rank === 1 ? '🥇' : nearestInfo.rank === 2 ? '🥈' : '🥉'} #${nearestInfo.rank} Nearest Party (${nearestInfo.distanceStr})</strong><br/><strong>${p.party_code || ''}</strong>: ${p.party_name}${
+            casesCount > 0 ? ` <span style="color:#f59e0b;font-weight:bold;">(📦 ${casesCount} cases)</span>` : ''
+          }${primaryRoute ? ` <br/><small style="color:#94a3b8;">🛣️ ${primaryRoute}</small>` : ''}`,
           { direction: 'top', offset: [0, -46] }
         );
       } else {
         marker.bindTooltip(
           `<strong>${p.party_code || ''}</strong>: ${p.party_name}${
-            casesCount > 0 ? ` <span style="color:#f59e0b;font-weight:bold;">(${casesCount} cases)</span>` : ''
-          }${primaryRoute ? ` <br/><small style="color:#94a3b8;">${primaryRoute}</small>` : ''}`,
+            casesCount > 0 ? ` <span style="color:#f59e0b;font-weight:bold;">(📦 ${casesCount} cases)</span>` : ''
+          }${primaryRoute ? ` <br/><small style="color:#94a3b8;">🛣️ ${primaryRoute}</small>` : ''}`,
           { direction: 'top', offset: [0, -32] }
         );
       }
@@ -1152,7 +1153,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
   return (
     <div 
       ref={mapRootRef} 
-      className={`relative h-full w-full bg-slate-950 text-white font-sans overflow-hidden select-none transition-opacity duration-200 ${
+      className={`relative h-full w-full bg-slate-950 text-white font-sans overflow-hidden select-none transition-all duration-200 ${
         isFullscreen ? 'fixed inset-0 z-[999999] w-screen h-screen' : ''
       }`}
     >
@@ -1177,7 +1178,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
           <button
             type="button"
             onClick={() => onNavigate && onNavigate('nearby')}
-            className="px-2.5 py-1.5 rounded-xl border border-emerald-500/50 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 hover:text-white text-xs font-bold flex items-center gap-1 active:scale-95 transition-colors shadow-xs shrink-0 cursor-pointer"
+            className="px-2.5 py-1.5 rounded-xl border border-emerald-500/50 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 hover:text-white text-xs font-bold flex items-center gap-1 active:scale-95 transition-all shadow-xs shrink-0 cursor-pointer"
             title="View Nearest Parties List"
           >
             <Compass className="w-3.5 h-3.5 text-emerald-400" />
@@ -1188,7 +1189,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
           <button
             type="button"
             onClick={() => onNavigate && onNavigate('route-optimizer')}
-            className="px-2.5 py-1.5 rounded-xl border border-indigo-500/50 bg-indigo-950/80 hover:bg-indigo-900 text-indigo-300 hover:text-white text-xs font-bold flex items-center gap-1 active:scale-95 transition-colors shadow-xs shrink-0 cursor-pointer"
+            className="px-2.5 py-1.5 rounded-xl border border-indigo-500/50 bg-indigo-950/80 hover:bg-indigo-900 text-indigo-300 hover:text-white text-xs font-bold flex items-center gap-1 active:scale-95 transition-all shadow-xs shrink-0 cursor-pointer"
             title="Delivery Route Optimizer"
           >
             <Route className="w-3.5 h-3.5 text-indigo-400" />
@@ -1199,7 +1200,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
           <button
             type="button"
             onClick={() => setFiltersExpanded((prev) => !prev)}
-            className={`px-2.5 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1 active:scale-95 transition-colors shadow-xs shrink-0 ${
+            className={`px-2.5 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1 active:scale-95 transition-all shadow-xs shrink-0 ${
               filtersExpanded || filterMode !== 'all' || selectedRoute !== 'all'
                 ? 'bg-blue-600 text-white border-blue-500 shadow-blue-500/20'
                 : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
@@ -1221,7 +1222,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
               setMapMode(next);
               switchTileLayer(next);
             }}
-            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-400 hover:text-cyan-300 border border-slate-700 active:scale-95 transition-colors shadow-xs shrink-0"
+            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-400 hover:text-cyan-300 border border-slate-700 active:scale-95 transition-all shadow-xs shrink-0"
             title={mapMode === 'streets' ? 'Switch to Satellite Map' : 'Switch to Street Map'}
           >
             <Layers className="w-3.5 h-3.5" />
@@ -1232,17 +1233,17 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
             type="button"
             onClick={() => handleLocateMe(true)}
             disabled={isLocating}
-            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-blue-400 hover:text-blue-300 border border-slate-700 active:scale-95 transition-colors shadow-xs shrink-0"
+            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-blue-400 hover:text-blue-300 border border-slate-700 active:scale-95 transition-all shadow-xs shrink-0"
             title="Center to My Live GPS Location"
           >
-            <Compass className={`w-3.5 h-3.5 ${isLocating ? 'motion-safe:animate-spin' : ''}`} />
+            <Compass className={`w-3.5 h-3.5 ${isLocating ? 'animate-spin' : ''}`} />
           </button>
 
           {/* Fit All Markers */}
           <button
             type="button"
             onClick={handleFitAllMarkers}
-            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-400 hover:text-emerald-300 border border-slate-700 active:scale-95 transition-colors shadow-xs shrink-0"
+            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-400 hover:text-emerald-300 border border-slate-700 active:scale-95 transition-all shadow-xs shrink-0"
             title="Fit All Pinned Parties"
           >
             <Navigation className="w-3.5 h-3.5" />
@@ -1252,7 +1253,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
           <button
             type="button"
             onClick={handleToggleFullscreen}
-            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 active:scale-95 transition-colors shadow-xs shrink-0"
+            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 active:scale-95 transition-all shadow-xs shrink-0"
             title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
           >
             {isFullscreen ? <Minimize className="w-3.5 h-3.5 text-amber-400" /> : <Maximize className="w-3.5 h-3.5 text-slate-300" />}
@@ -1286,7 +1287,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
               <button
                 type="button"
                 onClick={() => setFilterMode('all')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 shrink-0 transition-colors ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 shrink-0 transition-all ${
                   filterMode === 'all'
                     ? 'bg-blue-600 text-white shadow-sm'
                     : 'bg-slate-800 text-slate-400 hover:text-white'
@@ -1298,7 +1299,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
               <button
                 type="button"
                 onClick={() => setFilterMode('with_cases')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 shrink-0 transition-colors ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 shrink-0 transition-all ${
                   filterMode === 'with_cases'
                     ? 'bg-amber-600 text-white shadow-sm'
                     : 'bg-slate-800 text-slate-400 hover:text-amber-300'
@@ -1310,7 +1311,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
               <button
                 type="button"
                 onClick={() => setFilterMode('unmapped')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 shrink-0 transition-colors ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 shrink-0 transition-all ${
                   filterMode === 'unmapped'
                     ? 'bg-rose-600 text-white shadow-sm'
                     : 'bg-slate-800 text-slate-400 hover:text-rose-300'
@@ -1328,10 +1329,10 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                 onChange={(e) => setSelectedRoute(e.target.value)}
                 className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-xs font-bold text-white focus:outline-none focus:border-blue-500 appearance-none pr-8 cursor-pointer"
               >
-                <option value="all">All Routes</option>
+                <option value="all">🛣️ All Routes</option>
                 {availableRoutes.map((r) => (
                   <option key={r} value={r}>
-                    {r}
+                    🛣️ {r}
                   </option>
                 ))}
               </select>
@@ -1340,7 +1341,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
 
             {/* Quick POI Shortcuts */}
             <div className="flex items-center gap-1.5 overflow-x-auto text-[11px] pt-0.5">
-              <span className="text-[10px] font-bold text-slate-400 shrink-0">Nearby:</span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0">Nearby:</span>
               <a
                 href={
                   userLocation
@@ -1351,7 +1352,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                 rel="noopener noreferrer"
                 className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 font-bold flex items-center gap-1 shrink-0"
               >
-                <span>Petrol Pumps</span>
+                <span>⛽ Petrol Pumps</span>
               </a>
               <a
                 href={
@@ -1363,7 +1364,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                 rel="noopener noreferrer"
                 className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-blue-300 border border-blue-500/30 font-bold flex items-center gap-1 shrink-0"
               >
-                <span>Hotels</span>
+                <span>🏨 Hotels</span>
               </a>
               <a
                 href={
@@ -1375,7 +1376,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                 rel="noopener noreferrer"
                 className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-rose-300 border border-rose-500/30 font-bold flex items-center gap-1 shrink-0"
               >
-                <span>Hospitals</span>
+                <span>🏥 Hospitals</span>
               </a>
             </div>
 
@@ -1392,20 +1393,20 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
 
         {/* NEAREST 3 PARTIES WITH KM FLOATING WIDGET */}
         {showNearestThree && (
-          <div className={`absolute top-3 left-3 z-20 transition-opacity duration-300 max-w-[calc(100vw-24px)] ${
+          <div className={`absolute top-3 left-3 z-20 transition-all duration-300 max-w-[calc(100vw-24px)] ${
             nearestWidgetMinimized ? 'w-auto' : 'w-72 sm:w-80'
           }`}>
             {nearestWidgetMinimized ? (
               <button
                 type="button"
                 onClick={() => setNearestWidgetMinimized(false)}
-                className="flex items-center gap-2 px-3 py-2 rounded-2xl bg-slate-900/95 backdrop-blur-md border border-amber-500/50 text-amber-300 shadow-2xl hover:bg-slate-800 text-xs font-black transition-colors active:scale-95"
+                className="flex items-center gap-2 px-3 py-2 rounded-2xl bg-slate-900/95 backdrop-blur-md border border-amber-500/50 text-amber-300 shadow-2xl hover:bg-slate-800 text-xs font-black transition-all active:scale-95"
               >
                 <span className="relative flex h-2 w-2">
-                  <span className="motion-safe:animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
                 </span>
-                <span>Top 3 Nearest ({nearestThreeParties[0]?.distanceStr || 'View'})</span>
+                <span>🎯 Top 3 Nearest ({nearestThreeParties[0]?.distanceStr || 'View'})</span>
                 <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
               </button>
             ) : (
@@ -1414,12 +1415,12 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                 <div className="flex items-center justify-between gap-2 pb-1.5 border-b border-slate-800">
                   <div className="flex items-center gap-1.5 min-w-0">
                     <div className="w-6 h-6 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-xs shrink-0">
-                      <Target className="w-3.5 h-3.5" />
+                      🎯
                     </div>
                     <div className="min-w-0">
                       <h4 className="text-xs font-black text-white flex items-center gap-1.5">
                         <span className="truncate">Top 3 Nearest Parties</span>
-                        <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">
+                        <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-mono font-bold">
                           KM
                         </span>
                       </h4>
@@ -1430,7 +1431,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                       <button
                         type="button"
                         onClick={handleFocusNearestThree}
-                        className="px-2 py-0.5 rounded-lg bg-blue-600/30 hover:bg-blue-600 text-blue-300 hover:text-white text-[10px] font-bold border border-blue-500/40 transition-colors flex items-center gap-1"
+                        className="px-2 py-0.5 rounded-lg bg-blue-600/30 hover:bg-blue-600 text-blue-300 hover:text-white text-[10px] font-bold border border-blue-500/40 transition-all flex items-center gap-1"
                         title="Focus all 3 nearest parties on map"
                       >
                         <Navigation className="w-2.5 h-2.5" />
@@ -1457,10 +1458,10 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                     <button
                       type="button"
                       onClick={() => handleLocateMe(true)}
-                      className="w-full py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow flex items-center justify-center gap-1.5 active:scale-95 transition-colors"
+                      className="w-full py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow flex items-center justify-center gap-1.5 active:scale-95 transition-all"
                     >
                       <Compass className="w-3.5 h-3.5" />
-                      <span>Enable Live GPS</span>
+                      <span>📡 Enable Live GPS</span>
                     </button>
                   </div>
                 ) : nearestThreeParties.length === 0 ? (
@@ -1475,10 +1476,10 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                       const casesCount = partyCase?.total_cases || 0;
                       const isSelected = selectedParty?.id === p.id;
                       const rankStyles = {
-                        1: { border: 'border-amber-500/40 hover:border-amber-500', bg: 'bg-amber-500/10', medal: '#1', tag: 'bg-amber-500/20 text-amber-300 border-amber-500/40' },
-                        2: { border: 'border-purple-500/40 hover:border-purple-500', bg: 'bg-purple-500/10', medal: '#2', tag: 'bg-purple-500/20 text-purple-300 border-purple-500/40' },
-                        3: { border: 'border-emerald-500/40 hover:border-emerald-500', bg: 'bg-emerald-500/10', medal: '#3', tag: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' },
-                      }[n.rank] || { border: 'border-blue-500/40 hover:border-blue-500', bg: 'bg-blue-500/10', medal: '#', tag: 'bg-blue-500/20 text-blue-300 border-blue-500/40' };
+                        1: { border: 'border-amber-500/40 hover:border-amber-500', bg: 'bg-amber-500/10', medal: '🥇', tag: 'bg-amber-500/20 text-amber-300 border-amber-500/40' },
+                        2: { border: 'border-purple-500/40 hover:border-purple-500', bg: 'bg-purple-500/10', medal: '🥈', tag: 'bg-purple-500/20 text-purple-300 border-purple-500/40' },
+                        3: { border: 'border-emerald-500/40 hover:border-emerald-500', bg: 'bg-emerald-500/10', medal: '🥉', tag: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' },
+                      }[n.rank] || { border: 'border-blue-500/40 hover:border-blue-500', bg: 'bg-blue-500/10', medal: '📍', tag: 'bg-blue-500/20 text-blue-300 border-blue-500/40' };
 
                       return (
                         <div
@@ -1487,13 +1488,13 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                             setSelectedParty(p);
                             mapInstanceRef.current?.flyTo([Number(p.latitude), Number(p.longitude)], 17, { duration: 0.5 });
                           }}
-                          className={`p-2 rounded-xl border transition-colors cursor-pointer ${rankStyles.border} ${rankStyles.bg} ${
+                          className={`p-2 rounded-xl border transition-all cursor-pointer ${rankStyles.border} ${rankStyles.bg} ${
                             isSelected ? 'ring-2 ring-blue-500' : ''
                           }`}
                         >
                           <div className="flex items-center justify-between gap-1.5">
                             <div className="flex items-center gap-1.5 min-w-0">
-                              <span className="text-[10px] font-bold text-amber-400 shrink-0">{rankStyles.medal}</span>
+                              <span className="text-xs shrink-0">{rankStyles.medal}</span>
                               <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-slate-800 text-slate-200 shrink-0">
                                 {p.party_code || 'MARG'}
                               </span>
@@ -1502,15 +1503,15 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                               </span>
                             </div>
                             <span className={`text-[11px] font-black px-2 py-0.5 rounded-full border shrink-0 font-mono ${rankStyles.tag}`}>
-                              {n.distanceStr}{n.durationStr ? ` • ${n.durationStr}` : ''}
+                              🚗 {n.distanceStr}{n.durationStr ? ` • ${n.durationStr}` : ''}
                             </span>
                           </div>
 
                           <div className="flex items-center justify-between text-[10px] text-slate-400 mt-1 pl-5">
-                            <span className="truncate">{p.city || 'Gujarat'}{p.route_1 ? ` • ${p.route_1}` : ''}</span>
+                            <span className="truncate">{p.city || 'Gujarat'}{p.route_1 ? ` • 🛣️ ${p.route_1}` : ''}</span>
                             {casesCount > 0 && (
                               <span className="text-amber-400 font-bold shrink-0">
-                                {casesCount} cases
+                                📦 {casesCount} cases
                               </span>
                             )}
                           </div>
@@ -1523,7 +1524,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                                 setSelectedParty(p);
                                 handleNavigateToParty(p);
                               }}
-                              className="px-2 py-0.5 rounded bg-blue-600/30 hover:bg-blue-600 text-blue-300 hover:text-white text-[10px] font-bold border border-blue-500/30 flex items-center gap-1 transition-colors"
+                              className="px-2 py-0.5 rounded bg-blue-600/30 hover:bg-blue-600 text-blue-300 hover:text-white text-[10px] font-bold border border-blue-500/30 flex items-center gap-1 transition-all"
                               title="Google Routes API Real Road Route"
                             >
                               <Route className="w-2.5 h-2.5 text-blue-400" />
@@ -1544,7 +1545,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                               href={`https://www.google.com/maps/dir/?api=1&destination=${p.latitude},${p.longitude}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="px-2 py-0.5 rounded bg-emerald-600/30 hover:bg-emerald-600 text-emerald-300 hover:text-white text-[10px] font-bold border border-emerald-500/30 flex items-center gap-1 transition-colors"
+                              className="px-2 py-0.5 rounded bg-emerald-600/30 hover:bg-emerald-600 text-emerald-300 hover:text-white text-[10px] font-bold border border-emerald-500/30 flex items-center gap-1 transition-all"
                             >
                               <Navigation className="w-2.5 h-2.5" />
                               <span>Google Maps</span>
@@ -1552,7 +1553,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                             {p.mobile_no && (
                               <a
                                 href={`tel:${p.mobile_no}`}
-                                className="px-2 py-0.5 rounded bg-blue-600/30 hover:bg-blue-600 text-blue-300 hover:text-white text-[10px] font-bold border border-blue-500/30 flex items-center gap-1 transition-colors"
+                                className="px-2 py-0.5 rounded bg-blue-600/30 hover:bg-blue-600 text-blue-300 hover:text-white text-[10px] font-bold border border-blue-500/30 flex items-center gap-1 transition-all"
                               >
                                 <Phone className="w-2.5 h-2.5" />
                                 <span>Call</span>
@@ -1574,7 +1575,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
           <button
             type="button"
             onClick={() => switchTileLayer('streets')}
-            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-colors ${
+            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all ${
               mapMode === 'streets'
                 ? 'bg-blue-600 text-white shadow-sm'
                 : 'text-slate-400 hover:text-white'
@@ -1586,13 +1587,13 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
           <button
             type="button"
             onClick={() => switchTileLayer('satellite')}
-            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-colors ${
+            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all ${
               mapMode === 'satellite'
                 ? 'bg-emerald-600 text-white shadow-sm'
                 : 'text-slate-400 hover:text-white'
             }`}
           >
-            <span>Satellite</span>
+            <span>🛰️ Satellite</span>
           </button>
         </div>
 
@@ -1600,13 +1601,13 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
         <button
           type="button"
           onClick={() => handleLocateMe(true)}
-          className={`absolute ${selectedParty ? 'bottom-40' : 'bottom-6'} right-3 z-20 w-11 h-11 rounded-full bg-slate-900/95 hover:bg-slate-800 text-white shadow-2xl border border-slate-700/80 flex items-center justify-center active:scale-90 transition-colors ${
+          className={`absolute ${selectedParty ? 'bottom-40' : 'bottom-6'} right-3 z-20 w-11 h-11 rounded-full bg-slate-900/95 hover:bg-slate-800 text-white shadow-2xl border border-slate-700/80 flex items-center justify-center active:scale-90 transition-all ${
             isLocating ? 'ring-2 ring-blue-500' : ''
           }`}
           title="Center on My Location"
         >
           {isLocating ? (
-            <Loader2 className="w-5 h-5 text-blue-400 motion-safe:animate-spin" />
+            <Loader2 className="w-5 h-5 text-blue-400 animate-spin" />
           ) : (
             <Crosshair className={`w-5 h-5 ${userLocation ? 'text-blue-400' : 'text-slate-300'}`} />
           )}
@@ -1615,7 +1616,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
         {/* GPS Error Message Toast */}
         {gpsMessage && (
           <div className="absolute top-14 left-3 right-3 sm:left-auto sm:right-3 sm:max-w-sm z-30 p-2.5 rounded-xl bg-amber-950/90 border border-amber-700/80 text-amber-200 text-xs font-bold flex items-center justify-between shadow-xl">
-            <span>{gpsMessage}</span>
+            <span>⚠️ {gpsMessage}</span>
             <button onClick={() => setGpsMessage(null)} className="p-1 hover:text-white">
               <X className="w-3.5 h-3.5" />
             </button>
@@ -1630,10 +1631,10 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
               <div className="flex items-center justify-between gap-2 border-b border-slate-800 pb-2">
                 <div className="flex items-center gap-2 min-w-0">
                   <div className="w-7 h-7 rounded-lg bg-blue-600/30 text-blue-400 flex items-center justify-center font-bold text-xs shrink-0">
-                    <Route className="w-4 h-4 text-blue-400" />
+                    🛣️
                   </div>
                   <div className="min-w-0">
-                    <div className="text-[10px] text-blue-400 font-bold">
+                    <div className="text-[10px] text-blue-400 font-bold uppercase tracking-wider">
                       Google Routes API • Real Road Route
                     </div>
                     <div className="text-xs font-black text-white truncate">
@@ -1660,7 +1661,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                       setNavTravelMode('DRIVING');
                       if (navigatingParty) handleNavigateToParty(navigatingParty, 'DRIVING');
                     }}
-                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-colors ${
+                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all ${
                       navTravelMode === 'DRIVING'
                         ? 'bg-blue-600 text-white shadow'
                         : 'text-slate-400 hover:text-white'
@@ -1675,7 +1676,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                       setNavTravelMode('WALKING');
                       if (navigatingParty) handleNavigateToParty(navigatingParty, 'WALKING');
                     }}
-                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-colors ${
+                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all ${
                       navTravelMode === 'WALKING'
                         ? 'bg-emerald-600 text-white shadow'
                         : 'text-slate-400 hover:text-white'
@@ -1690,7 +1691,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                       setNavTravelMode('BICYCLING');
                       if (navigatingParty) handleNavigateToParty(navigatingParty, 'BICYCLING');
                     }}
-                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-colors ${
+                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all ${
                       navTravelMode === 'BICYCLING'
                         ? 'bg-amber-600 text-white shadow'
                         : 'text-slate-400 hover:text-white'
@@ -1705,7 +1706,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                   <button
                     type="button"
                     onClick={() => setShowNavTurns(!showNavTurns)}
-                    className={`px-2 py-1 rounded-xl text-[10px] font-bold border transition-colors flex items-center gap-1 ${
+                    className={`px-2 py-1 rounded-xl text-[10px] font-bold border transition-all flex items-center gap-1 ${
                       showNavTurns
                         ? 'bg-blue-600 text-white border-blue-500'
                         : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
@@ -1719,8 +1720,8 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
 
               {/* Calculating Loading State */}
               {isCalculatingNav && (
-                <div className="p-2 rounded-xl bg-blue-950/60 border border-blue-700/50 flex items-center gap-2 text-xs font-bold text-blue-200 motion-safe:animate-pulse">
-                  <Loader2 className="w-4 h-4 text-blue-400 motion-safe:animate-spin shrink-0" />
+                <div className="p-2 rounded-xl bg-blue-950/60 border border-blue-700/50 flex items-center gap-2 text-xs font-bold text-blue-200 animate-pulse">
+                  <Loader2 className="w-4 h-4 text-blue-400 animate-spin shrink-0" />
                   <span>Calculating real road route with Google Routes API...</span>
                 </div>
               )}
@@ -1729,7 +1730,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
               {navRoutingError && (
                 <div className="p-2 rounded-xl bg-red-950/80 border border-red-700/80 text-red-200 text-xs font-bold space-y-1">
                   <div className="flex items-center gap-1.5 text-red-300">
-                    <span>{navRoutingError}</span>
+                    <span>⚠️ {navRoutingError}</span>
                   </div>
                   <div className="text-[10px] text-red-400 font-normal">
                     Real road route calculation failed. No straight lines are drawn. Please verify GPS coordinates or network connectivity.
@@ -1741,13 +1742,13 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
               {navRouteResult && (
                 <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800 text-center">
                   <div className="p-1.5 rounded-xl bg-slate-950 border border-slate-800">
-                    <div className="text-[9px] text-slate-400 font-bold">Distance</div>
+                    <div className="text-[9px] text-slate-400 font-bold uppercase">Distance</div>
                     <div className="text-sm font-black text-blue-400 font-mono">
                       {navRouteResult.distanceFormatted}
                     </div>
                   </div>
                   <div className="p-1.5 rounded-xl bg-slate-950 border border-slate-800">
-                    <div className="text-[9px] text-slate-400 font-bold">Duration</div>
+                    <div className="text-[9px] text-slate-400 font-bold uppercase">Duration</div>
                     <div className="text-sm font-black text-emerald-400 font-mono">
                       {navRouteResult.durationFormatted}
                     </div>
@@ -1758,7 +1759,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
               {/* Turn-by-Turn Steps List */}
               {showNavTurns && navRouteResult && navRouteResult.steps.length > 0 && (
                 <div className="pt-2 border-t border-slate-800 max-h-48 overflow-y-auto space-y-1 pr-1">
-                  <div className="text-[10px] font-bold text-slate-400 mb-1">
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
                     Turn-by-Turn Directions:
                   </div>
                   {navRouteResult.steps.map((st, i) => (
@@ -1789,7 +1790,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
             <div className="flex items-center justify-between pb-3 border-b border-slate-800 shrink-0">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center font-bold">
-                  <MapPin className="w-4 h-4 text-rose-400" />
+                  📍
                 </div>
                 <div>
                   <h3 className="text-sm font-black text-white">Set Party Pin (Manual GPS Setup)</h3>
@@ -1812,7 +1813,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                 </div>
               ) : (
                 filteredParties.slice(0, 100).map((p) => (
-                  <div key={p.id} className="p-3 bg-slate-950/80 rounded-2xl border border-slate-800 flex items-center justify-between gap-3 hover:border-slate-700 transition-colors">
+                  <div key={p.id} className="p-3 bg-slate-950/80 rounded-2xl border border-slate-800 flex items-center justify-between gap-3 hover:border-slate-700 transition-all">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-bold">{p.party_code || 'MARG'}</span>
@@ -1820,13 +1821,13 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                       </div>
                       <p className="text-[11px] text-slate-400 truncate mt-0.5">
                         {p.address ? `${p.address}, ` : ''}{p.city || 'Gujarat'}
-                        {p.route_1 ? ` • ${p.route_1}` : ''}
+                        {p.route_1 ? ` • 🛣️ ${p.route_1}` : ''}
                       </p>
                     </div>
                     <button
                       type="button"
                       onClick={() => setPickerModalParty(p)}
-                      className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white text-xs font-black shadow-md flex items-center gap-1.5 shrink-0 transition-colors cursor-pointer"
+                      className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white text-xs font-black shadow-md flex items-center gap-1.5 shrink-0 transition-all cursor-pointer"
                     >
                       <MapPin className="w-3.5 h-3.5" />
                       <span>Set Pin</span>
@@ -1858,7 +1859,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
               {filterMode === 'with_cases' ? (
                 <button
                   onClick={() => setFilterMode('all')}
-                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md active:scale-95 transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md active:scale-95 transition-all inline-flex items-center gap-1.5 cursor-pointer"
                 >
                   <Users className="w-4 h-4" />
                   <span>Show All Parties</span>
@@ -1867,15 +1868,15 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-2">
                   <button
                     onClick={() => setFilterMode('unmapped')}
-                    className="w-full sm:w-auto px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md active:scale-95 transition-colors inline-flex items-center justify-center gap-1.5 cursor-pointer"
+                    className="w-full sm:w-auto px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md active:scale-95 transition-all inline-flex items-center justify-center gap-1.5 cursor-pointer"
                   >
                     <MapPin className="w-4 h-4" />
-                    <span>Set Party Pin ({unmappedParties.length})</span>
+                    <span>📍 Set Party Pin ({unmappedParties.length})</span>
                   </button>
                   {onNavigate && (
                     <button
                       onClick={() => onNavigate('parties')}
-                      className="w-full sm:w-auto px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs border border-slate-700 active:scale-95 transition-colors inline-flex items-center justify-center gap-1.5 cursor-pointer"
+                      className="w-full sm:w-auto px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs border border-slate-700 active:scale-95 transition-all inline-flex items-center justify-center gap-1.5 cursor-pointer"
                     >
                       <Users className="w-4 h-4" />
                       <span>Parties Directory</span>
@@ -1902,11 +1903,11 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                   </h3>
                   {navRouteResult && navigatingParty?.id === selectedParty.id ? (
                     <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 font-mono shrink-0">
-                      Road: {navRouteResult.distanceFormatted} ({navRouteResult.durationFormatted})
+                      🛣️ Road: {navRouteResult.distanceFormatted} ({navRouteResult.durationFormatted})
                     </span>
                   ) : getDistanceFromUser(selectedParty.id, selectedParty.latitude, selectedParty.longitude) ? (
                     <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 font-mono shrink-0">
-                      {getDistanceFromUser(selectedParty.id, selectedParty.latitude, selectedParty.longitude)}
+                      🚗 {getDistanceFromUser(selectedParty.id, selectedParty.latitude, selectedParty.longitude)}
                     </span>
                   ) : null}
                 </div>
@@ -1934,10 +1935,11 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                 <div className="flex items-center gap-1 shrink-0">
                   {selectedParty.route_1 && (
                     <span 
-                      className="text-[9px] font-bold px-1.5 py-0.2 rounded border text-white"
+                      className="text-[9px] font-bold px-1.5 py-0.2 rounded border"
                       style={{ 
                         backgroundColor: `${getRouteColor(selectedParty.route_1)}20`,
-                        borderColor: `${getRouteColor(selectedParty.route_1)}40`
+                        borderColor: `${getRouteColor(selectedParty.route_1)}40`,
+                        color: '#ffffff'
                       }}
                     >
                       R1: {selectedParty.route_1}
@@ -1945,7 +1947,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                   )}
                   {selectedParty.id && partyCasesMap[selectedParty.id] && (
                     <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                      {partyCasesMap[selectedParty.id].total_cases} cases
+                      📦 {partyCasesMap[selectedParty.id].total_cases} cases
                     </span>
                   )}
                   <button
@@ -1998,7 +2000,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                   <button
                     type="button"
                     onClick={() => handleNavigateToParty(selectedParty)}
-                    className="py-1.5 px-1 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-colors text-center cursor-pointer shadow-sm"
+                    className="py-1.5 px-1 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-all text-center cursor-pointer shadow-sm"
                     title="Google Routes API Real Road Route on map"
                   >
                     <Route className="w-3.5 h-3.5 shrink-0" />
@@ -2010,7 +2012,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                     <button
                       type="button"
                       onClick={() => onNavigate('routes', { selectedParty })}
-                      className="py-1.5 px-1 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-colors text-center cursor-pointer shadow-sm"
+                      className="py-1.5 px-1 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-all text-center cursor-pointer shadow-sm"
                       title="Open in Route Optimizer"
                     >
                       <Sparkles className="w-3.5 h-3.5 shrink-0" />
@@ -2025,7 +2027,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                     href={`https://www.google.com/maps/dir/?api=1&destination=${selectedParty.latitude},${selectedParty.longitude}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="py-1.5 px-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-colors text-center shadow-sm"
+                    className="py-1.5 px-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-all text-center shadow-sm"
                     title="Open in Google Maps App"
                   >
                     <ExternalLink className="w-3.5 h-3.5 shrink-0" />
@@ -2042,7 +2044,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                           deliveryRoute: selectedParty.route_1 || selectedParty.route,
                         })
                       }
-                      className="py-1.5 px-1 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-colors text-center cursor-pointer shadow-sm"
+                      className="py-1.5 px-1 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-all text-center cursor-pointer shadow-sm"
                       title="Print Envelope"
                     >
                       <Printer className="w-3.5 h-3.5 shrink-0" />
@@ -2059,7 +2061,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                   <button
                     type="button"
                     onClick={() => setPickerModalParty(selectedParty)}
-                    className="py-1.5 px-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-colors text-center cursor-pointer"
+                    className="py-1.5 px-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-all text-center cursor-pointer"
                     title="Change GPS Pin"
                   >
                     <Edit3 className="w-3.5 h-3.5 shrink-0" />
@@ -2070,7 +2072,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                   <button
                     type="button"
                     onClick={() => handleUnsetPartyLocation(selectedParty)}
-                    className="py-1.5 px-1 rounded-xl bg-red-950/80 hover:bg-red-900 text-red-300 border border-red-700/60 font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-colors text-center cursor-pointer"
+                    className="py-1.5 px-1 rounded-xl bg-red-950/80 hover:bg-red-900 text-red-300 border border-red-700/60 font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-all text-center cursor-pointer"
                     title="Remove party location from map (Unset GPS Pin)"
                   >
                     <MapPinOff className="w-3.5 h-3.5 shrink-0" />
@@ -2081,7 +2083,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                   {selectedParty.mobile_no ? (
                     <a
                       href={`tel:${selectedParty.mobile_no}`}
-                      className="py-1.5 px-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-colors text-center"
+                      className="py-1.5 px-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-all text-center"
                       title={`Call (${selectedParty.mobile_no})`}
                     >
                       <Phone className="w-3.5 h-3.5 shrink-0" />
@@ -2104,7 +2106,7 @@ export const AllPartiesMap: React.FC<AllPartiesMapProps> = ({ onNavigate }) => {
                       )}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="py-1.5 px-1 rounded-xl bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border border-emerald-700/60 font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-colors text-center"
+                      className="py-1.5 px-1 rounded-xl bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border border-emerald-700/60 font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-all text-center"
                       title="WhatsApp Message"
                     >
                       <MessageCircle className="w-3.5 h-3.5 shrink-0" />
