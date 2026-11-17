@@ -8560,7 +8560,21 @@ repo_dir = os.path.dirname(backend_dir)
 dist_dir = os.path.join(repo_dir, "frontend", "dist")
 static_dir = os.path.join(backend_dir, "static")
 
+SPA_STATIC_DIR: Optional[str] = None
+
 def _get_spa_index_file() -> Optional[str]:
+    global SPA_STATIC_DIR
+    if SPA_STATIC_DIR and os.path.isfile(os.path.join(SPA_STATIC_DIR, "index.html")):
+        return os.path.join(SPA_STATIC_DIR, "index.html")
+
+    # Check mounted routes on app
+    for r in getattr(app, "routes", []):
+        if getattr(r, "name", None) == "static" and hasattr(r, "app") and hasattr(r.app, "directory"):
+            idx = os.path.join(str(r.app.directory), "index.html")
+            if os.path.isfile(idx):
+                SPA_STATIC_DIR = str(r.app.directory)
+                return idx
+
     f_dir = os.path.dirname(os.path.abspath(__file__)) if __file__ else ""
     candidates = [
         os.path.join(f_dir, "static", "index.html"),
@@ -8587,6 +8601,7 @@ def _get_spa_index_file() -> Optional[str]:
         ])
     for c in candidates:
         if c and os.path.isfile(c):
+            SPA_STATIC_DIR = os.path.dirname(os.path.abspath(c))
             return os.path.abspath(c)
     return None
 
@@ -8608,6 +8623,7 @@ def serve_driver_view(request: Request, full_path: Optional[str] = None):
 mounted = False
 for d in [dist_dir, static_dir, os.path.join(os.getcwd(), "frontend", "dist"), os.path.join(os.getcwd(), "backend", "static")]:
     if os.path.exists(d) and os.path.exists(os.path.join(d, "index.html")):
+        SPA_STATIC_DIR = os.path.abspath(d)
         app.mount("/", CachedStaticFiles(directory=d, html=True), name="static")
         mounted = True
         break
