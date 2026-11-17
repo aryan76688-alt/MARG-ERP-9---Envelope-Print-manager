@@ -40,6 +40,7 @@ import {
 import { VoiceSearchInput } from '../components/VoiceSearchInput';
 import { ShareDailyRouteModal } from '../components/ShareDailyRouteModal';
 import { SharePartyLocationsModal } from '../components/SharePartyLocationsModal';
+import { LiveDriverRadarModal } from '../components/LiveDriverRadarModal';
 import { Party } from '../types';
 import { 
   fetchParties, 
@@ -141,6 +142,7 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
   // Selected Parties Location Share Modal
   const [shareLocationsModalOpen, setShareLocationsModalOpen] = useState<boolean>(false);
   const [shareLocationsParties, setShareLocationsParties] = useState<Party[]>([]);
+  const [radarModalOpen, setRadarModalOpen] = useState<boolean>(false);
 
   // Background Google Translation state
   const [translating, setTranslating] = useState<boolean>(false);
@@ -662,6 +664,16 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
               <span>Translate</span>
             </button>
           )}
+
+          <button
+            type="button"
+            onClick={() => setRadarModalOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-black text-xs shadow-md shadow-cyan-600/30 transition-all active:scale-95 cursor-pointer"
+            title="Open real-time live GPS driver radar & moving-dot map"
+          >
+            <Compass className="w-4 h-4 text-cyan-200" />
+            <span>Live Radar</span>
+          </button>
 
           <button
             onClick={() => {
@@ -2073,6 +2085,12 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
         isOpen={shareLocationsModalOpen}
         onClose={() => setShareLocationsModalOpen(false)}
         parties={shareLocationsParties}
+      />
+
+      {/* Live Driver Radar Modal */}
+      <LiveDriverRadarModal
+        isOpen={radarModalOpen}
+        onClose={() => setRadarModalOpen(false)}
       />
     </div>
   );

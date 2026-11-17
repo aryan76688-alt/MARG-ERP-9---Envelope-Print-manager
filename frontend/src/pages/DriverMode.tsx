@@ -34,7 +34,13 @@ import {
   Volume2,
   VolumeX,
   Bell,
-  Zap
+  Zap,
+  Receipt,
+  Package,
+  FileText,
+  CreditCard,
+  X,
+  MessageCircle
 } from 'lucide-react';
 import { DriverStop, PODSubmission, FleetVehicle, FleetTrip } from '../types';
 import { 
@@ -122,6 +128,92 @@ export const DriverMode: React.FC = () => {
   const [cashCollectedInput, setCashCollectedInput] = useState<string>('');
   const [currentSpeedKmh, setCurrentSpeedKmh] = useState<number>(0);
   const [tripSubmitting, setTripSubmitting] = useState<boolean>(false);
+
+  // Option A: Per-Stop Payment & Collection Tracking
+  const [stopPaymentMode, setStopPaymentMode] = useState<'cash' | 'cheque' | 'upi' | 'credit'>('credit');
+  const [stopCashAmount, setStopCashAmount] = useState<string>('');
+  const [stopChequeNo, setStopChequeNo] = useState<string>('');
+  const [stopChequeAmount, setStopChequeAmount] = useState<string>('');
+  const [stopUpiAmount, setStopUpiAmount] = useState<string>('');
+  const [stopReturnBoxes, setStopReturnBoxes] = useState<number>(0);
+  const [stopReceiverName, setStopReceiverName] = useState<string>('');
+  const [settlementModalOpen, setSettlementModalOpen] = useState<boolean>(false);
+
+  // Computed Settlement Totals
+  const settlementSummary = useMemo(() => {
+    let cash = 0;
+    let cheque = 0;
+    let upi = 0;
+    let returns = 0;
+    let delivered = 0;
+    const chequesList: { partyName: string; chequeNo: string; amount: number }[] = [];
+
+    stops.forEach(s => {
+      if (s.delivery_status === 'Delivered') {
+        delivered++;
+      }
+      const c = Number(s.cash_collected || 0);
+      const chq = Number(s.cheque_amount || 0);
+      const u = Number(s.upi_amount || 0);
+      const ret = Number(s.return_boxes || 0);
+
+      cash += c;
+      cheque += chq;
+      upi += u;
+      returns += ret;
+
+      if (chq > 0 || s.cheque_no) {
+        chequesList.push({
+          partyName: s.party_name,
+          chequeNo: s.cheque_no || 'N/A',
+          amount: chq
+        });
+      }
+    });
+
+    return {
+      cash,
+      cheque,
+      upi,
+      returns,
+      delivered,
+      totalStops: stops.length,
+      totalMoney: cash + cheque + upi,
+      chequesList
+    };
+  }, [stops]);
+
+  const handleShareSettlementWhatsApp = () => {
+    const dateStr = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    const lines = [
+      `🚚 *SHREEJI HEALTHCARE — DRIVER CLOSING REPORT*`,
+      `📅 *Date:* ${dateStr}`,
+      `👤 *Driver:* ${currentUserName || 'Driver'}`,
+      activeTrip?.route_name ? `📍 *Route:* ${activeTrip.route_name}` : '',
+      `📦 *Delivered:* ${settlementSummary.delivered} / ${settlementSummary.totalStops} Stops`,
+      `----------------------------------`,
+      `💵 *CASH COLLECTED (રોકડ):* ₹${settlementSummary.cash.toLocaleString('en-IN')}`,
+      `📝 *CHEQUES (ચેક):* ₹${settlementSummary.cheque.toLocaleString('en-IN')} (${settlementSummary.chequesList.length} Cheques)`,
+    ];
+
+    if (settlementSummary.chequesList.length > 0) {
+      settlementSummary.chequesList.forEach((c, idx) => {
+        lines.push(`   ${idx + 1}. *${c.partyName}*: ₹${c.amount.toLocaleString('en-IN')} (${c.chequeNo})`);
+      });
+    }
+
+    if (settlementSummary.upi > 0) {
+      lines.push(`📲 *UPI / ONLINE:* ₹${settlementSummary.upi.toLocaleString('en-IN')}`);
+    }
+
+    lines.push(`📦 *RETURN BOXES PICKED UP:* ${settlementSummary.returns} Box(es)`);
+    lines.push(`💰 *TOTAL MONEY COLLECTED:* ₹${settlementSummary.totalMoney.toLocaleString('en-IN')}`);
+    lines.push(`----------------------------------`);
+    lines.push(`✅ *All deliveries completed.*`);
+
+    const text = encodeURIComponent(lines.filter(Boolean).join('\n'));
+    window.location.href = `https://api.whatsapp.com/send?text=${text}`;
+  };
 
   // Shared Trip Token & Public Driver Mode
   const tripToken = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('trip_token') : null;
@@ -534,11 +626,20 @@ export const DriverMode: React.FC = () => {
   // Open modal and prep camera / pin toggle
   const openPODModal = (stop: DriverStop, autoCamera: boolean = false) => {
     setSelectedStop(stop);
-    setPodNotes('');
+    setPodNotes(stop.pod_notes || '');
     setPodPhotoBase64(null);
     setPodSuccessMsg(null);
     // loop: Never auto-pin party GPS by default; requires explicit driver toggle
     setPinShopGeofence(false);
+
+    // Populate existing values if already set or default to credit
+    setStopPaymentMode((stop.payment_mode as any) || (stop.cash_collected ? 'cash' : 'credit'));
+    setStopCashAmount(stop.cash_collected ? String(stop.cash_collected) : '');
+    setStopChequeNo(stop.cheque_no || '');
+    setStopChequeAmount(stop.cheque_amount ? String(stop.cheque_amount) : '');
+    setStopUpiAmount(stop.upi_amount ? String(stop.upi_amount) : '');
+    setStopReturnBoxes(stop.return_boxes || 0);
+    setStopReceiverName(stop.receiver_name || '');
 
     if (autoCamera && stop.delivery_status !== 'Delivered') {
       setTimeout(() => {
@@ -945,11 +1046,22 @@ export const DriverMode: React.FC = () => {
       geofenceVerified = distMeters <= (selectedStop.geofence_radius_meters || 75);
     }
 
+    const parsedCash = stopPaymentMode === 'cash' ? (parseFloat(stopCashAmount) || 0) : 0;
+    const parsedCheque = stopPaymentMode === 'cheque' ? (parseFloat(stopChequeAmount) || 0) : 0;
+    const parsedUpi = stopPaymentMode === 'upi' ? (parseFloat(stopUpiAmount) || 0) : 0;
+
     try {
       if (tripToken) {
         await updatePublicTripStopStatus(tripToken, {
           stop_id: selectedStop.id,
           status: 'delivered',
+          payment_mode: stopPaymentMode,
+          cash_collected: parsedCash,
+          cheque_no: stopChequeNo.trim() || undefined,
+          cheque_amount: parsedCheque,
+          upi_amount: parsedUpi,
+          return_boxes: stopReturnBoxes,
+          receiver_name: stopReceiverName.trim() || undefined,
           notes: podNotes.trim() || undefined,
           pod_photo: podPhotoBase64 || undefined
         });
@@ -982,6 +1094,13 @@ export const DriverMode: React.FC = () => {
         delivered_at: new Date().toISOString(),
         pod_photo: podPhotoBase64 || undefined,
         pod_notes: podNotes.trim() || undefined,
+        payment_mode: stopPaymentMode,
+        cash_collected: parsedCash,
+        cheque_no: stopChequeNo.trim() || undefined,
+        cheque_amount: parsedCheque,
+        upi_amount: parsedUpi,
+        return_boxes: stopReturnBoxes,
+        receiver_name: stopReceiverName.trim() || undefined,
         delivered_latitude: driverLocation?.lat ?? null,
         delivered_longitude: driverLocation?.lng ?? null,
         latitude: pinShopGeofence && driverLocation?.lat ? driverLocation.lat : s.latitude,
@@ -1105,24 +1224,40 @@ export const DriverMode: React.FC = () => {
           </div>
         </div>
 
-        {/* Metrics Row */}
-        <div className="grid grid-cols-3 gap-3 md:gap-4 mt-6">
-          <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3 md:p-4 text-center">
-            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Stops</div>
-            <div className="text-2xl md:text-3xl font-extrabold text-slate-900 mt-1">{stops.length}</div>
+        {/* Metrics Row (with Option A Cash & Settlement Counters) */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 mt-6">
+          <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3 text-center">
+            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Stops</div>
+            <div className="text-xl sm:text-2xl font-black text-slate-900 mt-0.5">{stops.length}</div>
           </div>
-          <div className="bg-amber-50 border border-amber-200/80 rounded-xl p-3 md:p-4 text-center">
-            <div className="text-xs font-semibold text-amber-700 uppercase tracking-wider flex items-center justify-center gap-1">
-              <Clock className="w-3.5 h-3.5" /> Pending
-            </div>
-            <div className="text-2xl md:text-3xl font-extrabold text-amber-900 mt-1">{totalPending}</div>
-          </div>
-          <div className="bg-emerald-50 border border-emerald-200/80 rounded-xl p-3 md:p-4 text-center">
-            <div className="text-xs font-semibold text-emerald-700 uppercase tracking-wider flex items-center justify-center gap-1">
+          <div className="bg-emerald-50 border border-emerald-200/80 rounded-2xl p-3 text-center">
+            <div className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider flex items-center justify-center gap-1">
               <CheckCircle className="w-3.5 h-3.5" /> Delivered
             </div>
-            <div className="text-2xl md:text-3xl font-extrabold text-emerald-900 mt-1">{totalDelivered}</div>
+            <div className="text-xl sm:text-2xl font-black text-emerald-900 mt-0.5">{totalDelivered} / {stops.length}</div>
           </div>
+          <div className="bg-gradient-to-br from-emerald-950 to-teal-950 border border-emerald-800 rounded-2xl p-3 text-center text-white shadow-md">
+            <div className="text-[10px] font-bold text-emerald-300 uppercase tracking-wider flex items-center justify-center gap-1">
+              <IndianRupee className="w-3 h-3 text-emerald-400" /> Cash (રોકડ)
+            </div>
+            <div className="text-lg sm:text-xl font-black text-emerald-300 mt-0.5 font-mono">
+              ₹{settlementSummary.cash.toLocaleString('en-IN')}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSettlementModalOpen(true)}
+            className="bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-2xl p-3 text-center text-white shadow-md transition-all active:scale-95 cursor-pointer flex flex-col justify-center items-center group"
+          >
+            <div className="text-[10px] font-bold text-cyan-300 uppercase tracking-wider flex items-center gap-1 group-hover:underline">
+              <Receipt className="w-3 h-3 text-cyan-400" /> Day Settlement
+            </div>
+            <div className="text-xs font-black text-slate-200 mt-0.5 flex items-center gap-1.5">
+              <span>{settlementSummary.chequesList.length} Cheques</span>
+              <span>•</span>
+              <span>{settlementSummary.returns} Box</span>
+            </div>
+          </button>
         </div>
 
         {/* Fleet Vehicle & Active Trip Dispatch Banner */}
@@ -1765,6 +1900,61 @@ export const DriverMode: React.FC = () => {
                     )}
                   </div>
 
+                  {/* Payment & Collection Summary (Option A) */}
+                  <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 text-xs space-y-1.5">
+                    <div className="flex items-center justify-between font-bold">
+                      <span className="text-emerald-900 uppercase text-[10px] tracking-wider">
+                        Payment Mode (ચુકવણી પદ્ધતિ)
+                      </span>
+                      <span className="px-2.5 py-0.5 rounded-lg bg-emerald-600 text-white font-black text-[11px] uppercase shadow-2xs">
+                        {selectedStop.payment_mode || (selectedStop.cash_collected ? 'CASH' : 'CREDIT')}
+                      </span>
+                    </div>
+
+                    {Boolean(selectedStop.cash_collected && selectedStop.cash_collected > 0) && (
+                      <div className="flex items-center justify-between font-extrabold text-emerald-950 pt-1">
+                        <span>💵 Cash Collected (રોકડ):</span>
+                        <span className="text-sm font-mono">₹{selectedStop.cash_collected.toLocaleString('en-IN')}</span>
+                      </div>
+                    )}
+
+                    {Boolean(selectedStop.cheque_amount && selectedStop.cheque_amount > 0) && (
+                      <div className="space-y-0.5 text-amber-950 font-extrabold pt-1">
+                        <div className="flex items-center justify-between">
+                          <span>📝 Cheque Amount (ચેક):</span>
+                          <span className="text-sm font-mono">₹{selectedStop.cheque_amount.toLocaleString('en-IN')}</span>
+                        </div>
+                        {selectedStop.cheque_no && (
+                          <div className="text-[11px] text-amber-800">
+                            Cheque Details: <span className="font-mono font-black">{selectedStop.cheque_no}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {Boolean(selectedStop.upi_amount && selectedStop.upi_amount > 0) && (
+                      <div className="flex items-center justify-between font-extrabold text-cyan-950 pt-1">
+                        <span>📲 UPI / Online:</span>
+                        <span className="text-sm font-mono">₹{selectedStop.upi_amount.toLocaleString('en-IN')}</span>
+                      </div>
+                    )}
+
+                    {Boolean(selectedStop.return_boxes && selectedStop.return_boxes > 0) && (
+                      <div className="flex items-center justify-between font-extrabold text-blue-950 pt-1 border-t border-emerald-200/60">
+                        <span className="flex items-center gap-1">
+                          <Package className="w-3.5 h-3.5 text-blue-600" /> Return Boxes Picked Up:
+                        </span>
+                        <span className="text-sm">{selectedStop.return_boxes} Boxes</span>
+                      </div>
+                    )}
+
+                    {selectedStop.receiver_name && (
+                      <div className="text-[11px] text-slate-600 pt-0.5">
+                        Received By: <span className="font-bold text-slate-900">{selectedStop.receiver_name}</span>
+                      </div>
+                    )}
+                  </div>
+
                   {/* Customer Signature Display (Historical Only) */}
                   {selectedStop.pod_signature && (
                     <div>
@@ -1941,19 +2131,171 @@ export const DriverMode: React.FC = () => {
                     )}
                   </div>
 
-                  {/* Cash Collected Field */}
-                  <div>
-                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1.5 flex items-center gap-1">
-                      <IndianRupee className="w-3.5 h-3.5 text-emerald-600" />
-                      Cash Collected (₹ / રોકડ રકમ) (Optional)
+                  {/* Payment & Collection Mode Selector (Option A) */}
+                  <div className="space-y-3 p-4 rounded-2xl bg-slate-50 border border-slate-200">
+                    <label className="text-xs font-black text-slate-800 uppercase tracking-wider block flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <IndianRupee className="w-4 h-4 text-emerald-600" />
+                        Payment Mode (ચુકવણી પદ્ધતિ)
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-bold">Select mode</span>
                     </label>
-                    <input
-                      type="number"
-                      placeholder="e.g. 2400"
-                      value={cashCollectedInput}
-                      onChange={e => setCashCollectedInput(e.target.value)}
-                      className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-mono font-bold text-slate-900"
-                    />
+
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {[
+                        { id: 'cash', label: 'Cash (રોકડ)', color: 'emerald' },
+                        { id: 'cheque', label: 'Cheque (ચેક)', color: 'amber' },
+                        { id: 'upi', label: 'UPI / Online', color: 'cyan' },
+                        { id: 'credit', label: 'Credit (બાકી)', color: 'slate' }
+                      ].map(mode => (
+                        <button
+                          key={mode.id}
+                          type="button"
+                          onClick={() => setStopPaymentMode(mode.id as any)}
+                          className={`py-2 px-1 rounded-xl text-center font-extrabold text-[11px] transition-all cursor-pointer ${
+                            stopPaymentMode === mode.id
+                              ? mode.id === 'cash'
+                                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30 ring-2 ring-emerald-400'
+                                : mode.id === 'cheque'
+                                ? 'bg-amber-600 text-white shadow-md shadow-amber-600/30 ring-2 ring-amber-400'
+                                : mode.id === 'upi'
+                                ? 'bg-cyan-600 text-white shadow-md shadow-cyan-600/30 ring-2 ring-cyan-400'
+                                : 'bg-slate-700 text-white shadow-md ring-2 ring-slate-400'
+                              : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
+                          }`}
+                        >
+                          {mode.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Mode Specific Inputs */}
+                    {stopPaymentMode === 'cash' && (
+                      <div className="space-y-2 pt-1">
+                        <label className="text-xs font-bold text-slate-700 block">
+                          Cash Amount Collected (રોકડ રકમ) ₹
+                        </label>
+                        <input
+                          type="number"
+                          placeholder="e.g. 2400"
+                          value={stopCashAmount}
+                          onChange={e => setStopCashAmount(e.target.value)}
+                          className="w-full px-3.5 py-2 text-base font-black font-mono border-2 border-emerald-400 rounded-xl focus:ring-2 focus:ring-emerald-500 text-slate-900 bg-emerald-50/30"
+                        />
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {[500, 1000, 2000, 5000].map(amt => (
+                            <button
+                              key={amt}
+                              type="button"
+                              onClick={() => {
+                                const curr = parseFloat(stopCashAmount) || 0;
+                                setStopCashAmount(String(curr + amt));
+                              }}
+                              className="px-2.5 py-1 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-extrabold text-[11px] transition-all cursor-pointer"
+                            >
+                              +₹{amt}
+                            </button>
+                          ))}
+                          {stopCashAmount && (
+                            <button
+                              type="button"
+                              onClick={() => setStopCashAmount('')}
+                              className="px-2 py-1 rounded-lg bg-slate-200 text-slate-600 text-[10px] font-bold"
+                            >
+                              Clear
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {stopPaymentMode === 'cheque' && (
+                      <div className="space-y-2 pt-1">
+                        <div>
+                          <label className="text-xs font-bold text-slate-700 block mb-1">
+                            Cheque Amount (ચેકની રકમ) ₹
+                          </label>
+                          <input
+                            type="number"
+                            placeholder="e.g. 15000"
+                            value={stopChequeAmount}
+                            onChange={e => setStopChequeAmount(e.target.value)}
+                            className="w-full px-3.5 py-2 text-base font-black font-mono border-2 border-amber-400 rounded-xl focus:ring-2 focus:ring-amber-500 text-slate-900 bg-amber-50/30"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold text-slate-700 block mb-1">
+                            Cheque Number & Bank (ચેક નંબર અને બેંકનું નામ)
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="e.g. HDFC 402910"
+                            value={stopChequeNo}
+                            onChange={e => setStopChequeNo(e.target.value)}
+                            className="w-full px-3.5 py-2 text-xs font-bold border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 text-slate-900"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {stopPaymentMode === 'upi' && (
+                      <div className="space-y-2 pt-1">
+                        <label className="text-xs font-bold text-slate-700 block">
+                          UPI Amount (ઓનલાઇન રકમ) ₹
+                        </label>
+                        <input
+                          type="number"
+                          placeholder="e.g. 3500"
+                          value={stopUpiAmount}
+                          onChange={e => setStopUpiAmount(e.target.value)}
+                          className="w-full px-3.5 py-2 text-base font-black font-mono border-2 border-cyan-400 rounded-xl focus:ring-2 focus:ring-cyan-500 text-slate-900 bg-cyan-50/30"
+                        />
+                      </div>
+                    )}
+
+                    {/* Return Boxes Counter */}
+                    <div className="pt-2 border-t border-slate-200/80 flex items-center justify-between">
+                      <div>
+                        <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                          <Package className="w-3.5 h-3.5 text-blue-600" />
+                          Return Boxes (ખાલી બોક્સ / એક્સપાયરી)
+                        </span>
+                        <span className="text-[10px] text-slate-500 block">Empty cooling or medicine return boxes</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setStopReturnBoxes(Math.max(0, stopReturnBoxes - 1))}
+                          className="w-8 h-8 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 font-black text-sm flex items-center justify-center cursor-pointer transition-all active:scale-95"
+                        >
+                          -
+                        </button>
+                        <span className="w-8 text-center font-black font-mono text-sm text-slate-900">
+                          {stopReturnBoxes}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setStopReturnBoxes(stopReturnBoxes + 1)}
+                          className="w-8 h-8 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-black text-sm flex items-center justify-center cursor-pointer transition-all active:scale-95"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Receiver Person Name */}
+                    <div className="pt-2 border-t border-slate-200/80">
+                      <label className="text-xs font-bold text-slate-700 block mb-1">
+                        Receiver Person Name (માલ સ્વીકારનાર વ્યક્તિ) (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Bharat Bhai / Chemist Staff"
+                        value={stopReceiverName}
+                        onChange={e => setStopReceiverName(e.target.value)}
+                        className="w-full px-3.5 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 text-slate-900"
+                      />
+                    </div>
                   </div>
 
                   {/* 3. Receiver Name / Notes */}
@@ -2268,6 +2610,164 @@ export const DriverMode: React.FC = () => {
                   </button>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* End-of-Day Settlement Modal (Option A) */}
+      {settlementModalOpen && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-3 sm:p-4 backdrop-blur-xs">
+          <div className="bg-slate-900 border border-slate-800 text-white rounded-3xl max-w-xl w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="bg-slate-950 p-4 sm:p-5 border-b border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-600 flex items-center justify-center text-white shadow-md">
+                  <Receipt className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-black text-white">
+                    Driver Closing Settlement • ડેઇલી હિસાબ
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    {activeTrip?.route_name || 'Daily Route'} • {currentUserName || 'Driver'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSettlementModalOpen(false)}
+                className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-4 sm:p-5 overflow-y-auto space-y-4 custom-scrollbar">
+              {/* Grand Total Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="p-3 rounded-2xl bg-slate-950/70 border border-emerald-500/30">
+                  <div className="text-[10px] font-bold text-emerald-400 uppercase">Cash Collected</div>
+                  <div className="text-base font-black text-emerald-300 font-mono mt-0.5">
+                    ₹{settlementSummary.cash.toLocaleString('en-IN')}
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-2xl bg-slate-950/70 border border-amber-500/30">
+                  <div className="text-[10px] font-bold text-amber-400 uppercase">Cheques</div>
+                  <div className="text-base font-black text-amber-300 font-mono mt-0.5">
+                    ₹{settlementSummary.cheque.toLocaleString('en-IN')}
+                  </div>
+                  <div className="text-[9px] text-amber-400/80">({settlementSummary.chequesList.length} Cheques)</div>
+                </div>
+
+                <div className="p-3 rounded-2xl bg-slate-950/70 border border-cyan-500/30">
+                  <div className="text-[10px] font-bold text-cyan-400 uppercase">UPI / Online</div>
+                  <div className="text-base font-black text-cyan-300 font-mono mt-0.5">
+                    ₹{settlementSummary.upi.toLocaleString('en-IN')}
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-2xl bg-slate-950/70 border border-blue-500/30">
+                  <div className="text-[10px] font-bold text-blue-400 uppercase">Return Boxes</div>
+                  <div className="text-base font-black text-blue-300 font-mono mt-0.5">
+                    {settlementSummary.returns} Boxes
+                  </div>
+                </div>
+              </div>
+
+              {/* Progress Summary Pill */}
+              <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between text-xs">
+                <span className="text-slate-400 font-bold">Stops Completed:</span>
+                <span className="font-black text-emerald-400">
+                  {settlementSummary.delivered} / {settlementSummary.totalStops} Stops Delivered
+                </span>
+              </div>
+
+              {/* Cheques List (if any) */}
+              {settlementSummary.chequesList.length > 0 && (
+                <div className="space-y-2">
+                  <span className="text-xs font-black uppercase tracking-wider text-amber-400">
+                    Cheques Collected ({settlementSummary.chequesList.length})
+                  </span>
+                  <div className="space-y-1.5">
+                    {settlementSummary.chequesList.map((c, i) => (
+                      <div key={i} className="p-2.5 rounded-xl bg-slate-950 border border-amber-500/20 flex items-center justify-between text-xs">
+                        <div>
+                          <span className="font-bold text-white block">{c.partyName}</span>
+                          <span className="text-[11px] text-amber-300 font-mono">Cheque: {c.chequeNo}</span>
+                        </div>
+                        <span className="font-black font-mono text-amber-400 text-sm">
+                          ₹{c.amount.toLocaleString('en-IN')}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Stops Breakdown Table */}
+              <div className="space-y-2">
+                <span className="text-xs font-black uppercase tracking-wider text-slate-400">
+                  Stops Settlement Breakdown
+                </span>
+                <div className="space-y-1.5 max-h-52 overflow-y-auto custom-scrollbar">
+                  {stops.map((s, idx) => {
+                    const isDelivered = s.delivery_status === 'Delivered';
+                    return (
+                      <div
+                        key={s.id}
+                        className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 text-xs ${
+                          isDelivered ? 'bg-slate-950 border-slate-800' : 'bg-slate-950/40 border-slate-850 opacity-60'
+                        }`}
+                      >
+                        <div className="min-w-0 pr-1">
+                          <div className="font-bold text-white truncate">
+                            {idx + 1}. {s.party_name}
+                          </div>
+                          <div className="text-[10px] text-slate-400 flex items-center gap-1.5">
+                            <span className="uppercase font-bold text-cyan-400">{s.payment_mode || 'Credit'}</span>
+                            {s.receiver_name && <span>• Recv: {s.receiver_name}</span>}
+                            {s.return_boxes ? <span className="text-blue-400">• {s.return_boxes} Boxes</span> : null}
+                          </div>
+                        </div>
+
+                        <div className="text-right shrink-0">
+                          {s.cash_collected ? (
+                            <span className="font-mono font-black text-emerald-400 text-xs">₹{s.cash_collected}</span>
+                          ) : s.cheque_amount ? (
+                            <span className="font-mono font-black text-amber-400 text-xs">₹{s.cheque_amount}</span>
+                          ) : s.upi_amount ? (
+                            <span className="font-mono font-black text-cyan-400 text-xs">₹{s.upi_amount}</span>
+                          ) : (
+                            <span className="text-slate-500 font-bold text-[11px]">Credit</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Footer with 1-Tap WhatsApp Share */}
+            <div className="p-4 bg-slate-950 border-t border-slate-800 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleShareSettlementWhatsApp}
+                className="flex-1 py-3 px-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-xl shadow-emerald-600/30 transition-all active:scale-95 cursor-pointer"
+              >
+                <MessageCircle className="w-4 h-4" />
+                <span>Send Closing Report on WhatsApp (વોટ્સએપ હિસાબ)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSettlementModalOpen(false)}
+                className="py-3 px-4 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>

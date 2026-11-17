@@ -7320,6 +7320,12 @@ class TripStopUpdatePayload(BaseModel):
     stop_id: int
     status: str  # pending, arrived, delivered, failed, skipped
     cash_collected: Optional[float] = 0.0
+    payment_mode: Optional[str] = "credit"  # cash, cheque, upi, credit
+    cheque_no: Optional[str] = None
+    cheque_amount: Optional[float] = 0.0
+    upi_amount: Optional[float] = 0.0
+    return_boxes: Optional[int] = 0
+    receiver_name: Optional[str] = None
     pod_signature: Optional[str] = None
     pod_photo: Optional[str] = None
     failure_reason: Optional[str] = None
@@ -7859,8 +7865,20 @@ def update_fleet_trip_stop_status(
         if not stop.arrival_time:
             stop.arrival_time = now_dt
         stop.departure_time = now_dt
-        if payload.cash_collected:
+        if payload.payment_mode:
+            stop.payment_mode = payload.payment_mode
+        if payload.cash_collected is not None:
             stop.cash_collected = float(payload.cash_collected)
+        if payload.cheque_no is not None:
+            stop.cheque_no = payload.cheque_no
+        if payload.cheque_amount is not None:
+            stop.cheque_amount = float(payload.cheque_amount)
+        if payload.upi_amount is not None:
+            stop.upi_amount = float(payload.upi_amount)
+        if payload.return_boxes is not None:
+            stop.return_boxes = int(payload.return_boxes)
+        if payload.receiver_name is not None:
+            stop.receiver_name = payload.receiver_name
         if payload.pod_signature:
             stop.pod_signature = payload.pod_signature
         if payload.pod_photo:
@@ -7923,6 +7941,232 @@ def get_trip_telemetry_replay(
         "points": points,
         "stops": stops,
         "total_points": len(points)
+    }
+
+
+@app.get("/api/fleet/radar/live")
+def get_fleet_radar_live(
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(auth_module.get_optional_current_user)
+):
+    """
+    Returns real-time radar tracking data for all active runs and today's delivery trips.
+    Enables live moving-dot driver tracking, breadcrumb history, and live financial settlement counters.
+    """
+    now_dt = datetime.datetime.utcnow()
+    today_start = datetime.datetime(now_dt.year, now_dt.month, now_dt.day, 0, 0, 0)
+    
+    trips = db.query(Trip).filter(
+        or_(
+            Trip.status == "active",
+            Trip.started_at >= today_start
+        )
+    ).order_by(Trip.started_at.desc()).limit(20).all()
+
+    active_runs = []
+    for t in trips:
+        last_crumb = db.query(GPSLocationHistory).filter(
+            GPSLocationHistory.trip_id == t.id
+        ).order_by(GPSLocationHistory.timestamp.desc()).first()
+
+        vehicle = db.query(Vehicle).filter(Vehicle.id == t.vehicle_id).first() if t.vehicle_id else None
+        
+        lat = None
+        lng = None
+        speed_kmh = 0.0
+        heading = 0.0
+        battery = None
+        last_ping_iso = None
+        seconds_ago = None
+        is_live = False
+
+        if last_crumb:
+            lat = last_crumb.latitude
+            lng = last_crumb.longitude
+            speed_kmh = round(last_crumb.speed_kmh or 0.0, 1)
+            heading = round(last_crumb.heading or 0.0, 1)
+            battery = last_crumb.battery_pct
+            if last_crumb.timestamp:
+                last_ping_iso = last_crumb.timestamp.isoformat()
+                diff_sec = (now_dt - last_crumb.timestamp).total_seconds()
+                seconds_ago = max(0, int(diff_sec))
+                is_live = seconds_ago <= 180
+        elif vehicle and vehicle.last_latitude and vehicle.last_longitude:
+            lat = vehicle.last_latitude
+            lng = vehicle.last_longitude
+            speed_kmh = round(vehicle.last_speed_kmh or 0.0, 1)
+
+        recent_crumbs = db.query(GPSLocationHistory).filter(
+            GPSLocationHistory.trip_id == t.id
+        ).order_by(GPSLocationHistory.timestamp.desc()).limit(25).all()
+        recent_crumbs.reverse()
+
+        trail = [
+            {"lat": c.latitude, "lng": c.longitude, "speed_kmh": round(c.speed_kmh or 0.0, 1)}
+            for c in recent_crumbs
+        ]
+
+        stops = []
+        total_cash = 0.0
+        total_cheque = 0.0
+        total_upi = 0.0
+        total_returns = 0
+        delivered_count = 0
+
+        for s in t.stops:
+            if s.status == "delivered":
+                delivered_count += 1
+            c_cash = s.cash_collected or 0.0
+            c_cheque = getattr(s, "cheque_amount", 0.0) or 0.0
+            c_upi = getattr(s, "upi_amount", 0.0) or 0.0
+            c_returns = getattr(s, "return_boxes", 0) or 0
+            
+            total_cash += c_cash
+            total_cheque += c_cheque
+            total_upi += c_upi
+            total_returns += c_returns
+
+            stops.append({
+                "id": s.id,
+                "sequence": s.sequence_number,
+                "party_id": s.party_id,
+                "party_name": s.party_name,
+                "party_code": s.party_code,
+                "address": s.address,
+                "lat": s.latitude,
+                "lng": s.longitude,
+                "status": s.status,
+                "payment_mode": getattr(s, "payment_mode", "credit") or "credit",
+                "cash_collected": c_cash,
+                "cheque_no": getattr(s, "cheque_no", None),
+                "cheque_amount": c_cheque,
+                "upi_amount": c_upi,
+                "return_boxes": c_returns,
+                "receiver_name": getattr(s, "receiver_name", None),
+                "departure_time": s.departure_time.isoformat() if s.departure_time else None
+            })
+
+        total_stops = len(stops)
+        progress_pct = round((delivered_count / total_stops * 100), 1) if total_stops > 0 else 0.0
+
+        active_runs.append({
+            "trip_id": t.id,
+            "trip_number": t.trip_number,
+            "route_name": t.route_name or f"Route #{t.id}",
+            "status": t.status,
+            "driver_name": t.driver_name or "Driver (Open Access)",
+            "vehicle_number": t.vehicle_number or (vehicle.vehicle_number if vehicle else None),
+            "share_token": t.share_token,
+            "started_at": t.started_at.isoformat() if t.started_at else None,
+            "position": {
+                "latitude": lat,
+                "longitude": lng,
+                "speed_kmh": speed_kmh,
+                "heading": heading,
+                "battery": battery,
+                "last_ping": last_ping_iso,
+                "seconds_ago": seconds_ago,
+                "is_live": is_live
+            },
+            "trail": trail,
+            "stats": {
+                "total_stops": total_stops,
+                "delivered_stops": delivered_count,
+                "pending_stops": max(0, total_stops - delivered_count),
+                "progress_pct": progress_pct,
+                "cash_collected": total_cash,
+                "cheque_collected": total_cheque,
+                "upi_collected": total_upi,
+                "return_boxes": total_returns
+            },
+            "stops": stops
+        })
+
+    return {
+        "success": True,
+        "server_time": now_dt.isoformat(),
+        "total_active_runs": len(active_runs),
+        "runs": active_runs
+    }
+
+
+@app.get("/api/fleet/trips/{trip_id}/settlement")
+def get_trip_settlement_report(
+    trip_id: int,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(auth_module.get_optional_current_user)
+):
+    """
+    Returns end-of-day closing settlement and cash/cheque reconciliation summary for a trip.
+    """
+    trip = db.query(Trip).filter(Trip.id == trip_id).first()
+    if not trip:
+        raise HTTPException(status_code=404, detail="Trip not found.")
+
+    stops_summary = []
+    total_cash = 0.0
+    total_cheque = 0.0
+    total_upi = 0.0
+    total_returns = 0
+    cheques_list = []
+
+    for s in trip.stops:
+        cash = s.cash_collected or 0.0
+        cheque = getattr(s, "cheque_amount", 0.0) or 0.0
+        upi = getattr(s, "upi_amount", 0.0) or 0.0
+        returns = getattr(s, "return_boxes", 0) or 0
+        mode = getattr(s, "payment_mode", "credit") or "credit"
+        cheque_no = getattr(s, "cheque_no", None)
+
+        total_cash += cash
+        total_cheque += cheque
+        total_upi += upi
+        total_returns += returns
+
+        if cheque > 0 or cheque_no:
+            cheques_list.append({
+                "party_name": s.party_name,
+                "cheque_no": cheque_no or "N/A",
+                "amount": cheque
+            })
+
+        stops_summary.append({
+            "stop_id": s.id,
+            "sequence": s.sequence_number,
+            "party_name": s.party_name,
+            "party_code": s.party_code,
+            "status": s.status,
+            "payment_mode": mode,
+            "cash_collected": cash,
+            "cheque_amount": cheque,
+            "cheque_no": cheque_no,
+            "upi_amount": upi,
+            "return_boxes": returns,
+            "receiver_name": getattr(s, "receiver_name", None),
+            "departure_time": s.departure_time.isoformat() if s.departure_time else None
+        })
+
+    return {
+        "success": True,
+        "trip_id": trip.id,
+        "trip_number": trip.trip_number,
+        "route_name": trip.route_name,
+        "driver_name": trip.driver_name,
+        "vehicle_number": trip.vehicle_number,
+        "started_at": trip.started_at.isoformat() if trip.started_at else None,
+        "completed_at": trip.completed_at.isoformat() if trip.completed_at else None,
+        "total_stops": len(stops_summary),
+        "delivered_stops": len([s for s in stops_summary if s["status"] == "delivered"]),
+        "totals": {
+            "cash_collected": total_cash,
+            "cheque_collected": total_cheque,
+            "cheques_count": len(cheques_list),
+            "upi_collected": total_upi,
+            "return_boxes": total_returns,
+            "total_collected": total_cash + total_cheque + total_upi
+        },
+        "cheques": cheques_list,
+        "stops": stops_summary
     }
 
 
@@ -8087,10 +8331,24 @@ def get_public_shared_trip(
             "sequence_number": s.sequence_number,
             "status": s.status,
             "cash_collected": s.cash_collected or 0.0,
+            "payment_mode": getattr(s, "payment_mode", "credit") or "credit",
+            "cheque_no": getattr(s, "cheque_no", None),
+            "cheque_amount": getattr(s, "cheque_amount", 0.0) or 0.0,
+            "upi_amount": getattr(s, "upi_amount", 0.0) or 0.0,
+            "return_boxes": getattr(s, "return_boxes", 0) or 0,
+            "receiver_name": getattr(s, "receiver_name", None),
+            "notes": s.notes,
+            "pod_photo": bool(s.pod_photo),
+            "pod_signature": bool(s.pod_signature),
             "arrival_time": s.arrival_time.isoformat() if s.arrival_time else None,
             "departure_time": s.departure_time.isoformat() if s.departure_time else None,
             "failure_reason": s.failure_reason
         })
+
+    total_cash = sum(s.cash_collected or 0.0 for s in trip.stops)
+    total_cheque = sum(getattr(s, "cheque_amount", 0.0) or 0.0 for s in trip.stops)
+    total_upi = sum(getattr(s, "upi_amount", 0.0) or 0.0 for s in trip.stops)
+    total_returns = sum(getattr(s, "return_boxes", 0) or 0 for s in trip.stops)
 
     return {
         "success": True,
@@ -8105,11 +8363,21 @@ def get_public_shared_trip(
             "started_at": trip.started_at.isoformat() if trip.started_at else None,
             "start_latitude": trip.start_latitude,
             "start_longitude": trip.start_longitude,
-            "notes": trip.notes
+            "notes": trip.notes,
+            "total_cash_collected": total_cash,
+            "total_cheque_collected": total_cheque,
+            "total_upi_collected": total_upi,
+            "total_return_boxes": total_returns
         },
         "stops": stops_list,
         "total_stops": len(stops_list),
-        "completed_stops": len([s for s in stops_list if s["status"] in ("delivered", "arrived")])
+        "completed_stops": len([s for s in stops_list if s["status"] in ("delivered", "arrived")]),
+        "totals": {
+            "cash_collected": total_cash,
+            "cheque_collected": total_cheque,
+            "upi_collected": total_upi,
+            "return_boxes": total_returns
+        }
     }
 
 
@@ -8161,8 +8429,20 @@ def update_public_trip_stop_status(
         stop.arrival_time = now_dt
     elif stop.status == "delivered":
         stop.departure_time = now_dt
-        if payload.cash_collected:
+        if payload.payment_mode:
+            stop.payment_mode = payload.payment_mode
+        if payload.cash_collected is not None:
             stop.cash_collected = float(payload.cash_collected)
+        if payload.cheque_no is not None:
+            stop.cheque_no = payload.cheque_no
+        if payload.cheque_amount is not None:
+            stop.cheque_amount = float(payload.cheque_amount)
+        if payload.upi_amount is not None:
+            stop.upi_amount = float(payload.upi_amount)
+        if payload.return_boxes is not None:
+            stop.return_boxes = int(payload.return_boxes)
+        if payload.receiver_name is not None:
+            stop.receiver_name = payload.receiver_name
         if payload.pod_signature:
             stop.pod_signature = payload.pod_signature
         if payload.pod_photo:

@@ -34,6 +34,7 @@ import { RouteManagerModal } from '../components/RouteManagerModal';
 import { PartyMapPickerModal } from '../components/PartyMapPickerModal';
 import { ShareDailyRouteModal } from '../components/ShareDailyRouteModal';
 import { SharePartyLocationsModal } from '../components/SharePartyLocationsModal';
+import { LiveDriverRadarModal } from '../components/LiveDriverRadarModal';
 import { VoiceSearchInput } from '../components/VoiceSearchInput';
 
 interface MobilePartiesProps {
@@ -75,6 +76,7 @@ export const MobileParties: React.FC<MobilePartiesProps> = ({
   const [shareRouteParties, setShareRouteParties] = useState<Party[]>([]);
   const [shareLocationsModalOpen, setShareLocationsModalOpen] = useState<boolean>(false);
   const [shareLocationsParties, setShareLocationsParties] = useState<Party[]>([]);
+  const [radarModalOpen, setRadarModalOpen] = useState<boolean>(false);
 
   const handleToggleSelectParty = (id: number) => {
     setSelectedPartyIds(prev => {
@@ -381,6 +383,17 @@ export const MobileParties: React.FC<MobilePartiesProps> = ({
           >
             <Route className="w-4 h-4 text-teal-400" />
             <span className="text-[10px] font-bold">Routes</span>
+          </button>
+
+          {/* Live Driver Radar */}
+          <button
+            type="button"
+            onClick={() => setRadarModalOpen(true)}
+            className="py-2.5 px-2 rounded-xl bg-cyan-950/80 hover:bg-cyan-900/90 text-cyan-300 border border-cyan-800/60 font-bold text-xs shadow-md active:scale-95 transition-all flex flex-col items-center justify-center gap-1 cursor-pointer"
+            title="Open Live Driver Radar (Moving-Dot GPS Tracker)"
+          >
+            <Compass className="w-4 h-4 text-cyan-400" />
+            <span className="text-[10px] font-bold">રડાર</span>
           </button>
 
           {/* Add Party */}
@@ -1242,6 +1255,12 @@ export const MobileParties: React.FC<MobilePartiesProps> = ({
         isOpen={shareLocationsModalOpen}
         onClose={() => setShareLocationsModalOpen(false)}
         parties={shareLocationsParties}
+      />
+
+      {/* Live Driver Radar Modal */}
+      <LiveDriverRadarModal
+        isOpen={radarModalOpen}
+        onClose={() => setRadarModalOpen(false)}
       />
     </div>
   );

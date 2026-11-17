@@ -373,6 +373,12 @@ class TripStop(Base):
     arrival_time = Column(DateTime, nullable=True)
     departure_time = Column(DateTime, nullable=True)
     cash_collected = Column(Float, default=0.0)
+    payment_mode = Column(String(30), default="credit") # cash, cheque, upi, credit
+    cheque_no = Column(String(100), nullable=True)
+    cheque_amount = Column(Float, default=0.0)
+    upi_amount = Column(Float, default=0.0)
+    return_boxes = Column(Integer, default=0)
+    receiver_name = Column(String(100), nullable=True)
     pod_signature = Column(Text, nullable=True)
     pod_photo = Column(Text, nullable=True)
     failure_reason = Column(Text, nullable=True)

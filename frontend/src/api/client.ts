@@ -1998,6 +1998,29 @@ export async function updatePublicTripStopStatus(shareToken: string, payload: an
   return res.json();
 }
 
+export async function fetchFleetRadarLive(): Promise<{
+  success: boolean;
+  server_time: string;
+  total_active_runs: number;
+  runs: any[];
+}> {
+  const res = await fetchApi(`${API_BASE}/fleet/radar/live`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to fetch fleet radar' }));
+    throw new Error(err.detail || 'Failed to fetch fleet radar');
+  }
+  return res.json();
+}
+
+export async function fetchTripSettlement(tripId: number): Promise<any> {
+  const res = await fetchApi(`${API_BASE}/fleet/trips/${tripId}/settlement`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to fetch trip settlement' }));
+    throw new Error(err.detail || 'Failed to fetch trip settlement');
+  }
+  return res.json();
+}
+
 
 
 

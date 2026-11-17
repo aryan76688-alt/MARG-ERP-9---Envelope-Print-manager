@@ -13,10 +13,12 @@ import {
   Phone,
   Sparkles,
   ShieldCheck,
-  AlertCircle
+  AlertCircle,
+  Compass
 } from 'lucide-react';
 import { Party } from '../types';
 import { createAndShareDailyRoute, fetchFleetVehicles, fetchUsers, fetchDriverList } from '../api/client';
+import { LiveDriverRadarModal } from './LiveDriverRadarModal';
 
 interface ShareDailyRouteModalProps {
   isOpen: boolean;
@@ -46,6 +48,7 @@ export const ShareDailyRouteModal: React.FC<ShareDailyRouteModalProps> = ({
   // Success state with generated token and links
   const [createdTrip, setCreatedTrip] = useState<any | null>(null);
   const [copiedLink, setCopiedLink] = useState<boolean>(false);
+  const [radarModalOpen, setRadarModalOpen] = useState<boolean>(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -515,6 +518,15 @@ _(Opens full interactive road map, 1s GPS tracking, and delivery confirmation wi
                   <Truck className="w-4 h-4 text-emerald-400" />
                   <span>Open Driver App Directly</span>
                 </button>
+
+                <button
+                  type="button"
+                  onClick={() => setRadarModalOpen(true)}
+                  className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-cyan-600/30 transition-all active:scale-95 cursor-pointer"
+                >
+                  <Compass className="w-4 h-4 text-cyan-200" />
+                  <span>Track Live on Radar (લાઈવ રડાર)</span>
+                </button>
               </div>
 
               {/* Security & Tracking Guarantee */}
@@ -551,6 +563,14 @@ _(Opens full interactive road map, 1s GPS tracking, and delivery confirmation wi
           )}
         </div>
       </div>
+
+      {/* Live Driver Radar Modal */}
+      <LiveDriverRadarModal
+        isOpen={radarModalOpen}
+        onClose={() => setRadarModalOpen(false)}
+        initialTripId={createdTrip?.trip_id}
+        initialTripToken={createdTrip?.share_token}
+      />
     </div>
   );
 };
