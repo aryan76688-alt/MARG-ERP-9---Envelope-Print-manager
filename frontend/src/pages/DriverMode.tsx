@@ -56,6 +56,19 @@ import { queueOfflinePOD } from '../offline/db';
 import { useNetworkSync } from '../offline/syncManager';
 import { generateWhatsAppDispatchUrl } from '../utils/whatsapp';
 
+// Calculate distance in meters using Haversine formula (hoisted & available during initial component render)
+function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c);
+}
+
 export const DriverMode: React.FC = () => {
   const { isOnline, refreshPendingCount, triggerSync } = useNetworkSync();
   const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
@@ -488,19 +501,6 @@ export const DriverMode: React.FC = () => {
       clearInterval(heartbeatId);
     };
   }, [activeTrip?.id, tripToken]);
-
-  // Calculate distance in meters using Haversine formula
-  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
-    const R = 6371000;
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-      Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return Math.round(R * c);
-  };
 
   // 1-Tap Pin Current GPS to Chemist
   const handleQuickPinLocation = async (stop: DriverStop, e?: React.MouseEvent) => {
