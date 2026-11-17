@@ -189,7 +189,10 @@ export const ShareDailyRouteModal: React.FC<ShareDailyRouteModalProps> = ({
     const stopLines = orderedParties.map((p, idx) => {
       const city = p.city ? ` (${p.city})` : '';
       const phone = p.mobile_no ? ` 📞 ${p.mobile_no}` : '';
-      return `${idx + 1}. *${p.party_name}*${city}${phone}`;
+      const mapLink = p.latitude && p.longitude 
+        ? `\n   📍 Map: https://www.google.com/maps/search/?api=1&query=${p.latitude},${p.longitude}`
+        : '';
+      return `${idx + 1}. *${p.party_name}*${city}${phone}${mapLink}`;
     }).join('\n');
 
     return `🚚 *SHREEJI HEALTHCARE — DAILY DELIVERY ROUTE*

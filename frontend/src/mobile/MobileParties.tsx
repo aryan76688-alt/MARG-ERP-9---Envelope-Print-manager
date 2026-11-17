@@ -33,6 +33,7 @@ import { PartyModal } from '../components/PartyModal';
 import { RouteManagerModal } from '../components/RouteManagerModal';
 import { PartyMapPickerModal } from '../components/PartyMapPickerModal';
 import { ShareDailyRouteModal } from '../components/ShareDailyRouteModal';
+import { SharePartyLocationsModal } from '../components/SharePartyLocationsModal';
 import { VoiceSearchInput } from '../components/VoiceSearchInput';
 
 interface MobilePartiesProps {
@@ -72,6 +73,8 @@ export const MobileParties: React.FC<MobilePartiesProps> = ({
   const [selectMode, setSelectMode] = useState<boolean>(false);
   const [shareRouteModalOpen, setShareRouteModalOpen] = useState<boolean>(false);
   const [shareRouteParties, setShareRouteParties] = useState<Party[]>([]);
+  const [shareLocationsModalOpen, setShareLocationsModalOpen] = useState<boolean>(false);
+  const [shareLocationsParties, setShareLocationsParties] = useState<Party[]>([]);
 
   const handleToggleSelectParty = (id: number) => {
     setSelectedPartyIds(prev => {
@@ -728,6 +731,18 @@ export const MobileParties: React.FC<MobilePartiesProps> = ({
                       <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap justify-end">
                         <button
                           type="button"
+                          onClick={() => {
+                            setShareLocationsParties([party]);
+                            setShareLocationsModalOpen(true);
+                          }}
+                          className="min-h-[38px] px-2.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-[11px] shadow-sm flex items-center gap-1 active:scale-95 transition-all cursor-pointer"
+                          title="Share party location via WhatsApp / SMS"
+                        >
+                          <Share2 className="w-3.5 h-3.5" />
+                          <span>શેર</span>
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => onNavigate('routes', { selectedParty: party })}
                           className="min-h-[38px] px-2.5 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-extrabold text-[11px] shadow-sm flex items-center gap-1 active:scale-95 transition-all cursor-pointer"
                           title="View Real Road Route in Route Optimizer"
@@ -769,7 +784,19 @@ export const MobileParties: React.FC<MobilePartiesProps> = ({
                         <span className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0"></span>
                         <span className="text-[11px] font-bold text-amber-400 truncate">No GPS Pin</span>
                       </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShareLocationsParties([party]);
+                            setShareLocationsModalOpen(true);
+                          }}
+                          className="min-h-[40px] px-2.5 py-2 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 text-xs font-bold flex items-center gap-1 active:scale-95 transition-all cursor-pointer"
+                          title="Share party location / address search via WhatsApp"
+                        >
+                          <Share2 className="w-3.5 h-3.5 text-blue-300" />
+                          <span>શેર</span>
+                        </button>
                         <button
                           type="button"
                           onClick={() => setMapPickerParty(party)}
@@ -1166,6 +1193,22 @@ export const MobileParties: React.FC<MobilePartiesProps> = ({
               type="button"
               onClick={() => {
                 const selected = filteredParties.filter(p => selectedPartyIds.has(p.id!));
+                if (selected.length > 0) {
+                  setShareLocationsParties(selected);
+                  setShareLocationsModalOpen(true);
+                }
+              }}
+              className="px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-xs flex items-center gap-1 shadow-md shadow-blue-600/30 active:scale-95 transition-all cursor-pointer"
+              title="Share Google Maps locations for selected parties"
+            >
+              <MapPin className="w-3.5 h-3.5 text-blue-200" />
+              <span>લોકેશન શેર</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                const selected = filteredParties.filter(p => selectedPartyIds.has(p.id!));
                 onNavigate('routes', { selectedParties: selected });
               }}
               className="px-3 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-extrabold text-xs flex items-center gap-1 shadow-md shadow-teal-600/30 active:scale-95 transition-all cursor-pointer"
@@ -1192,6 +1235,13 @@ export const MobileParties: React.FC<MobilePartiesProps> = ({
         onClose={() => setShareRouteModalOpen(false)}
         selectedParties={shareRouteParties}
         onOpenDriverApp={(token) => onNavigate('driver', { trip_token: token })}
+      />
+
+      {/* Share Selected Parties Location Modal */}
+      <SharePartyLocationsModal
+        isOpen={shareLocationsModalOpen}
+        onClose={() => setShareLocationsModalOpen(false)}
+        parties={shareLocationsParties}
       />
     </div>
   );

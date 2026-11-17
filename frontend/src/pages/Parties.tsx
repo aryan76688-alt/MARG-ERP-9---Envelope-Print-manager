@@ -39,6 +39,7 @@ import {
 } from 'lucide-react';
 import { VoiceSearchInput } from '../components/VoiceSearchInput';
 import { ShareDailyRouteModal } from '../components/ShareDailyRouteModal';
+import { SharePartyLocationsModal } from '../components/SharePartyLocationsModal';
 import { Party } from '../types';
 import { 
   fetchParties, 
@@ -136,6 +137,10 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
   // Daily Route Creation & Share Modal
   const [shareRouteModalOpen, setShareRouteModalOpen] = useState<boolean>(false);
   const [shareRouteParties, setShareRouteParties] = useState<Party[]>([]);
+
+  // Selected Parties Location Share Modal
+  const [shareLocationsModalOpen, setShareLocationsModalOpen] = useState<boolean>(false);
+  const [shareLocationsParties, setShareLocationsParties] = useState<Party[]>([]);
 
   // Background Google Translation state
   const [translating, setTranslating] = useState<boolean>(false);
@@ -1113,6 +1118,21 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
               onClick={() => {
                 const selected = parties.filter((p) => selectedIds.includes(p.id!));
                 if (selected.length > 0) {
+                  setShareLocationsParties(selected);
+                  setShareLocationsModalOpen(true);
+                }
+              }}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-xs shadow-md shadow-blue-600/30 transition-all active:scale-95 cursor-pointer"
+              title="Share Google Maps location links for selected parties via WhatsApp/SMS"
+            >
+              <MapPin className="w-3.5 h-3.5 text-blue-200" />
+              <span>Share Location ({selectedIds.length})</span>
+            </button>
+
+            <button
+              onClick={() => {
+                const selected = parties.filter((p) => selectedIds.includes(p.id!));
+                if (selected.length > 0) {
                   setShareRouteParties(selected);
                   setShareRouteModalOpen(true);
                 }
@@ -1390,6 +1410,18 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
                                 <ExternalLink className="w-2.5 h-2.5" />
                                 <span>Go</span>
                               </a>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setShareLocationsParties([p]);
+                                  setShareLocationsModalOpen(true);
+                                }}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-[10px] shadow-sm transition-all cursor-pointer"
+                                title="Share this party's location link via WhatsApp"
+                              >
+                                <Share2 className="w-2.5 h-2.5" />
+                                <span>Share</span>
+                              </button>
                               <button
                                 type="button"
                                 onClick={() => setMapPickerParty(p)}
@@ -2034,6 +2066,13 @@ export const Parties: React.FC<PartiesProps> = ({ onNavigate, initialAddModal = 
         onClose={() => setShareRouteModalOpen(false)}
         selectedParties={shareRouteParties}
         onOpenDriverApp={(token) => onNavigate('driver', { trip_token: token })}
+      />
+
+      {/* Share Selected Parties Location Modal */}
+      <SharePartyLocationsModal
+        isOpen={shareLocationsModalOpen}
+        onClose={() => setShareLocationsModalOpen(false)}
+        parties={shareLocationsParties}
       />
     </div>
   );
