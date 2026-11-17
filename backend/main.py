@@ -8592,10 +8592,11 @@ def _get_spa_index_file() -> Optional[str]:
 
 # Direct SPA Routes for Driver Mode & Deep-linked URLs
 @app.get("/driver")
+@app.get("/driver/")
 @app.get("/driver/{full_path:path}")
-def serve_driver_view(request: Request):
+def serve_driver_view(request: Request, full_path: Optional[str] = None):
     index_file = _get_spa_index_file()
-    if index_file and os.path.exists(index_file):
+    if index_file and os.path.isfile(index_file):
         return FileResponse(index_file, media_type="text/html", headers={"Cache-Control": "no-cache"})
     raise HTTPException(status_code=404, detail="Driver app not found")
 
