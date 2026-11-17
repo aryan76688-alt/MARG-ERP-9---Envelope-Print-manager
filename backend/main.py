@@ -6,7 +6,7 @@ from typing import Optional, List, Dict, Any
 from fastapi import FastAPI, Depends, HTTPException, Query, UploadFile, File, Form, status, Response, Request, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import StreamingResponse, JSONResponse, FileResponse
+from fastapi.responses import StreamingResponse, JSONResponse, FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -8591,13 +8591,18 @@ def _get_spa_index_file() -> Optional[str]:
     return None
 
 # Direct SPA Routes for Driver Mode & Deep-linked URLs
-@app.get("/driver")
-@app.get("/driver/")
-@app.get("/driver/{full_path:path}")
+@app.get("/driver", response_class=HTMLResponse)
+@app.get("/driver/", response_class=HTMLResponse)
+@app.get("/driver/{full_path:path}", response_class=HTMLResponse)
 def serve_driver_view(request: Request, full_path: Optional[str] = None):
-    index_file = _get_spa_index_file()
-    if index_file and os.path.isfile(index_file):
-        return FileResponse(index_file, media_type="text/html", headers={"Cache-Control": "no-cache"})
+    try:
+        index_file = _get_spa_index_file()
+        if index_file and os.path.isfile(index_file):
+            with open(index_file, "r", encoding="utf-8") as f:
+                content = f.read()
+            return HTMLResponse(content=content, media_type="text/html", headers={"Cache-Control": "no-cache"})
+    except Exception as e:
+        print(f"[serve_driver_view] Error reading SPA index: {e}")
     raise HTTPException(status_code=404, detail="Driver app not found")
 
 mounted = False
