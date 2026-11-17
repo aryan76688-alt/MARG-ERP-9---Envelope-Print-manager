@@ -138,11 +138,13 @@ export const ShareDailyRouteModal: React.FC<ShareDailyRouteModalProps> = ({
 
     try {
       const partyIds = orderedParties.map(p => p.id!).filter(Boolean);
+      const matchedDriver = drivers.find(d => d.id === selectedDriverId);
       const res = await createAndShareDailyRoute({
         party_ids: partyIds,
         route_name: routeName.trim() || 'Daily Delivery Route',
         vehicle_id: selectedVehicleId || undefined,
         driver_id: selectedDriverId || undefined,
+        driver_name: matchedDriver ? (matchedDriver.full_name || matchedDriver.username) : undefined,
         notes: notes.trim() || undefined
       });
 

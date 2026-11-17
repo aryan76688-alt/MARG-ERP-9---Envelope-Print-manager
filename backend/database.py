@@ -189,6 +189,127 @@ def init_db():
             ("device_controls_json", "TEXT", "'{\"storage_access\": true, \"storage_quota_mb\": 1024, \"camera_access\": true, \"camera_mode\": \"rear_and_front\", \"mic_access\": true, \"mic_mode\": \"emergency_only\", \"remote_locked\": false, \"tracking_enabled\": true}'"),
         ])
 
+        ensure_columns("trips", [
+            ("trip_number", "TEXT", None),
+            ("vehicle_id", "INTEGER", None),
+            ("vehicle_number", "TEXT", None),
+            ("driver_id", "INTEGER", None),
+            ("driver_name", "TEXT", None),
+            ("route_name", "TEXT", None),
+            ("status", "TEXT", "'active'"),
+            ("share_token", "TEXT", None),
+            ("start_odometer_km", "FLOAT", "0.0"),
+            ("end_odometer_km", "FLOAT", None),
+            ("total_distance_km", "FLOAT", "0.0"),
+            ("start_latitude", "FLOAT", None),
+            ("start_longitude", "FLOAT", None),
+            ("end_latitude", "FLOAT", None),
+            ("end_longitude", "FLOAT", None),
+            ("started_at", "TIMESTAMP", None),
+            ("completed_at", "TIMESTAMP", None),
+            ("notes", "TEXT", None),
+        ])
+
+        ensure_columns("trip_stops", [
+            ("trip_id", "INTEGER", None),
+            ("party_id", "INTEGER", None),
+            ("party_name", "TEXT", "''"),
+            ("party_code", "TEXT", None),
+            ("address", "TEXT", None),
+            ("latitude", "FLOAT", None),
+            ("longitude", "FLOAT", None),
+            ("sequence_number", "INTEGER", "1"),
+            ("status", "TEXT", "'pending'"),
+            ("eta", "TIMESTAMP", None),
+            ("arrival_time", "TIMESTAMP", None),
+            ("departure_time", "TIMESTAMP", None),
+            ("cash_collected", "FLOAT", "0.0"),
+            ("pod_signature", "TEXT", None),
+            ("pod_photo", "TEXT", None),
+            ("failure_reason", "TEXT", None),
+            ("notes", "TEXT", None),
+        ])
+
+        ensure_columns("vehicles", [
+            ("vehicle_number", "TEXT", None),
+            ("model", "TEXT", "'Delivery Van'"),
+            ("vehicle_type", "TEXT", "'truck'"),
+            ("driver_id", "INTEGER", None),
+            ("driver_name", "TEXT", None),
+            ("fuel_type", "TEXT", "'Diesel'"),
+            ("fuel_capacity_liters", "FLOAT", "40.0"),
+            ("odometer_km", "FLOAT", "0.0"),
+            ("status", "TEXT", "'active'"),
+            ("last_latitude", "FLOAT", None),
+            ("last_longitude", "FLOAT", None),
+            ("last_speed_kmh", "FLOAT", "0.0"),
+            ("last_speed_type", "TEXT", "'measured'"),
+            ("last_heading", "FLOAT", None),
+            ("last_battery_pct", "FLOAT", None),
+            ("last_telemetry_at", "TIMESTAMP", None),
+            ("created_at", "TIMESTAMP", None),
+            ("updated_at", "TIMESTAMP", None),
+        ])
+
+        ensure_columns("gps_location_history", [
+            ("driver_id", "INTEGER", None),
+            ("driver_name", "TEXT", None),
+            ("vehicle_id", "INTEGER", None),
+            ("trip_id", "INTEGER", None),
+            ("latitude", "FLOAT", "0.0"),
+            ("longitude", "FLOAT", "0.0"),
+            ("accuracy", "FLOAT", None),
+            ("speed_kmh", "FLOAT", "0.0"),
+            ("speed_type", "TEXT", "'measured'"),
+            ("heading", "FLOAT", None),
+            ("battery_pct", "FLOAT", None),
+            ("source", "TEXT", "'android_gps'"),
+            ("timestamp", "TIMESTAMP", None),
+        ])
+
+        ensure_columns("fleet_alerts", [
+            ("alert_type", "TEXT", "'warning'"),
+            ("severity", "TEXT", "'warning'"),
+            ("vehicle_id", "INTEGER", None),
+            ("vehicle_number", "TEXT", None),
+            ("driver_id", "INTEGER", None),
+            ("driver_name", "TEXT", None),
+            ("trip_id", "INTEGER", None),
+            ("message", "TEXT", "''"),
+            ("latitude", "FLOAT", None),
+            ("longitude", "FLOAT", None),
+            ("speed_kmh", "FLOAT", None),
+            ("resolved", "BOOLEAN", "0"),
+            ("resolved_by", "TEXT", None),
+            ("resolved_at", "TIMESTAMP", None),
+            ("created_at", "TIMESTAMP", None),
+        ])
+
+        ensure_columns("fuel_records", [
+            ("vehicle_id", "INTEGER", None),
+            ("driver_id", "INTEGER", None),
+            ("driver_name", "TEXT", None),
+            ("fuel_liters", "FLOAT", "0.0"),
+            ("cost_total", "FLOAT", "0.0"),
+            ("odometer_km", "FLOAT", "0.0"),
+            ("fuel_station", "TEXT", None),
+            ("bill_number", "TEXT", None),
+            ("receipt_photo", "TEXT", None),
+            ("logged_at", "TIMESTAMP", None),
+        ])
+
+        ensure_columns("vehicle_maintenance", [
+            ("vehicle_id", "INTEGER", None),
+            ("service_type", "TEXT", "'General Service'"),
+            ("odometer_km", "FLOAT", "0.0"),
+            ("cost", "FLOAT", "0.0"),
+            ("service_center", "TEXT", None),
+            ("service_date", "TIMESTAMP", None),
+            ("next_due_km", "FLOAT", None),
+            ("next_due_date", "TIMESTAMP", None),
+            ("notes", "TEXT", None),
+        ])
+
         # High-Performance Indexes Migration
         indexes_to_ensure = [
             ("idx_parties_code", "parties", ["party_code"]),
@@ -201,6 +322,7 @@ def init_db():
             ("idx_print_jobs_created_at", "print_jobs", ["created_at"]),
             ("idx_print_jobs_status", "print_jobs", ["status"]),
             ("idx_print_jobs_party_snap", "print_jobs", ["party_name_snap"]),
+            ("idx_trips_share_token", "trips", ["share_token"]),
             ("idx_trips_status", "trips", ["status"]),
             ("idx_trips_driver", "trips", ["driver_id"]),
             ("idx_trip_stops_trip", "trip_stops", ["trip_id"]),

@@ -1945,6 +1945,7 @@ export async function createAndShareDailyRoute(payload: {
   party_ids: number[];
   route_name?: string;
   driver_id?: number;
+  driver_name?: string;
   vehicle_id?: number;
   start_latitude?: number;
   start_longitude?: number;

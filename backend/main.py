@@ -7237,7 +7237,7 @@ def update_user_live_location(
     current_user: User = Depends(auth_module.get_current_user)
 ):
     """Updates user's real-time GPS location."""
-    now_dt = datetime.datetime.now(datetime.timezone.utc)
+    now_dt = datetime.datetime.utcnow()
     live_user_locations[current_user.username] = {
         "username": current_user.username,
         "full_name": current_user.full_name or current_user.username,
@@ -7329,6 +7329,7 @@ class ShareDailyRoutePayload(BaseModel):
     party_ids: List[int]
     route_name: Optional[str] = "Daily Delivery Route"
     driver_id: Optional[int] = None
+    driver_name: Optional[str] = None
     vehicle_id: Optional[int] = None
     start_latitude: Optional[float] = None
     start_longitude: Optional[float] = None
@@ -7632,48 +7633,54 @@ def list_fleet_trips(
     current_user: Optional[User] = Depends(auth_module.get_optional_current_user)
 ):
     """Lists past and active trips with stop statistics."""
-    query = db.query(Trip)
-    if driver_id:
-        query = query.filter(Trip.driver_id == driver_id)
-    if vehicle_id:
-        query = query.filter(Trip.vehicle_id == vehicle_id)
-    if status_filter:
-        query = query.filter(Trip.status == status_filter.lower())
-    if date_filter:
-        try:
-            d = datetime.date.fromisoformat(date_filter)
-            d_start = datetime.datetime.combine(d, datetime.time.min)
-            d_end = datetime.datetime.combine(d, datetime.time.max)
-            query = query.filter(Trip.started_at >= d_start, Trip.started_at <= d_end)
-        except Exception:
-            pass
+    try:
+        query = db.query(Trip)
+        if driver_id:
+            query = query.filter(Trip.driver_id == driver_id)
+        if vehicle_id:
+            query = query.filter(Trip.vehicle_id == vehicle_id)
+        if status_filter:
+            query = query.filter(Trip.status == status_filter.lower())
+        if date_filter:
+            try:
+                d = datetime.date.fromisoformat(date_filter)
+                d_start = datetime.datetime.combine(d, datetime.time.min)
+                d_end = datetime.datetime.combine(d, datetime.time.max)
+                query = query.filter(Trip.started_at >= d_start, Trip.started_at <= d_end)
+            except Exception:
+                pass
 
-    trips = query.order_by(Trip.started_at.desc()).limit(limit).all()
-    result = []
-    for t in trips:
-        delivered_count = sum(1 for s in t.stops if s.status == "delivered")
-        failed_count = sum(1 for s in t.stops if s.status == "failed")
-        cash_sum = sum(s.cash_collected or 0.0 for s in t.stops)
-        result.append({
-            "id": t.id,
-            "trip_number": t.trip_number,
-            "vehicle_id": t.vehicle_id,
-            "vehicle_number": t.vehicle_number,
-            "driver_id": t.driver_id,
-            "driver_name": t.driver_name,
-            "route_name": t.route_name,
-            "status": t.status,
-            "start_odometer_km": t.start_odometer_km,
-            "end_odometer_km": t.end_odometer_km,
-            "total_distance_km": round(t.total_distance_km or 0.0, 1),
-            "started_at": t.started_at.isoformat() if t.started_at else None,
-            "completed_at": t.completed_at.isoformat() if t.completed_at else None,
-            "total_stops": len(t.stops),
-            "delivered_stops": delivered_count,
-            "failed_stops": failed_count,
-            "total_cash_collected": round(cash_sum, 2)
-        })
-    return {"trips": result}
+        trips = query.order_by(Trip.started_at.desc()).limit(limit).all()
+        result = []
+        for t in trips:
+            delivered_count = sum(1 for s in t.stops if s.status == "delivered")
+            failed_count = sum(1 for s in t.stops if s.status == "failed")
+            cash_sum = sum(s.cash_collected or 0.0 for s in t.stops)
+            result.append({
+                "id": t.id,
+                "trip_number": t.trip_number,
+                "vehicle_id": t.vehicle_id,
+                "vehicle_number": t.vehicle_number,
+                "driver_id": t.driver_id,
+                "driver_name": t.driver_name,
+                "route_name": t.route_name,
+                "status": t.status,
+                "share_token": getattr(t, "share_token", None),
+                "start_odometer_km": t.start_odometer_km,
+                "end_odometer_km": t.end_odometer_km,
+                "total_distance_km": round(t.total_distance_km or 0.0, 1),
+                "started_at": t.started_at.isoformat() if t.started_at else None,
+                "completed_at": t.completed_at.isoformat() if t.completed_at else None,
+                "total_stops": len(t.stops),
+                "delivered_stops": delivered_count,
+                "failed_stops": failed_count,
+                "total_cash_collected": round(cash_sum, 2)
+            })
+        return {"trips": result}
+    except Exception as e:
+        import traceback
+        print(f"[list_fleet_trips] Error: {e}\n{traceback.format_exc()}")
+        return {"trips": []}
 
 
 @app.post("/api/fleet/trips/start", status_code=status.HTTP_201_CREATED)
@@ -7695,7 +7702,7 @@ def start_fleet_trip(
         driver_name = vehicle.driver_name or driver_name
 
     # Generate unique trip number: TRIP-YYYY-XXXXXX
-    now_dt = datetime.datetime.now(datetime.timezone.utc)
+    now_dt = datetime.datetime.utcnow()
     count_today = db.query(Trip).count() + 1
     trip_num = f"TRIP-{now_dt.strftime('%Y%m%d')}-{count_today:04d}"
 
@@ -7801,7 +7808,7 @@ def end_fleet_trip(
     if not trip:
         raise HTTPException(status_code=404, detail="Trip not found.")
 
-    now_dt = datetime.datetime.now(datetime.timezone.utc)
+    now_dt = datetime.datetime.utcnow()
     trip.completed_at = now_dt
     trip.status = "completed"
     if payload.end_latitude is not None:
@@ -7843,7 +7850,7 @@ def update_fleet_trip_stop_status(
     if not stop:
         raise HTTPException(status_code=404, detail="Trip stop not found.")
 
-    now_dt = datetime.datetime.now(datetime.timezone.utc)
+    now_dt = datetime.datetime.utcnow()
     stop.status = payload.status.strip().lower()
 
     if stop.status == "arrived":
@@ -7935,102 +7942,120 @@ def create_and_share_daily_route(
     if not payload.party_ids:
         raise HTTPException(status_code=400, detail="At least 1 party must be selected to create a route.")
 
-    now_dt = datetime.datetime.now(datetime.timezone.utc)
-    count_today = db.query(Trip).count() + 1
-    trip_num = f"TRIP-{now_dt.strftime('%Y%m%d')}-{count_today:04d}"
-    st = secrets.token_urlsafe(16)
+    try:
+        # Use UTC naive datetime for seamless compatibility across SQLite & PostgreSQL
+        now_dt = datetime.datetime.utcnow()
+        try:
+            count_today = db.query(Trip).count() + 1
+        except Exception:
+            count_today = 1
+        trip_num = f"TRIP-{now_dt.strftime('%Y%m%d')}-{count_today:04d}"
+        st = secrets.token_urlsafe(16)
 
-    vehicle = None
-    if payload.vehicle_id:
-        vehicle = db.query(Vehicle).filter(Vehicle.id == payload.vehicle_id).first()
+        vehicle = None
+        if payload.vehicle_id:
+            vehicle = db.query(Vehicle).filter(Vehicle.id == payload.vehicle_id).first()
 
-    driver_id = payload.driver_id
-    driver_user = None
-    if driver_id:
-        driver_user = db.query(User).filter(User.id == driver_id).first()
-    elif current_user:
-        driver_id = current_user.id
-        driver_user = current_user
+        driver_id = payload.driver_id
+        driver_user = None
+        if driver_id:
+            driver_user = db.query(User).filter(User.id == driver_id).first()
+            if not driver_user:
+                # Driver ID might be synthetic from list, clear FK to prevent constraint violation
+                driver_id = None
+        elif current_user:
+            driver_id = current_user.id
+            driver_user = current_user
 
-    driver_name = "Any Driver (Open Access)"
-    if driver_user:
-        driver_name = driver_user.full_name or driver_user.username
-    elif vehicle and vehicle.driver_name:
-        driver_name = vehicle.driver_name
-        driver_id = vehicle.driver_id or driver_id
+        driver_name = payload.driver_name or "Any Driver (Open Access)"
+        if driver_user:
+            driver_name = driver_user.full_name or driver_user.username
+        elif vehicle and vehicle.driver_name:
+            driver_name = vehicle.driver_name
+            if not driver_id:
+                driver_id = vehicle.driver_id
 
-    creator_name = (current_user.full_name or current_user.username) if current_user else "Daily Dispatch"
-    notes_val = payload.notes or f"Created by {creator_name}"
+        creator_name = (current_user.full_name or current_user.username) if current_user else "Daily Dispatch"
+        notes_val = payload.notes or f"Created by {creator_name}"
 
-    trip = Trip(
-        trip_number=trip_num,
-        vehicle_id=vehicle.id if vehicle else None,
-        vehicle_number=vehicle.vehicle_number if vehicle else None,
-        driver_id=driver_id,
-        driver_name=driver_name,
-        route_name=payload.route_name or f"Daily Route ({len(payload.party_ids)} Stops)",
-        status="active",
-        share_token=st,
-        start_odometer_km=vehicle.odometer_km if vehicle else 0.0,
-        start_latitude=payload.start_latitude,
-        start_longitude=payload.start_longitude,
-        started_at=now_dt,
-        notes=notes_val
-    )
-    db.add(trip)
-    db.flush()
+        trip = Trip(
+            trip_number=trip_num,
+            vehicle_id=vehicle.id if vehicle else None,
+            vehicle_number=vehicle.vehicle_number if vehicle else None,
+            driver_id=driver_id,
+            driver_name=driver_name,
+            route_name=payload.route_name or f"Daily Route ({len(payload.party_ids)} Stops)",
+            status="active",
+            share_token=st,
+            start_odometer_km=vehicle.odometer_km if vehicle else 0.0,
+            start_latitude=payload.start_latitude,
+            start_longitude=payload.start_longitude,
+            started_at=now_dt,
+            notes=notes_val
+        )
+        db.add(trip)
+        db.flush()
 
-    stops_data = []
-    seq = 1
-    for pid in payload.party_ids:
-        party = db.query(Party).filter(Party.id == pid).first()
-        if party:
-            stop = TripStop(
-                trip_id=trip.id,
-                party_id=party.id,
-                party_name=party.party_name,
-                party_code=party.party_code,
-                address=party.address,
-                latitude=party.latitude,
-                longitude=party.longitude,
-                sequence_number=seq,
-                status="pending"
-            )
-            db.add(stop)
-            db.flush()
-            stops_data.append({
-                "id": stop.id,
-                "party_id": party.id,
-                "party_name": party.party_name,
-                "party_name_gu": party.party_name_gu,
-                "party_code": party.party_code,
-                "address": party.address,
-                "city": party.city,
-                "mobile_no": party.mobile_no,
-                "latitude": party.latitude,
-                "longitude": party.longitude,
-                "sequence_number": seq,
-                "status": "pending"
-            })
-            seq += 1
+        stops_data = []
+        seq = 1
+        for pid in payload.party_ids:
+            party = db.query(Party).filter(Party.id == pid).first()
+            if party:
+                stop = TripStop(
+                    trip_id=trip.id,
+                    party_id=party.id,
+                    party_name=party.party_name or f"Party #{party.id}",
+                    party_code=party.party_code,
+                    address=party.address,
+                    latitude=party.latitude,
+                    longitude=party.longitude,
+                    sequence_number=seq,
+                    status="pending"
+                )
+                db.add(stop)
+                db.flush()
+                stops_data.append({
+                    "id": stop.id,
+                    "party_id": party.id,
+                    "party_name": party.party_name,
+                    "party_name_gu": getattr(party, "party_name_gu", None),
+                    "party_code": party.party_code,
+                    "address": party.address,
+                    "city": party.city,
+                    "mobile_no": party.mobile_no,
+                    "latitude": party.latitude,
+                    "longitude": party.longitude,
+                    "sequence_number": seq,
+                    "status": "pending"
+                })
+                seq += 1
 
-    if vehicle:
-        vehicle.status = "en_route"
+        if vehicle and hasattr(vehicle, "status"):
+            vehicle.status = "en_route"
 
-    db.commit()
-    db.refresh(trip)
+        db.commit()
+        db.refresh(trip)
 
-    return {
-        "success": True,
-        "trip_id": trip.id,
-        "trip_number": trip.trip_number,
-        "share_token": trip.share_token,
-        "share_url": f"/?trip_token={trip.share_token}",
-        "driver_url": f"/driver?trip_token={trip.share_token}",
-        "total_stops": len(stops_data),
-        "route_name": trip.route_name,
-        "stops": stops_data
-    }
+        return {
+            "success": True,
+            "trip_id": trip.id,
+            "trip_number": trip.trip_number,
+            "share_token": trip.share_token,
+            "share_url": f"/?trip_token={trip.share_token}",
+            "driver_url": f"/driver?trip_token={trip.share_token}",
+            "total_stops": len(stops_data),
+            "route_name": trip.route_name,
+            "stops": stops_data
+        }
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        import traceback
+        err_msg = f"Failed to create daily route: {str(e)}"
+        print(f"[create_and_share_daily_route] Error: {err_msg}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=err_msg)
 
 
 @app.get("/api/public/trip/{share_token}")
@@ -8130,7 +8155,7 @@ def update_public_trip_stop_status(
     if not stop:
         raise HTTPException(status_code=404, detail="Stop not found for this trip.")
 
-    now_dt = datetime.datetime.now(datetime.timezone.utc)
+    now_dt = datetime.datetime.utcnow()
     stop.status = payload.status
     if stop.status == "arrived":
         stop.arrival_time = now_dt
@@ -8165,7 +8190,7 @@ def ingest_fleet_telemetry(
     Transparently converts m/s to km/h (speed_kmh = speed_mps * 3.6).
     Emits real-time alerts for overspeeding (>75 km/h) and low battery (<15%).
     """
-    now_dt = datetime.datetime.now(datetime.timezone.utc)
+    now_dt = datetime.datetime.utcnow()
     
     # Transparent conversion: speed_mps * 3.6 = speed_kmh
     speed_kmh = 0.0
