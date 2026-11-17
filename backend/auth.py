@@ -29,6 +29,7 @@ SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "b304c000e3cf14a1a9a83ebfc481358a9
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 3650 # 10 years (Permanent One-Time Login)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
 
 def verify_password(plain_password, hashed_password):
     if HAS_BCRYPT and bcrypt:
@@ -58,6 +59,26 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
+
+def get_optional_current_user(token: Optional[str] = Depends(oauth2_scheme_optional), db: Session = Depends(get_db)) -> Optional[User]:
+    """
+    Safely resolves the currently authenticated user if a valid Bearer token is provided.
+    If no token or an expired/invalid token is provided, returns None instead of raising HTTP 401.
+    Prevents stale client tokens or unauthenticated mobile sessions from blocking operations.
+    """
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if not username:
+            return None
+        user = db.query(User).filter(User.username == username).first()
+        if user and user.is_active:
+            return user
+    except Exception:
+        pass
+    return None
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     credentials_exception = HTTPException(

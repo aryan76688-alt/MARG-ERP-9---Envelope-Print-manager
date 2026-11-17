@@ -5215,15 +5215,28 @@ def sync_offline_jobs(req: BatchJobSyncRequest, db: Session = Depends(get_db)):
 
 @app.get("/api/driver/list")
 def get_driver_list(db: Session = Depends(get_db)):
+    user_drivers = db.query(User).filter(User.role.in_(["driver", "staff", "employee", "admin", "super_admin"])).all()
     driver_rows = db.query(PrintJob.driver_name).filter(PrintJob.driver_name.isnot(None)).distinct().all()
     legacy_rows = db.query(PrintJob.delivery_boy_name).filter(PrintJob.delivery_boy_name.isnot(None)).distinct().all()
     all_drivers = set()
+    driver_users = []
+    for u in user_drivers:
+        dname = u.full_name or u.username
+        if dname:
+            all_drivers.add(dname)
+            driver_users.append({
+                "id": u.id,
+                "username": u.username,
+                "full_name": dname,
+                "role": u.role
+            })
     for (d,) in driver_rows:
         if d and d.strip(): all_drivers.add(d.strip())
     for (d,) in legacy_rows:
         if d and d.strip(): all_drivers.add(d.strip())
     return {
-        "drivers": sorted(list(all_drivers))
+        "drivers": sorted(list(all_drivers)),
+        "users": driver_users
     }
 
 @app.get("/api/dispatch-summary/pdf")
@@ -6948,8 +6961,14 @@ def read_users_me(current_user: User = Depends(auth_module.get_current_user)):
     return current_user
 
 @app.get("/api/users", response_model=List[UserResponse])
-def get_users(db: Session = Depends(get_db), current_user: User = Depends(auth_module.get_current_active_admin)):
-    return db.query(User).all()
+def get_users(
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(auth_module.get_optional_current_user)
+):
+    if current_user and current_user.role in ["super_admin", "admin", "owner"]:
+        return db.query(User).all()
+    # Safe active users list for staff, drivers, and route assignment
+    return db.query(User).filter(User.is_active == True).all()
 
 @app.post("/api/users", response_model=UserResponse)
 def create_user(user_in: UserCreate, db: Session = Depends(get_db), current_user: User = Depends(auth_module.get_current_active_admin)):
@@ -7357,7 +7376,7 @@ class MaintenanceCreatePayload(BaseModel):
 @app.get("/api/fleet/vehicles")
 def get_fleet_vehicles(
     db: Session = Depends(get_db),
-    current_user: User = Depends(auth_module.get_current_user)
+    current_user: Optional[User] = Depends(auth_module.get_optional_current_user)
 ):
     """Returns all fleet vehicles with computed live status and latest telemetry."""
     vehicles = db.query(Vehicle).order_by(Vehicle.id.asc()).all()
@@ -7552,7 +7571,7 @@ def assign_fleet_vehicle_driver(
 @app.get("/api/fleet/trips/active")
 def get_active_fleet_trips(
     db: Session = Depends(get_db),
-    current_user: User = Depends(auth_module.get_current_user)
+    current_user: Optional[User] = Depends(auth_module.get_optional_current_user)
 ):
     """Returns active trips, stops breakdown, and current driver/vehicle coordinates."""
     trips = db.query(Trip).filter(Trip.status == "active").order_by(Trip.started_at.desc()).all()
@@ -7610,7 +7629,7 @@ def list_fleet_trips(
     status_filter: Optional[str] = None,
     limit: int = 50,
     db: Session = Depends(get_db),
-    current_user: User = Depends(auth_module.get_current_user)
+    current_user: Optional[User] = Depends(auth_module.get_optional_current_user)
 ):
     """Lists past and active trips with stop statistics."""
     query = db.query(Trip)
@@ -7661,7 +7680,7 @@ def list_fleet_trips(
 def start_fleet_trip(
     payload: TripStartPayload,
     db: Session = Depends(get_db),
-    current_user: User = Depends(auth_module.get_current_user)
+    current_user: Optional[User] = Depends(auth_module.get_optional_current_user)
 ):
     """Starts a new delivery trip, assigning stops and initial odometer."""
     # Find vehicle and driver
@@ -7669,8 +7688,8 @@ def start_fleet_trip(
     if payload.vehicle_id:
         vehicle = db.query(Vehicle).filter(Vehicle.id == payload.vehicle_id).first()
     
-    driver_id = current_user.id
-    driver_name = current_user.full_name or current_user.username
+    driver_id = current_user.id if current_user else None
+    driver_name = (current_user.full_name or current_user.username) if current_user else "Driver"
     if vehicle and vehicle.driver_id:
         driver_id = vehicle.driver_id
         driver_name = vehicle.driver_name or driver_name
@@ -7775,7 +7794,7 @@ def end_fleet_trip(
     trip_id: int,
     payload: TripEndPayload,
     db: Session = Depends(get_db),
-    current_user: User = Depends(auth_module.get_current_user)
+    current_user: Optional[User] = Depends(auth_module.get_optional_current_user)
 ):
     """Ends a trip, computes final odometer and distance."""
     trip = db.query(Trip).filter(Trip.id == trip_id).first()
@@ -7817,7 +7836,7 @@ def update_fleet_trip_stop_status(
     trip_id: int,
     payload: TripStopUpdatePayload,
     db: Session = Depends(get_db),
-    current_user: User = Depends(auth_module.get_current_user)
+    current_user: Optional[User] = Depends(auth_module.get_optional_current_user)
 ):
     """Updates a stop's delivery progress (pending, arrived, delivered, failed)."""
     stop = db.query(TripStop).filter(TripStop.id == payload.stop_id, TripStop.trip_id == trip_id).first()
@@ -7854,7 +7873,7 @@ def update_fleet_trip_stop_status(
 def get_trip_telemetry_replay(
     trip_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(auth_module.get_current_user)
+    current_user: Optional[User] = Depends(auth_module.get_optional_current_user)
 ):
     """Returns chronological GPS breadcrumb trail for smooth trip replay with speed & alerts."""
     trip = db.query(Trip).filter(Trip.id == trip_id).first()
@@ -7906,11 +7925,12 @@ def get_trip_telemetry_replay(
 def create_and_share_daily_route(
     payload: ShareDailyRoutePayload,
     db: Session = Depends(get_db),
-    current_user: User = Depends(auth_module.get_current_user)
+    current_user: Optional[User] = Depends(auth_module.get_optional_current_user)
 ):
     """
     Creates a new daily delivery route from selected parties and generates a shareable public driver token.
     Enables any user to send the route via WhatsApp/SMS to drivers for zero-friction 1-tap navigation.
+    Operates seamlessly whether unauthenticated, guest, or authenticated.
     """
     if not payload.party_ids:
         raise HTTPException(status_code=400, detail="At least 1 party must be selected to create a route.")
@@ -7924,12 +7944,23 @@ def create_and_share_daily_route(
     if payload.vehicle_id:
         vehicle = db.query(Vehicle).filter(Vehicle.id == payload.vehicle_id).first()
 
-    driver_id = payload.driver_id or current_user.id
-    driver_user = db.query(User).filter(User.id == driver_id).first()
-    driver_name = driver_user.full_name or driver_user.username if driver_user else (current_user.full_name or current_user.username)
-    if vehicle and not payload.driver_id and vehicle.driver_name:
+    driver_id = payload.driver_id
+    driver_user = None
+    if driver_id:
+        driver_user = db.query(User).filter(User.id == driver_id).first()
+    elif current_user:
+        driver_id = current_user.id
+        driver_user = current_user
+
+    driver_name = "Any Driver (Open Access)"
+    if driver_user:
+        driver_name = driver_user.full_name or driver_user.username
+    elif vehicle and vehicle.driver_name:
         driver_name = vehicle.driver_name
-        driver_id = vehicle.driver_id
+        driver_id = vehicle.driver_id or driver_id
+
+    creator_name = (current_user.full_name or current_user.username) if current_user else "Daily Dispatch"
+    notes_val = payload.notes or f"Created by {creator_name}"
 
     trip = Trip(
         trip_number=trip_num,
@@ -7944,7 +7975,7 @@ def create_and_share_daily_route(
         start_latitude=payload.start_latitude,
         start_longitude=payload.start_longitude,
         started_at=now_dt,
-        notes=payload.notes or f"Created by {current_user.full_name or current_user.username}"
+        notes=notes_val
     )
     db.add(trip)
     db.flush()
@@ -7994,7 +8025,8 @@ def create_and_share_daily_route(
         "trip_id": trip.id,
         "trip_number": trip.trip_number,
         "share_token": trip.share_token,
-        "share_url": f"/driver?trip_token={trip.share_token}",
+        "share_url": f"/?trip_token={trip.share_token}",
+        "driver_url": f"/driver?trip_token={trip.share_token}",
         "total_stops": len(stops_data),
         "route_name": trip.route_name,
         "stops": stops_data
@@ -8500,6 +8532,15 @@ class CachedStaticFiles(StaticFiles):
 # Mount built React frontend if dist or backend/static exists
 dist_dir = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")
 static_dir = os.path.join(os.path.dirname(__file__), "static")
+
+# Direct SPA Routes for Driver Mode & Deep-linked URLs
+@app.get("/driver")
+@app.get("/driver/{full_path:path}")
+def serve_driver_view(request: Request):
+    index_file = os.path.join(dist_dir, "index.html") if os.path.exists(os.path.join(dist_dir, "index.html")) else os.path.join(static_dir, "index.html")
+    if os.path.exists(index_file):
+        return FileResponse(index_file, media_type="text/html", headers={"Cache-Control": "no-cache"})
+    raise HTTPException(status_code=404, detail="Driver app not found")
 
 if os.path.exists(dist_dir) and os.path.exists(os.path.join(dist_dir, "index.html")):
     app.mount("/", CachedStaticFiles(directory=dist_dir, html=True), name="static")

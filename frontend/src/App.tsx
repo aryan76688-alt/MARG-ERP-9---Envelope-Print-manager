@@ -157,6 +157,14 @@ export const App: React.FC = () => {
       setOpenAddPartyModal(false);
     }
 
+    if (resolvedTab === 'driver' && state?.trip_token) {
+      try {
+        const u = new URL(window.location.href);
+        u.searchParams.set('trip_token', state.trip_token);
+        window.history.replaceState({ tab: 'driver' }, '', u.toString());
+      } catch {}
+    }
+
     if (resolvedTab !== currentTab) {
       setHistoryStack((prev) => [...prev, resolvedTab]);
       window.history.pushState({ tab: resolvedTab }, '', '#' + resolvedTab);

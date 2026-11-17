@@ -16,7 +16,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { Party } from '../types';
-import { createAndShareDailyRoute, fetchFleetVehicles, fetchUsers } from '../api/client';
+import { createAndShareDailyRoute, fetchFleetVehicles, fetchUsers, fetchDriverList } from '../api/client';
 
 interface ShareDailyRouteModalProps {
   isOpen: boolean;
@@ -62,13 +62,25 @@ export const ShareDailyRouteModal: React.FC<ShareDailyRouteModalProps> = ({
       fetchFleetVehicles()
         .then(res => setVehicles(res.vehicles || []))
         .catch(() => {});
-      fetchUsers()
+      
+      // Load drivers from both dedicated driver endpoint and users
+      fetchDriverList()
         .then((res: any) => {
-          const raw = Array.isArray(res) ? res : (res?.users || []);
-          const list = raw.filter((u: any) => u.role === 'driver' || u.role === 'staff' || u.role === 'admin');
-          setDrivers(list);
+          if (res.users && res.users.length > 0) {
+            setDrivers(res.users);
+          } else if (res.drivers && res.drivers.length > 0) {
+            setDrivers(res.drivers.map((d: string, idx: number) => ({ id: idx + 1000, full_name: d, role: 'driver' })));
+          }
         })
-        .catch(() => {});
+        .catch(() => {
+          fetchUsers()
+            .then((res: any) => {
+              const raw = Array.isArray(res) ? res : (res?.users || []);
+              const list = raw.filter((u: any) => u.role === 'driver' || u.role === 'staff' || u.role === 'admin' || u.role === 'employee');
+              setDrivers(list);
+            })
+            .catch(() => {});
+        });
     }
   }, [isOpen, selectedParties]);
 
@@ -143,17 +155,20 @@ export const ShareDailyRouteModal: React.FC<ShareDailyRouteModalProps> = ({
     }
   };
 
-  // Build Public Share URL
+  // Build Public Share URL (Direct root URL with ?trip_token=... for universal reliability)
   const getFullShareUrl = (): string => {
     if (!createdTrip?.share_token) return '';
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    return `${origin}/driver?trip_token=${createdTrip.share_token}`;
+    return `${origin}/?trip_token=${createdTrip.share_token}`;
   };
 
   // Build Multi-Stop Google Maps Navigation URL
   const getGoogleMapsDirUrl = (): string => {
     const validGps = orderedParties.filter(p => p.latitude && p.longitude);
     if (validGps.length === 0) return 'https://www.google.com/maps';
+    if (validGps.length === 1) {
+      return `https://www.google.com/maps/dir/?api=1&destination=${validGps[0].latitude},${validGps[0].longitude}&travelmode=driving`;
+    }
     const origin = `${validGps[0].latitude},${validGps[0].longitude}`;
     const destination = `${validGps[validGps.length - 1].latitude},${validGps[validGps.length - 1].longitude}`;
     const waypoints = validGps
@@ -193,7 +208,12 @@ _(Opens full interactive road map, 1s GPS tracking, and delivery confirmation wi
 
   const handleShareWhatsApp = () => {
     const text = encodeURIComponent(getWhatsAppMessage());
-    window.open(`https://wa.me/?text=${text}`, '_blank');
+    const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if (isMobile) {
+      window.location.href = `https://api.whatsapp.com/send?text=${text}`;
+    } else {
+      window.open(`https://wa.me/?text=${text}`, '_blank');
+    }
   };
 
   const handleCopyLink = () => {
