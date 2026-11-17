@@ -8555,22 +8555,38 @@ class CachedStaticFiles(StaticFiles):
         return resp
 
 # Mount built React frontend if dist or backend/static exists
-dist_dir = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")
-static_dir = os.path.join(os.path.dirname(__file__), "static")
+backend_dir = os.path.dirname(os.path.abspath(__file__))
+repo_dir = os.path.dirname(backend_dir)
+dist_dir = os.path.join(repo_dir, "frontend", "dist")
+static_dir = os.path.join(backend_dir, "static")
+
+def _get_spa_index_file() -> Optional[str]:
+    candidates = [
+        os.path.join(dist_dir, "index.html"),
+        os.path.join(static_dir, "index.html"),
+        os.path.join(os.getcwd(), "frontend", "dist", "index.html"),
+        os.path.join(os.getcwd(), "backend", "static", "index.html"),
+    ]
+    for c in candidates:
+        if os.path.exists(c):
+            return c
+    return None
 
 # Direct SPA Routes for Driver Mode & Deep-linked URLs
 @app.get("/driver")
 @app.get("/driver/{full_path:path}")
 def serve_driver_view(request: Request):
-    index_file = os.path.join(dist_dir, "index.html") if os.path.exists(os.path.join(dist_dir, "index.html")) else os.path.join(static_dir, "index.html")
-    if os.path.exists(index_file):
+    index_file = _get_spa_index_file()
+    if index_file and os.path.exists(index_file):
         return FileResponse(index_file, media_type="text/html", headers={"Cache-Control": "no-cache"})
     raise HTTPException(status_code=404, detail="Driver app not found")
 
-if os.path.exists(dist_dir) and os.path.exists(os.path.join(dist_dir, "index.html")):
-    app.mount("/", CachedStaticFiles(directory=dist_dir, html=True), name="static")
-elif os.path.exists(static_dir) and os.path.exists(os.path.join(static_dir, "index.html")):
-    app.mount("/", CachedStaticFiles(directory=static_dir, html=True), name="static")
+mounted = False
+for d in [dist_dir, static_dir, os.path.join(os.getcwd(), "frontend", "dist"), os.path.join(os.getcwd(), "backend", "static")]:
+    if os.path.exists(d) and os.path.exists(os.path.join(d, "index.html")):
+        app.mount("/", CachedStaticFiles(directory=d, html=True), name="static")
+        mounted = True
+        break
 
 if __name__ == "__main__":
     import uvicorn
