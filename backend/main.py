@@ -8561,15 +8561,33 @@ dist_dir = os.path.join(repo_dir, "frontend", "dist")
 static_dir = os.path.join(backend_dir, "static")
 
 def _get_spa_index_file() -> Optional[str]:
+    f_dir = os.path.dirname(os.path.abspath(__file__)) if __file__ else ""
     candidates = [
-        os.path.join(dist_dir, "index.html"),
-        os.path.join(static_dir, "index.html"),
-        os.path.join(os.getcwd(), "frontend", "dist", "index.html"),
+        os.path.join(f_dir, "static", "index.html"),
+        os.path.join(f_dir, "..", "frontend", "dist", "index.html"),
+        os.path.join(f_dir, "..", "backend", "static", "index.html"),
         os.path.join(os.getcwd(), "backend", "static", "index.html"),
+        os.path.join(os.getcwd(), "frontend", "dist", "index.html"),
+        os.path.join(os.getcwd(), "static", "index.html"),
     ]
+    # Check sys.path entries (e.g. uvicorn --app-dir backend)
+    for p in sys.path:
+        if p:
+            candidates.append(os.path.join(p, "static", "index.html"))
+            candidates.append(os.path.join(p, "..", "frontend", "dist", "index.html"))
+            candidates.append(os.path.join(p, "..", "backend", "static", "index.html"))
+    home = os.environ.get("HOME", "")
+    if home:
+        candidates.extend([
+            os.path.join(home, "ENVELOPE", "backend", "static", "index.html"),
+            os.path.join(home, "ENVELOPE", "frontend", "dist", "index.html"),
+            os.path.join(home, "shreeji", "ENVELOPE", "backend", "static", "index.html"),
+            os.path.join(home, "shreeji", "MARG-Envelope-Manager", "backend", "static", "index.html"),
+            os.path.join(home, "MARG-ERP-9---Envelope-Print-manager", "backend", "static", "index.html"),
+        ])
     for c in candidates:
-        if os.path.exists(c):
-            return c
+        if c and os.path.isfile(c):
+            return os.path.abspath(c)
     return None
 
 # Direct SPA Routes for Driver Mode & Deep-linked URLs
