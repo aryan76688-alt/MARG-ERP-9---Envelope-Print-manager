@@ -1,4 +1,4 @@
-name: Auto Deploy to Cloudflare Pages
+name: Auto Deploy to Cloudflare Pages & Termux Live Server
 
 on:
   push:
@@ -8,13 +8,17 @@ on:
 
 jobs:
   deploy:
+    # Prevent infinite loops when CI auto-commits synced static bundles
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       deployments: write
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -28,8 +32,25 @@ jobs:
           cd frontend
           npm ci
           npm run build
+
+      - name: Auto-Sync Built Assets to Backend & Android (Laptop-Off Autonomous Mode)
+        continue-on-error: true
+        run: |
+          bash scripts/sync-frontend.sh
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/static android/app/src/main/assets
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(ci): auto-sync frontend build assets [skip ci]"
+            git push origin HEAD:main
+          else
+            echo "Static assets already up to date."
+          fi
+
+      - name: Prepare Cloudflare Pages Bundle
+        run: |
           # Exclude heavy Android APK from Pages bundle (Cloudflare 25MB limit)
-          rm -rf dist/downloads 2>/dev/null || true
+          rm -rf frontend/dist/downloads 2>/dev/null || true
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
@@ -40,3 +61,12 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Trigger 24/7 Live Termux Server Auto-Update
+        continue-on-error: true
+        run: |
+          echo "Triggering remote update on Termux live server..."
+          curl -fsS -m 20 -X POST "https://shreeji-envelope.aryan76688.workers.dev/api/system/server-update" \
+            -H "User-Agent: Mozilla/5.0" \
+            -H "Content-Type: application/json" \
+            -d '{}' || echo "Termux webhook unreachable right now; 2-minute watchdog will auto-pull."
